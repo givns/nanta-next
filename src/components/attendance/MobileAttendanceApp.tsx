@@ -19,6 +19,7 @@ import {
   formatTime,
   getCurrentTime,
 } from '@/utils/dateUtils';
+import { OvertimeState } from '@prisma/client';
 
 interface ShiftStatusInfo {
   isHoliday: boolean;
@@ -78,147 +79,43 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   });
 
   const getProgressPercentage = () => {
-    console.log('Progress Calculation Start:', {
-      currentPeriod,
-      attendanceStatus: attendanceStatus?.latestAttendance,
-      regularShift: shiftData,
-    });
-
     if (!currentPeriod?.current) {
       console.log('No current period found');
       return 0;
     }
 
     try {
-      const now = getCurrentTime(); // Current time
-      const today = format(now, 'yyyy-MM-dd'); // Get current date only
+      const now = getCurrentTime();
+      const today = format(now, 'yyyy-MM-dd');
 
-      // Create proper datetime objects using shift times
-      const startTime = parseISO(`${today}T${shiftData?.startTime || '08:00'}`);
-      const endTime = parseISO(`${today}T${shiftData?.endTime || '17:00'}`);
+      // During transition period, use the appropriate period times
+      const isTransitioning =
+        currentPeriod.type === 'overtime' &&
+        attendanceStatus?.latestAttendance?.periodType === 'regular';
 
-      // Format times for logging using utility functions
-      console.log('Time Reference Points:', {
-        nowUTC: now.toISOString(),
-        startUTC: startTime.toISOString(),
-        endUTC: endTime.toISOString(),
-        periodType: currentPeriod.type,
-        // Local times using our formatters
-        localNow: formatTime(now),
-        localStart: formatTime(startTime),
-        localEnd: formatTime(endTime),
-        localShiftStart: shiftData?.startTime,
-        localShiftEnd: shiftData?.endTime,
-      });
+      if (isTransitioning) {
+        // Use regular period times until transition is complete
+        const startTime = parseISO(
+          `${today}T${shiftData?.startTime || '08:00'}`,
+        );
+        const endTime = parseISO(`${today}T${shiftData?.endTime || '17:00'}`);
 
-      // Handle period transitions
-      if (attendanceStatus?.latestAttendance?.CheckOutTime) {
-        // If regular period completed and overtime available
-        if (
-          currentPeriod.type === 'regular' &&
-          overtimeInfo &&
-          isWithinInterval(now, {
-            start: parseISO(
-              `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-            ),
-            end: parseISO(
-              `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
-            ),
-          })
-        ) {
-          // Show overtime progress instead
-          const overtimeStart = parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-          );
-          const overtimeEnd = parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
-          );
-          const elapsedMinutes = differenceInMinutes(now, overtimeStart);
-          const totalMinutes = differenceInMinutes(overtimeEnd, overtimeStart);
+        const elapsedMinutes = differenceInMinutes(now, startTime);
+        const totalMinutes = differenceInMinutes(endTime, startTime);
 
-          return Math.max(
-            0,
-            Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-          );
-        }
-      }
-
-      // Calculate progress based on period type
-      if (currentPeriod.type === 'regular') {
-        console.log('Calculating regular shift progress');
-        const totalMinutes = calculateTimeDifference(startTime, endTime);
-        const elapsedMinutes = calculateTimeDifference(startTime, now);
-
-        console.log('Regular Shift Calculation:', {
-          totalMinutes,
-          elapsedMinutes,
-          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-          localNow: formatTime(now),
-          localStart: formatTime(startTime), // This should now show correct shift start time
-          localEnd: formatTime(endTime), // This should now show correct shift end time
-        });
-
-        const percentage = Math.max(
+        return Math.max(
           0,
           Math.min((elapsedMinutes / totalMinutes) * 100, 100),
         );
-        return Math.round(percentage * 100) / 100;
       }
 
-      if (currentPeriod.type === 'overtime') {
-        // For overtime, we should also use the actual overtime start/end times
-        const overtimeStart = parseISO(
-          `${today}T${overtimeInfo?.startTime || startTime}`,
-        );
-        const overtimeEnd = parseISO(
-          `${today}T${overtimeInfo?.endTime || endTime}`,
-        );
+      // Normal period progress calculation
+      const periodStart = parseISO(currentPeriod.current.start);
+      const periodEnd = parseISO(currentPeriod.current.end);
+      const elapsedMinutes = differenceInMinutes(now, periodStart);
+      const totalMinutes = differenceInMinutes(periodEnd, periodStart);
 
-        const totalMinutes = calculateTimeDifference(
-          overtimeStart,
-          overtimeEnd,
-        );
-        const elapsedMinutes = calculateTimeDifference(overtimeStart, now);
-
-        console.log('Overtime Calculation:', {
-          totalMinutes,
-          elapsedMinutes,
-          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-          localNow: formatTime(now),
-          localStart: formatTime(overtimeStart),
-          localEnd: formatTime(overtimeEnd),
-        });
-
-        const percentage = Math.max(
-          0,
-          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-        );
-        return Math.round(percentage * 100) / 100;
-      }
-
-      // Fallback calculation using shift times
-      const totalMinutes = calculateTimeDifference(startTime, endTime);
-      const elapsedMinutes = calculateTimeDifference(startTime, now);
-
-      if (totalMinutes <= 0) {
-        console.log('Invalid period duration');
-        return 0;
-      }
-
-      const percentage = Math.max(
-        0,
-        Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-      );
-      const roundedPercentage = Math.round(percentage * 100) / 100;
-
-      console.log('Final Progress:', {
-        totalMinutes,
-        elapsedMinutes,
-        rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-        roundedPercentage,
-      });
-
-      return roundedPercentage;
+      return Math.max(0, Math.min((elapsedMinutes / totalMinutes) * 100, 100));
     } catch (error) {
       console.error('Progress calculation error:', {
         error,
@@ -227,6 +124,48 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       });
       return 0;
     }
+  };
+
+  const getCheckInTime = () => {
+    const latestAttendance = attendanceStatus.latestAttendance;
+
+    // Handle transition period
+    const isTransitioning =
+      currentPeriod?.type === 'overtime' &&
+      latestAttendance?.periodType === 'regular';
+
+    if (isTransitioning) {
+      // Show regular period check-in time during transition
+      return format(parseISO(latestAttendance?.CheckInTime || ''), 'HH:mm');
+    }
+
+    // Rest of check-in time logic...
+    if (latestAttendance?.CheckInTime) {
+      return format(parseISO(latestAttendance.CheckInTime), 'HH:mm');
+    }
+
+    return '--:--';
+  };
+
+  const getCheckOutTime = () => {
+    const latestAttendance = attendanceStatus.latestAttendance;
+
+    // Handle transition period
+    const isTransitioning =
+      currentPeriod?.type === 'overtime' &&
+      latestAttendance?.periodType === 'regular';
+
+    if (isTransitioning) {
+      // Show regular period end time during transition
+      return format(parseISO(latestAttendance.shiftEndTime ?? ''), 'HH:mm');
+    }
+
+    // Rest of check-out time logic...
+    if (latestAttendance?.CheckOutTime) {
+      return format(parseISO(latestAttendance.CheckOutTime), 'HH:mm');
+    }
+
+    return '--:--';
   };
 
   const getRelevantOvertimes = () => {
@@ -261,92 +200,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     return null;
-  };
-
-  const getCheckInTime = () => {
-    const latestAttendance = attendanceStatus.latestAttendance;
-
-    // Return next period time if in overtime-ended state
-    if (
-      latestAttendance?.overtimeState &&
-      latestAttendance.overtimeState === 'COMPLETED' &&
-      currentPeriod?.type === PeriodType.REGULAR
-    ) {
-      return '--:--'; // Reset time for new regular period
-    }
-
-    // Direct time parsing from attendance data
-    if (latestAttendance?.CheckInTime) {
-      // Parse ISO string and format in local time
-      const checkInDate = new Date(latestAttendance.CheckInTime);
-      const hours = String(checkInDate.getHours()).padStart(2, '0');
-      const minutes = String(checkInDate.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-
-    // Handle current period check in
-    if (currentPeriod?.checkInTime) {
-      const checkInDate = new Date(currentPeriod.checkInTime);
-      const hours = String(checkInDate.getHours()).padStart(2, '0');
-      const minutes = String(checkInDate.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-
-    // For overtime periods
-    if (
-      currentPeriod?.type === 'overtime' &&
-      !attendanceStatus.isCheckingIn &&
-      currentPeriod.current?.start
-    ) {
-      const startDate = new Date(currentPeriod.current.start);
-      const hours = String(startDate.getHours()).padStart(2, '0');
-      const minutes = String(startDate.getMinutes()).padStart(2, '0');
-      return `${hours}:${minutes}`;
-    }
-
-    return '--:--';
-  };
-
-  const getCheckOutTime = () => {
-    const latestAttendance = attendanceStatus.latestAttendance;
-
-    // Return next period time if in overtime-ended state
-    if (
-      latestAttendance?.overtimeState === 'COMPLETED' &&
-      currentPeriod?.type === PeriodType.REGULAR
-    ) {
-      return '--:--'; // Reset time for new regular period
-    }
-
-    if (latestAttendance?.CheckOutTime) {
-      const [hours, minutes] = format(
-        parseISO(latestAttendance.CheckOutTime),
-        'HH:mm',
-      ).split(':');
-      return `${hours}:${minutes}`;
-    }
-
-    if (currentPeriod?.checkOutTime) {
-      const [hours, minutes] = format(
-        parseISO(currentPeriod.checkOutTime),
-        'HH:mm',
-      ).split(':');
-      return `${hours}:${minutes}`;
-    }
-
-    if (
-      currentPeriod?.type === 'overtime' &&
-      !attendanceStatus.isCheckingIn &&
-      currentPeriod.current?.end
-    ) {
-      const [hours, minutes] = format(
-        parseISO(currentPeriod.current.end),
-        'HH:mm',
-      ).split(':');
-      return `${hours}:${minutes}`;
-    }
-
-    return '--:--';
   };
 
   const isWithinOvertimePeriod =
