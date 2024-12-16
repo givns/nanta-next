@@ -51,6 +51,9 @@ export interface CheckInOutAllowance {
     isApprovedEarlyCheckout?: boolean;
     isPlannedHalfDayLeave?: boolean;
     isEmergencyLeave?: boolean;
+    hasPendingTransition?: boolean;
+    requiresAutoCompletion?: boolean;
+    requiresOvertimeCheckIn?: boolean;
   };
 
   // Enhanced timing

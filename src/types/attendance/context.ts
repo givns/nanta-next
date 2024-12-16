@@ -68,7 +68,7 @@ export interface ValidationContext {
 
   // Additional contexts
   isOvertime?: boolean;
-  overtimeInfo?: ApprovedOvertimeInfo;
+  overtimeInfo?: ApprovedOvertimeInfo | null;
   leaveRequest?: LeaveRequest;
 
   // Location data

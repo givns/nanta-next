@@ -594,9 +594,46 @@ export class AttendanceCheckService {
     fromPeriod: { start: Date; end: Date; type: PeriodType },
     toPeriod: { start: Date; end: Date; type: PeriodType },
   ): CheckInOutAllowance {
-    const { now, inPremises, address } = context;
+    const { now, inPremises, address, latestAttendance } = context;
 
-    // Define transition window dynamically based on period end/start
+    // Add check for overtime transition case
+    if (
+      fromPeriod.type === PeriodType.REGULAR &&
+      toPeriod.type === PeriodType.OVERTIME
+    ) {
+      // If already checked in but not checked out, handle the transition
+      if (latestAttendance?.CheckInTime && !latestAttendance.CheckOutTime) {
+        return this.createResponse(
+          true,
+          'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา',
+          {
+            inPremises,
+            address,
+            periodType: fromPeriod.type,
+            requireConfirmation: true,
+            flags: {
+              isOvertime: true,
+              isAutoCheckOut: true,
+              hasPendingTransition: true,
+              requiresOvertimeCheckIn: true,
+            },
+            timing: {
+              transitionWindow: {
+                start: fromPeriod.end.toISOString(),
+                end: toPeriod.start.toISOString(),
+                fromPeriod: fromPeriod.type,
+                toPeriod: toPeriod.type,
+              },
+            },
+            metadata: {
+              overtimeId: context.approvedOvertime?.id,
+            },
+          },
+        );
+      }
+    }
+
+    // Keep existing transition window logic
     const transitionWindow = {
       start: subMinutes(toPeriod.start, 15),
       end: addMinutes(toPeriod.start, 15),

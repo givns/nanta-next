@@ -117,11 +117,13 @@ export interface AttendanceFlags {
   isPlannedHalfDayLeave: boolean;
   isEmergencyLeave: boolean;
   hasActivePeriod: boolean;
-  hasPendingTransition: boolean;
   requiresAutoCompletion: boolean;
   isHoliday: boolean;
   isDayOff: boolean;
   isManualEntry: boolean;
+  hasPendingTransition?: boolean;
+  requiresOvertimeCheckIn?: boolean;
+  requiresTransition?: boolean;
 }
 
 export interface AddressInput {
