@@ -76,49 +76,56 @@ export class PeriodManagementService {
     let effectiveWindow = { ...window };
     let effectivePeriod = null;
 
-    // Handle post-overtime transition
-    if (this.isPostOvertimeTransition(baseStatus, window)) {
-      const regularStart = this.parseWindowTime(
-        window.nextPeriod!.startTime,
-        now,
-      );
-      const regularEnd = this.parseWindowTime(window.shift.endTime, now);
-      effectiveWindow = this.createRegularWindow(
-        window,
-        regularStart,
-        regularEnd,
-      );
-      effectivePeriod = this.createRegularPeriod(regularStart, regularEnd);
-    }
-    // Handle regular to overtime transition
-    else if (this.isInTransitionWindow(window, now, overtimeInfo)) {
+    // During transition window (21:45), should show regular period
+    const effectiveShiftStart = this.parseWindowTime(
+      window.shift.startTime,
+      now,
+    ); // 13:00
+    const effectiveShiftEnd = this.parseWindowTime(window.shift.endTime, now); // 22:00
+
+    // If overtime exists, check for transition window
+    if (overtimeInfo) {
+      const overtimeStart = this.parseWindowTime(overtimeInfo.startTime, now); // 22:00
+      const isInTransition = isWithinInterval(now, {
+        start: subMinutes(overtimeStart, 30), // 21:30
+        end: overtimeStart, // 22:00
+      });
+
       if (
+        isInTransition &&
         baseStatus.latestAttendance?.CheckInTime &&
         !baseStatus.latestAttendance.CheckOutTime
       ) {
-        // Keep regular period during transition
-        const regularStart = this.parseWindowTime(window.shift.startTime, now);
-        const regularEnd = this.parseWindowTime(window.shift.endTime, now);
-        effectiveWindow = this.createRegularWindow(
-          window,
-          regularStart,
-          regularEnd,
-        );
-        effectivePeriod = this.createRegularPeriod(regularStart, regularEnd);
-
-        // Add transition metadata
-        effectiveWindow.transition = {
-          from: {
+        // During transition, keep regular period as effective
+        return {
+          effectiveWindow: {
+            ...window,
             type: PeriodType.REGULAR,
-            end: regularEnd.toISOString(),
+            current: {
+              start: effectiveShiftStart.toISOString(),
+              end: effectiveShiftEnd.toISOString(),
+            },
+            // Add transition info
+            transition: {
+              from: {
+                type: PeriodType.REGULAR,
+                end: effectiveShiftEnd.toISOString(),
+              },
+              to: {
+                type: PeriodType.OVERTIME,
+                start: overtimeStart.toISOString(),
+              },
+              isInTransition: true,
+            },
           },
-          to: {
-            type: PeriodType.OVERTIME,
-            start: overtimeInfo
-              ? this.parseWindowTime(overtimeInfo.startTime, now).toISOString()
-              : null,
+          effectivePeriod: {
+            type: PeriodType.REGULAR,
+            startTime: effectiveShiftStart,
+            endTime: effectiveShiftEnd,
+            isOvertime: false,
+            isOvernight: window.shift.endTime < window.shift.startTime,
+            isConnected: true,
           },
-          isInTransition: true,
         };
       }
     } else if (this.isEarlyOvertimeTransition(window, now)) {

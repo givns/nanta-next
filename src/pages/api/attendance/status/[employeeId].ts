@@ -165,6 +165,12 @@ function mapEnhancedResponse(
         isComplete: false,
       };
 
+  // Check if we're in transition window
+  const isInTransition =
+    enhanced.pendingTransitions.length > 0 &&
+    enhanced.pendingTransitions[0].from === PeriodType.REGULAR &&
+    enhanced.pendingTransitions[0].to === PeriodType.OVERTIME;
+
   return {
     daily: {
       date: format(context.now, 'yyyy-MM-dd'),
@@ -177,10 +183,12 @@ function mapEnhancedResponse(
         },
         status: {
           isComplete: Boolean(nonNullRecords[index]?.CheckOutTime),
-          isCurrent: isWithinInterval(context.now, {
-            start: period.startTime,
-            end: period.endTime,
-          }),
+          isCurrent: isInTransition
+            ? period.type === PeriodType.REGULAR // During transition, regular period is current
+            : isWithinInterval(context.now, {
+                start: period.startTime,
+                end: period.endTime,
+              }),
           requiresTransition: Boolean(period.isConnected),
         },
         attendance: nonNullRecords[index]
@@ -216,32 +224,50 @@ function mapEnhancedResponse(
           }
         : null,
     },
-    window: context.window,
+    window: isInTransition
+      ? { ...context.window, type: PeriodType.REGULAR } // Keep as regular during transition
+      : context.window,
     validation: {
       allowed: context.baseValidation.allowed,
-      reason: context.baseValidation.reason,
+      reason: isInTransition
+        ? 'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา'
+        : context.baseValidation.reason,
       flags: {
         ...context.baseValidation.flags,
+        hasActivePeriod: Boolean(
+          baseStatus.latestAttendance?.CheckInTime &&
+            !baseStatus.latestAttendance?.CheckOutTime,
+        ),
+        hasPendingTransition: isInTransition,
+        isInsideShift: Boolean(
+          baseStatus.latestAttendance?.shiftStartTime &&
+            isWithinInterval(context.now, {
+              start: new Date(baseStatus.latestAttendance.shiftStartTime),
+              end: new Date(baseStatus.latestAttendance.shiftEndTime || ''),
+            }),
+        ),
+        isEarlyCheckIn: isInTransition
+          ? false
+          : enhancedValidation.periodValidation.isEarlyForPeriod,
+        isAutoCheckOut: isInTransition,
+        isOvertime: isInTransition ? false : PeriodType.OVERTIME,
+        requiresOvertimeCheckIn: isInTransition,
         isPendingDayOffOvertime: false,
         isPendingOvertime: false,
         isOutsideShift: false,
         isLate: false,
         isEarly: false,
-        isEarlyCheckIn: enhancedValidation.periodValidation.isEarlyForPeriod,
         isEarlyCheckOut: false,
         isLateCheckIn: false,
         isLateCheckOut: enhancedValidation.periodValidation.isLateForPeriod,
         isVeryLateCheckOut: false,
         isAutoCheckIn: false,
-        isAutoCheckOut: false,
         isAfternoonShift: false,
         isMorningShift: false,
         isAfterMidshift: false,
         isApprovedEarlyCheckout: false,
         isPlannedHalfDayLeave: false,
         isEmergencyLeave: false,
-        hasActivePeriod: false,
-        hasPendingTransition: false,
         requiresAutoCompletion: false,
         isHoliday: false,
         isDayOff: false,
@@ -250,16 +276,22 @@ function mapEnhancedResponse(
       periodValidation: {
         currentPeriod: {
           index: timeline.currentPeriodIndex,
-          canCheckIn:
-            context.baseValidation.allowed && !nonNullRecords[0]?.CheckInTime,
-          canCheckOut:
-            context.baseValidation.allowed && !!nonNullRecords[0]?.CheckInTime,
-          requiresTransition: enhanced.pendingTransitions.length > 0,
-          message: context.baseValidation.reason,
+          canCheckIn: isInTransition
+            ? false
+            : context.baseValidation.allowed && !nonNullRecords[0]?.CheckInTime,
+          canCheckOut: isInTransition
+            ? true
+            : context.baseValidation.allowed &&
+              !!nonNullRecords[0]?.CheckInTime,
+          requiresTransition: isInTransition,
+          message: isInTransition
+            ? 'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา'
+            : context.baseValidation.reason,
           enhancement: {
             isWithinPeriod: enhancedValidation.periodValidation.isWithinPeriod,
-            isEarlyForPeriod:
-              enhancedValidation.periodValidation.isEarlyForPeriod,
+            isEarlyForPeriod: isInTransition
+              ? false
+              : enhancedValidation.periodValidation.isEarlyForPeriod,
             isLateForPeriod:
               enhancedValidation.periodValidation.isLateForPeriod,
             periodStart:
@@ -459,17 +491,38 @@ function createTimelineEnhancement(
   records: AttendanceRecord[],
   now: Date,
 ): TimelineEnhancement {
+  // Check for transition period
+  const overtimePeriod = periods.find((p) => p.type === PeriodType.OVERTIME);
+  const regularPeriod = periods.find((p) => p.type === PeriodType.REGULAR);
+
+  const isInTransition =
+    overtimePeriod &&
+    regularPeriod &&
+    isWithinInterval(now, {
+      start: subMinutes(overtimePeriod.startTime, 30),
+      end: overtimePeriod.startTime,
+    });
+
   return {
-    currentPeriodIndex: periods.findIndex((p) =>
-      isWithinInterval(now, { start: p.startTime, end: p.endTime }),
-    ),
+    currentPeriodIndex: periods.findIndex((p) => {
+      if (isInTransition && p.type === PeriodType.REGULAR) {
+        return true; // During transition, regular period is current
+      }
+      return isWithinInterval(now, {
+        start: p.startTime,
+        end: p.endTime,
+      });
+    }),
     periodEntries: periods.map((period, index) => ({
       periodType: period.type,
       startTime: period.startTime.toISOString(),
       endTime: period.endTime.toISOString(),
       checkInTime: records[index]?.CheckInTime?.toISOString(),
       checkOutTime: records[index]?.CheckOutTime?.toISOString(),
-      status: getPeriodEntryStatus(period, records[index], now),
+      status:
+        isInTransition && period.type === PeriodType.REGULAR
+          ? 'active' // Keep regular period active during transition
+          : getPeriodEntryStatus(period, records[index], now),
     })),
   };
 }
@@ -505,6 +558,18 @@ function getPeriodEntryStatus(
   record: AttendanceRecord | null,
   now: Date,
 ): 'pending' | 'active' | 'completed' {
+  // Handle overtime period specially
+  if (period.type === PeriodType.OVERTIME) {
+    const transitionStart = subMinutes(period.startTime, 30);
+
+    // If in transition window
+    if (
+      isWithinInterval(now, { start: transitionStart, end: period.startTime })
+    ) {
+      return 'pending';
+    }
+  }
+
   if (isAfter(period.startTime, now)) return 'pending';
   if (record?.CheckOutTime) return 'completed';
   if (isWithinInterval(now, { start: period.startTime, end: period.endTime })) {
