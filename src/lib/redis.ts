@@ -1,18 +1,51 @@
-import { Redis } from 'ioredis';
+// lib/redis.ts
 
-let redis: Redis | null = null;
+import Redis from 'ioredis';
+let redisClient: Redis | null = null;
 
-// Check if we're in a Node.js environment and have Redis URL
-if (
-  typeof process !== 'undefined' &&
-  process.env.NODE_ENV !== 'test' &&
-  process.env.REDIS_URL
-) {
+export function initializeRedis() {
+  if (redisClient) return redisClient;
+
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    console.warn('REDIS_URL not set, Redis caching will be disabled');
+    return null;
+  }
+
   try {
-    redis = new Redis(process.env.REDIS_URL);
+    redisClient = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      retryStrategy: (times) => Math.min(times * 1000, 3000),
+      connectTimeout: 10000,
+      enableReadyCheck: true,
+      enableOfflineQueue: false,
+      lazyConnect: true,
+    });
+
+    redisClient
+      .on('connect', () => console.info('Redis: Establishing connection...'))
+      .on('ready', () =>
+        console.info('Redis: Connection established and ready'),
+      )
+      .on('error', (err) => {
+        console.error('Redis error:', err);
+        redisClient = null;
+      })
+      .on('close', () => {
+        console.warn('Redis: Connection closed');
+        redisClient = null;
+      });
+
+    return redisClient;
   } catch (error) {
-    console.error('Failed to initialize Redis:', error);
+    console.error('Redis initialization error:', error);
+    return null;
   }
 }
 
-export default redis;
+export function getRedisClient() {
+  if (!redisClient) {
+    return initializeRedis();
+  }
+  return redisClient;
+}

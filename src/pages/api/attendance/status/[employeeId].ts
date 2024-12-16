@@ -36,6 +36,14 @@ import {
 } from 'date-fns';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { z } from 'zod';
+
+type ApiResponse =
+  | AttendanceStatusResponse
+  | {
+      error: string;
+      message?: string;
+      details?: Array<{ message: string; path: string[] }>; // Add details to the error type
+    };
 // Initialize services
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
@@ -49,20 +57,32 @@ const attendanceService = new AttendanceService(
   services.timeEntryService,
 );
 
-const RequestSchema = z.object({
+// Request validation schema
+const CoordinatesSchema = z.object({
+  lat: z.coerce.number(),
+  lng: z.coerce.number(),
+});
+
+const QuerySchema = z.object({
   employeeId: z.string(),
   inPremises: z
     .string()
     .optional()
     .transform((val) => val === 'true'),
-  address: z.string().optional(),
+  address: z.string().optional().default(''),
+  confidence: z.string().optional().default('low'),
   coordinates: z
-    .object({
-      lat: z.number(),
-      lng: z.number(),
+    .record(z.any())
+    .transform((coords) => {
+      if (coords.lat && coords.lng) {
+        return {
+          lat: Number(coords.lat),
+          lng: Number(coords.lng),
+        };
+      }
+      return undefined;
     })
     .optional(),
-  confidence: z.string().optional(),
 });
 
 function mapEnhancedResponse(
@@ -266,9 +286,7 @@ function mapEnhancedResponse(
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<
-    AttendanceStatusResponse | { error: string; message?: string }
-  >,
+  res: NextApiResponse<ApiResponse>,
 ) {
   console.log('Attendance status request:', {
     method: req.method,
@@ -281,45 +299,28 @@ export default async function handler(
   }
 
   try {
-    // Validate request parameters
-    const validatedParams = RequestSchema.safeParse(req.query);
+    // Parse and validate request parameters
+    const validatedParams = QuerySchema.safeParse(req.query);
     if (!validatedParams.success) {
+      console.error('Validation error:', validatedParams.error);
       return res.status(400).json({
         error: ErrorCode.INVALID_INPUT,
         message: 'Invalid request parameters',
       });
     }
 
-    const { employeeId, inPremises, address } = validatedParams.data;
+    const { employeeId, inPremises, address, coordinates, confidence } =
+      validatedParams.data;
 
     const now = getCurrentTime();
     const periodManager = new PeriodManagementService();
     const enhancementService = new AttendanceEnhancementService();
 
     try {
-      // 1. Fetch base data with error handling
       const [baseStatus, window, baseValidation] = await Promise.all([
-        attendanceService.getBaseStatus(employeeId).catch((error) => {
-          console.error('Error fetching base status:', error);
-          throw new AppError({
-            code: ErrorCode.DATA_FETCH_ERROR,
-            message: 'Failed to fetch attendance status',
-          });
-        }),
-        services.shiftService
-          .getCurrentWindow(employeeId, now)
-          .catch((error) => {
-            console.error('Error fetching window:', error);
-            throw new AppError({
-              code: ErrorCode.SHIFT_DATA_ERROR,
-              message: 'Failed to fetch shift data',
-            });
-          }),
-        attendanceService.validateCheckInOut(
-          employeeId,
-          inPremises,
-          address || '',
-        ),
+        attendanceService.getBaseStatus(employeeId),
+        services.shiftService.getCurrentWindow(employeeId, getCurrentTime()),
+        attendanceService.validateCheckInOut(employeeId, inPremises, address),
       ]);
 
       if (!window) {
