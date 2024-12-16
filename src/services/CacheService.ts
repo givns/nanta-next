@@ -1,4 +1,3 @@
-import { getRedisClient } from '@/lib/redis';
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 
@@ -54,7 +53,19 @@ export class CacheService {
         redisUrl.replace(/(:.*@)/, ':****@'),
       );
 
-      this.client = getRedisClient(); // Use the getRedisClient from lib/redis.ts
+      const Redis = await import('ioredis');
+      this.client = new Redis.default(redisUrl, {
+        maxRetriesPerRequest: 3,
+        retryStrategy: (times: number) => Math.min(times * 1000, 3000),
+        connectTimeout: 10000,
+        enableReadyCheck: true,
+        enableOfflineQueue: true,
+        lazyConnect: true, // Add this to prevent immediate connection
+        reconnectOnError: (err) => {
+          console.error('Redis reconnect error:', err.message);
+          return true;
+        },
+      });
 
       // Wait for connection before proceeding
       await new Promise<void>((resolve, reject) => {
