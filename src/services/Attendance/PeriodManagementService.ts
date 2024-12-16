@@ -76,6 +76,12 @@ export class PeriodManagementService {
     let effectiveWindow = { ...window };
     let effectivePeriod = null;
 
+    console.log('Effective Window:', JSON.stringify(effectiveWindow, null, 2));
+    console.log(
+      'Overtime Info:',
+      JSON.stringify(effectiveWindow.overtimeInfo, null, 2),
+    );
+
     // During transition window (21:45), should show regular period
     const effectiveShiftStart = this.parseWindowTime(
       window.shift.startTime,
