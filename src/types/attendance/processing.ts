@@ -98,14 +98,34 @@ export interface ProcessingOptions {
   address?: string; // Optional location name
   inPremises?: boolean;
 
+  // Add transition-specific fields
+  flags?: {
+    isAutoCheckOut?: boolean;
+    hasPendingTransition?: boolean;
+    requiresOvertimeCheckIn?: boolean;
+    hasActivePeriod?: boolean;
+    isInsideTransitionWindow?: boolean;
+  };
   // Additional data
   overtimeRequestId?: string;
   reason?: string;
   photo?: string;
   updatedBy?: string;
 
-  // Metadata
-  metadata?: Omit<Record<string, unknown>, 'periodType'>;
+  // Extend metadata for transition
+  metadata?: Omit<Record<string, unknown>, 'periodType'> & {
+    overtimeId?: string;
+    transitionDetails?: {
+      fromPeriod: {
+        type: PeriodType;
+        end: string;
+      };
+      toPeriod: {
+        type: PeriodType;
+        start: string;
+      };
+    };
+  };
 }
 
 // Separate options type for client-side use

@@ -144,6 +144,17 @@ export interface ShiftWindowResponse {
   };
   overtimeInfo?: OvertimeContext;
   nextPeriod?: NextPeriod | null;
+  transition?: {
+    from: {
+      type: PeriodType;
+      end: string;
+    };
+    to: {
+      type: PeriodType;
+      start: string | null;
+    };
+    isInTransition: boolean;
+  };
 }
 
 export interface ValidationResponseWithMetadata {

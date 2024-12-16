@@ -596,42 +596,47 @@ export class AttendanceCheckService {
   ): CheckInOutAllowance {
     const { now, inPremises, address, latestAttendance } = context;
 
-    // Add check for overtime transition case
-    // Handle regular to overtime transition
     if (
       fromPeriod.type === PeriodType.REGULAR &&
-      toPeriod.type === PeriodType.OVERTIME &&
-      latestAttendance?.CheckInTime &&
-      !latestAttendance.CheckOutTime
+      toPeriod.type === PeriodType.OVERTIME
     ) {
-      return this.createResponse(
-        true,
-        'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา',
-        {
-          inPremises,
-          address,
-          periodType: PeriodType.REGULAR, // Keep as regular until transition complete
-          requireConfirmation: true,
-          flags: {
-            isOvertime: true,
-            isAutoCheckOut: true,
-            hasPendingTransition: true,
-            hasActivePeriod: true,
-            isInsideShift: true,
-            isEarlyCheckIn: false,
-          },
-          timing: {
-            transitionWindow: {
-              start: fromPeriod.end.toISOString(),
-              end: toPeriod.start.toISOString(),
-              fromPeriod: fromPeriod.type,
-              toPeriod: toPeriod.type,
+      const isInTransition = isWithinInterval(context.now, {
+        start: subMinutes(toPeriod.start, 5),
+        end: toPeriod.start,
+      });
+
+      if (isInTransition) {
+        return this.createResponse(
+          true,
+          'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา',
+          {
+            inPremises: context.inPremises,
+            address: context.address,
+            periodType: PeriodType.REGULAR,
+            requireConfirmation: true,
+            flags: {
+              hasActivePeriod: true,
+              hasPendingTransition: true,
+              isAutoCheckOut: true,
+              requiresOvertimeCheckIn: true,
+              isOvertime: false,
             },
-            plannedEndTime: fromPeriod.end.toISOString(),
-            plannedStartTime: toPeriod.start.toISOString(),
+            timing: {
+              transitionWindow: {
+                start: subMinutes(toPeriod.start, 30).toISOString(),
+                end: toPeriod.start.toISOString(),
+                fromPeriod: PeriodType.REGULAR,
+                toPeriod: PeriodType.OVERTIME,
+              },
+              plannedEndTime: fromPeriod.end.toISOString(),
+              plannedStartTime: toPeriod.start.toISOString(),
+            },
+            metadata: {
+              overtimeId: context.approvedOvertime?.id,
+            },
           },
-        },
-      );
+        );
+      }
     }
 
     // Keep existing transition window logic

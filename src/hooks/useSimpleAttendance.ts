@@ -63,28 +63,14 @@ export function useSimpleAttendance({
   useEffect(() => {
     if (data) {
       console.log('useAttendanceData raw response:', {
-        base: {
-          state: data.base.state,
-          checkStatus: data.base.checkStatus,
-          isCheckingIn: data.base.isCheckingIn,
-          latestAttendance: data.base.latestAttendance,
-        },
-        window: {
-          type: data.window.type,
-          current: data.window.current,
-          shift: data.window.shift,
-        },
+        daily: data.daily,
+        base: data.base,
+        window: data.window,
         validation: data.validation,
+        enhanced: data.enhanced,
       });
     }
   }, [data]);
-
-  useEffect(() => {
-    console.log('Overtime context update:', {
-      hasOvertimeInfo: !!data?.window?.overtimeInfo,
-      overtimeContext,
-    });
-  }, [data?.window?.overtimeInfo, overtimeContext]);
 
   // Initialize overtime context when data changes
   useEffect(() => {
@@ -102,6 +88,13 @@ export function useSimpleAttendance({
       setOvertimeContext(null);
     }
   }, [data?.window?.overtimeInfo]);
+
+  useEffect(() => {
+    console.log('Overtime context update:', {
+      hasOvertimeInfo: !!data?.window?.overtimeInfo,
+      overtimeContext,
+    });
+  }, [data?.window?.overtimeInfo, overtimeContext]);
 
   // Clear initializing state once data is loaded
   useEffect(() => {

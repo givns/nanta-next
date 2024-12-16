@@ -76,6 +76,7 @@ export class PeriodManagementService {
     let effectiveWindow = { ...window };
     let effectivePeriod = null;
 
+    // Handle post-overtime transition
     if (this.isPostOvertimeTransition(baseStatus, window)) {
       const regularStart = this.parseWindowTime(
         window.nextPeriod!.startTime,
@@ -88,6 +89,38 @@ export class PeriodManagementService {
         regularEnd,
       );
       effectivePeriod = this.createRegularPeriod(regularStart, regularEnd);
+    }
+    // Handle regular to overtime transition
+    else if (this.isInTransitionWindow(window, now, overtimeInfo)) {
+      if (
+        baseStatus.latestAttendance?.CheckInTime &&
+        !baseStatus.latestAttendance.CheckOutTime
+      ) {
+        // Keep regular period during transition
+        const regularStart = this.parseWindowTime(window.shift.startTime, now);
+        const regularEnd = this.parseWindowTime(window.shift.endTime, now);
+        effectiveWindow = this.createRegularWindow(
+          window,
+          regularStart,
+          regularEnd,
+        );
+        effectivePeriod = this.createRegularPeriod(regularStart, regularEnd);
+
+        // Add transition metadata
+        effectiveWindow.transition = {
+          from: {
+            type: PeriodType.REGULAR,
+            end: regularEnd.toISOString(),
+          },
+          to: {
+            type: PeriodType.OVERTIME,
+            start: overtimeInfo
+              ? this.parseWindowTime(overtimeInfo.startTime, now).toISOString()
+              : null,
+          },
+          isInTransition: true,
+        };
+      }
     } else if (this.isEarlyOvertimeTransition(window, now)) {
       // Use passed overtimeInfo if available, otherwise fall back to window
       const currentOvertimeInfo =
@@ -112,6 +145,22 @@ export class PeriodManagementService {
     }
 
     return { effectiveWindow, effectivePeriod };
+  }
+
+  private isInTransitionWindow(
+    window: ShiftWindowResponse,
+    now: Date,
+    overtimeInfo?: OvertimeContext,
+  ): boolean {
+    if (!overtimeInfo) return false;
+
+    const overtimeStart = this.parseWindowTime(overtimeInfo.startTime, now);
+    const transitionStart = subMinutes(overtimeStart, 30);
+
+    return isWithinInterval(now, {
+      start: transitionStart,
+      end: overtimeStart,
+    });
   }
 
   createPeriodFromWindow(window: ShiftWindowResponse): Period {

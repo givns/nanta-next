@@ -221,6 +221,7 @@ const fetchAttendanceData = async (
         metadata: checkInOutAllowance.metadata || {},
       };
     }
+    console.log('Check-in/out allowance:', responseData.checkInOutAllowance);
   } catch (error) {
     console.error('Error getting check-in/out allowance:', error);
     // Don't throw here - allowance check is non-critical
