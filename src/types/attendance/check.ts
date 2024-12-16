@@ -52,6 +52,7 @@ export interface CheckInOutAllowance {
     isPlannedHalfDayLeave?: boolean;
     isEmergencyLeave?: boolean;
     hasPendingTransition?: boolean;
+    hasActivePeriod?: boolean;
     requiresAutoCompletion?: boolean;
     requiresOvertimeCheckIn?: boolean;
   };

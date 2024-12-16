@@ -597,40 +597,41 @@ export class AttendanceCheckService {
     const { now, inPremises, address, latestAttendance } = context;
 
     // Add check for overtime transition case
+    // Handle regular to overtime transition
     if (
       fromPeriod.type === PeriodType.REGULAR &&
-      toPeriod.type === PeriodType.OVERTIME
+      toPeriod.type === PeriodType.OVERTIME &&
+      latestAttendance?.CheckInTime &&
+      !latestAttendance.CheckOutTime
     ) {
-      // If already checked in but not checked out, handle the transition
-      if (latestAttendance?.CheckInTime && !latestAttendance.CheckOutTime) {
-        return this.createResponse(
-          true,
-          'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา',
-          {
-            inPremises,
-            address,
-            periodType: fromPeriod.type,
-            requireConfirmation: true,
-            flags: {
-              isOvertime: true,
-              isAutoCheckOut: true,
-              hasPendingTransition: true,
-              requiresOvertimeCheckIn: true,
-            },
-            timing: {
-              transitionWindow: {
-                start: fromPeriod.end.toISOString(),
-                end: toPeriod.start.toISOString(),
-                fromPeriod: fromPeriod.type,
-                toPeriod: toPeriod.type,
-              },
-            },
-            metadata: {
-              overtimeId: context.approvedOvertime?.id,
-            },
+      return this.createResponse(
+        true,
+        'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา',
+        {
+          inPremises,
+          address,
+          periodType: PeriodType.REGULAR, // Keep as regular until transition complete
+          requireConfirmation: true,
+          flags: {
+            isOvertime: true,
+            isAutoCheckOut: true,
+            hasPendingTransition: true,
+            hasActivePeriod: true,
+            isInsideShift: true,
+            isEarlyCheckIn: false,
           },
-        );
-      }
+          timing: {
+            transitionWindow: {
+              start: fromPeriod.end.toISOString(),
+              end: toPeriod.start.toISOString(),
+              fromPeriod: fromPeriod.type,
+              toPeriod: toPeriod.type,
+            },
+            plannedEndTime: fromPeriod.end.toISOString(),
+            plannedStartTime: toPeriod.start.toISOString(),
+          },
+        },
+      );
     }
 
     // Keep existing transition window logic

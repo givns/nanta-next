@@ -67,9 +67,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   locationState,
 }) => {
   const currentTime = getCurrentTime();
-  const now = new Date();
+
   console.log('Current time:', currentTime);
-  console.log('Now:', now);
   console.log('attendanceStatus:', attendanceStatus);
   console.log('Current Period Data:', {
     current: currentPeriod?.current,
