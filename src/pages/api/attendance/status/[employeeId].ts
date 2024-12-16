@@ -85,6 +85,23 @@ const QuerySchema = z.object({
     .optional(),
 });
 
+function deduplicatePeriods(periods: Period[]): Period[] {
+  // Create a unique key for each period based on its critical attributes
+  const uniquePeriodMap = new Map<string, Period>();
+
+  periods.forEach((period) => {
+    // Create a unique key that considers period type, start time, and end time
+    const key = `${period.type}_${period.startTime.toISOString()}_${period.endTime.toISOString()}`;
+
+    // Keep the first occurrence of a period with the same key
+    if (!uniquePeriodMap.has(key)) {
+      uniquePeriodMap.set(key, period);
+    }
+  });
+
+  return Array.from(uniquePeriodMap.values());
+}
+
 function mapEnhancedResponse(
   baseStatus: AttendanceBaseResponse,
   enhanced: EnhancedAttendanceStatus,
@@ -101,6 +118,8 @@ function mapEnhancedResponse(
   const nonNullRecords = context.records.filter(
     (r): r is AttendanceRecord => r !== null,
   );
+
+  const uniquePeriods = deduplicatePeriods(allPeriods);
 
   // Map attendance record to PeriodAttendance
   const mapToPeriodAttendance = (
@@ -175,7 +194,7 @@ function mapEnhancedResponse(
     daily: {
       date: format(context.now, 'yyyy-MM-dd'),
       timeline,
-      periods: allPeriods.map((period, index) => ({
+      periods: uniquePeriods.map((period, index) => ({
         type: period.type,
         window: {
           start: period.startTime.toISOString(),
