@@ -1,5 +1,10 @@
 // services/Attendance/AttendanceService.ts
-import { PrismaClient } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PrismaClient,
+} from '@prisma/client';
 import { AttendanceCheckService } from './AttendanceCheckService';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { AttendanceStatusService } from './AttendanceStatusService';
@@ -9,12 +14,12 @@ import {
   CheckInOutAllowance,
   AttendanceStatusInfo,
   AttendanceBaseResponse,
-  CheckStatus,
   ValidationResponse,
-  AttendanceState,
-  OvertimeState,
   Period,
   PeriodType,
+  AttendanceFlags,
+  AttendanceRecord,
+  LatestAttendanceResponse,
 } from '../../types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
@@ -24,9 +29,10 @@ import { NotificationService } from '../NotificationService';
 import { TimeEntryService } from '../TimeEntryService';
 import { getCacheData, setCacheData } from '@/lib/serverCache';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { startOfDay, endOfDay, addDays, format, parseISO } from 'date-fns';
+import { startOfDay, endOfDay, format, parseISO } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
 import { AutoCompletionService } from './AutoCompletionService';
+import { AttendanceMappers } from './utils/AttendanceMappers';
 
 export class AttendanceService {
   private readonly checkService: AttendanceCheckService;
@@ -52,6 +58,8 @@ export class AttendanceService {
     this.overTimeService = overtimeService;
     this.periodManager = new PeriodManagementService();
     this.autoCompleter = new AutoCompletionService();
+    this.mappers = new AttendanceMappers(); // Add mapper instance
+
     // Initialize specialized services
     this.processingService = new AttendanceProcessingService(
       prisma,
@@ -79,6 +87,7 @@ export class AttendanceService {
       notificationService,
     );
   }
+  private readonly mappers: AttendanceMappers;
 
   async getBaseStatus(employeeId: string): Promise<AttendanceBaseResponse> {
     const cacheKey = `attendance:status:${employeeId}`;
@@ -86,95 +95,199 @@ export class AttendanceService {
     if (cached) return JSON.parse(cached);
 
     const now = getCurrentTime();
-    const attendance = await this.prisma.attendance.findFirst({
+    const rawAttendance = await this.getCurrentPeriodAttendance(
+      employeeId,
+      now,
+    );
+
+    // Map raw attendance to AttendanceRecord with proper type
+    const attendance = rawAttendance
+      ? AttendanceMappers.toAttendanceRecord({
+          ...rawAttendance,
+          type: rawAttendance.isOvertime
+            ? PeriodType.OVERTIME
+            : PeriodType.REGULAR,
+          overtimeState: this.mapOvertimeState(rawAttendance.overtimeState),
+        })
+      : null;
+
+    if (!attendance) {
+      return this.createInitialBaseStatus();
+    }
+
+    const baseStatus: AttendanceBaseResponse = {
+      state: this.determineState(attendance),
+      checkStatus: this.determineCheckStatus(attendance),
+      isCheckingIn: !attendance.CheckInTime || !!attendance.CheckOutTime,
+      latestAttendance: this.mapToLatestAttendance(attendance),
+      periodInfo: {
+        currentType: attendance.type,
+        isOvertime: attendance.isOvertime,
+        overtimeState: attendance.overtimeState,
+        isTransitioning: false,
+      },
+      flags: this.createBaseFlags(attendance),
+      metadata: {
+        lastUpdated: now.toISOString(),
+        version: 1,
+        source: attendance.isManualEntry ? 'manual' : 'system',
+      },
+    };
+
+    await setCacheData(cacheKey, JSON.stringify(baseStatus), 300);
+    return baseStatus;
+  }
+
+  private mapOvertimeState(state: string | null): OvertimeState | undefined {
+    if (!state) return undefined;
+
+    switch (state) {
+      case 'overtime-started':
+        return OvertimeState.IN_PROGRESS;
+      case 'overtime-ended':
+        return OvertimeState.COMPLETED;
+      case 'not-started':
+        return OvertimeState.NOT_STARTED;
+      default:
+        return undefined;
+    }
+  }
+
+  private async getCurrentPeriodAttendance(employeeId: string, date: Date) {
+    return this.prisma.attendance.findFirst({
       where: {
         employeeId,
         date: {
-          gte: startOfDay(now),
-          lt: endOfDay(now),
+          gte: startOfDay(date),
+          lt: endOfDay(date),
         },
       },
       include: {
+        timeEntries: true,
+        overtimeEntries: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  private mapToLatestAttendance(
+    record: AttendanceRecord,
+  ): LatestAttendanceResponse {
+    return {
+      id: record.id,
+      employeeId: record.employeeId,
+      date: record.date.toISOString(),
+      CheckInTime: record.CheckInTime?.toISOString() || null,
+      CheckOutTime: record.CheckOutTime?.toISOString() || null,
+      state: record.state,
+      checkStatus: record.checkStatus,
+      overtimeState: record.overtimeState,
+      isLateCheckIn: record.isLateCheckIn,
+      isLateCheckOut: record.isLateCheckOut,
+      isEarlyCheckIn: record.isEarlyCheckIn,
+      isOvertime: record.isOvertime,
+      isManualEntry: record.isManualEntry,
+      isDayOff: record.isDayOff,
+      shiftStartTime: record.shiftStartTime?.toISOString(),
+      shiftEndTime: record.shiftEndTime?.toISOString(),
+      periodType: record.type,
+      overtimeId: record.overtimeId,
+      timeEntries: record.timeEntries.map((entry) => ({
+        id: entry.id,
+        startTime: entry.startTime.toISOString(),
+        endTime: entry.endTime?.toISOString() || null,
+        type: entry.entryType,
+      })),
+    };
+  }
+
+  async getAttendanceForPeriod(
+    employeeId: string,
+    period: Period,
+  ): Promise<AttendanceRecord | null> {
+    const record = await this.prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(period.startTime),
+          lt: endOfDay(period.endTime),
+        },
+        isOvertime: period.isOvertime,
+        OR: [{ overtimeId: period.overtimeId }, { overtimeId: null }],
+      },
+      include: {
+        timeEntries: true,
         overtimeEntries: true,
       },
       orderBy: { createdAt: 'desc' },
     });
 
-    let state = AttendanceState.ABSENT;
-    let checkStatus = CheckStatus.PENDING;
-    let isCheckingIn = true;
+    return record ? AttendanceMappers.toAttendanceRecord(record) : null;
+  }
 
-    if (attendance) {
-      if (
-        attendance.CheckOutTime &&
-        attendance.overtimeState === 'overtime-ended' &&
-        attendance.shiftStartTime // Regular shift start exists
-      ) {
-        isCheckingIn = true; // Force check-in for next shift
-      } else if (attendance.CheckInTime && attendance.CheckOutTime) {
-        isCheckingIn = false;
-      }
+  private determineState(attendance: AttendanceRecord): AttendanceState {
+    if (!attendance.CheckInTime) return AttendanceState.ABSENT;
+    if (!attendance.CheckOutTime) return AttendanceState.INCOMPLETE;
+    if (attendance.isOvertime) return AttendanceState.OVERTIME;
+    return AttendanceState.PRESENT;
+  }
 
-      if (attendance.CheckInTime) {
-        state = attendance.CheckOutTime
-          ? AttendanceState.PRESENT
-          : AttendanceState.PRESENT;
+  private determineCheckStatus(attendance: AttendanceRecord): CheckStatus {
+    if (!attendance.CheckInTime) return CheckStatus.PENDING;
+    if (!attendance.CheckOutTime) return CheckStatus.CHECKED_IN;
+    return CheckStatus.CHECKED_OUT;
+  }
 
-        // Determine checking in state based on last check-out
-        isCheckingIn =
-          !attendance.CheckOutTime ||
-          (attendance.CheckOutTime && attendance.isOvertime);
-      }
-
-      if (attendance.CheckInTime && !attendance.CheckOutTime) {
-        checkStatus = CheckStatus.CHECKED_IN;
-      } else if (attendance.CheckOutTime) {
-        checkStatus = CheckStatus.CHECKED_OUT;
-
-        // If last check-out was from overtime, prepare for regular shift check-in
-        if (attendance.isOvertime) {
-          isCheckingIn = true;
-        }
-      }
-
-      if (attendance.isOvertime) {
-        state = AttendanceState.OVERTIME;
-      }
-    }
-
-    const result: AttendanceBaseResponse = {
-      state,
-      checkStatus,
-      isCheckingIn: !attendance?.CheckInTime || !!attendance?.CheckOutTime,
-      latestAttendance: attendance
-        ? {
-            id: attendance.id,
-            employeeId: attendance.employeeId,
-            date: attendance.date.toISOString(),
-            CheckInTime: attendance.CheckInTime?.toISOString() || null,
-            CheckOutTime: attendance.CheckOutTime?.toISOString() || null,
-            state,
-            checkStatus,
-            overtimeState: attendance.overtimeState as
-              | OvertimeState
-              | undefined,
-            isLateCheckIn: attendance.isLateCheckIn ?? false,
-            isLateCheckOut: attendance.isLateCheckOut ?? false,
-            isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
-            isOvertime: attendance.isOvertime ?? false,
-            isManualEntry: attendance.isManualEntry ?? false,
-            isDayOff: attendance.isDayOff ?? false,
-            shiftStartTime:
-              attendance.shiftStartTime?.toISOString() || undefined,
-            shiftEndTime: attendance.shiftEndTime?.toISOString() || undefined,
-          }
-        : undefined,
+  private createBaseFlags(attendance: AttendanceRecord): AttendanceFlags {
+    return {
+      isOvertime: attendance.isOvertime,
+      isDayOffOvertime: Boolean(
+        attendance.overtimeEntries.some((e) => e.isDayOffOvertime),
+      ),
+      isPendingDayOffOvertime: false,
+      isPendingOvertime: false,
+      isOutsideShift: false,
+      isInsideShift: true,
+      isLate: attendance.isLateCheckIn,
+      isEarlyCheckIn: attendance.isEarlyCheckIn,
+      isEarlyCheckOut: false,
+      isLateCheckIn: attendance.isLateCheckIn,
+      isLateCheckOut: attendance.isLateCheckOut,
+      isVeryLateCheckOut: attendance.isVeryLateCheckOut,
+      isAutoCheckIn: false,
+      isAutoCheckOut: false,
+      isAfternoonShift: false,
+      isMorningShift: true,
+      isAfterMidshift: false,
+      isApprovedEarlyCheckout: false,
+      isPlannedHalfDayLeave: false,
+      isEmergencyLeave: false,
+      hasActivePeriod: !!attendance.CheckInTime && !attendance.CheckOutTime,
+      hasPendingTransition: false,
+      requiresAutoCompletion: false,
+      isHoliday: false,
+      isDayOff: attendance.isDayOff,
+      isManualEntry: attendance.isManualEntry,
     };
+  }
 
-    console.log('getBaseStatus result before cache:', result);
-
-    await setCacheData(cacheKey, JSON.stringify(result), 300);
-    return result;
+  private createInitialBaseStatus(): AttendanceBaseResponse {
+    return {
+      state: AttendanceState.ABSENT,
+      checkStatus: CheckStatus.PENDING,
+      isCheckingIn: true,
+      periodInfo: {
+        currentType: PeriodType.REGULAR,
+        isOvertime: false,
+        isTransitioning: false,
+      },
+      flags: this.createBaseFlags({} as AttendanceRecord),
+      metadata: {
+        lastUpdated: new Date().toISOString(),
+        version: 1,
+        source: 'system',
+      },
+    };
   }
 
   async validateCheckInOut(

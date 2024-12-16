@@ -1,250 +1,184 @@
+// services/Attendance/AttendanceEnhancementService.ts
+
 import {
   AttendanceRecord,
   Period,
   PeriodType,
   EnhancedAttendanceStatus,
   ApprovedOvertimeInfo,
+  PeriodWindow,
 } from '@/types/attendance';
-import {
-  addMinutes,
-  isWithinInterval,
-  isAfter,
-  isBefore,
-  parseISO,
-  format,
-} from 'date-fns';
-
-interface PeriodEntry {
-  type: 'check-in' | 'check-out';
-  periodType: PeriodType;
-  expectedTime: Date;
-  overtimeId?: string;
-}
-
-interface PeriodTransition {
-  from: PeriodType;
-  to: PeriodType;
-  transitionTime: Date;
-  isCompleted: boolean;
-}
+import { getCurrentTime } from '@/utils/dateUtils';
+import { isAfter, parseISO, format } from 'date-fns';
 
 export class AttendanceEnhancementService {
-  private getExpectedEntries(
-    currentTime: Date,
-    regularPeriod: Period,
-    overtimePeriod: Period | null,
-  ): PeriodEntry[] {
-    const entries: PeriodEntry[] = [
-      {
-        type: 'check-in',
-        periodType: PeriodType.REGULAR,
-        expectedTime: regularPeriod.startTime,
-      },
-      {
-        type: 'check-out',
-        periodType: PeriodType.REGULAR,
-        expectedTime: regularPeriod.endTime,
-      },
-    ];
-
-    if (overtimePeriod) {
-      entries.push(
-        {
-          type: 'check-in',
-          periodType: PeriodType.OVERTIME,
-          expectedTime: overtimePeriod.startTime,
-          overtimeId: overtimePeriod.overtimeId,
-        },
-        {
-          type: 'check-out',
-          periodType: PeriodType.OVERTIME,
-          expectedTime: overtimePeriod.endTime,
-          overtimeId: overtimePeriod.overtimeId,
-        },
-      );
-    }
-
-    // Filter out future entries
-    return entries.filter((entry) => isBefore(entry.expectedTime, currentTime));
-  }
-
-  private getMissingEntries(
-    attendance: AttendanceRecord | null,
-    expectedEntries: PeriodEntry[],
-    currentTime: Date,
-  ): PeriodEntry[] {
-    if (!attendance) return [];
-
-    const missingEntries: PeriodEntry[] = [];
-    let lastCompletedTime: Date | null = null;
-
-    // Check each expected entry in sequence
-    for (const entry of expectedEntries) {
-      const isEntryComplete = this.isEntryComplete(
-        attendance,
-        entry,
-        lastCompletedTime,
-      );
-
-      if (!isEntryComplete && this.isEntryDue(entry, currentTime)) {
-        missingEntries.push(entry);
-      }
-
-      if (isEntryComplete) {
-        lastCompletedTime = this.getEntryTime(attendance, entry);
-      }
-    }
-
-    return missingEntries;
-  }
-
-  private isEntryComplete(
-    attendance: AttendanceRecord,
-    entry: PeriodEntry,
-    lastCompletedTime: Date | null,
-  ): boolean {
-    // Regular period checks
-    if (entry.periodType === PeriodType.REGULAR) {
-      if (entry.type === 'check-in') {
-        return !!attendance.CheckInTime;
-      }
-      return !!attendance.CheckOutTime;
-    }
-
-    // Overtime period checks
-    if (entry.periodType === PeriodType.OVERTIME) {
-      const overtimeEntry = attendance.overtimeEntries.find(
-        (oe) => oe.overtimeRequestId === entry.overtimeId,
-      );
-
-      if (!overtimeEntry) return false;
-
-      if (entry.type === 'check-in') {
-        return !!overtimeEntry.actualStartTime;
-      }
-      return !!overtimeEntry.actualEndTime;
-    }
-
-    return false;
-  }
-
-  private isEntryDue(entry: PeriodEntry, currentTime: Date): boolean {
-    const graceTime = addMinutes(entry.expectedTime, 30); // 30 minutes grace period
-    return isBefore(entry.expectedTime, currentTime);
-  }
-
-  private getEntryTime(
-    attendance: AttendanceRecord,
-    entry: PeriodEntry,
-  ): Date | null {
-    if (entry.periodType === PeriodType.REGULAR) {
-      return entry.type === 'check-in'
-        ? attendance.CheckInTime
-        : attendance.CheckOutTime;
-    }
-
-    const overtimeEntry = attendance.overtimeEntries.find(
-      (oe) => oe.overtimeRequestId === entry.overtimeId,
-    );
-    if (!overtimeEntry) return null;
-
-    return entry.type === 'check-in'
-      ? overtimeEntry.actualStartTime
-      : overtimeEntry.actualEndTime;
-  }
-
   async enhanceAttendanceStatus(
     attendance: AttendanceRecord | null,
     currentPeriod: Period | null,
     overtimeInfo?: ApprovedOvertimeInfo | null,
   ): Promise<EnhancedAttendanceStatus> {
-    const now = new Date();
-    const enhancedStatus: EnhancedAttendanceStatus = {
+    const now = getCurrentTime();
+    const enhancedStatus = this.createInitialStatus(currentPeriod);
+
+    if (!currentPeriod) return enhancedStatus;
+
+    const periodWindow = this.createPeriodWindow(currentPeriod);
+    const overtimePeriod = overtimeInfo
+      ? this.createOvertimePeriodWindow(overtimeInfo, now)
+      : null;
+
+    if (attendance) {
+      enhancedStatus.lastCheckIn = this.getLastCheckIn(attendance);
+      enhancedStatus.lastCheckOut = this.getLastCheckOut(attendance);
+
+      // Fix array filtering with type predicate
+      const validPeriodWindows = [periodWindow, overtimePeriod].filter(
+        (p): p is PeriodWindow => p !== null,
+      );
+
+      enhancedStatus.missingEntries = this.getMissingEntries(
+        attendance,
+        validPeriodWindows,
+        now,
+      );
+
+      enhancedStatus.pendingTransitions = this.getPendingTransitions(
+        validPeriodWindows,
+        attendance,
+      );
+    }
+
+    return enhancedStatus;
+  }
+
+  private createInitialStatus(
+    currentPeriod: Period | null,
+  ): EnhancedAttendanceStatus {
+    return {
       currentPeriod,
       lastCheckIn: null,
       lastCheckOut: null,
       missingEntries: [],
       pendingTransitions: [],
     };
+  }
 
-    if (!currentPeriod) return enhancedStatus;
+  private createPeriodWindow(period: Period): PeriodWindow {
+    return {
+      start: period.startTime,
+      end: period.endTime,
+      type: period.type,
+      overtimeId: period.overtimeId,
+      isConnected: period.isConnected || false,
+    };
+  }
 
-    // Create overtime period if exists
-    const overtimePeriod = overtimeInfo
-      ? {
-          type: PeriodType.OVERTIME,
-          startTime: parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-          ),
-          endTime: parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
-          ),
-          overtimeId: overtimeInfo.id,
-          isOvertime: true,
-          isOvernight: false,
-        }
-      : null;
+  private createOvertimePeriodWindow(
+    overtime: ApprovedOvertimeInfo,
+    now: Date,
+  ): PeriodWindow {
+    return {
+      start: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`),
+      end: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`),
+      type: PeriodType.OVERTIME,
+      overtimeId: overtime.id,
+      isConnected: false,
+    };
+  }
 
-    // Get expected entries based on periods
-    const expectedEntries = this.getExpectedEntries(
-      now,
-      currentPeriod,
-      overtimePeriod,
-    );
+  private getLastCheckIn(attendance: AttendanceRecord) {
+    if (!attendance.CheckInTime) return null;
+    return {
+      time: attendance.CheckInTime,
+      periodType: attendance.isOvertime
+        ? PeriodType.OVERTIME
+        : PeriodType.REGULAR,
+      isOvertime: attendance.isOvertime,
+    };
+  }
 
-    // Get missing entries
-    if (attendance) {
-      enhancedStatus.missingEntries = this.getMissingEntries(
-        attendance,
-        expectedEntries,
-        now,
-      );
+  private getLastCheckOut(attendance: AttendanceRecord) {
+    if (!attendance.CheckOutTime) return null;
+    return {
+      time: attendance.CheckOutTime,
+      periodType: attendance.isOvertime
+        ? PeriodType.OVERTIME
+        : PeriodType.REGULAR,
+      isOvertime: attendance.isOvertime,
+    };
+  }
 
-      // Set last check-in/out info
-      if (attendance.CheckInTime) {
-        enhancedStatus.lastCheckIn = {
-          time: new Date(attendance.CheckInTime),
-          periodType: attendance.isOvertime
-            ? PeriodType.OVERTIME
-            : PeriodType.REGULAR,
-          isOvertime: attendance.isOvertime,
-        };
-      }
+  private getMissingEntries(
+    attendance: AttendanceRecord,
+    periods: PeriodWindow[],
+    now: Date,
+  ): Array<{
+    type: 'check-in' | 'check-out';
+    periodType: PeriodType;
+    expectedTime: Date;
+    overtimeId?: string;
+  }> {
+    const missing = [];
 
-      if (attendance.CheckOutTime) {
-        enhancedStatus.lastCheckOut = {
-          time: new Date(attendance.CheckOutTime),
-          periodType: attendance.isOvertime
-            ? PeriodType.OVERTIME
-            : PeriodType.REGULAR,
-          isOvertime: attendance.isOvertime,
-        };
-      }
+    for (const period of periods.filter(Boolean)) {
+      if (isAfter(period.start, now)) continue;
 
-      // Detect pending transitions
-      if (
-        overtimePeriod &&
-        attendance.CheckInTime &&
-        !attendance.CheckOutTime &&
-        !attendance.isOvertime
-      ) {
-        const overtimeStart = overtimePeriod.startTime;
-        if (
-          isWithinInterval(now, {
-            start: addMinutes(overtimeStart, -30),
-            end: addMinutes(overtimeStart, 30),
-          })
-        ) {
-          enhancedStatus.pendingTransitions.push({
-            from: PeriodType.REGULAR,
-            to: PeriodType.OVERTIME,
-            transitionTime: overtimeStart,
-            isCompleted: false,
-          });
-        }
+      if (!attendance.CheckInTime) {
+        missing.push({
+          type: 'check-in',
+          periodType: period.type,
+          expectedTime: period.start,
+          overtimeId: period.overtimeId,
+        });
+      } else if (!attendance.CheckOutTime && isAfter(now, period.end)) {
+        missing.push({
+          type: 'check-out',
+          periodType: period.type,
+          expectedTime: period.end,
+          overtimeId: period.overtimeId,
+        });
       }
     }
 
-    return enhancedStatus;
+    return missing as Array<{
+      type: 'check-in' | 'check-out';
+      periodType: PeriodType;
+      expectedTime: Date;
+      overtimeId?: string;
+    }>;
+  }
+
+  private getPendingTransitions(
+    periods: PeriodWindow[],
+    attendance: AttendanceRecord,
+  ): Array<{
+    from: PeriodType;
+    to: PeriodType;
+    transitionTime: Date;
+    isComplete: boolean;
+  }> {
+    const transitions = [];
+
+    for (let i = 0; i < periods.length - 1; i++) {
+      const current = periods[i];
+      const next = periods[i + 1];
+
+      if (current.isConnected) {
+        const isComplete = Boolean(
+          attendance.overtimeEntries.find(
+            (e) => e.overtimeRequestId === next.overtimeId && e.actualStartTime,
+          ),
+        );
+
+        transitions.push({
+          from: current.type,
+          to: next.type,
+          transitionTime: current.end,
+          isComplete,
+        });
+      }
+    }
+
+    return transitions;
   }
 }

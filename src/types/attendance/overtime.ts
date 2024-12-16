@@ -3,7 +3,7 @@
 // Overtime specific types
 // ===================================
 
-import { ApprovedOvertimeInfo, OvertimeState } from './status';
+import { ApprovedOvertimeInfo } from './status';
 
 export interface OvertimeInfo {
   isDayOffOvertime: boolean;
@@ -37,12 +37,12 @@ export interface OvertimeEntryData {
   id: string;
   attendanceId: string;
   overtimeRequestId: string;
-  actualStartTime: Date;
-  actualEndTime: Date | null;
+  actualStartTime: string | null; // Changed from Date to string | null
+  actualEndTime: string | null; // Changed from Date to string | null
   isDayOffOvertime: boolean;
   isInsideShiftHours: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string; // Changed from Date to string
+  updatedAt: string; // Changed from Date to string
 }
 
 export interface OvertimeContext {

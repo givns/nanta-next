@@ -1,14 +1,9 @@
 // types/attendance/records.ts
 
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  TimeEntryStatus,
-  PeriodType,
-} from './status';
+import { TimeEntryStatus, PeriodType } from './status';
 import { Location } from './base';
 import { ShiftData } from './shift';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 export interface DailyAttendanceRecord {
   employeeId: string;
@@ -34,16 +29,15 @@ export interface DailyAttendanceRecord {
 }
 
 export interface AttendanceRecord {
-  // Core fields
   id: string;
   employeeId: string;
   date: Date;
-
-  // Status fields
   state: AttendanceState;
   checkStatus: CheckStatus;
   isOvertime: boolean;
+  type: PeriodType; // Add this
   overtimeState?: OvertimeState;
+  overtimeId?: string; // Add this
 
   // Time fields
   shiftStartTime: Date | null;
@@ -65,16 +59,10 @@ export interface AttendanceRecord {
   checkOutAddress: string | null;
 
   // Metadata
-  checkInReason?: string | null;
-  checkInPhoto?: string | null;
-  checkOutPhoto?: string | null;
   isManualEntry: boolean;
-
-  // Related entries
+  isDayOff: boolean;
   overtimeEntries: OvertimeEntry[];
   timeEntries: TimeEntry[];
-
-  // Timestamps
   createdAt: Date;
   updatedAt: Date;
 }
@@ -112,7 +100,7 @@ export interface OvertimeEntry {
   id: string;
   attendanceId: string;
   overtimeRequestId: string;
-  actualStartTime: Date;
+  actualStartTime: Date | null;
   actualEndTime: Date | null;
   isDayOffOvertime: boolean;
   isInsideShiftHours: boolean;

@@ -3,7 +3,8 @@
 // Core type definitions and enums
 // ===================================
 
-import { AttendanceState, CheckStatus, OvertimeState } from './status';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import { PeriodType } from './status';
 
 // Core interfaces - Keep
 export interface BaseEntity {
@@ -48,8 +49,8 @@ export interface AttendanceCore {
 }
 
 export interface LatestAttendanceResponse {
-  id: string; // Add this
-  employeeId: string; // Add this
+  id: string;
+  employeeId: string;
   date: string;
   CheckInTime: string | null;
   CheckOutTime: string | null;
@@ -64,6 +65,14 @@ export interface LatestAttendanceResponse {
   isDayOff: boolean;
   shiftStartTime?: string;
   shiftEndTime?: string;
+  periodType: PeriodType;
+  overtimeId?: string;
+  timeEntries?: Array<{
+    id: string;
+    startTime: string;
+    endTime: string | null;
+    type: PeriodType;
+  }>;
 }
 
 // Then update AttendanceBaseResponse
@@ -72,6 +81,47 @@ export interface AttendanceBaseResponse {
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
   latestAttendance?: LatestAttendanceResponse;
+  periodInfo: {
+    currentType: PeriodType;
+    isOvertime: boolean;
+    overtimeState?: OvertimeState;
+    isTransitioning: boolean;
+  };
+  flags: AttendanceFlags;
+  metadata: {
+    lastUpdated: string;
+    version: number;
+    source: 'system' | 'manual' | 'auto';
+  };
+}
+
+export interface AttendanceFlags {
+  isOvertime: boolean;
+  isDayOffOvertime: boolean;
+  isPendingDayOffOvertime: boolean;
+  isPendingOvertime: boolean;
+  isOutsideShift: boolean;
+  isInsideShift: boolean;
+  isLate: boolean;
+  isEarlyCheckIn: boolean;
+  isEarlyCheckOut: boolean;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
+  isVeryLateCheckOut: boolean;
+  isAutoCheckIn: boolean;
+  isAutoCheckOut: boolean;
+  isAfternoonShift: boolean;
+  isMorningShift: boolean;
+  isAfterMidshift: boolean;
+  isApprovedEarlyCheckout: boolean;
+  isPlannedHalfDayLeave: boolean;
+  isEmergencyLeave: boolean;
+  hasActivePeriod: boolean;
+  hasPendingTransition: boolean;
+  requiresAutoCompletion: boolean;
+  isHoliday: boolean;
+  isDayOff: boolean;
+  isManualEntry: boolean;
 }
 
 export interface AddressInput {

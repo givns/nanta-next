@@ -4,13 +4,12 @@ import { useEnhancedLocation } from './useEnhancedLocation';
 import { useAttendanceData } from './useAttendanceData';
 import { KeyedMutator } from 'swr';
 import {
-  AttendanceState,
   AttendanceStateResponse,
-  CheckStatus,
   CurrentPeriodInfo,
   UseSimpleAttendanceReturn,
 } from '@/types/attendance';
 import { OvertimeContext } from '@/types/attendance/overtime';
+import { AttendanceState, CheckStatus } from '@prisma/client';
 
 interface UseSimpleAttendanceProps {
   employeeId?: string;

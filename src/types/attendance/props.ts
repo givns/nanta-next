@@ -10,20 +10,13 @@ import {
   ShiftData,
   UserData,
   ValidationResponse,
-  ValidationResult,
 } from '../attendance';
 import { ProcessingResult } from './processing';
-import {
-  AttendanceState,
-  AttendanceStatusInfo,
-  CheckStatus,
-  CurrentPeriodInfo,
-  OvertimeState,
-  PeriodType,
-} from './status';
+import { AttendanceStatusInfo, CurrentPeriodInfo, PeriodType } from './status';
 import { KeyedMutator } from 'swr';
 import { LocationState } from './base';
 import { OvertimeContext } from './overtime';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 export interface StatusChangeParams {
   isCheckingIn: boolean;

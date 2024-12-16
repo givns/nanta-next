@@ -1,11 +1,11 @@
 // services/Attendance/utils/AttendanceValidators.ts
 
+import { AttendanceState } from '@prisma/client';
 import {
   ValidationResult,
   ValidationError,
   ProcessingOptions,
   Location,
-  AttendanceState,
 } from '../../../types/attendance';
 
 export class AttendanceValidators {

@@ -6,16 +6,16 @@
 import { z } from 'zod';
 import { AttendanceRecord, OvertimeEntry, TimeEntry } from './records';
 import {
-  AttendanceState,
-  CheckStatus,
   EnhancedAttendanceStatus,
-  LatestAttendance,
   NextPeriod,
-  OvertimeState,
   PeriodType,
+  TimelineEnhancement,
 } from './status';
-import { ValidationResult } from './validation';
+import { AttendanceValidation, ValidationResult } from './validation';
 import { OvertimeContext } from './overtime';
+import { OvertimePeriodInfo, PeriodAttendance } from './period';
+import { AttendanceBaseResponse, LatestAttendanceResponse } from './base';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 export interface AttendanceResponse
   extends SuccessResponse<{
@@ -34,16 +34,116 @@ export interface AttendanceResponse
 }
 
 export interface AttendanceStateResponse {
+  daily: {
+    date: string;
+    timeline: TimelineEnhancement;
+    periods: Array<{
+      type: PeriodType;
+      window: {
+        start: string;
+        end: string;
+      };
+      status: {
+        isComplete: boolean;
+        isCurrent: boolean;
+        requiresTransition: boolean;
+      };
+      attendance?: PeriodAttendance;
+      overtime?: OvertimePeriodInfo;
+    }>;
+    transitions: PeriodTransition;
+  };
   base: {
     state: AttendanceState;
     checkStatus: CheckStatus;
     isCheckingIn: boolean;
-    latestAttendance: LatestAttendance | null; // Use full interface, can be null
+    latestAttendance: LatestAttendanceResponse | null;
   };
   window: ShiftWindowResponse;
-  validation?: ValidationResponseWithMetadata;
-  enhanced: EnhancedAttendanceStatus; // Add enhanced statu
-  timestamp: string;
+  validation: AttendanceValidation;
+  enhanced: EnhancedAttendanceStatus;
+}
+
+export interface AttendanceStatusResponse extends AttendanceStateResponse {}
+
+export interface DailyAttendanceStatus {
+  date: string;
+  timeline: TimelineEnhancement;
+  periods: Array<{
+    type: PeriodType;
+    window: {
+      start: string;
+      end: string;
+    };
+    status: {
+      isComplete: boolean;
+      isCurrent: boolean;
+      requiresTransition: boolean;
+    };
+    attendance?: PeriodAttendance;
+    overtime?: OvertimePeriodInfo;
+  }>;
+  transitions: PeriodTransition;
+}
+
+export interface PeriodTransition {
+  from: {
+    periodIndex: number;
+    type: PeriodType;
+  };
+  to: {
+    periodIndex: number;
+    type: PeriodType;
+  };
+  transitionTime: string;
+  isComplete: boolean;
+}
+
+export interface PeriodValidation {
+  currentPeriod: {
+    index: number;
+    canCheckIn: boolean;
+    canCheckOut: boolean;
+    requiresTransition: boolean;
+    message?: string;
+    enhancement: {
+      isWithinPeriod: boolean;
+      isEarlyForPeriod: boolean;
+      isLateForPeriod: boolean;
+      periodStart: string;
+      periodEnd: string;
+    };
+  };
+  nextPeriod?: {
+    index: number;
+    availableAt: string;
+    type: PeriodType;
+  };
+}
+
+export interface ShiftWindowResponse {
+  current: {
+    start: string;
+    end: string;
+  };
+  type: PeriodType;
+  shift: {
+    id: string;
+    shiftCode: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    workDays: number[];
+  };
+  isHoliday: boolean;
+  isDayOff: boolean;
+  isAdjusted: boolean;
+  holidayInfo?: {
+    name: string;
+    date: string;
+  };
+  overtimeInfo?: OvertimeContext;
+  nextPeriod?: NextPeriod | null;
 }
 
 export interface ValidationResponseWithMetadata {
@@ -161,31 +261,6 @@ export interface ErrorResponse extends BaseResponse {
     details?: Record<string, unknown>;
     stack?: string;
   };
-}
-
-export interface ShiftWindowResponse {
-  current: {
-    start: string;
-    end: string;
-  };
-  type: PeriodType;
-  shift: {
-    id: string;
-    shiftCode: string;
-    name: string;
-    startTime: string;
-    endTime: string;
-    workDays: number[];
-  };
-  isHoliday: boolean;
-  isDayOff: boolean;
-  isAdjusted: boolean;
-  holidayInfo?: {
-    name: string;
-    date: string;
-  };
-  overtimeInfo?: OvertimeContext;
-  nextPeriod?: NextPeriod | null;
 }
 
 export interface CheckInOutResponse {

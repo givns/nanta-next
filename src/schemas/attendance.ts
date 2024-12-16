@@ -1,16 +1,11 @@
 // schemas/attendance.ts
 import { z } from 'zod';
-import { UserRole } from '@/types/enum';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { ErrorCode, AppError } from '@/types/attendance/error';
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  PeriodType,
-} from '@/types/attendance/status';
+import { PeriodType } from '@/types/attendance/status';
 import { normalizeLocation } from '@/utils/locationUtils';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 // ============= Constants =============
 export const EARLY_CHECKOUT_TYPES = {

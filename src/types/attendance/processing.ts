@@ -3,19 +3,17 @@
 // Processing related types
 // ===================================
 
-import { Prisma } from '@prisma/client';
-import { Location, TimeWindow } from './base';
-import { CacheConfig } from './cache';
-import { AttendancePeriodContext } from './common';
-import { AttendanceRecord, TimeEntry } from './records';
-import { AttendanceTransaction } from './transaction';
 import {
   AttendanceState,
   CheckStatus,
   OvertimeState,
-  PeriodType,
-} from './status';
-import { ValidationContext } from './context';
+  Prisma,
+} from '@prisma/client';
+import { Location } from './base';
+
+import { TimeEntry } from './records';
+
+import { PeriodType } from './status';
 
 export interface RawAttendanceData {
   id: string;

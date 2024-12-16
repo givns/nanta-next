@@ -1,30 +1,40 @@
-import { PrismaClient } from '@prisma/client';
+// pages/api/attendance/status/[employeeId].ts
+
+import { AttendanceEnhancementService } from '@/services/Attendance/AttendanceEnhancementService';
 import { AttendanceService } from '@/services/Attendance/AttendanceService';
+import { PeriodManagementService } from '@/services/Attendance/PeriodManagementService';
+import { AttendanceMappers } from '@/services/Attendance/utils/AttendanceMappers';
 import { initializeServices } from '@/services/ServiceInitializer';
 import {
+  AttendanceStatusResponse,
+  ATTENDANCE_CONSTANTS,
+  AppError,
+  AttendanceRecord,
+  EnhancedAttendanceStatus,
+  ErrorCode,
+  Period,
+  TimelineEnhancement,
+  ValidationEnhancement,
   AttendanceBaseResponse,
-  AttendanceState,
-  CheckStatus,
   ShiftWindowResponse,
   ValidationResponse,
-  EnhancedAttendanceStatus,
-  PeriodType,
-  Period,
-  AttendanceRecord,
+  PeriodAttendance,
   ApprovedOvertimeInfo,
-  ValidationResponseWithMetadata,
-  ATTENDANCE_CONSTANTS,
+  PeriodType,
+  AttendanceFlags,
+  PeriodTransition,
+  OvertimePeriodInfo,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { NextApiRequest, NextApiResponse } from 'next';
-import { AttendanceEnhancementService } from '@/services/Attendance/AttendanceEnhancementService';
+import { OvertimeState, PrismaClient } from '@prisma/client';
 import {
-  parseISO,
+  addMinutes,
   format,
+  isAfter,
   isWithinInterval,
   subMinutes,
-  addMinutes,
 } from 'date-fns';
+import { NextApiRequest, NextApiResponse } from 'next';
 // Initialize services
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
@@ -38,39 +48,217 @@ const attendanceService = new AttendanceService(
   services.timeEntryService,
 );
 
-// Create instance of AttendanceEnhancementService
-const enhancementService = new AttendanceEnhancementService();
+function mapEnhancedResponse(
+  baseStatus: AttendanceBaseResponse,
+  enhanced: EnhancedAttendanceStatus,
+  allPeriods: Period[],
+  timeline: TimelineEnhancement,
+  enhancedValidation: ValidationEnhancement,
+  context: {
+    records: (AttendanceRecord | null)[];
+    window: ShiftWindowResponse;
+    baseValidation: ValidationResponse;
+    now: Date;
+  },
+): AttendanceStatusResponse {
+  const nonNullRecords = context.records.filter(
+    (r): r is AttendanceRecord => r !== null,
+  );
 
-export interface AttendanceResponse {
-  status: AttendanceBaseResponse;
-  window: ShiftWindowResponse;
-  validation?: ValidationResponseWithMetadata;
-  enhanced: EnhancedAttendanceStatus;
-  timestamp: string;
-}
+  // Map attendance record to PeriodAttendance
+  const mapToPeriodAttendance = (
+    record: AttendanceRecord,
+  ): PeriodAttendance => ({
+    id: record.id,
+    checkInTime: record.CheckInTime?.toISOString() || null,
+    checkOutTime: record.CheckOutTime?.toISOString() || null,
+    state: record.state,
+    checkStatus: record.checkStatus,
+  });
 
-export interface ExtendedShiftWindowResponse extends ShiftWindowResponse {
-  pendingTransitions?: Array<{
-    from: PeriodType;
-    to: PeriodType;
-    transitionTime: Date;
-    isCompleted: boolean;
-  }>;
+  // Map overtime period
+  const mapToOvertimePeriodInfo = (
+    period: Period,
+    record: AttendanceRecord | null,
+  ): OvertimePeriodInfo => {
+    // Helper to convert string to OvertimeState enum
+    const getOvertimeState = (
+      state: string | null | undefined,
+    ): OvertimeState => {
+      switch (state) {
+        case 'overtime-started':
+          return OvertimeState.IN_PROGRESS;
+        case 'overtime-ended':
+          return OvertimeState.COMPLETED;
+        default:
+          return OvertimeState.NOT_STARTED;
+      }
+    };
+
+    return {
+      id: period.overtimeId!,
+      startTime: format(period.startTime, 'HH:mm'),
+      endTime: format(period.endTime, 'HH:mm'),
+      status: getOvertimeState(record?.overtimeState),
+    };
+  };
+
+  const mappedTransition: PeriodTransition = enhanced.pendingTransitions[0]
+    ? {
+        from: {
+          periodIndex: allPeriods.findIndex(
+            (p) => p.type === enhanced.pendingTransitions[0].from,
+          ),
+          type: enhanced.pendingTransitions[0].from,
+        },
+        to: {
+          periodIndex: allPeriods.findIndex(
+            (p) => p.type === enhanced.pendingTransitions[0].to,
+          ),
+          type: enhanced.pendingTransitions[0].to,
+        },
+        transitionTime:
+          enhanced.pendingTransitions[0].transitionTime.toISOString(),
+        isComplete: enhanced.pendingTransitions[0].isComplete,
+      }
+    : {
+        from: { periodIndex: -1, type: PeriodType.REGULAR },
+        to: { periodIndex: -1, type: PeriodType.REGULAR },
+        transitionTime: context.now.toISOString(),
+        isComplete: false,
+      };
+
+  return {
+    daily: {
+      date: format(context.now, 'yyyy-MM-dd'),
+      timeline,
+      periods: allPeriods.map((period, index) => ({
+        type: period.type,
+        window: {
+          start: period.startTime.toISOString(),
+          end: period.endTime.toISOString(),
+        },
+        status: {
+          isComplete: Boolean(nonNullRecords[index]?.CheckOutTime),
+          isCurrent: isWithinInterval(context.now, {
+            start: period.startTime,
+            end: period.endTime,
+          }),
+          requiresTransition: Boolean(period.isConnected),
+        },
+        attendance: nonNullRecords[index]
+          ? mapToPeriodAttendance(nonNullRecords[index])
+          : undefined,
+        overtime:
+          period.type === PeriodType.OVERTIME
+            ? mapToOvertimePeriodInfo(period, nonNullRecords[index])
+            : undefined,
+      })),
+      transitions: mappedTransition,
+    },
+    base: {
+      state: baseStatus.state,
+      checkStatus: baseStatus.checkStatus,
+      isCheckingIn: baseStatus.isCheckingIn,
+      latestAttendance: baseStatus.latestAttendance
+        ? {
+            ...baseStatus.latestAttendance,
+            // Ensure null instead of undefined for nullable fields
+            CheckInTime: baseStatus.latestAttendance.CheckInTime || null,
+            CheckOutTime: baseStatus.latestAttendance.CheckOutTime || null,
+            shiftStartTime:
+              baseStatus.latestAttendance.shiftStartTime ?? undefined,
+            shiftEndTime: baseStatus.latestAttendance.shiftEndTime ?? undefined,
+            // Ensure boolean flags have default values
+            isLateCheckIn: baseStatus.latestAttendance.isLateCheckIn || false,
+            isLateCheckOut: baseStatus.latestAttendance.isLateCheckOut || false,
+            isEarlyCheckIn: baseStatus.latestAttendance.isEarlyCheckIn || false,
+            isOvertime: baseStatus.latestAttendance.isOvertime || false,
+            isManualEntry: baseStatus.latestAttendance.isManualEntry || false,
+            isDayOff: baseStatus.latestAttendance.isDayOff || false,
+          }
+        : null,
+    },
+    window: context.window,
+    validation: {
+      allowed: context.baseValidation.allowed,
+      reason: context.baseValidation.reason,
+      flags: {
+        ...context.baseValidation.flags,
+        isPendingDayOffOvertime: false,
+        isPendingOvertime: false,
+        isOutsideShift: false,
+        isLate: false,
+        isEarly: false,
+        isEarlyCheckIn: enhancedValidation.periodValidation.isEarlyForPeriod,
+        isEarlyCheckOut: false,
+        isLateCheckIn: false,
+        isLateCheckOut: enhancedValidation.periodValidation.isLateForPeriod,
+        isVeryLateCheckOut: false,
+        isAutoCheckIn: false,
+        isAutoCheckOut: false,
+        isAfternoonShift: false,
+        isMorningShift: false,
+        isAfterMidshift: false,
+        isApprovedEarlyCheckout: false,
+        isPlannedHalfDayLeave: false,
+        isEmergencyLeave: false,
+        hasActivePeriod: false,
+        hasPendingTransition: false,
+        requiresAutoCompletion: false,
+        isHoliday: false,
+        isDayOff: false,
+        isManualEntry: false,
+      } as AttendanceFlags,
+      periodValidation: {
+        currentPeriod: {
+          index: timeline.currentPeriodIndex,
+          canCheckIn:
+            context.baseValidation.allowed && !nonNullRecords[0]?.CheckInTime,
+          canCheckOut:
+            context.baseValidation.allowed && !!nonNullRecords[0]?.CheckInTime,
+          requiresTransition: enhanced.pendingTransitions.length > 0,
+          message: context.baseValidation.reason,
+          enhancement: {
+            isWithinPeriod: enhancedValidation.periodValidation.isWithinPeriod,
+            isEarlyForPeriod:
+              enhancedValidation.periodValidation.isEarlyForPeriod,
+            isLateForPeriod:
+              enhancedValidation.periodValidation.isLateForPeriod,
+            periodStart:
+              enhancedValidation.periodValidation.periodStart.toISOString(),
+            periodEnd:
+              enhancedValidation.periodValidation.periodEnd.toISOString(),
+          },
+        },
+        nextPeriod: enhanced.pendingTransitions[0]
+          ? {
+              index: allPeriods.findIndex(
+                (p) => p.type === enhanced.pendingTransitions[0].to,
+              ),
+              availableAt:
+                enhanced.pendingTransitions[0].transitionTime.toISOString(),
+              type: enhanced.pendingTransitions[0].to,
+            }
+          : undefined,
+      },
+    },
+    enhanced,
+  };
 }
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<AttendanceResponse | { error: string }>,
+  res: NextApiResponse<AttendanceStatusResponse | { error: string }>,
 ) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { employeeId } = req.query;
-  const { inPremises, address, confidence } = req.query as {
+  const { inPremises, address } = req.query as {
     inPremises?: string;
     address?: string;
-    confidence?: string;
   };
 
   if (!employeeId || typeof employeeId !== 'string') {
@@ -79,27 +267,10 @@ export default async function handler(
 
   try {
     const now = getCurrentTime();
+    const periodManager = new PeriodManagementService();
+    const enhancementService = new AttendanceEnhancementService();
 
-    // Verify user and shift existence first
-    const user = await prisma.user.findUnique({
-      where: { employeeId },
-      select: {
-        employeeId: true,
-        shiftCode: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (!user.shiftCode) {
-      return res.status(400).json({
-        error: 'Shift configuration error: No shift code assigned to user.',
-      });
-    }
-
-    // 1. Modified parallel data fetching
+    // 1. Fetch base data
     const [baseStatus, window, baseValidation] = await Promise.all([
       attendanceService.getBaseStatus(employeeId),
       services.shiftService.getCurrentWindow(employeeId, now),
@@ -111,335 +282,180 @@ export default async function handler(
     ]);
 
     if (!window) {
-      return res.status(400).json({
-        error: 'Shift configuration error: Unable to calculate shift window.',
+      throw new AppError({
+        code: ErrorCode.SHIFT_DATA_ERROR,
+        message: 'Shift configuration error',
       });
     }
 
-    // Check for early overtime period and post-overtime transitions
-    let effectiveWindow = { ...window };
-    let effectivePeriod = null;
-
-    // Handle post-overtime transition
-    if (
-      baseStatus?.latestAttendance?.overtimeState === 'overtime-ended' &&
-      window.nextPeriod?.type === 'regular'
-    ) {
-      const regularStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.startTime}`,
+    // 2. Get effective periods
+    const { effectiveWindow, effectivePeriod } =
+      periodManager.determineEffectiveWindow(
+        window,
+        baseStatus,
+        now,
+        window.overtimeInfo,
       );
 
-      effectiveWindow = {
-        ...window,
-        type: PeriodType.REGULAR,
-        current: {
-          start: regularStart.toISOString(),
-          end: `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
-        },
-        nextPeriod: null,
-        overtimeInfo: undefined, // Change null to undefined
-      };
+    // 3. Create and validate periods
+    const regularPeriod =
+      effectivePeriod || periodManager.createPeriodFromWindow(effectiveWindow);
 
-      effectivePeriod = {
-        type: PeriodType.REGULAR,
-        startTime: regularStart,
-        endTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
-        ),
-        isOvertime: false,
-        isOvernight: false,
-      };
-    }
-    // Handle early overtime
-    else if (
-      window.nextPeriod?.type === 'overtime' &&
-      window.nextPeriod.overtimeInfo
-    ) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.overtimeInfo.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.nextPeriod.overtimeInfo.endTime}`,
-      );
-      const earlyWindow = subMinutes(
-        overtimeStart,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      );
-
-      if (isWithinInterval(now, { start: earlyWindow, end: overtimeEnd })) {
-        effectiveWindow = {
-          ...window,
-          type: PeriodType.OVERTIME,
-          current: {
-            start: overtimeStart.toISOString(),
-            end: overtimeEnd.toISOString(),
-          },
-          overtimeInfo: window.nextPeriod.overtimeInfo,
-          nextPeriod: null,
-        };
-
-        effectivePeriod = {
-          type: PeriodType.OVERTIME,
-          startTime: overtimeStart,
-          endTime: overtimeEnd,
-          isOvertime: true,
-          overtimeId: window.nextPeriod.overtimeInfo.id,
-          isOvernight:
-            window.nextPeriod.overtimeInfo.endTime <
-            window.nextPeriod.overtimeInfo.startTime,
-        };
-      }
-    }
-
-    // Default period if no transitions apply
-    if (!effectivePeriod) {
-      effectivePeriod = {
-        type: window.type as PeriodType,
-        startTime: new Date(window.current.start),
-        endTime: new Date(window.current.end),
-        isOvertime: window.type === PeriodType.OVERTIME,
-        overtimeId: window.overtimeInfo?.id,
-        isOvernight: window.overtimeInfo
-          ? window.overtimeInfo.endTime < window.overtimeInfo.startTime
-          : window.current.end < window.current.start,
-      };
-    }
-
-    // 2. Better period handling with transition awareness
-    const nextPeriodStart = effectiveWindow.nextPeriod
-      ? parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${effectiveWindow.nextPeriod.startTime}`,
-        )
+    const overtimePeriod = effectiveWindow.overtimeInfo
+      ? periodManager.createOvertimePeriod(effectiveWindow.overtimeInfo, now)
       : null;
 
-    const isNearTransition =
-      nextPeriodStart &&
-      isWithinInterval(now, {
-        start: subMinutes(nextPeriodStart, 15),
-        end: addMinutes(nextPeriodStart, 30),
-      });
+    // When filtering periods
+    const validPeriods = [regularPeriod, overtimePeriod].filter(
+      (p): p is Period => p !== null,
+    );
+    const allPeriods = periodManager.sortAndValidatePeriods(validPeriods);
 
-    // 3. Create current period with transition awareness
-    const currentPeriod: Period = {
-      type: window.type as PeriodType,
-      startTime: new Date(window.current.start),
-      endTime: new Date(window.current.end),
-      isOvertime: window.type === PeriodType.OVERTIME,
-      overtimeId: window.overtimeInfo?.id,
-      isOvernight: window.overtimeInfo
-        ? window.overtimeInfo.endTime < window.overtimeInfo.startTime
-        : window.current.end < window.current.start,
-    };
-    console.log;
-    ('currentPeriod from API');
-    currentPeriod;
+    // 4. Get attendance records for each period
+    const records = await Promise.all(
+      allPeriods.map((period) =>
+        attendanceService.getAttendanceForPeriod(employeeId, period),
+      ),
+    );
 
-    // 4. Map overtime info with proper handling
+    // 5. Get enhanced status
     const mappedOvertimeInfo = effectiveWindow.overtimeInfo
       ? ({
           id: effectiveWindow.overtimeInfo.id,
-          employeeId: employeeId,
-          date: new Date(effectiveWindow.current.start),
+          employeeId,
+          date: now,
           startTime: effectiveWindow.overtimeInfo.startTime,
           endTime: effectiveWindow.overtimeInfo.endTime,
-          durationMinutes: effectiveWindow.overtimeInfo.durationMinutes,
           status: 'approved' as const,
           employeeResponse: null,
-          reason: effectiveWindow.overtimeInfo.reason || null,
           approverId: null,
+          durationMinutes: effectiveWindow.overtimeInfo.durationMinutes,
           isDayOffOvertime: effectiveWindow.overtimeInfo.isDayOffOvertime,
           isInsideShiftHours: effectiveWindow.overtimeInfo.isInsideShiftHours,
+          reason: effectiveWindow.overtimeInfo.reason,
         } as ApprovedOvertimeInfo)
       : null;
 
-    // First, map baseStatus.latestAttendance to proper AttendanceRecord type
-    const mappedLatestAttendance = baseStatus?.latestAttendance
-      ? ({
-          id: baseStatus.latestAttendance.id || '', // Required field
-          employeeId: employeeId, // We have this from params
-          date: new Date(baseStatus.latestAttendance.date), // Convert string to Date
-          state: baseStatus.latestAttendance.state || AttendanceState.ABSENT,
-          checkStatus:
-            baseStatus.latestAttendance.checkStatus || CheckStatus.PENDING,
-          isOvertime: baseStatus.latestAttendance.isOvertime || false,
-          isEarlyCheckIn: baseStatus.latestAttendance.isEarlyCheckIn || false,
-          isLateCheckIn: baseStatus.latestAttendance.isLateCheckIn || false,
-          isLateCheckOut: baseStatus.latestAttendance.isLateCheckOut || false,
-          isVeryLateCheckOut: false,
-          lateCheckOutMinutes: 0,
-          CheckInTime: baseStatus.latestAttendance.CheckInTime
-            ? new Date(baseStatus.latestAttendance.CheckInTime)
-            : null,
-          CheckOutTime: baseStatus.latestAttendance.CheckOutTime
-            ? new Date(baseStatus.latestAttendance.CheckOutTime)
-            : null,
-          checkInLocation: null,
-          checkOutLocation: null,
-          checkInAddress: null,
-          checkOutAddress: null,
-          isManualEntry: baseStatus.latestAttendance.isManualEntry || false,
-          overtimeState: baseStatus.latestAttendance.overtimeState,
-          shiftStartTime: baseStatus.latestAttendance.shiftStartTime
-            ? new Date(baseStatus.latestAttendance.shiftStartTime)
-            : null,
-          shiftEndTime: baseStatus.latestAttendance.shiftEndTime
-            ? new Date(baseStatus.latestAttendance.shiftEndTime)
-            : null,
-          timeEntries: [],
-          overtimeEntries: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as AttendanceRecord)
-      : null;
-
     const enhancedStatus = await enhancementService.enhanceAttendanceStatus(
-      mappedLatestAttendance,
-      effectivePeriod,
-      mappedOvertimeInfo,
+      baseStatus?.latestAttendance
+        ? AttendanceMappers.toAttendanceRecord(baseStatus.latestAttendance)
+        : null,
+      allPeriods[0],
+      mappedOvertimeInfo, // Use mapped version
     );
 
-    const modifiedValidation: ValidationResponseWithMetadata = {
-      allowed: baseValidation?.allowed ?? false,
-      reason:
-        baseStatus?.latestAttendance?.overtimeState === 'overtime-ended' &&
-        effectivePeriod.type === PeriodType.REGULAR
-          ? 'กรุณายืนยันการเริ่มงานกะปกติ'
-          : effectiveWindow.nextPeriod?.type === 'overtime' &&
-              effectiveWindow.nextPeriod.overtimeInfo
-            ? `ไม่สามารถลงเวลาเข้างานล่วงเวลาได้ก่อนเวลา ${format(
-                subMinutes(
-                  parseISO(
-                    `${format(now, 'yyyy-MM-dd')}T${effectiveWindow.nextPeriod.overtimeInfo.startTime}`,
-                  ),
-                  ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-                ),
-                'HH:mm',
-              )} น.`
-            : baseValidation?.reason || 'Default validation',
-      flags: {
-        ...baseValidation?.flags,
-        isEarlyCheckOut: false,
-        isEmergencyLeave: false,
-        isPlannedHalfDayLeave: false,
-        isCheckingIn: baseStatus?.isCheckingIn ?? true, // Add this line
-        isOvertime: Boolean(
-          effectivePeriod.type === PeriodType.OVERTIME ||
-            (isNearTransition &&
-              effectiveWindow.nextPeriod?.type === 'overtime'),
-        ),
-        isAutoCheckIn: enhancedStatus.missingEntries.some(
-          (e) => e.type === 'check-in',
-        ),
-        isAutoCheckOut: enhancedStatus.missingEntries.some(
-          (e) => e.type === 'check-out',
-        ),
-        requireConfirmation:
-          isNearTransition ||
-          baseValidation?.flags?.requireConfirmation ||
-          false,
+    // 6. Create timeline enhancement
+    const timeline = createTimelineEnhancement(
+      allPeriods,
+      records.filter((record) => record !== null) as AttendanceRecord[],
+      now,
+    );
+
+    // 7. Build enhanced validation
+    const enhancedValidation = createEnhancedValidation(
+      enhancedStatus,
+      allPeriods,
+      records.filter((record) => record !== null) as AttendanceRecord[],
+      now,
+    );
+
+    // 8. Map to response format
+    const response = mapEnhancedResponse(
+      baseStatus,
+      enhancedStatus,
+      allPeriods,
+      timeline,
+      enhancedValidation,
+      {
+        records: records.filter((r): r is AttendanceRecord => r !== null),
+        window: effectiveWindow,
+        baseValidation,
+        now,
       },
-      metadata: {
-        missingEntries: enhancedStatus.missingEntries,
-        ...(isNearTransition && nextPeriodStart
-          ? {
-              transitionWindow: {
-                start: subMinutes(nextPeriodStart, 15).toISOString(),
-                end: addMinutes(nextPeriodStart, 30).toISOString(),
-                targetPeriod: effectiveWindow.nextPeriod?.type as PeriodType,
-              },
-            }
-          : {}),
-      },
-    };
+    );
 
-    // 7. Modified window response
-    const modifiedWindow: ExtendedShiftWindowResponse = {
-      ...effectiveWindow,
-      pendingTransitions: [...enhancedStatus.pendingTransitions],
-    };
-
-    // 8. Normalized status with better transition handling
-    const normalizedStatus: AttendanceBaseResponse = {
-      state:
-        effectivePeriod.type === PeriodType.OVERTIME
-          ? AttendanceState.OVERTIME
-          : baseStatus?.state || AttendanceState.ABSENT,
-      checkStatus: baseStatus?.checkStatus || CheckStatus.PENDING,
-      isCheckingIn: baseStatus?.isCheckingIn ?? true,
-      latestAttendance: baseStatus?.latestAttendance
-        ? {
-            id: baseStatus.latestAttendance.id,
-            employeeId: baseStatus.latestAttendance.employeeId,
-            date: baseStatus.latestAttendance.date,
-            CheckInTime: baseStatus.latestAttendance.CheckInTime,
-            CheckOutTime: baseStatus.latestAttendance.CheckOutTime,
-            state:
-              effectivePeriod.type === PeriodType.OVERTIME
-                ? AttendanceState.OVERTIME
-                : baseStatus.latestAttendance.state || AttendanceState.ABSENT,
-            checkStatus:
-              baseStatus.latestAttendance.checkStatus || CheckStatus.PENDING,
-            overtimeState: baseStatus.latestAttendance.overtimeState,
-            isLateCheckIn: baseStatus.latestAttendance.isLateCheckIn || false,
-            isOvertime: effectivePeriod.type === PeriodType.OVERTIME,
-            isManualEntry: baseStatus.latestAttendance.isManualEntry || false,
-            isDayOff: baseStatus.latestAttendance.isDayOff || false,
-            shiftStartTime: baseStatus.latestAttendance.shiftStartTime,
-            shiftEndTime: baseStatus.latestAttendance.shiftEndTime,
-          }
-        : undefined,
-    };
-
-    // Cache headers for short-term caching
-    res.setHeader('Cache-Control', 'private, max-age=30');
-
-    console.log({
-      status: normalizedStatus,
-      window: modifiedWindow,
-      validation: modifiedValidation,
-      enhanced: enhancedStatus,
-      timestamp: now.toISOString(),
-    });
-
-    return res.status(200).json({
-      status: normalizedStatus,
-      window: modifiedWindow,
-      validation: modifiedValidation,
-      enhanced: enhancedStatus,
-      timestamp: now.toISOString(),
-    });
+    return res.status(200).json(response);
   } catch (error) {
-    console.error('Attendance status error:', {
-      error,
-      employeeId,
-      timestamp: new Date().toISOString(),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
-    if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        return res.status(404).json({ error: error.message });
-      }
-      if (error.message.includes('validation')) {
-        return res.status(400).json({ error: error.message });
-      }
-      if (error.message.includes('permission')) {
-        return res.status(403).json({ error: error.message });
-      }
-      if (
-        error.message.includes('startTime') ||
-        error.message.includes('shift')
-      ) {
-        return res.status(400).json({
-          error: 'Shift configuration error. Please contact HR.',
-        });
-      }
-    }
-
+    console.error('Attendance status error:', error);
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'Internal server error',
     });
-  } finally {
-    await prisma.$disconnect();
   }
+}
+
+function createTimelineEnhancement(
+  periods: Period[],
+  records: AttendanceRecord[],
+  now: Date,
+): TimelineEnhancement {
+  return {
+    currentPeriodIndex: periods.findIndex((p) =>
+      isWithinInterval(now, { start: p.startTime, end: p.endTime }),
+    ),
+    periodEntries: periods.map((period, index) => ({
+      periodType: period.type,
+      startTime: period.startTime.toISOString(),
+      endTime: period.endTime.toISOString(),
+      checkInTime: records[index]?.CheckInTime?.toISOString(),
+      checkOutTime: records[index]?.CheckOutTime?.toISOString(),
+      status: getPeriodEntryStatus(period, records[index], now),
+    })),
+  };
+}
+
+function createEnhancedValidation(
+  enhanced: EnhancedAttendanceStatus,
+  periods: Period[],
+  records: AttendanceRecord[],
+  now: Date,
+): ValidationEnhancement {
+  return {
+    autoCompletionRequired: enhanced.missingEntries.length > 0,
+    pendingTransitionValidation: {
+      canTransition: enhanced.pendingTransitions.length > 0,
+      reason:
+        enhanced.pendingTransitions.length > 0
+          ? 'Period transition required'
+          : undefined,
+      nextPeriodStart: enhanced.pendingTransitions[0]?.transitionTime,
+    },
+    periodValidation: {
+      isWithinPeriod: enhanced.currentPeriod !== null,
+      isEarlyForPeriod: checkIfEarlyForPeriod(enhanced.currentPeriod, now),
+      isLateForPeriod: checkIfLateForPeriod(enhanced.currentPeriod, now),
+      periodStart: enhanced.currentPeriod?.startTime ?? now,
+      periodEnd: enhanced.currentPeriod?.endTime ?? now,
+    },
+  };
+}
+
+function getPeriodEntryStatus(
+  period: Period,
+  record: AttendanceRecord | null,
+  now: Date,
+): 'pending' | 'active' | 'completed' {
+  if (isAfter(period.startTime, now)) return 'pending';
+  if (record?.CheckOutTime) return 'completed';
+  if (isWithinInterval(now, { start: period.startTime, end: period.endTime })) {
+    return 'active';
+  }
+  return 'pending';
+}
+
+function checkIfEarlyForPeriod(period: Period | null, now: Date): boolean {
+  if (!period) return false;
+  const earlyWindow = subMinutes(
+    period.startTime,
+    ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+  );
+  return isWithinInterval(now, { start: earlyWindow, end: period.startTime });
+}
+
+function checkIfLateForPeriod(period: Period | null, now: Date): boolean {
+  if (!period) return false;
+  const lateWindow = addMinutes(
+    period.startTime,
+    ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+  );
+  return isAfter(now, lateWindow);
 }

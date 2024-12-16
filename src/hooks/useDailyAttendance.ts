@@ -7,12 +7,12 @@ import { DepartmentInfo } from '@/types/attendance/department';
 import { AttendanceFilters, DateRange } from '@/types/attendance/utils';
 import { ManualEntryRequest } from '@/types/attendance/manual';
 import {
-  AttendanceState,
   DailyAttendanceRecord,
   PeriodType,
   UseDailyAttendanceProps,
   UseDailyAttendanceReturn,
 } from '@/types/attendance';
+import { AttendanceState } from '@prisma/client';
 
 export function useDailyAttendance({
   lineUserId,

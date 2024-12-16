@@ -1,26 +1,20 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, Prisma } from '@prisma/client';
-import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
 import {
+  PrismaClient,
+  Prisma,
   AttendanceState,
   CheckStatus,
-  DailyAttendanceRecord,
   OvertimeState,
+} from '@prisma/client';
+import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
+import {
+  DailyAttendanceRecord,
   ShiftData,
-  DateRange,
   DepartmentInfo,
   AttendanceFilters,
 } from '@/types/attendance';
 
 const prisma = new PrismaClient();
-
-interface AttendanceSummary {
-  total: number;
-  present: number;
-  absent: number;
-  onLeave: number;
-  dayOff: number;
-}
 
 async function handleGetDailyAttendance(
   req: NextApiRequest,

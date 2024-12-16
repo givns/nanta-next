@@ -8,14 +8,8 @@ import {
   CheckInOutData,
   AppError,
   ErrorCode,
-  OvertimeState,
-  EnhancedAttendanceStatus,
-  AttendanceBaseResponse,
-  ValidationResponseWithMetadata,
-  ShiftWindowResponse,
-  LatestAttendance,
-  AttendanceState,
-  CheckStatus,
+  AttendanceStatusResponse,
+  PeriodType,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 
@@ -39,13 +33,12 @@ export function useAttendanceData({
 }: UseAttendanceDataProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
-  const submitTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const { data, error, mutate } = useSWR<AttendanceStateResponse>(
+  const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
     enabled && employeeId && locationState.status === 'ready'
       ? ['/api/attendance/status/[employeeId]', employeeId, locationState]
       : null,
-    async ([_, id]): Promise<AttendanceStateResponse> => {
+    async ([_, id]): Promise<AttendanceStatusResponse> => {
       try {
         const response = await axios.get(`/api/attendance/status/${id}`, {
           params: {
@@ -59,106 +52,55 @@ export function useAttendanceData({
 
         // Force immediate refresh if transition detected
         if (
-          response.data?.window?.type === 'overtime' &&
+          response.data?.daily?.transitions?.from?.type ===
+            PeriodType.OVERTIME &&
           response.data?.base?.latestAttendance?.CheckOutTime
         ) {
-          await mutate(response.data, false); // Skip revalidation
+          await mutate(response.data, false);
         }
 
-        const responseData = response.data;
-        console.log('useAttendanceData API response:', responseData);
-
-        // Map the base status response
-        const baseResponse: AttendanceBaseResponse = {
-          state: responseData.status.state || AttendanceState.ABSENT,
-          checkStatus: responseData.status.checkStatus || CheckStatus.PENDING,
-          isCheckingIn: responseData.status.isCheckingIn ?? true,
-          latestAttendance: responseData.status.latestAttendance
-            ? {
-                id: responseData.status.id,
-                employeeId: responseData.status.employeeId,
-                date: responseData.status.latestAttendance.date,
-                CheckInTime: responseData.status.latestAttendance.CheckInTime,
-                CheckOutTime: responseData.status.latestAttendance.CheckOutTime,
-                state: responseData.status.latestAttendance.state,
-                checkStatus: responseData.status.latestAttendance.checkStatus,
-                overtimeState:
-                  responseData.status.latestAttendance.overtimeState,
-                isLateCheckIn:
-                  responseData.status.latestAttendance.isLateCheckIn,
-                isOvertime: responseData.status.latestAttendance.isOvertime,
-                isManualEntry:
-                  responseData.status.latestAttendance.isManualEntry || false,
-                isDayOff:
-                  responseData.status.latestAttendance.isDayOff || false,
-                shiftStartTime:
-                  responseData.status.latestAttendance.shiftStartTime,
-                shiftEndTime: responseData.status.latestAttendance.shiftEndTime,
-              }
-            : undefined,
-        };
-
-        // Map validation with metadata
-        const mappedValidation: ValidationResponseWithMetadata | undefined =
-          responseData.validation
-            ? {
-                allowed: responseData.validation.allowed,
-                reason: responseData.validation.reason,
-                flags: {
-                  isCheckingIn:
-                    responseData.validation.flags?.isCheckingIn || false,
-                  isLateCheckIn:
-                    responseData.validation.flags?.isLateCheckIn || false,
-                  isEarlyCheckOut:
-                    responseData.validation.flags?.isEarlyCheckOut || false,
-                  isPlannedHalfDayLeave:
-                    responseData.validation.flags?.isPlannedHalfDayLeave ||
-                    false,
-                  isEmergencyLeave:
-                    responseData.validation.flags?.isEmergencyLeave || false,
-                  isOvertime:
-                    responseData.validation.flags?.isOvertime || false,
-                  requireConfirmation:
-                    responseData.validation.flags?.requireConfirmation || false,
-                  isDayOffOvertime:
-                    responseData.validation.flags?.isDayOffOvertime || false,
-                  isInsideShift:
-                    responseData.validation.flags?.isInsideShift || false,
-                  isAutoCheckIn:
-                    responseData.validation.flags?.isAutoCheckIn || false,
-                  isAutoCheckOut:
-                    responseData.validation.flags?.isAutoCheckOut || false,
-                },
-                metadata: responseData.validation.metadata,
-              }
-            : undefined;
-
         return {
-          base: {
-            state: baseResponse.state,
-            checkStatus: baseResponse.checkStatus,
-            isCheckingIn: baseResponse.isCheckingIn,
-            latestAttendance: baseResponse.latestAttendance
-              ? {
-                  id: responseData.status.latestAttendance.id || '',
-                  employeeId: responseData.employeeId,
-                  date: baseResponse.latestAttendance.date,
-                  CheckInTime: baseResponse.latestAttendance.CheckInTime,
-                  CheckOutTime: baseResponse.latestAttendance.CheckOutTime,
-                  state: baseResponse.latestAttendance.state,
-                  checkStatus: baseResponse.latestAttendance.checkStatus,
-                  overtimeState: baseResponse.latestAttendance.overtimeState,
-                  isManualEntry: baseResponse.latestAttendance.isManualEntry,
-                  isDayOff: baseResponse.latestAttendance.isDayOff,
-                  shiftStartTime: baseResponse.latestAttendance.shiftStartTime,
-                  shiftEndTime: baseResponse.latestAttendance.shiftEndTime,
-                }
-              : null,
+          daily: response.data.daily,
+          base: response.data.base,
+          window: response.data.window,
+          validation: {
+            allowed: response.data.validation.allowed,
+            reason: response.data.validation.reason,
+            flags: {
+              ...response.data.validation.flags,
+              isPendingDayOffOvertime: false,
+              isPendingOvertime: false,
+              isOutsideShift: false,
+              isLate: false,
+              isEarly: false,
+              isEarlyCheckIn:
+                response.data.validation.periodValidation.currentPeriod
+                  .enhancement.isEarlyForPeriod,
+              isEarlyCheckOut: false,
+              isLateCheckIn: false,
+              isLateCheckOut:
+                response.data.validation.periodValidation.currentPeriod
+                  .enhancement.isLateForPeriod,
+              isVeryLateCheckOut: false,
+              isAutoCheckIn: false,
+              isAutoCheckOut: false,
+              isAfternoonShift: false,
+              isMorningShift: false,
+              isAfterMidshift: false,
+              isApprovedEarlyCheckout: false,
+              isPlannedHalfDayLeave: false,
+              isEmergencyLeave: false,
+              hasActivePeriod: false,
+              hasPendingTransition:
+                response.data.daily.transitions.isComplete === false,
+              requiresAutoCompletion: false,
+              isHoliday: false,
+              isDayOff: false,
+              isManualEntry: false,
+            },
+            periodValidation: response.data.validation.periodValidation,
           },
-          window: responseData.window,
-          validation: mappedValidation,
-          enhanced: responseData.enhanced,
-          timestamp: responseData.timestamp,
+          enhanced: response.data.enhanced,
         };
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 503) {
@@ -180,76 +122,42 @@ export function useAttendanceData({
 
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
-      let retryCount = 0;
+      try {
+        const response = await axios.post<ProcessingResult>(
+          '/api/attendance/check-in-out',
+          {
+            ...params,
+            employeeId,
+            lineUserId,
+            address: locationState.address,
+            inPremises: locationState.inPremises,
+            confidence: locationState.confidence,
+            checkTime: getCurrentTime().toISOString(),
+          },
+          { timeout: REQUEST_TIMEOUT },
+        );
 
-      while (retryCount <= MAX_RETRIES) {
-        try {
-          console.log('Attempting check-in/out:', {
-            attempt: retryCount + 1,
-            isCheckIn: params.isCheckIn,
-            isOvertime: params.isOvertime,
-          });
-
-          const response = await axios.post<ProcessingResult>(
-            '/api/attendance/check-in-out',
-            {
-              ...params,
-              employeeId,
-              lineUserId,
-              address: locationState.address,
-              inPremises: locationState.inPremises,
-              confidence: locationState.confidence,
-              checkTime: getCurrentTime().toISOString(),
-            },
-            { timeout: REQUEST_TIMEOUT },
-          );
-
-          if (!response.data.success) {
-            throw new AppError({
-              code: ErrorCode.PROCESSING_ERROR,
-              message:
-                typeof response.data.errors === 'string'
-                  ? response.data.errors
-                  : 'Failed to process attendance',
-            });
-          }
-
-          await mutate(undefined, { revalidate: true });
-          return response.data;
-        } catch (error) {
-          console.error('Check-in/out error:', error);
-
-          if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
-            if (retryCount >= MAX_RETRIES) {
-              throw new AppError({
-                code: ErrorCode.TIMEOUT,
-                message: 'Operation timed out after retries',
-              });
-            }
-          } else if (error instanceof AppError) {
-            throw error;
-          }
-
-          retryCount++;
-          if (retryCount <= MAX_RETRIES) {
-            await new Promise((resolve) =>
-              setTimeout(resolve, 1000 * Math.pow(2, retryCount)),
-            );
-            continue;
-          }
-
+        if (!response.data.success) {
           throw new AppError({
             code: ErrorCode.PROCESSING_ERROR,
-            message: error instanceof Error ? error.message : 'Unknown error',
-            originalError: error,
+            message:
+              typeof response.data.errors === 'string'
+                ? response.data.errors
+                : 'Failed to process attendance',
           });
         }
-      }
 
-      throw new AppError({
-        code: ErrorCode.PROCESSING_ERROR,
-        message: 'Max retries exceeded',
-      });
+        await mutate(undefined, { revalidate: true });
+        return response.data;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
+          throw new AppError({
+            code: ErrorCode.TIMEOUT,
+            message: 'Operation timed out',
+          });
+        }
+        throw handleAttendanceError(error);
+      }
     },
     [employeeId, lineUserId, locationState, mutate],
   );
@@ -276,15 +184,7 @@ export function useAttendanceData({
   );
 
   return {
-    data: data
-      ? {
-          ...data,
-          base: {
-            ...data.base,
-            latestAttendance: data.base?.latestAttendance ?? null,
-          },
-        }
-      : undefined,
+    data,
     error,
     isLoading: !data && !error,
     isRefreshing,

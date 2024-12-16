@@ -3,15 +3,9 @@
 import { AttendanceRecord } from './records';
 import { TimeWindow, Location } from './base';
 import { HalfDayLeaveContext, LeaveRequest } from './leave';
-import {
-  ApprovedOvertimeInfo,
-  AttendanceState,
-  CheckStatus,
-  CurrentPeriodInfo,
-  OvertimeState,
-  PeriodType,
-} from './status';
+import { ApprovedOvertimeInfo, CurrentPeriodInfo, PeriodType } from './status';
 import { ShiftData } from './shift';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 export interface HolidayContext {
   isHoliday: boolean;

@@ -1,9 +1,11 @@
 // types/attendance/validation.ts
 
 import { ErrorCode } from '../errors';
-import { AttendanceState, PeriodType } from './status';
-import { Location } from './base';
+import { PeriodType } from './status';
+import { AttendanceFlags, Location } from './base';
 import { ValidationContext } from './context';
+import { PeriodValidation } from './response';
+import { AttendanceState } from '@prisma/client';
 
 // Core validation interfaces
 export interface ValidationRule {
@@ -105,29 +107,12 @@ export interface OvertimeValidationRule extends ValidationRule {
 }
 
 // Validation collection type
+
 export interface AttendanceValidation {
-  rules: ValidationRule[];
-  context: ValidationContext;
-  result?: ValidationResult;
-
-  // Rule categories
-  timeRules: TimeValidationRule[];
-  locationRules: LocationValidationRule[];
-  overtimeRules: OvertimeValidationRule[];
-
-  // Validation state
-  lastValidated?: Date;
-  isValidating: boolean;
-  validationErrors: ValidationError[];
-  validationWarnings: ValidationWarning[];
-
-  // Metadata
-  metadata?: {
-    version: number;
-    updatedAt: Date;
-    validatedBy?: string;
-    [key: string]: unknown;
-  };
+  allowed: boolean;
+  reason: string;
+  flags: AttendanceFlags;
+  periodValidation: PeriodValidation;
 }
 
 // Helper type for validation functions

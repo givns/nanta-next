@@ -1,4 +1,5 @@
-import { PeriodType } from './status';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import { PeriodStatus, PeriodType } from './status';
 
 export interface Period {
   type: PeriodType;
@@ -8,12 +9,53 @@ export interface Period {
   overtimeId?: string;
   isOvernight: boolean;
   isDayOffOvertime?: boolean;
+  isConnected?: boolean; //
 }
 
-export interface PeriodTransition {
-  from: Period;
-  to: Period;
-  transitionTime: Date;
-  allowEarlyTransition: boolean;
-  earlyWindowMinutes: number;
+export interface PeriodWindow {
+  start: Date;
+  end: Date;
+  type: PeriodType;
+  overtimeId?: string;
+  isConnected: boolean;
+  nextPeriod?: {
+    type: PeriodType;
+    start: Date;
+    end: Date;
+    overtimeId?: string;
+  };
+}
+
+export interface PeriodInfo {
+  type: PeriodType;
+  window: {
+    start: string;
+    end: string;
+  };
+  status: PeriodStatus;
+  attendance?: PeriodAttendance;
+  overtime?: OvertimePeriodInfo;
+}
+
+export interface PeriodAttendance {
+  id: string;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+}
+export interface OvertimePeriodInfo {
+  id: string;
+  startTime: string;
+  endTime: string;
+  status: OvertimeState;
+}
+
+export interface DailyPeriods {
+  date: string;
+  periods: PeriodWindow[];
+  currentPeriodIndex: number;
+  hasCompletedPeriods: boolean;
+  hasIncompletePeriods: boolean;
+  hasFuturePeriods: boolean;
 }

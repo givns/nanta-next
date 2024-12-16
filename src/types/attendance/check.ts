@@ -3,8 +3,9 @@
 // Check-in/out related types
 // ===================================
 import { OvertimeMetadata } from './records';
-import { AttendanceState, PeriodType } from './status';
+import { PeriodType } from './status';
 import { Location } from './base';
+import { AttendanceState } from '@prisma/client';
 
 // Keep and enhance
 

@@ -1,26 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, Prisma } from '@prisma/client';
-import {
-  parseISO,
-  startOfDay,
-  format,
-  isBefore,
-  addHours,
-  addMinutes,
-} from 'date-fns';
-import { initializeServices } from '@/services/ServiceInitializer';
-import { TimeCalculationHelper } from '@/services/Attendance/utils/TimeCalculationHelper';
 import {
   AttendanceState,
   CheckStatus,
-  PeriodType,
   OvertimeState,
-  TimeEntryStatus,
-} from '@/types/attendance/status';
-import { ProcessingOptions } from '@/types/attendance/processing';
+  PrismaClient,
+} from '@prisma/client';
+import { parseISO, startOfDay, format, addHours, addMinutes } from 'date-fns';
+import { initializeServices } from '@/services/ServiceInitializer';
+import { PeriodType, TimeEntryStatus } from '@/types/attendance/status';
 import { ErrorCode, AppError } from '@/types/attendance/error';
 import { AttendanceService } from '@/services/Attendance/AttendanceService';
-import { ShiftData } from '@/types/attendance';
 
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);

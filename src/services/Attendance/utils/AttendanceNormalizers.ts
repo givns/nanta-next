@@ -1,12 +1,7 @@
 // services/Attendance/utils/AttendanceNormalizers.ts
 
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  TimeEntryStatus,
-  PeriodType,
-} from '../../../types/attendance/status';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import { TimeEntryStatus, PeriodType } from '../../../types/attendance/status';
 
 export class AttendanceNormalizers {
   static normalizeAttendanceState(state: string): AttendanceState {

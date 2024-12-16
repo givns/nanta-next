@@ -6,27 +6,8 @@ import { FutureShift, ShiftAdjustmentInfo, ShiftData } from './shift';
 import { OvertimeContext, OvertimeEntryData, OvertimeInfo } from './overtime';
 import { Period } from './period';
 import { TimeEntry } from './records';
-
-export enum AttendanceState {
-  PRESENT = 'present',
-  ABSENT = 'absent',
-  INCOMPLETE = 'incomplete',
-  HOLIDAY = 'holiday',
-  OFF = 'off',
-  OVERTIME = 'overtime',
-}
-
-export enum CheckStatus {
-  CHECKED_IN = 'checked-in',
-  CHECKED_OUT = 'checked-out',
-  PENDING = 'pending',
-}
-
-export enum OvertimeState {
-  NOT_STARTED = 'not-started',
-  IN_PROGRESS = 'overtime-started',
-  COMPLETED = 'overtime-ended',
-}
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import { LatestAttendanceResponse } from './base';
 
 export enum ApprovalState {
   PENDING = 'pending',
@@ -80,6 +61,12 @@ export enum PeriodType {
   OVERTIME = 'overtime',
 }
 
+export enum PeriodStatus {
+  ACTIVE = 'active',
+  PENDING = 'pending',
+  COMPLETED = 'completed',
+}
+
 export type OvertimeStatus = 'in_progress' | 'completed';
 
 export type OvertimeRequestStatus =
@@ -90,12 +77,6 @@ export type OvertimeRequestStatus =
   | 'declined_by_employee';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-
-export enum PeriodStatus {
-  PENDING = 'pending',
-  ACTIVE = 'active',
-  COMPLETED = 'completed',
-}
 
 /**
  * Type Guards
@@ -155,7 +136,7 @@ export interface AttendanceStatus {
 
   data: {
     user: UserData;
-    latestAttendance: LatestAttendance | null;
+    latestAttendance: LatestAttendanceResponse | null;
     shiftAdjustment: ShiftAdjustmentInfo | null;
     approvedOvertime: ApprovedOvertimeInfo | null;
     holidayInfo?: HolidayInfo | null;
@@ -179,15 +160,14 @@ export interface AttendanceStatusInfo {
   state: AttendanceState;
   checkStatus: CheckStatus;
   overtimeState?: OvertimeState;
-  isOvertime?: boolean;
-  overtimeDuration?: number;
+  isOvertime: boolean;
+  overtimeDuration: number;
   overtimeEntries: OvertimeEntryData[];
-  detailedStatus: string;
   isEarlyCheckIn: boolean;
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
   user: UserData;
-  latestAttendance: LatestAttendance | null;
+  latestAttendance: LatestAttendanceResponse | null;
   isCheckingIn: boolean;
   isDayOff: boolean;
   isHoliday: boolean;
@@ -201,7 +181,6 @@ export interface AttendanceStatusInfo {
     requestedShift: ShiftData;
   } | null;
   approvedOvertime: ApprovedOvertimeInfo | null;
-  allApprovedOvertimes?: ApprovedOvertimeInfo[];
   futureShifts: Array<{
     date: string;
     shift: ShiftData;
@@ -209,46 +188,66 @@ export interface AttendanceStatusInfo {
   futureOvertimes: Array<ApprovedOvertimeInfo>;
   overtimeAttendances: OvertimeAttendanceInfo[];
   currentPeriod: CurrentPeriodInfo;
-  nextPeriod?: {
-    type: PeriodType;
-    startTime: string;
-    overtimeId?: string;
-  };
+  detailedStatus: string;
   pendingLeaveRequest: boolean;
-  leaveRequests?: {
-    status: string;
-    leaveFormat: string;
-    startDate: string;
-    endDate: string;
-  }[];
   autoCompleted?: boolean;
-  regular?: TimeEntry; // For auto-completion
-  overtime?: TimeEntry[]; // For auto-completion
+  regular?: TimeEntry;
+  overtime?: TimeEntry[];
 }
 
 export interface EnhancedAttendanceStatus {
   currentPeriod: Period | null;
-  lastCheckIn: {
-    time: Date;
+  lastCheckIn: LastEntryInfo | null;
+  lastCheckOut: LastEntryInfo | null;
+  missingEntries: MissingEntry[];
+  pendingTransitions: PendingTransition[];
+}
+
+export interface LastEntryInfo {
+  time: Date;
+  periodType: PeriodType;
+  isOvertime: boolean;
+}
+
+export interface MissingEntry {
+  type: 'check-in' | 'check-out';
+  periodType: PeriodType;
+  expectedTime: Date;
+  overtimeId?: string;
+}
+
+export interface PendingTransition {
+  from: PeriodType;
+  to: PeriodType;
+  transitionTime: Date;
+  isComplete: boolean;
+}
+
+export interface ValidationEnhancement {
+  autoCompletionRequired: boolean;
+  pendingTransitionValidation: {
+    canTransition: boolean;
+    reason?: string;
+    nextPeriodStart?: Date;
+  };
+  periodValidation: {
+    isWithinPeriod: boolean;
+    isEarlyForPeriod: boolean;
+    isLateForPeriod: boolean;
+    periodStart: Date;
+    periodEnd: Date;
+  };
+}
+
+export interface TimelineEnhancement {
+  currentPeriodIndex: number;
+  periodEntries: Array<{
     periodType: PeriodType;
-    isOvertime: boolean;
-  } | null;
-  lastCheckOut: {
-    time: Date;
-    periodType: PeriodType;
-    isOvertime: boolean;
-  } | null;
-  missingEntries: Array<{
-    type: 'check-in' | 'check-out';
-    periodType: PeriodType;
-    expectedTime: Date;
-    overtimeId?: string;
-  }>;
-  pendingTransitions: Array<{
-    from: PeriodType;
-    to: PeriodType;
-    transitionTime: Date;
-    isCompleted: boolean;
+    startTime: string;
+    endTime: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    status: 'pending' | 'active' | 'completed';
   }>;
 }
 
@@ -262,22 +261,6 @@ export interface NextPeriod {
   type: PeriodType;
   startTime: string;
   overtimeInfo?: OvertimeContext;
-}
-
-export interface LatestAttendance {
-  id: string;
-  employeeId: string;
-  date: string;
-  CheckInTime: string | null;
-  CheckOutTime: string | null;
-  isOvertime?: boolean;
-  state: AttendanceState;
-  checkStatus: CheckStatus;
-  overtimeState?: OvertimeState;
-  isManualEntry: boolean;
-  isDayOff: boolean;
-  shiftStartTime?: string;
-  shiftEndTime?: string;
 }
 
 export interface StatusContext {

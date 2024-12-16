@@ -1,9 +1,13 @@
 // services/Attendance/AttendanceProcessingService.ts
 
-import { PrismaClient, Prisma } from '@prisma/client';
 import {
+  PrismaClient,
+  Prisma,
+  OvertimeState,
   AttendanceState,
   CheckStatus,
+} from '@prisma/client';
+import {
   AttendanceCompositeStatus,
   StatusUpdateResult,
   TimeEntryStatus,
@@ -16,7 +20,6 @@ import {
   ErrorCode,
   LeaveRequest,
   AttendancePeriodContext,
-  OvertimeState,
   TimeEntry,
 } from '../../types/attendance';
 import { getCurrentTime } from '../../utils/dateUtils';
@@ -266,8 +269,8 @@ export class AttendanceProcessingService {
             `${format(now, 'yyyy-MM-dd')}T${context.approvedOvertime.startTime}`,
           )
         : context.shiftTimes.end,
-      state: AttendanceState.PRESENT,
-      checkStatus: CheckStatus.CHECKED_OUT,
+      state: 'PRESENT', // Use string literal
+      checkStatus: 'CHECKED_OUT', // Use string literal
       isOvertime: false,
       shiftStartTime: context.shiftTimes.start,
       shiftEndTime: context.shiftTimes.end,
@@ -277,10 +280,49 @@ export class AttendanceProcessingService {
       // Create new attendance record
       return tx.attendance.create({
         data: {
-          ...baseData,
           employeeId: options.employeeId!,
           date: startOfDay(now),
           version: 1,
+          state: 'PRESENT', // Use string literal
+          checkStatus: 'CHECKED_OUT', // Use string literal
+          CheckInTime: context.shiftTimes.start,
+          CheckOutTime: context.approvedOvertime
+            ? parseISO(
+                `${format(now, 'yyyy-MM-dd')}T${context.approvedOvertime.startTime}`,
+              )
+            : context.shiftTimes.end,
+          isOvertime: false,
+          shiftStartTime: context.shiftTimes.start,
+          shiftEndTime: context.shiftTimes.end,
+          timeEntries: {
+            create: [
+              {
+                employeeId: options.employeeId!,
+                date: startOfDay(now),
+                startTime: context.shiftTimes.start,
+                endTime: context.shiftTimes.end,
+                status: 'COMPLETED',
+                entryType: 'REGULAR',
+                regularHours: 0, // Adjust as needed
+                overtimeHours: 0,
+              },
+            ],
+          },
+          overtimeEntries: context.approvedOvertime
+            ? {
+                create: [
+                  {
+                    actualStartTime: parseISO(
+                      `${format(now, 'yyyy-MM-dd')}T${context.approvedOvertime.startTime}`,
+                    ),
+                    actualEndTime: parseISO(
+                      `${format(now, 'yyyy-MM-dd')}T${context.approvedOvertime.endTime}`,
+                    ),
+                    overtimeRequestId: context.approvedOvertime.id, // Assuming there's an ID
+                  },
+                ],
+              }
+            : undefined,
         },
         include: {
           timeEntries: true,
@@ -294,10 +336,18 @@ export class AttendanceProcessingService {
       where: { id: attendance.id },
       data: {
         ...baseData,
+        state: { set: 'PRESENT' }, // Use Prisma's set operation
+        checkStatus: { set: 'CHECKED_OUT' }, // Use Prisma's set operation
         isOvertime: !!context.approvedOvertime,
         overtimeState: context.approvedOvertime
-          ? OvertimeState.COMPLETED
+          ? { set: 'COMPLETED' } // Use Prisma's set operation
           : undefined,
+        timeEntries: {
+          create: [], // Explicitly handle timeEntries
+        },
+        overtimeEntries: {
+          create: [], // Explicitly handle overtimeEntries
+        },
       },
       include: {
         timeEntries: true,
@@ -451,35 +501,32 @@ export class AttendanceProcessingService {
 
     // Prepare location data as Prisma JSON
     const locationData = location
-      ? ({
+      ? {
           lat: location.lat,
           lng: location.lng,
           accuracy: location.accuracy,
           timestamp: location.timestamp,
           provider: location.provider,
-        } as Prisma.JsonObject)
+        }
       : null;
 
-    // Handle period transition
-    if (options.entryType === PeriodType.OVERTIME && !isCheckIn) {
-      // Complete regular period first if needed
-      if (currentAttendance && !currentAttendance.CheckOutTime) {
-        await tx.attendance.update({
-          where: { id: currentAttendance.id },
-          data: {
-            CheckOutTime: date,
-            state: AttendanceState.PRESENT,
-            checkStatus: CheckStatus.CHECKED_OUT,
-            checkOutLocation: location ? (location as any) : null,
-          },
-        });
-      }
-    }
-
-    // Create raw data without Prisma field operations
-    const rawUpdateData = {
-      state: statusUpdate.stateChange.state.current,
-      checkStatus: statusUpdate.stateChange.checkStatus.current,
+    // Prepare data with careful type handling
+    const attendanceData: Prisma.AttendanceUncheckedCreateInput = {
+      employeeId: options.employeeId!,
+      date: startDate,
+      version: 1,
+      state:
+        statusUpdate.stateChange.state.current === undefined
+          ? undefined
+          : (statusUpdate.stateChange.state.current as
+              | AttendanceState
+              | undefined),
+      checkStatus:
+        statusUpdate.stateChange.checkStatus.current === undefined
+          ? undefined
+          : (statusUpdate.stateChange.checkStatus.current as
+              | CheckStatus
+              | undefined),
       isOvertime:
         statusUpdate.stateChange.overtime?.current?.isOvertime || false,
       overtimeState: statusUpdate.stateChange.overtime?.current?.state,
@@ -498,23 +545,46 @@ export class AttendanceProcessingService {
       isManualEntry: options.isManualEntry || false,
     };
 
-    // Create separate data objects for create and update
-    const createData = {
-      employeeId: options.employeeId as string, // Force string type
-      date: startDate as Date, // Force Date type
-      version: 1 as number, // Force number type
-      ...rawUpdateData,
-    };
+    const timeEntryData = isCheckIn
+      ? [
+          {
+            employeeId: options.employeeId!,
+            date: startDate,
+            startTime: date,
+            endTime: null,
+            status: 'STARTED',
+            entryType: options.entryType || 'REGULAR',
+            regularHours: 0,
+            overtimeHours: 0,
+            isHalfDayLate: false,
+            actualMinutesLate: 0,
+          },
+        ]
+      : undefined;
 
     const updatedAttendance = await tx.attendance.upsert({
       where: {
         employee_date_attendance: {
-          employeeId: options.employeeId,
+          employeeId: options.employeeId!,
           date: startDate,
         },
       },
-      create: createData,
-      update: rawUpdateData,
+      create: {
+        ...attendanceData,
+        timeEntries: timeEntryData
+          ? {
+              create: timeEntryData,
+            }
+          : undefined,
+      },
+      update: {
+        ...attendanceData,
+        timeEntries: timeEntryData
+          ? {
+              create: timeEntryData,
+            }
+          : undefined,
+      },
       include: {
         timeEntries: true,
         overtimeEntries: true,

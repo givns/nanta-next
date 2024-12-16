@@ -1,17 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import { AttendanceState, CheckStatus, PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { AttendanceService } from '../../services/Attendance/AttendanceService';
-import { ResponseDataSchema } from '../../schemas/attendance';
-import {
-  AppError,
-  ErrorCode,
-  CheckStatus,
-  PeriodType,
-  AttendanceState,
-  CheckInOutAllowance,
-} from '../../types/attendance';
-import { initializeServices } from '../../services/ServiceInitializer';
+import { AttendanceService } from '../../../services/Attendance/AttendanceService';
+import { ResponseDataSchema } from '../../../schemas/attendance';
+import { AppError, ErrorCode, PeriodType } from '../../../types/attendance';
+import { initializeServices } from '../../../services/ServiceInitializer';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { endOfDay, startOfDay, format } from 'date-fns';
 
@@ -117,6 +110,31 @@ const fetchAttendanceData = async (
     }),
   );
 
+  const mappedOvertimeEntries = (attendanceStatus?.overtimeEntries || [])
+    .map((entry) => ({
+      ...entry,
+      actualStartTime: entry.actualStartTime
+        ? new Date(entry.actualStartTime)
+        : null,
+      actualEndTime: entry.actualEndTime ? new Date(entry.actualEndTime) : null,
+      createdAt: new Date(entry.createdAt),
+      updatedAt: new Date(entry.updatedAt),
+    }))
+    .map((entry) => {
+      // Ensure all date fields are converted and null is handled
+      return {
+        id: entry.id,
+        attendanceId: entry.attendanceId,
+        overtimeRequestId: entry.overtimeRequestId,
+        actualStartTime: entry.actualStartTime || new Date(), // Provide default if null
+        actualEndTime: entry.actualEndTime,
+        isDayOffOvertime: entry.isDayOffOvertime,
+        isInsideShiftHours: entry.isInsideShiftHours,
+        createdAt: entry.createdAt,
+        updatedAt: entry.updatedAt,
+      };
+    });
+
   const mappedLeaveRequests = (leaveRequests || []).map((leave) => ({
     employeeId: leave.employeeId,
     status: leave.status as 'approved' | 'pending' | 'rejected',
@@ -140,7 +158,7 @@ const fetchAttendanceData = async (
         isOvertime: attendanceStatus?.isOvertime || false,
         isLate: attendanceStatus?.isLate || false,
         overtimeDuration: attendanceStatus?.overtimeDuration || 0,
-        overtimeEntries: attendanceStatus?.overtimeEntries || [],
+        overtimeEntries: mappedOvertimeEntries,
         isCheckingIn,
         isEarlyCheckIn: attendanceStatus?.isEarlyCheckIn || false,
         isLateCheckIn: attendanceStatus?.isLateCheckIn || false,

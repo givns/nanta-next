@@ -1,9 +1,7 @@
 // services/Attendance/utils/StatusHelpers.ts
 
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
   AttendanceCompositeStatus,
   StatusUpdateResult,
   ApprovedOvertimeInfo,

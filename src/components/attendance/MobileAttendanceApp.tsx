@@ -2,7 +2,6 @@ import React from 'react';
 import {
   differenceInMinutes,
   format,
-  isValid,
   isWithinInterval,
   parseISO,
 } from 'date-fns';
@@ -13,12 +12,10 @@ import {
   CurrentPeriodInfo,
   AttendanceStateResponse,
   ValidationResponse,
-  OvertimeState,
   PeriodType,
 } from '@/types/attendance';
 import {
   calculateTimeDifference,
-  formatBangkokTime,
   formatTime,
   getCurrentTime,
 } from '@/utils/dateUtils';
@@ -271,7 +268,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     // Return next period time if in overtime-ended state
     if (
-      latestAttendance?.overtimeState === 'overtime-ended' &&
+      latestAttendance?.overtimeState &&
+      latestAttendance.overtimeState === 'COMPLETED' &&
       currentPeriod?.type === PeriodType.REGULAR
     ) {
       return '--:--'; // Reset time for new regular period
@@ -316,7 +314,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     // Return next period time if in overtime-ended state
     if (
-      latestAttendance?.overtimeState === 'overtime-ended' &&
+      latestAttendance?.overtimeState === 'COMPLETED' &&
       currentPeriod?.type === PeriodType.REGULAR
     ) {
       return '--:--'; // Reset time for new regular period
@@ -485,7 +483,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
             )}
 
             {attendanceStatus.latestAttendance?.overtimeState ===
-              'overtime-ended' && (
+              'COMPLETED' && (
               <div className="mb-4 pb-4 border-b border-gray-200">
                 <div className="text-sm font-medium text-yellow-600 mb-2">
                   ช่วงเวลาทำงานล่วงเวลา

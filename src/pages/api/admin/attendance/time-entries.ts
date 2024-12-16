@@ -1,12 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import { AttendanceState, CheckStatus, PrismaClient } from '@prisma/client';
 import { startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
-import {
-  AttendanceState,
-  CheckStatus,
-  DetailedTimeEntry,
-  PeriodType,
-} from '@/types/attendance';
+import { DetailedTimeEntry, PeriodType } from '@/types/attendance';
 
 const prisma = new PrismaClient();
 

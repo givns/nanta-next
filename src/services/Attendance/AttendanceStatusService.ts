@@ -1,5 +1,10 @@
 //AttendanceStatusService.ts
-import { PrismaClient, User } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  PrismaClient,
+  User,
+} from '@prisma/client';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { HolidayService } from '../HolidayService';
 import { LeaveServiceServer } from '../LeaveServiceServer';
@@ -21,9 +26,7 @@ import {
 } from 'date-fns';
 import {
   ApprovedOvertimeInfo,
-  AttendanceState,
   AttendanceStatusInfo,
-  CheckStatus,
   CurrentPeriodInfo,
   PeriodType,
   AttendanceRecord,
@@ -160,6 +163,19 @@ export class AttendanceStatusService {
           }
         : null;
 
+    const mappedOvertimeEntries =
+      attendance?.overtimeEntries.map((entry) => ({
+        id: entry.id,
+        attendanceId: entry.attendanceId,
+        overtimeRequestId: entry.overtimeRequestId,
+        actualStartTime: entry.actualStartTime?.toISOString() || null,
+        actualEndTime: entry.actualEndTime?.toISOString() || null,
+        isDayOffOvertime: approvedOvertime?.isDayOffOvertime ?? false,
+        isInsideShiftHours: approvedOvertime?.isInsideShiftHours ?? false,
+        createdAt: entry.createdAt.toISOString(),
+        updatedAt: entry.updatedAt.toISOString(),
+      })) ?? [];
+
     // Then determine state based on period and other factors
     const status: AttendanceStatusInfo = {
       state: this.determineState(
@@ -173,31 +189,21 @@ export class AttendanceStatusService {
       isOvertime: (() => {
         const hasOvertime = !!approvedOvertime;
         const isPeriodOvertime = periodInfo.type === PeriodType.OVERTIME;
-        console.log('Overtime calc:', { hasOvertime, isPeriodOvertime });
         return hasOvertime && isPeriodOvertime;
       })(),
       isLate: attendance?.isLateCheckIn ?? false,
-      shiftAdjustment: {
-        date: format(new Date(), 'yyyy-MM-dd'),
-        requestedShiftId: shiftData.id,
-        requestedShift: shiftData,
-      },
+      shiftAdjustment: shiftData
+        ? {
+            date: format(new Date(), 'yyyy-MM-dd'),
+            requestedShiftId: shiftData.id,
+            requestedShift: shiftData,
+          }
+        : null,
       overtimeDuration: TimeCalculationHelper.calculateOvertimeDuration(
         attendance,
         approvedOvertime || null,
       ),
-      overtimeEntries:
-        attendance?.overtimeEntries.map((entry) => ({
-          id: entry.id,
-          attendanceId: entry.attendanceId,
-          overtimeRequestId: entry.overtimeRequestId,
-          actualStartTime: entry.actualStartTime,
-          actualEndTime: entry.actualEndTime,
-          isDayOffOvertime: approvedOvertime?.isDayOffOvertime ?? false,
-          isInsideShiftHours: approvedOvertime?.isInsideShiftHours ?? false,
-          createdAt: entry.createdAt,
-          updatedAt: entry.updatedAt,
-        })) ?? [],
+      overtimeEntries: mappedOvertimeEntries,
       isCheckingIn: !attendance?.CheckInTime,
       isEarlyCheckIn: attendance?.isEarlyCheckIn ?? false,
       isLateCheckIn: attendance?.isLateCheckIn ?? false,

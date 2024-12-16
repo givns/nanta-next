@@ -24,6 +24,32 @@ enum EmployeeType {
   Parttime
 }
 
+enum PeriodType {
+  REGULAR
+  OVERTIME
+}
+
+enum AttendanceState {
+  PRESENT
+  ABSENT
+  INCOMPLETE
+  HOLIDAY
+  OFF
+  OVERTIME
+}
+
+enum CheckStatus {
+  CHECKED_IN
+  CHECKED_OUT
+  PENDING
+}
+
+enum OvertimeState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
 model User {
   id                      String                   @id @default(auto()) @map("_id") @db.ObjectId
   employeeId              String                   @unique
@@ -225,11 +251,12 @@ model Attendance {
   user                 User            @relation(fields: [employeeId], references: [employeeId])
   date                 DateTime
   // Status fields to match new state enums
-  state               String          // Should match AttendanceState enum
-  checkStatus         String          // Should match CheckStatus enum
+  state           AttendanceState @default(ABSENT)
+  checkStatus     CheckStatus     @default(PENDING)
+  type            PeriodType      @default(REGULAR)
   isOvertime          Boolean         @default(false)  // New explicit field
-  overtimeState       String?         // Should match OvertimeState enum
-  isDayOff            Boolean         @default(false)
+  overtimeState   OvertimeState?
+  overtimeId      String?
   
   // Time fields
   shiftStartTime       DateTime?
@@ -254,12 +281,12 @@ model Attendance {
   checkInReason        String?
   checkInPhoto         String?
   checkOutPhoto        String?
+  isDayOff            Boolean         @default(false)
   isManualEntry        Boolean         @default(false)
   
   // Related entries
   overtimeEntries      OvertimeEntry[]
   timeEntries          TimeEntry[]
-  attendanceLogs       AttendanceLogs[]
   
   version              Int             @default(1)  // Changed default from 0 to 1
   createdAt            DateTime        @default(now())
@@ -268,36 +295,6 @@ model Attendance {
   @@unique([employeeId, date], name: "employee_date_attendance")
   @@index([date, state])  // Changed from status to state
   @@index([employeeId, state])  // New index
-}
-
-model AttendanceLogs {
-  id                    String     @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId            String   
-  date                  DateTime
-  
-  // State changes
-  previousState         String     // Should match AttendanceState enum
-  currentState         String     // Should match AttendanceState enum
-  previousCheckStatus   String     // Should match CheckStatus enum
-  currentCheckStatus    String     // Should match CheckStatus enum
-  previousOvertimeState String?    // Should match OvertimeState enum
-  currentOvertimeState  String?    // Should match OvertimeState enum
-  
-  isOvertimeTransition  Boolean
-  reason                String
-  metadata              Json?
-  timestamp             DateTime
-  
-  // Reference
-  attendanceId          String     @db.ObjectId
-  attendance            Attendance @relation(fields: [attendanceId], references: [id])
-  
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
-
-  @@index([employeeId, date])
-  @@index([attendanceId])
-  @@index([timestamp])  // New index for time-based queries
 }
 
 
@@ -344,14 +341,15 @@ model TimeEntry {
 model OvertimeEntry {
   id                String          @id @default(auto()) @map("_id") @db.ObjectId
   attendanceId      String          @db.ObjectId
-  attendance        Attendance      @relation(fields: [attendanceId], references: [id])
   overtimeRequestId String          @db.ObjectId
-  overtimeRequest   OvertimeRequest @relation(fields: [overtimeRequestId], references: [id])
-  actualStartTime   DateTime
+  actualStartTime   DateTime?
   actualEndTime     DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   
+  attendance        Attendance      @relation(fields: [attendanceId], references: [id])
+  overtimeRequest   OvertimeRequest @relation(fields: [overtimeRequestId], references: [id])
+
   @@index([attendanceId, overtimeRequestId])
 }
 

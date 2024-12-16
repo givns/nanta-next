@@ -1,10 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  DailyAttendanceRecord,
-  DateRange,
-  AttendanceState,
-  PeriodType,
-} from '@/types/attendance';
+import { DailyAttendanceRecord, DateRange } from '@/types/attendance';
 import { useDailyAttendance } from '@/hooks/useDailyAttendance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DateSelector } from './components/DateSelector';
@@ -21,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ErrorBoundary } from 'react-error-boundary';
+import { AttendanceState } from '@prisma/client';
 
 interface ErrorFallbackProps {
   error: Error;

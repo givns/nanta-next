@@ -3,16 +3,16 @@
 import { UserData } from '../../../types/user';
 import {
   AttendanceCompositeStatus,
-  AttendanceState,
-  CheckStatus,
-  LatestAttendance,
-  OvertimeState,
   AttendanceRecord,
   TimeEntry,
   OvertimeEntry,
+  PeriodType,
+  TimeEntryStatus,
+  LatestAttendanceResponse,
 } from '../../../types/attendance';
 import { AttendanceNormalizers } from './AttendanceNormalizers';
 import { format } from 'date-fns';
+import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 export class AttendanceMappers {
   static toUserData(user: any): UserData {
@@ -48,9 +48,13 @@ export class AttendanceMappers {
           dbAttendance.checkStatus,
         ),
         isOvertime: dbAttendance.isOvertime || false,
+        type: dbAttendance.isOvertime
+          ? PeriodType.OVERTIME
+          : PeriodType.REGULAR,
         overtimeState: AttendanceNormalizers.normalizeOvertimeState(
           dbAttendance.overtimeState,
         ),
+        overtimeId: dbAttendance.overtimeId,
 
         // Add missing fields
         shiftStartTime: dbAttendance.shiftStartTime
@@ -59,9 +63,6 @@ export class AttendanceMappers {
         shiftEndTime: dbAttendance.shiftEndTime
           ? new Date(dbAttendance.shiftEndTime)
           : null,
-        lateCheckOutMinutes: dbAttendance.lateCheckOutMinutes || 0,
-        isManualEntry: dbAttendance.isManualEntry || false,
-
         CheckInTime: dbAttendance.CheckInTime
           ? new Date(dbAttendance.CheckInTime)
           : null,
@@ -73,12 +74,16 @@ export class AttendanceMappers {
         isLateCheckIn: dbAttendance.isLateCheckIn || false,
         isLateCheckOut: dbAttendance.isLateCheckOut || false,
         isVeryLateCheckOut: dbAttendance.isVeryLateCheckOut || false,
+        lateCheckOutMinutes: dbAttendance.lateCheckOutMinutes || 0,
 
         // Safely handle location data
         checkInLocation: this.safeParseLocation(dbAttendance.checkInLocation),
         checkOutLocation: this.safeParseLocation(dbAttendance.checkOutLocation),
         checkInAddress: dbAttendance.checkInAddress || null,
         checkOutAddress: dbAttendance.checkOutAddress || null,
+
+        isManualEntry: dbAttendance.isManualEntry || false,
+        isDayOff: dbAttendance.isDayOff || false,
 
         timeEntries: (dbAttendance.timeEntries || []).map(this.mapTimeEntry),
         overtimeEntries: (dbAttendance.overtimeEntries || []).map(
@@ -97,7 +102,7 @@ export class AttendanceMappers {
 
   static toLatestAttendance(
     attendance: AttendanceRecord | null,
-  ): LatestAttendance | null {
+  ): LatestAttendanceResponse | null {
     if (!attendance) return null;
 
     return {
@@ -121,6 +126,31 @@ export class AttendanceMappers {
       shiftEndTime: attendance.shiftEndTime
         ? format(attendance.shiftEndTime, 'HH:mm:ss')
         : undefined,
+      periodType: attendance.type,
+      isOvertime: attendance.isOvertime,
+      overtimeId: attendance.overtimeId,
+      timeEntries: attendance.timeEntries.map((entry) => ({
+        id: entry.id,
+        startTime: format(entry.startTime, 'HH:mm:ss'),
+        endTime: entry.endTime ? format(entry.endTime, 'HH:mm:ss') : null,
+        type: entry.entryType,
+      })),
+    };
+  }
+
+  private static mapOvertimeEntry(entry: any): OvertimeEntry {
+    return {
+      id: entry.id,
+      attendanceId: entry.attendanceId,
+      overtimeRequestId: entry.overtimeRequestId,
+      actualStartTime: entry.actualStartTime
+        ? new Date(entry.actualStartTime)
+        : null,
+      actualEndTime: entry.actualEndTime ? new Date(entry.actualEndTime) : null,
+      isDayOffOvertime: entry.isDayOffOvertime || false,
+      isInsideShiftHours: entry.isInsideShiftHours || false,
+      createdAt: new Date(entry.createdAt),
+      updatedAt: new Date(entry.updatedAt),
     };
   }
 
@@ -131,8 +161,8 @@ export class AttendanceMappers {
       date: new Date(entry.date),
       startTime: new Date(entry.startTime),
       endTime: entry.endTime ? new Date(entry.endTime) : null,
-      status: AttendanceNormalizers.normalizeTimeEntryStatus(entry.status),
-      entryType: AttendanceNormalizers.normalizePeriodType(entry.entryType),
+      status: entry.status || TimeEntryStatus.IN_PROGRESS,
+      entryType: entry.entryType || PeriodType.REGULAR,
       regularHours: entry.regularHours || 0,
       overtimeHours: entry.overtimeHours || 0,
       attendanceId: entry.attendanceId,
@@ -158,19 +188,6 @@ export class AttendanceMappers {
     }
   }
 
-  private static mapOvertimeEntry(entry: any): OvertimeEntry {
-    return {
-      id: entry.id,
-      attendanceId: entry.attendanceId,
-      overtimeRequestId: entry.overtimeRequestId,
-      actualStartTime: new Date(entry.actualStartTime),
-      actualEndTime: entry.actualEndTime ? new Date(entry.actualEndTime) : null,
-      isDayOffOvertime: entry.isDayOffOvertime,
-      isInsideShiftHours: entry.isInsideShiftHours,
-      createdAt: new Date(entry.createdAt),
-      updatedAt: new Date(entry.updatedAt),
-    };
-  }
   static toCompositeStatus(
     attendance: AttendanceRecord,
   ): AttendanceCompositeStatus {

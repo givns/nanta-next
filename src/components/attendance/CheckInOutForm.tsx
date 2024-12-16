@@ -527,6 +527,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                       shiftEndTime:
                         base.latestAttendance.shiftEndTime ??
                         effectiveShift?.endTime,
+                      periodType: base.latestAttendance.periodType,
                     }
                   : null,
               }}

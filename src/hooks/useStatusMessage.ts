@@ -12,12 +12,12 @@ export function useStatusMessage(attendance?: AttendanceBaseResponse) {
     }
 
     switch (attendance.state) {
-      case 'absent':
+      case 'ABSENT':
         return {
           message: 'รอลงเวลาเข้างาน',
           color: 'blue' as const,
         };
-      case 'present':
+      case 'PRESENT':
         return {
           message: attendance.latestAttendance?.CheckOutTime
             ? 'เสร็จสิ้นการทำงาน'

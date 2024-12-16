@@ -60,24 +60,6 @@ interface ValidationContext {
   leaveRequests?: LeaveRequest[];
 }
 
-interface OvertimeWindow {
-  preShift?: {
-    start: Date;
-    end: Date;
-  };
-  postShift?: {
-    start: Date;
-    end: Date;
-  };
-}
-
-interface TransitionWindow {
-  start: Date;
-  end: Date;
-  fromPeriod: PeriodType;
-  toPeriod: PeriodType;
-}
-
 export class AttendanceCheckService {
   private readonly periodManager: PeriodManagementService;
   private readonly enhancementService: AttendanceEnhancementService;
@@ -302,7 +284,14 @@ export class AttendanceCheckService {
     // 4. Handle other transitions from enhancedStatus
     if (context.enhancedStatus.pendingTransitions.length > 0) {
       const transition = context.enhancedStatus.pendingTransitions[0];
-      if (await this.isEligibleForTransition(context, transition)) {
+      if (
+        await this.isEligibleForTransition(context, {
+          from: transition.from,
+          to: transition.to,
+          transitionTime: transition.transitionTime,
+          isCompleted: false, // Add the missing property 'isCompleted' with a value of 'false'
+        })
+      ) {
         // Get current period info
         const fromPeriod = {
           start: currentPeriod.startTime,

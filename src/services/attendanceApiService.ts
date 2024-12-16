@@ -5,13 +5,7 @@ import {
   ManualEntryRequest,
   ManualEntryResponse,
   DepartmentInfo,
-  AppError,
-  AttendanceState,
-  CheckStatus,
-  ErrorCode,
-  OvertimeState,
 } from '@/types/attendance';
-import axios from 'axios';
 import { format, isValid, parseISO, startOfDay } from 'date-fns';
 
 export class AttendanceApiService {

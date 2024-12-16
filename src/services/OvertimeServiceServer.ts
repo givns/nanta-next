@@ -4,6 +4,8 @@ import {
   OvertimeRequest,
   Prisma,
   OvertimeEntry,
+  OvertimeState,
+  CheckStatus,
 } from '@prisma/client';
 import { IOvertimeServiceServer } from '../types/OvertimeService';
 import { TimeEntryService } from './TimeEntryService';
@@ -29,12 +31,9 @@ import { ShiftManagementService } from './ShiftManagementService/ShiftManagement
 import { getCurrentTime } from '../utils/dateUtils';
 import {
   ApprovedOvertimeInfo,
-  CheckStatus,
   OvertimeAttendanceInfo,
   OvertimeRequestStatus,
-  OvertimeState,
 } from '../types/attendance/status';
-import { TimeCalculationHelper } from './Attendance/utils/TimeCalculationHelper';
 import { ATTENDANCE_CONSTANTS, AttendanceRecord } from '../types/attendance';
 import {
   ExtendedApprovedOvertime,
@@ -255,12 +254,16 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       id: entry.id,
       attendanceId: entry.attendanceId,
       overtimeRequestId: entry.overtimeRequestId,
-      actualStartTime: entry.actualStartTime,
-      actualEndTime: entry.actualEndTime,
+      actualStartTime: entry.actualStartTime
+        ? entry.actualStartTime.toISOString()
+        : null, // Convert Date to string or null
+      actualEndTime: entry.actualEndTime
+        ? entry.actualEndTime.toISOString()
+        : null, // Convert Date to string or null
       isDayOffOvertime: entry.overtimeRequest?.isDayOffOvertime ?? false,
       isInsideShiftHours: entry.overtimeRequest?.isInsideShiftHours ?? false,
-      createdAt: new Date(), // Added as per OvertimeEntryData interface
-      updatedAt: new Date(), // Added as per OvertimeEntryData interface
+      createdAt: new Date().toISOString(), // Convert Date to string
+      updatedAt: new Date().toISOString(), // Convert Date to string
     }));
   }
 

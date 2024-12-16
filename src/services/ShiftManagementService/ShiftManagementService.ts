@@ -1,8 +1,5 @@
 import {
   ApprovedOvertimeInfo,
-  AttendanceBaseResponse,
-  AttendanceState,
-  CheckStatus,
   CurrentPeriod,
   EffectiveShift,
   NextPeriod,
@@ -13,7 +10,6 @@ import {
   ShiftData,
   ATTENDANCE_CONSTANTS,
   ShiftWindows,
-  OvertimeState,
 } from '@/types/attendance';
 import {
   PrismaClient,
@@ -21,6 +17,7 @@ import {
   ShiftAdjustmentRequest,
   Department,
   User,
+  AttendanceState,
 } from '@prisma/client';
 import {
   endOfDay,
@@ -39,6 +36,19 @@ import { HolidayService } from '../HolidayService';
 import { getCacheData, setCacheData } from '../../lib/serverCache';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
+import { AttendanceService } from '../Attendance/AttendanceService';
+import { initializeServices } from '../ServiceInitializer';
+const prisma = new PrismaClient();
+const services = initializeServices(prisma);
+const attendanceService = new AttendanceService(
+  prisma,
+  services.shiftService,
+  services.holidayService,
+  services.leaveService,
+  services.overtimeService,
+  services.notificationService,
+  services.timeEntryService,
+);
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -283,103 +293,6 @@ export class ShiftManagementService {
     return this.calculateShiftWindows(effectiveShift.current, date);
   }
 
-  async getBaseStatus(employeeId: string): Promise<AttendanceBaseResponse> {
-    const cacheKey = `attendance:status:${employeeId}`;
-    const cached = await getCacheData(cacheKey);
-    if (cached) return JSON.parse(cached);
-
-    const now = getCurrentTime();
-    const attendance = await this.prisma.attendance.findFirst({
-      where: {
-        employeeId,
-        date: {
-          gte: startOfDay(now),
-          lt: endOfDay(now),
-        },
-      },
-      include: {
-        overtimeEntries: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    let state = AttendanceState.ABSENT;
-    let checkStatus = CheckStatus.PENDING;
-    let isCheckingIn = true;
-
-    if (attendance) {
-      if (
-        attendance.CheckOutTime &&
-        attendance.overtimeState === 'overtime-ended' &&
-        attendance.shiftStartTime // Regular shift start exists
-      ) {
-        isCheckingIn = true; // Force check-in for next shift
-      } else if (attendance.CheckInTime && attendance.CheckOutTime) {
-        isCheckingIn = false;
-      }
-
-      if (attendance.CheckInTime) {
-        state = attendance.CheckOutTime
-          ? AttendanceState.PRESENT
-          : AttendanceState.PRESENT;
-
-        // Determine checking in state based on last check-out
-        isCheckingIn =
-          !attendance.CheckOutTime ||
-          (attendance.CheckOutTime && attendance.isOvertime);
-      }
-
-      if (attendance.CheckInTime && !attendance.CheckOutTime) {
-        checkStatus = CheckStatus.CHECKED_IN;
-      } else if (attendance.CheckOutTime) {
-        checkStatus = CheckStatus.CHECKED_OUT;
-
-        // If last check-out was from overtime, prepare for regular shift check-in
-        if (attendance.isOvertime) {
-          isCheckingIn = true;
-        }
-      }
-
-      if (attendance.isOvertime) {
-        state = AttendanceState.OVERTIME;
-      }
-    }
-
-    const result: AttendanceBaseResponse = {
-      state,
-      checkStatus,
-      isCheckingIn: !attendance?.CheckInTime || !!attendance?.CheckOutTime,
-      latestAttendance: attendance
-        ? {
-            id: attendance.id,
-            employeeId: attendance.employeeId,
-            date: attendance.date.toISOString(),
-            CheckInTime: attendance.CheckInTime?.toISOString() || null,
-            CheckOutTime: attendance.CheckOutTime?.toISOString() || null,
-            state,
-            checkStatus,
-            overtimeState: attendance.overtimeState as
-              | OvertimeState
-              | undefined,
-            isLateCheckIn: attendance.isLateCheckIn ?? false,
-            isLateCheckOut: attendance.isLateCheckOut ?? false,
-            isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
-            isOvertime: attendance.isOvertime ?? false,
-            isManualEntry: attendance.isManualEntry ?? false,
-            isDayOff: attendance.isDayOff ?? false,
-            shiftStartTime:
-              attendance.shiftStartTime?.toISOString() || undefined,
-            shiftEndTime: attendance.shiftEndTime?.toISOString() || undefined,
-          }
-        : undefined,
-    };
-
-    console.log('getBaseStatus result before cache:', result);
-
-    await setCacheData(cacheKey, JSON.stringify(result), 300);
-    return result;
-  }
-
   async getCurrentWindow(
     employeeId: string,
     date: Date,
@@ -388,7 +301,7 @@ export class ShiftManagementService {
     const today = startOfDay(now);
 
     // Get current attendance status
-    const attendanceStatus = await this.getBaseStatus(employeeId);
+    const attendanceStatus = await attendanceService.getBaseStatus(employeeId);
     const latestAttendance = attendanceStatus?.latestAttendance;
 
     // Get shift data
@@ -598,17 +511,6 @@ export class ShiftManagementService {
     return this.prisma.shift.findUnique({
       where: { shiftCode },
     });
-  }
-
-  private convertToShiftData(shift: Shift): ShiftData {
-    return {
-      id: shift.id,
-      name: shift.name,
-      shiftCode: shift.shiftCode,
-      startTime: `${format(parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${shift.startTime}`), 'HH:mm')}`,
-      endTime: `${format(parseISO(`${format(new Date(), 'yyyy-MM-dd')}T${shift.endTime}`), 'HH:mm')}`,
-      workDays: shift.workDays,
-    };
   }
 
   async getAllShifts(): Promise<Shift[]> {

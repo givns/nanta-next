@@ -2,13 +2,17 @@
 
 import { endOfDay, format, startOfDay } from 'date-fns';
 import { cacheService } from './CacheService';
-import { LeaveRequest, PrismaClient, User } from '@prisma/client';
-import { number, string, z } from 'zod';
 import {
   AttendanceState,
-  AttendanceStatusInfo,
   CheckStatus,
+  LeaveRequest,
   OvertimeState,
+  PrismaClient,
+  User,
+} from '@prisma/client';
+import { z } from 'zod';
+import {
+  AttendanceStatusInfo,
   PeriodType,
   TimeEntryStatus,
   AttendanceRecord,
@@ -75,34 +79,6 @@ export class CacheManager {
     }
     return CacheManager.instance;
   }
-
-  // Schema for runtime type checking
-  private static AttendanceRecordSchema = z.object({
-    id: z.string(),
-    employeeId: z.string(),
-    date: z.date(),
-    state: z.nativeEnum(AttendanceState),
-    checkStatus: z.nativeEnum(CheckStatus),
-    isOvertime: z.boolean().optional(),
-    overtimeState: z.nativeEnum(OvertimeState).optional(),
-    CheckInTime: z.date().nullable(),
-    CheckOutTime: z.date().nullable(),
-    shiftStartTime: z.date().nullable(),
-    shiftEndTime: z.date().nullable(),
-    isEarlyCheckIn: z.boolean().optional(),
-    isLateCheckIn: z.boolean().optional(),
-    isLateCheckOut: z.boolean().optional(),
-    isVeryLateCheckOut: z.boolean().optional(),
-    lateCheckOutMinutes: z.number().optional(),
-    checkInLocation: z.object({}).nullable(),
-    checkOutLocation: z.object({}).nullable(),
-    checkInAddress: z.string().nullable(),
-    checkOutAddress: z.string().nullable(),
-    overtimeEntries: z.array(z.object({})).optional(),
-    timeEntries: z.array(z.object({})).optional(),
-    createdAt: z.date().optional(),
-    updatedAt: z.date().optional(),
-  });
 
   private async fetchAttendanceRecord(
     employeeId: string,
@@ -178,6 +154,8 @@ export class CacheManager {
       checkOutLocation: this.safeJSONParse(prismaAttendance.checkOutLocation),
       checkInAddress: prismaAttendance.checkInAddress || null,
       checkOutAddress: prismaAttendance.checkOutAddress || null,
+      type: prismaAttendance.type,
+      isDayOff: prismaAttendance.isDayOff,
       isManualEntry: prismaAttendance.isManualEntry,
       overtimeEntries,
       timeEntries,

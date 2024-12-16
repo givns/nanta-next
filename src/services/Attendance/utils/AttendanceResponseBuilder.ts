@@ -1,7 +1,5 @@
+import { AttendanceState, OvertimeState } from '@prisma/client';
 import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
   ErrorResponse,
   AttendanceRecord,
   TimeEntry,
@@ -120,21 +118,5 @@ export class AttendanceResponseBuilder {
     if (attendance.overtimeEntries.length > 0) statusParts.push('overtime');
 
     return statusParts.length > 0 ? statusParts.join('-') : 'on-time';
-  }
-
-  private static mapStatusToType(attendance: AttendanceRecord) {
-    if (!attendance.CheckInTime) {
-      return CheckStatus.PENDING;
-    }
-
-    if (!attendance.CheckOutTime) {
-      return attendance.isOvertime
-        ? CheckStatus.CHECKED_IN
-        : CheckStatus.CHECKED_IN;
-    }
-
-    return attendance.isOvertime
-      ? OvertimeState.COMPLETED
-      : CheckStatus.CHECKED_OUT;
   }
 }
