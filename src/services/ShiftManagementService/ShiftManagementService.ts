@@ -36,19 +36,8 @@ import { HolidayService } from '../HolidayService';
 import { getCacheData, setCacheData } from '../../lib/serverCache';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
-import { AttendanceService } from '../Attendance/AttendanceService';
-import { initializeServices } from '../ServiceInitializer';
+
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
