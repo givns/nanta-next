@@ -100,42 +100,54 @@ export class AttendanceService {
       now,
     );
 
-    // Map raw attendance to AttendanceRecord with proper type
-    const attendance = rawAttendance
-      ? AttendanceMappers.toAttendanceRecord({
-          ...rawAttendance,
-          type: rawAttendance.isOvertime
-            ? PeriodType.OVERTIME
-            : PeriodType.REGULAR,
-          overtimeState: this.mapOvertimeState(rawAttendance.overtimeState),
-        })
-      : null;
+    try {
+      // Map raw attendance to AttendanceRecord with proper type
+      const attendance = rawAttendance
+        ? AttendanceMappers.toAttendanceRecord({
+            ...rawAttendance,
+            type: rawAttendance.isOvertime
+              ? PeriodType.OVERTIME
+              : PeriodType.REGULAR,
+            overtimeState: this.mapOvertimeState(rawAttendance.overtimeState),
+            // Ensure overtimeEntries is always an array
+            overtimeEntries: rawAttendance.overtimeEntries || [],
+            timeEntries: rawAttendance.timeEntries || [],
+          })
+        : null;
 
-    if (!attendance) {
+      if (!attendance) {
+        return this.createInitialBaseStatus();
+      }
+
+      const baseStatus: AttendanceBaseResponse = {
+        state: this.determineState(attendance),
+        checkStatus: this.determineCheckStatus(attendance),
+        isCheckingIn: !attendance.CheckInTime || !!attendance.CheckOutTime,
+        latestAttendance: this.mapToLatestAttendance(attendance),
+        periodInfo: {
+          currentType: attendance.type,
+          isOvertime: attendance.isOvertime || false,
+          overtimeState: attendance.overtimeState,
+          isTransitioning: false,
+        },
+        flags: this.createBaseFlags({
+          ...attendance,
+          overtimeEntries: attendance.overtimeEntries || [], // Ensure it's never undefined
+        }),
+        metadata: {
+          lastUpdated: now.toISOString(),
+          version: 1,
+          source: attendance.isManualEntry ? 'manual' : 'system',
+        },
+      };
+
+      await setCacheData(cacheKey, JSON.stringify(baseStatus), 300);
+      return baseStatus;
+    } catch (error) {
+      console.error('Error in getBaseStatus:', error);
+      // If something goes wrong, return initial state rather than throwing
       return this.createInitialBaseStatus();
     }
-
-    const baseStatus: AttendanceBaseResponse = {
-      state: this.determineState(attendance),
-      checkStatus: this.determineCheckStatus(attendance),
-      isCheckingIn: !attendance.CheckInTime || !!attendance.CheckOutTime,
-      latestAttendance: this.mapToLatestAttendance(attendance),
-      periodInfo: {
-        currentType: attendance.type,
-        isOvertime: attendance.isOvertime,
-        overtimeState: attendance.overtimeState,
-        isTransitioning: false,
-      },
-      flags: this.createBaseFlags(attendance),
-      metadata: {
-        lastUpdated: now.toISOString(),
-        version: 1,
-        source: attendance.isManualEntry ? 'manual' : 'system',
-      },
-    };
-
-    await setCacheData(cacheKey, JSON.stringify(baseStatus), 300);
-    return baseStatus;
   }
 
   private mapOvertimeState(state: string | null): OvertimeState | undefined {
@@ -240,34 +252,39 @@ export class AttendanceService {
 
   private createBaseFlags(attendance: AttendanceRecord): AttendanceFlags {
     return {
-      isOvertime: attendance.isOvertime,
+      isOvertime: attendance.isOvertime ?? false,
       isDayOffOvertime: Boolean(
-        attendance.overtimeEntries.some((e) => e.isDayOffOvertime),
+        attendance.overtimeEntries?.some((e) => e.isDayOffOvertime),
       ),
       isPendingDayOffOvertime: false,
       isPendingOvertime: false,
       isOutsideShift: false,
       isInsideShift: true,
-      isLate: attendance.isLateCheckIn,
-      isEarlyCheckIn: attendance.isEarlyCheckIn,
+      isLate: attendance.isLateCheckIn ?? false,
+      isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
       isEarlyCheckOut: false,
-      isLateCheckIn: attendance.isLateCheckIn,
-      isLateCheckOut: attendance.isLateCheckOut,
-      isVeryLateCheckOut: attendance.isVeryLateCheckOut,
+      isLateCheckIn: attendance.isLateCheckIn ?? false,
+      isLateCheckOut: attendance.isLateCheckOut ?? false,
+      isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
       isAutoCheckIn: false,
       isAutoCheckOut: false,
       isAfternoonShift: false,
-      isMorningShift: true,
+      isMorningShift: Boolean(
+        attendance.shiftStartTime &&
+          new Date(attendance.shiftStartTime).getHours() < 12,
+      ),
       isAfterMidshift: false,
       isApprovedEarlyCheckout: false,
       isPlannedHalfDayLeave: false,
       isEmergencyLeave: false,
-      hasActivePeriod: !!attendance.CheckInTime && !attendance.CheckOutTime,
+      hasActivePeriod: Boolean(
+        attendance.CheckInTime && !attendance.CheckOutTime,
+      ),
       hasPendingTransition: false,
       requiresAutoCompletion: false,
       isHoliday: false,
-      isDayOff: attendance.isDayOff,
-      isManualEntry: attendance.isManualEntry,
+      isDayOff: attendance.isDayOff ?? false,
+      isManualEntry: attendance.isManualEntry ?? false,
     };
   }
 
