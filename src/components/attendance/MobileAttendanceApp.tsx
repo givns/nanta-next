@@ -277,19 +277,18 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     // Direct time parsing from attendance data
     if (latestAttendance?.CheckInTime) {
-      const [hours, minutes] = format(
-        parseISO(latestAttendance.CheckInTime),
-        'HH:mm',
-      ).split(':');
+      // Parse ISO string and format in local time
+      const checkInDate = new Date(latestAttendance.CheckInTime);
+      const hours = String(checkInDate.getHours()).padStart(2, '0');
+      const minutes = String(checkInDate.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
     }
 
     // Handle current period check in
     if (currentPeriod?.checkInTime) {
-      const [hours, minutes] = format(
-        parseISO(currentPeriod.checkInTime),
-        'HH:mm',
-      ).split(':');
+      const checkInDate = new Date(currentPeriod.checkInTime);
+      const hours = String(checkInDate.getHours()).padStart(2, '0');
+      const minutes = String(checkInDate.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
     }
 
@@ -299,10 +298,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       !attendanceStatus.isCheckingIn &&
       currentPeriod.current?.start
     ) {
-      const [hours, minutes] = format(
-        parseISO(currentPeriod.current.start),
-        'HH:mm',
-      ).split(':');
+      const startDate = new Date(currentPeriod.current.start);
+      const hours = String(startDate.getHours()).padStart(2, '0');
+      const minutes = String(startDate.getMinutes()).padStart(2, '0');
       return `${hours}:${minutes}`;
     }
 

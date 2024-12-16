@@ -251,28 +251,27 @@ export class AttendanceService {
   }
 
   private createBaseFlags(attendance: AttendanceRecord): AttendanceFlags {
+    const overtimeEntries = attendance.overtimeEntries || [];
+
     return {
-      isOvertime: attendance.isOvertime ?? false,
+      isOvertime: attendance.isOvertime || false,
       isDayOffOvertime: Boolean(
-        attendance.overtimeEntries?.some((e) => e.isDayOffOvertime),
+        overtimeEntries.some((e) => e.isDayOffOvertime),
       ),
       isPendingDayOffOvertime: false,
       isPendingOvertime: false,
       isOutsideShift: false,
       isInsideShift: true,
-      isLate: attendance.isLateCheckIn ?? false,
-      isEarlyCheckIn: attendance.isEarlyCheckIn ?? false,
+      isLate: attendance.isLateCheckIn || false,
+      isEarlyCheckIn: attendance.isEarlyCheckIn || false,
       isEarlyCheckOut: false,
-      isLateCheckIn: attendance.isLateCheckIn ?? false,
-      isLateCheckOut: attendance.isLateCheckOut ?? false,
-      isVeryLateCheckOut: attendance.isVeryLateCheckOut ?? false,
+      isLateCheckIn: attendance.isLateCheckIn || false,
+      isLateCheckOut: attendance.isLateCheckOut || false,
+      isVeryLateCheckOut: attendance.isVeryLateCheckOut || false,
       isAutoCheckIn: false,
       isAutoCheckOut: false,
       isAfternoonShift: false,
-      isMorningShift: Boolean(
-        attendance.shiftStartTime &&
-          new Date(attendance.shiftStartTime).getHours() < 12,
-      ),
+      isMorningShift: false,
       isAfterMidshift: false,
       isApprovedEarlyCheckout: false,
       isPlannedHalfDayLeave: false,
@@ -283,8 +282,8 @@ export class AttendanceService {
       hasPendingTransition: false,
       requiresAutoCompletion: false,
       isHoliday: false,
-      isDayOff: attendance.isDayOff ?? false,
-      isManualEntry: attendance.isManualEntry ?? false,
+      isDayOff: attendance.isDayOff || false,
+      isManualEntry: attendance.isManualEntry || false,
     };
   }
 
