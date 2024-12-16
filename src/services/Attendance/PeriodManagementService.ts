@@ -76,12 +76,6 @@ export class PeriodManagementService {
     let effectiveWindow = { ...window };
     let effectivePeriod = null;
 
-    console.log('Effective Window:', JSON.stringify(effectiveWindow, null, 2));
-    console.log(
-      'Overtime Info:',
-      JSON.stringify(effectiveWindow.overtimeInfo, null, 2),
-    );
-
     // During transition window (21:45), should show regular period
     const effectiveShiftStart = this.parseWindowTime(
       window.shift.startTime,
@@ -104,26 +98,11 @@ export class PeriodManagementService {
       ) {
         // During transition, keep regular period as effective
         return {
-          effectiveWindow: {
-            ...window,
-            type: PeriodType.REGULAR,
-            current: {
-              start: effectiveShiftStart.toISOString(),
-              end: effectiveShiftEnd.toISOString(),
-            },
-            // Add transition info
-            transition: {
-              from: {
-                type: PeriodType.REGULAR,
-                end: effectiveShiftEnd.toISOString(),
-              },
-              to: {
-                type: PeriodType.OVERTIME,
-                start: overtimeStart.toISOString(),
-              },
-              isInTransition: true,
-            },
-          },
+          effectiveWindow: this.createRegularWindow(
+            window,
+            effectiveShiftStart,
+            effectiveShiftEnd,
+          ),
           effectivePeriod: {
             type: PeriodType.REGULAR,
             startTime: effectiveShiftStart,
@@ -147,14 +126,33 @@ export class PeriodManagementService {
           currentOvertimeInfo.endTime,
           now,
         );
-        effectiveWindow = this.createOvertimeWindow(
+
+        // Use createRegularWindow for the regular period before overtime
+        effectiveWindow = this.createRegularWindow(
           window,
-          currentOvertimeInfo,
-          overtimeStart,
-          overtimeEnd,
+          effectiveShiftStart,
+          effectiveShiftEnd,
         );
+
         effectivePeriod = this.createOvertimePeriod(currentOvertimeInfo, now);
       }
+    }
+
+    // If no specific handling, create a regular window by default
+    if (!effectiveWindow.current) {
+      effectiveWindow = this.createRegularWindow(
+        window,
+        effectiveShiftStart,
+        effectiveShiftEnd,
+      );
+      effectivePeriod = {
+        type: PeriodType.REGULAR,
+        startTime: effectiveShiftStart,
+        endTime: effectiveShiftEnd,
+        isOvertime: false,
+        isOvernight: window.shift.endTime < window.shift.startTime,
+        isConnected: false,
+      };
     }
 
     return { effectiveWindow, effectivePeriod };
