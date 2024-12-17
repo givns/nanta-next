@@ -1,5 +1,6 @@
 import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 import { PeriodStatus, PeriodType } from './status';
+import { PeriodTransition } from './response';
 
 export interface Period {
   type: PeriodType;
@@ -35,6 +36,7 @@ export interface PeriodInfo {
   status: PeriodStatus;
   attendance?: PeriodAttendance;
   overtime?: OvertimePeriodInfo;
+  transitions: PeriodTransition;
 }
 
 export interface PeriodAttendance {
@@ -44,6 +46,7 @@ export interface PeriodAttendance {
   state: AttendanceState;
   checkStatus: CheckStatus;
 }
+
 export interface OvertimePeriodInfo {
   id: string;
   startTime: string;

@@ -24,6 +24,7 @@ import {
   AttendanceFlags,
   PeriodTransition,
   OvertimePeriodInfo,
+  AttendanceStateResponse,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { OvertimeState, PrismaClient } from '@prisma/client';
@@ -32,6 +33,7 @@ import {
   format,
   isAfter,
   isWithinInterval,
+  parseISO,
   subMinutes,
 } from 'date-fns';
 import { NextApiRequest, NextApiResponse } from 'next';
@@ -56,12 +58,6 @@ const attendanceService = new AttendanceService(
   services.notificationService,
   services.timeEntryService,
 );
-
-// Request validation schema
-const CoordinatesSchema = z.object({
-  lat: z.coerce.number(),
-  lng: z.coerce.number(),
-});
 
 const QuerySchema = z.object({
   employeeId: z.string(),
@@ -119,8 +115,6 @@ function mapEnhancedResponse(
     (r): r is AttendanceRecord => r !== null,
   );
 
-  const uniquePeriods = deduplicatePeriods(allPeriods);
-
   // Map attendance record to PeriodAttendance
   const mapToPeriodAttendance = (
     record: AttendanceRecord,
@@ -134,91 +128,143 @@ function mapEnhancedResponse(
 
   // Map overtime period
   const mapToOvertimePeriodInfo = (
-    period: Period,
-    record: AttendanceRecord | null,
-  ): OvertimePeriodInfo => {
-    // Helper to convert string to OvertimeState enum
-    const getOvertimeState = (
-      state: string | null | undefined,
-    ): OvertimeState => {
-      switch (state) {
-        case 'overtime-started':
-          return OvertimeState.IN_PROGRESS;
-        case 'overtime-ended':
-          return OvertimeState.COMPLETED;
-        default:
-          return OvertimeState.NOT_STARTED;
-      }
-    };
+    overtimeId: string,
+    startTime: Date,
+    endTime: Date,
+    state: OvertimeState,
+  ): OvertimePeriodInfo => ({
+    id: overtimeId,
+    startTime: format(startTime, 'HH:mm'),
+    endTime: format(endTime, 'HH:mm'),
+    status: state,
+  });
 
-    return {
-      id: period.overtimeId!,
-      startTime: format(period.startTime, 'HH:mm'),
-      endTime: format(period.endTime, 'HH:mm'),
-      status: getOvertimeState(record?.overtimeState),
-    };
-  };
-
-  const mappedTransition: PeriodTransition = enhanced.pendingTransitions[0]
-    ? {
-        from: {
-          periodIndex: allPeriods.findIndex(
-            (p) => p.type === enhanced.pendingTransitions[0].from,
-          ),
-          type: enhanced.pendingTransitions[0].from,
-        },
-        to: {
-          periodIndex: allPeriods.findIndex(
-            (p) => p.type === enhanced.pendingTransitions[0].to,
-          ),
-          type: enhanced.pendingTransitions[0].to,
-        },
-        transitionTime:
-          enhanced.pendingTransitions[0].transitionTime.toISOString(),
-        isComplete: enhanced.pendingTransitions[0].isComplete,
-      }
-    : {
-        from: { periodIndex: -1, type: PeriodType.REGULAR },
-        to: { periodIndex: -1, type: PeriodType.REGULAR },
-        transitionTime: context.now.toISOString(),
-        isComplete: false,
-      };
-
-  // Check if we're in transition window
+  // Determine transition window
+  const overtimeInfo = context.window.nextPeriod?.overtimeInfo;
   const isInTransition =
-    enhanced.pendingTransitions.length > 0 &&
-    enhanced.pendingTransitions[0].from === PeriodType.REGULAR &&
-    enhanced.pendingTransitions[0].to === PeriodType.OVERTIME;
+    overtimeInfo &&
+    isWithinInterval(context.now, {
+      start: subMinutes(
+        parseISO(
+          `${format(context.now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+        ),
+        30,
+      ),
+      end: parseISO(
+        `${format(context.now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+      ),
+    });
 
-  return {
-    daily: {
-      date: format(context.now, 'yyyy-MM-dd'),
-      timeline,
-      periods: uniquePeriods.map((period, index) => ({
+  // Map periods according to interface
+  const periods: AttendanceStateResponse['daily']['periods'] = allPeriods.map(
+    (period, index) => {
+      const record = nonNullRecords[index];
+      const periodEntry: AttendanceStateResponse['daily']['periods'][0] = {
         type: period.type,
         window: {
           start: period.startTime.toISOString(),
           end: period.endTime.toISOString(),
         },
         status: {
-          isComplete: Boolean(nonNullRecords[index]?.CheckOutTime),
+          isComplete: Boolean(record?.CheckOutTime),
           isCurrent: isInTransition
-            ? period.type === PeriodType.REGULAR // During transition, regular period is current
+            ? period.type === PeriodType.REGULAR
             : isWithinInterval(context.now, {
                 start: period.startTime,
                 end: period.endTime,
               }),
-          requiresTransition: Boolean(period.isConnected),
+          requiresTransition: Boolean(
+            period.isConnected && context.window.nextPeriod,
+          ),
         },
-        attendance: nonNullRecords[index]
-          ? mapToPeriodAttendance(nonNullRecords[index])
-          : undefined,
-        overtime:
-          period.type === PeriodType.OVERTIME
-            ? mapToOvertimePeriodInfo(period, nonNullRecords[index])
-            : undefined,
-      })),
-      transitions: mappedTransition,
+      };
+
+      // Add attendance if exists
+      if (record) {
+        periodEntry.attendance = mapToPeriodAttendance(record);
+      }
+
+      // Add overtime info if applicable
+      if (period.type === PeriodType.OVERTIME && period.overtimeId) {
+        periodEntry.overtime = mapToOvertimePeriodInfo(
+          period.overtimeId,
+          period.startTime,
+          period.endTime,
+          record?.overtimeState || OvertimeState.NOT_STARTED,
+        );
+      }
+
+      return periodEntry;
+    },
+  );
+
+  // Add upcoming overtime period if exists and not already included
+  if (
+    context.window.nextPeriod?.overtimeInfo &&
+    !periods.some((p) => p.type === PeriodType.OVERTIME)
+  ) {
+    const ot = context.window.nextPeriod.overtimeInfo;
+    const otStart = parseISO(
+      `${format(context.now, 'yyyy-MM-dd')}T${ot.startTime}`,
+    );
+    const otEnd = parseISO(
+      `${format(context.now, 'yyyy-MM-dd')}T${ot.endTime}`,
+    );
+
+    periods.push({
+      type: PeriodType.OVERTIME,
+      window: {
+        start: otStart.toISOString(),
+        end: otEnd.toISOString(),
+      },
+      status: {
+        isComplete: false,
+        isCurrent: false,
+        requiresTransition: false,
+      },
+      overtime: {
+        id: ot.id,
+        startTime: ot.startTime,
+        endTime: ot.endTime,
+        status: OvertimeState.NOT_STARTED,
+      },
+    });
+  }
+
+  // Create type-safe transition
+  const transitions: PeriodTransition =
+    isInTransition && overtimeInfo
+      ? {
+          from: {
+            periodIndex: periods.findIndex(
+              (p) => p.type === PeriodType.REGULAR,
+            ),
+            type: PeriodType.REGULAR,
+          },
+          to: {
+            periodIndex: periods.findIndex(
+              (p) => p.type === PeriodType.OVERTIME,
+            ),
+            type: PeriodType.OVERTIME,
+          },
+          transitionTime: parseISO(
+            `${format(context.now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+          ).toISOString(),
+          isComplete: false,
+        }
+      : {
+          from: { periodIndex: -1, type: PeriodType.REGULAR },
+          to: { periodIndex: -1, type: PeriodType.REGULAR },
+          transitionTime: context.now.toISOString(),
+          isComplete: false,
+        };
+
+  return {
+    daily: {
+      date: format(context.now, 'yyyy-MM-dd'),
+      timeline,
+      periods,
+      transitions,
     },
     base: {
       state: baseStatus.state,
@@ -243,14 +289,10 @@ function mapEnhancedResponse(
           }
         : null,
     },
-    window: isInTransition
-      ? { ...context.window, type: PeriodType.REGULAR } // Keep as regular during transition
-      : context.window,
+    window: context.window,
     validation: {
       allowed: context.baseValidation.allowed,
-      reason: isInTransition
-        ? 'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา'
-        : context.baseValidation.reason,
+      reason: context.baseValidation.reason,
       flags: {
         ...context.baseValidation.flags,
         hasActivePeriod: Boolean(
@@ -265,10 +307,9 @@ function mapEnhancedResponse(
               end: new Date(baseStatus.latestAttendance.shiftEndTime || ''),
             }),
         ),
-        isEarlyCheckIn: isInTransition
-          ? false
-          : enhancedValidation.periodValidation.isEarlyForPeriod,
-        isAutoCheckOut: isInTransition,
+        isEarlyCheckIn: enhancedValidation.periodValidation.isEarlyForPeriod,
+        isAutoCheckIn: false,
+        isAutoCheckOut: false,
         isOvertime: isInTransition ? false : PeriodType.OVERTIME,
         requiresOvertimeCheckIn: isInTransition,
         isPendingDayOffOvertime: false,
@@ -280,7 +321,6 @@ function mapEnhancedResponse(
         isLateCheckIn: false,
         isLateCheckOut: enhancedValidation.periodValidation.isLateForPeriod,
         isVeryLateCheckOut: false,
-        isAutoCheckIn: false,
         isAfternoonShift: false,
         isMorningShift: false,
         isAfterMidshift: false,
@@ -295,22 +335,16 @@ function mapEnhancedResponse(
       periodValidation: {
         currentPeriod: {
           index: timeline.currentPeriodIndex,
-          canCheckIn: isInTransition
-            ? false
-            : context.baseValidation.allowed && !nonNullRecords[0]?.CheckInTime,
-          canCheckOut: isInTransition
-            ? true
-            : context.baseValidation.allowed &&
-              !!nonNullRecords[0]?.CheckInTime,
-          requiresTransition: isInTransition,
-          message: isInTransition
-            ? 'กรุณายืนยันการลงเวลาออกงานปกติและเข้าทำงานล่วงเวลา'
-            : context.baseValidation.reason,
+          canCheckIn:
+            context.baseValidation.allowed && !nonNullRecords[0]?.CheckInTime,
+          canCheckOut:
+            context.baseValidation.allowed && !!nonNullRecords[0]?.CheckInTime,
+          requiresTransition: enhanced.pendingTransitions.length > 0,
+          message: context.baseValidation.reason,
           enhancement: {
             isWithinPeriod: enhancedValidation.periodValidation.isWithinPeriod,
-            isEarlyForPeriod: isInTransition
-              ? false
-              : enhancedValidation.periodValidation.isEarlyForPeriod,
+            isEarlyForPeriod:
+              enhancedValidation.periodValidation.isEarlyForPeriod,
             isLateForPeriod:
               enhancedValidation.periodValidation.isLateForPeriod,
             periodStart:

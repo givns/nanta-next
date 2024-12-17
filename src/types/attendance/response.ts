@@ -14,7 +14,7 @@ import {
 import { AttendanceValidation, ValidationResult } from './validation';
 import { OvertimeContext } from './overtime';
 import { OvertimePeriodInfo, PeriodAttendance } from './period';
-import { AttendanceBaseResponse, LatestAttendanceResponse } from './base';
+import { LatestAttendanceResponse } from './base';
 import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 
 export interface AttendanceResponse

@@ -150,7 +150,7 @@ export class AttendanceService {
     }
   }
 
-  private mapOvertimeState(state: string | null): OvertimeState | undefined {
+  public mapOvertimeState(state: string | null): OvertimeState | undefined {
     if (!state) return undefined;
 
     switch (state) {
