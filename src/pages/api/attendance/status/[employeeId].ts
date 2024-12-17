@@ -232,33 +232,22 @@ function mapEnhancedResponse(
   }
 
   // Create type-safe transition
-  const transitions: PeriodTransition =
-    isInTransition && overtimeInfo
-      ? {
-          from: {
-            periodIndex: periods.findIndex(
-              (p) => p.type === PeriodType.REGULAR,
-            ),
-            type: PeriodType.REGULAR,
-          },
-          to: {
-            periodIndex: periods.findIndex(
-              (p) => p.type === PeriodType.OVERTIME,
-            ),
-            type: PeriodType.OVERTIME,
-          },
-          transitionTime: parseISO(
-            `${format(context.now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-          ).toISOString(),
-          isComplete: false,
-        }
-      : {
-          // Default transition object when not in transition
-          from: { periodIndex: 0, type: PeriodType.REGULAR },
-          to: { periodIndex: 0, type: PeriodType.REGULAR },
-          transitionTime: context.now.toISOString(),
-          isComplete: false,
-        };
+  const transitions: PeriodTransition = {
+    from: {
+      periodIndex: 0, // Regular period is always first
+      type: PeriodType.REGULAR,
+    },
+    to: {
+      periodIndex: 1, // Overtime period is second
+      type: PeriodType.OVERTIME,
+    },
+    transitionTime: context.window.nextPeriod?.overtimeInfo
+      ? parseISO(
+          `${format(context.now, 'yyyy-MM-dd')}T${context.window.nextPeriod.overtimeInfo.startTime}`,
+        ).toISOString()
+      : context.now.toISOString(),
+    isComplete: false,
+  };
 
   return {
     daily: {
@@ -545,15 +534,20 @@ function createTimelineEnhancement(
   records: AttendanceRecord[],
   now: Date,
 ): TimelineEnhancement {
-  // Create entries for all periods
-  const periodEntries = periods.map((period, index) => ({
-    periodType: period.type,
-    startTime: period.startTime.toISOString(),
-    endTime: period.endTime.toISOString(),
-    checkInTime: records[index]?.CheckInTime?.toISOString(),
-    checkOutTime: records[index]?.CheckOutTime?.toISOString(),
-    status: getPeriodEntryStatus(period, records[index], now),
-  }));
+  // Ensure we have entries for all periods
+  const periodEntries = periods.map((period) => {
+    const record =
+      records.find((r) => r.type === period.type && !r.CheckOutTime) || null;
+
+    return {
+      periodType: period.type,
+      startTime: period.startTime.toISOString(),
+      endTime: period.endTime.toISOString(),
+      checkInTime: record?.CheckInTime?.toISOString(),
+      checkOutTime: record?.CheckOutTime?.toISOString(),
+      status: getPeriodEntryStatus(period, record, now),
+    };
+  });
 
   return {
     currentPeriodIndex: periods.findIndex((p) =>

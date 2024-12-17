@@ -24,10 +24,10 @@ export function toBangkokTime(date: Date | string | number): Date {
 }
 
 export function getCurrentTime(): Date {
-  // For testing specific scenarios
-  //const testTime = '2024-12-16T21:45:00.000Z'; // 21:45, transition window
-  //return new Date(testTime);
-  return getBangkokTime();
+  //For testing specific scenarios
+  const testTime = '2024-12-16T21:45:00.000Z'; // 21:45, transition window
+  return new Date(testTime);
+  //return getBangkokTime();
 }
 
 export function formatDateTime(
