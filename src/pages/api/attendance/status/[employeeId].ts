@@ -81,23 +81,6 @@ const QuerySchema = z.object({
     .optional(),
 });
 
-function deduplicatePeriods(periods: Period[]): Period[] {
-  // Create a unique key for each period based on its critical attributes
-  const uniquePeriodMap = new Map<string, Period>();
-
-  periods.forEach((period) => {
-    // Create a unique key that considers period type, start time, and end time
-    const key = `${period.type}_${period.startTime.toISOString()}_${period.endTime.toISOString()}`;
-
-    // Keep the first occurrence of a period with the same key
-    if (!uniquePeriodMap.has(key)) {
-      uniquePeriodMap.set(key, period);
-    }
-  });
-
-  return Array.from(uniquePeriodMap.values());
-}
-
 function mapEnhancedResponse(
   baseStatus: AttendanceBaseResponse,
   enhanced: EnhancedAttendanceStatus,
@@ -241,11 +224,10 @@ function mapEnhancedResponse(
       periodIndex: 1, // Overtime period is second
       type: PeriodType.OVERTIME,
     },
-    transitionTime: context.window.nextPeriod?.overtimeInfo
-      ? parseISO(
-          `${format(context.now, 'yyyy-MM-dd')}T${context.window.nextPeriod.overtimeInfo.startTime}`,
-        ).toISOString()
-      : context.now.toISOString(),
+    transitionTime: parseISO(
+      `${format(context.now, 'yyyy-MM-dd')}T${overtimeInfo?.startTime ?? ''}`,
+    ).toISOString(),
+
     isComplete: false,
   };
 
@@ -539,13 +521,18 @@ function createTimelineEnhancement(
     const record =
       records.find((r) => r.type === period.type && !r.CheckOutTime) || null;
 
+    // Determine if this is a future period
+    const isFuturePeriod = isAfter(period.startTime, now);
+
     return {
       periodType: period.type,
       startTime: period.startTime.toISOString(),
       endTime: period.endTime.toISOString(),
       checkInTime: record?.CheckInTime?.toISOString(),
       checkOutTime: record?.CheckOutTime?.toISOString(),
-      status: getPeriodEntryStatus(period, record, now),
+      status: isFuturePeriod
+        ? 'pending'
+        : getPeriodEntryStatus(period, record, now),
     };
   });
 

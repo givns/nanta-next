@@ -94,8 +94,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       const today = format(now, 'yyyy-MM-dd'); // Get current date only
 
       // Create proper datetime objects using shift times
-      const startTime = parseISO(`${today}T${shiftData?.startTime || '08:00'}`);
-      const endTime = parseISO(`${today}T${shiftData?.endTime || '17:00'}`);
+      const startTime = parseISO(`${today}T${shiftData?.startTime}`);
+      const endTime = parseISO(`${today}T${shiftData?.endTime}`);
 
       // Format times for logging using utility functions
       console.log('Time Reference Points:', {
