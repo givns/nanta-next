@@ -25,6 +25,7 @@ import {
   PeriodTransition,
   OvertimePeriodInfo,
   AttendanceStateResponse,
+  PeriodStatus,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { OvertimeState, PrismaClient } from '@prisma/client';
@@ -516,13 +517,14 @@ function createTimelineEnhancement(
   records: AttendanceRecord[],
   now: Date,
 ): TimelineEnhancement {
-  // Ensure we have entries for all periods
   const periodEntries = periods.map((period) => {
-    const record =
-      records.find((r) => r.type === period.type && !r.CheckOutTime) || null;
+    const record = records.find((r) => r.type === period.type) || null;
 
-    // Determine if this is a future period
-    const isFuturePeriod = isAfter(period.startTime, now);
+    // Check if period is current
+    const isCurrentPeriod = isWithinInterval(now, {
+      start: period.startTime,
+      end: period.endTime,
+    });
 
     return {
       periodType: period.type,
@@ -530,17 +532,21 @@ function createTimelineEnhancement(
       endTime: period.endTime.toISOString(),
       checkInTime: record?.CheckInTime?.toISOString(),
       checkOutTime: record?.CheckOutTime?.toISOString(),
-      status: isFuturePeriod
-        ? 'pending'
-        : getPeriodEntryStatus(period, record, now),
+      status: isCurrentPeriod ? PeriodStatus.ACTIVE : PeriodStatus.PENDING,
     };
   });
 
+  // Find current period index
+  const currentPeriodIndex = periods.findIndex((period) =>
+    isWithinInterval(now, {
+      start: period.startTime,
+      end: period.endTime,
+    }),
+  );
+
   return {
-    currentPeriodIndex: periods.findIndex((p) =>
-      isWithinInterval(now, { start: p.startTime, end: p.endTime }),
-    ),
-    periodEntries,
+    currentPeriodIndex,
+    periodEntries, // Now includes all periods
   };
 }
 

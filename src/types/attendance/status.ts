@@ -247,7 +247,7 @@ export interface TimelineEnhancement {
     endTime: string;
     checkInTime?: string;
     checkOutTime?: string;
-    status: 'pending' | 'active' | 'completed';
+    status: PeriodStatus;
   }>;
 }
 
