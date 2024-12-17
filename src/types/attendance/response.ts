@@ -51,7 +51,7 @@ export interface AttendanceStateResponse {
       attendance?: PeriodAttendance;
       overtime?: OvertimePeriodInfo;
     }>;
-    transitions: PeriodTransition;
+    transitions: PeriodTransition | null;
   };
   base: {
     state: AttendanceState;

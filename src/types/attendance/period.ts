@@ -36,7 +36,7 @@ export interface PeriodInfo {
   status: PeriodStatus;
   attendance?: PeriodAttendance;
   overtime?: OvertimePeriodInfo;
-  transitions: PeriodTransition;
+  transitions: PeriodTransition | null;
 }
 
 export interface PeriodAttendance {

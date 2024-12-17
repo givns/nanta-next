@@ -232,7 +232,7 @@ function mapEnhancedResponse(
   }
 
   // Create type-safe transition
-  const transitions: PeriodTransition =
+  const transitions: PeriodTransition | null =
     isInTransition && overtimeInfo
       ? {
           from: {
@@ -252,12 +252,7 @@ function mapEnhancedResponse(
           ).toISOString(),
           isComplete: false,
         }
-      : {
-          from: { periodIndex: -1, type: PeriodType.REGULAR },
-          to: { periodIndex: -1, type: PeriodType.REGULAR },
-          transitionTime: context.now.toISOString(),
-          isComplete: false,
-        };
+      : null;
 
   return {
     daily: {
@@ -544,39 +539,21 @@ function createTimelineEnhancement(
   records: AttendanceRecord[],
   now: Date,
 ): TimelineEnhancement {
-  // Check for transition period
-  const overtimePeriod = periods.find((p) => p.type === PeriodType.OVERTIME);
-  const regularPeriod = periods.find((p) => p.type === PeriodType.REGULAR);
-
-  const isInTransition =
-    overtimePeriod &&
-    regularPeriod &&
-    isWithinInterval(now, {
-      start: subMinutes(overtimePeriod.startTime, 30),
-      end: overtimePeriod.startTime,
-    });
+  // Create entries for all periods
+  const periodEntries = periods.map((period, index) => ({
+    periodType: period.type,
+    startTime: period.startTime.toISOString(),
+    endTime: period.endTime.toISOString(),
+    checkInTime: records[index]?.CheckInTime?.toISOString(),
+    checkOutTime: records[index]?.CheckOutTime?.toISOString(),
+    status: getPeriodEntryStatus(period, records[index], now),
+  }));
 
   return {
-    currentPeriodIndex: periods.findIndex((p) => {
-      if (isInTransition && p.type === PeriodType.REGULAR) {
-        return true; // During transition, regular period is current
-      }
-      return isWithinInterval(now, {
-        start: p.startTime,
-        end: p.endTime,
-      });
-    }),
-    periodEntries: periods.map((period, index) => ({
-      periodType: period.type,
-      startTime: period.startTime.toISOString(),
-      endTime: period.endTime.toISOString(),
-      checkInTime: records[index]?.CheckInTime?.toISOString(),
-      checkOutTime: records[index]?.CheckOutTime?.toISOString(),
-      status:
-        isInTransition && period.type === PeriodType.REGULAR
-          ? 'active' // Keep regular period active during transition
-          : getPeriodEntryStatus(period, records[index], now),
-    })),
+    currentPeriodIndex: periods.findIndex((p) =>
+      isWithinInterval(now, { start: p.startTime, end: p.endTime }),
+    ),
+    periodEntries,
   };
 }
 
