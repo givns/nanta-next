@@ -140,47 +140,43 @@ function mapEnhancedResponse(
     });
 
   // Map periods according to interface
-  const periods: AttendanceStateResponse['daily']['periods'] = allPeriods.map(
-    (period, index) => {
-      const record = nonNullRecords[index];
-      const periodEntry: AttendanceStateResponse['daily']['periods'][0] = {
-        type: period.type,
-        window: {
-          start: period.startTime.toISOString(),
-          end: period.endTime.toISOString(),
-        },
-        status: {
-          isComplete: Boolean(record?.CheckOutTime),
-          isCurrent: isInTransition
-            ? period.type === PeriodType.REGULAR
-            : isWithinInterval(context.now, {
-                start: period.startTime,
-                end: period.endTime,
-              }),
-          requiresTransition: Boolean(
-            period.isConnected && context.window.nextPeriod,
-          ),
-        },
-      };
+  const periods = allPeriods.map((period, index) => {
+    const record = nonNullRecords.find((r) => r.type === period.type);
+    const isCurrentPeriod =
+      period.type === PeriodType.REGULAR &&
+      record?.CheckInTime &&
+      !record?.CheckOutTime;
 
-      // Add attendance if exists
-      if (record) {
-        periodEntry.attendance = mapToPeriodAttendance(record);
-      }
+    const periodEntry: AttendanceStateResponse['daily']['periods'][0] = {
+      type: period.type,
+      window: {
+        start: period.startTime.toISOString(),
+        end: period.endTime.toISOString(),
+      },
+      status: {
+        isComplete: Boolean(record?.CheckOutTime),
+        isCurrent: isCurrentPeriod,
+        requiresTransition: false,
+      },
+    };
 
-      // Add overtime info if applicable
-      if (period.type === PeriodType.OVERTIME && period.overtimeId) {
-        periodEntry.overtime = mapToOvertimePeriodInfo(
-          period.overtimeId,
-          period.startTime,
-          period.endTime,
-          record?.overtimeState || OvertimeState.NOT_STARTED,
-        );
-      }
+    // Add attendance if exists
+    if (record) {
+      periodEntry.attendance = mapToPeriodAttendance(record);
+    }
 
-      return periodEntry;
-    },
-  );
+    // Add overtime info if applicable
+    if (period.type === PeriodType.OVERTIME && period.overtimeId) {
+      periodEntry.overtime = mapToOvertimePeriodInfo(
+        period.overtimeId,
+        period.startTime,
+        period.endTime,
+        record?.overtimeState || OvertimeState.NOT_STARTED,
+      );
+    }
+
+    return periodEntry;
+  });
 
   // Add upcoming overtime period if exists and not already included
   if (
@@ -517,36 +513,27 @@ function createTimelineEnhancement(
   records: AttendanceRecord[],
   now: Date,
 ): TimelineEnhancement {
-  const periodEntries = periods.map((period) => {
-    const record = records.find((r) => r.type === period.type) || null;
+  // Only create entry for current active period since second period hasn't started
+  const currentRecord =
+    records.find((r) => r.type === PeriodType.REGULAR && !r.CheckOutTime) ||
+    null;
 
-    // Check if period is current
-    const isCurrentPeriod = isWithinInterval(now, {
-      start: period.startTime,
-      end: period.endTime,
-    });
-
-    return {
-      periodType: period.type,
-      startTime: period.startTime.toISOString(),
-      endTime: period.endTime.toISOString(),
-      checkInTime: record?.CheckInTime?.toISOString(),
-      checkOutTime: record?.CheckOutTime?.toISOString(),
-      status: isCurrentPeriod ? PeriodStatus.ACTIVE : PeriodStatus.PENDING,
-    };
-  });
-
-  // Find current period index
-  const currentPeriodIndex = periods.findIndex((period) =>
-    isWithinInterval(now, {
-      start: period.startTime,
-      end: period.endTime,
-    }),
-  );
+  const periodEntries = [
+    {
+      periodType: PeriodType.REGULAR,
+      startTime: periods[0].startTime.toISOString(),
+      endTime: periods[0].endTime.toISOString(),
+      checkInTime: currentRecord?.CheckInTime?.toISOString(),
+      checkOutTime: currentRecord?.CheckOutTime?.toISOString(),
+      status: currentRecord?.CheckInTime
+        ? PeriodStatus.ACTIVE
+        : PeriodStatus.PENDING,
+    },
+  ];
 
   return {
-    currentPeriodIndex,
-    periodEntries, // Now includes all periods
+    currentPeriodIndex: currentRecord ? 0 : -1, // 0 since regular period is active
+    periodEntries,
   };
 }
 

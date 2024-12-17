@@ -45,7 +45,7 @@ export interface AttendanceStateResponse {
       };
       status: {
         isComplete: boolean;
-        isCurrent: boolean;
+        isCurrent: boolean | null | undefined;
         requiresTransition: boolean;
       };
       attendance?: PeriodAttendance;
