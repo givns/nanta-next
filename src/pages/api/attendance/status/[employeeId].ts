@@ -232,7 +232,7 @@ function mapEnhancedResponse(
   }
 
   // Create type-safe transition
-  const transitions: PeriodTransition | null =
+  const transitions: PeriodTransition =
     isInTransition && overtimeInfo
       ? {
           from: {
@@ -252,7 +252,13 @@ function mapEnhancedResponse(
           ).toISOString(),
           isComplete: false,
         }
-      : null;
+      : {
+          // Default transition object when not in transition
+          from: { periodIndex: 0, type: PeriodType.REGULAR },
+          to: { periodIndex: 0, type: PeriodType.REGULAR },
+          transitionTime: context.now.toISOString(),
+          isComplete: false,
+        };
 
   return {
     daily: {
