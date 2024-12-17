@@ -25,7 +25,7 @@ export function toBangkokTime(date: Date | string | number): Date {
 
 export function getCurrentTime(): Date {
   //For testing specific scenarios
-  const testTime = '2024-12-16T21:45:00.000Z'; // 21:45, transition window
+  const testTime = '2024-12-17T09:45:00.000Z'; // 09:45,
   return new Date(testTime);
   //return getBangkokTime();
 }
