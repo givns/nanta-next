@@ -151,19 +151,42 @@ function createTimelineEnhancement(
   records: AttendanceRecord[],
   now: Date,
 ): TimelineEnhancement {
+  // Find active record (checked in but not checked out)
+  const activeRecord = records.find((r) => r.CheckInTime && !r.CheckOutTime);
+
   return {
-    currentPeriodIndex: periods.findIndex(
-      (p) => p.status === PeriodStatus.ACTIVE,
-    ),
+    currentPeriodIndex: activeRecord
+      ? periods.findIndex(
+          (p) =>
+            p.type === activeRecord.type &&
+            isWithinInterval(now, {
+              start: p.startTime,
+              end: p.endTime,
+            }),
+        )
+      : -1,
     periodEntries: periods.map((period) => {
       const record = records.find((r) => r.type === period.type);
+      const isActive = Boolean(
+        record?.CheckInTime &&
+          !record?.CheckOutTime &&
+          isWithinInterval(now, {
+            start: period.startTime,
+            end: period.endTime,
+          }),
+      );
+
       return {
         periodType: period.type,
         startTime: period.startTime.toISOString(),
         endTime: period.endTime.toISOString(),
         checkInTime: record?.CheckInTime?.toISOString(),
         checkOutTime: record?.CheckOutTime?.toISOString(),
-        status: period.status,
+        status: isActive
+          ? PeriodStatus.ACTIVE
+          : record?.CheckOutTime
+            ? PeriodStatus.COMPLETED
+            : PeriodStatus.PENDING,
       };
     }),
   };
@@ -231,7 +254,17 @@ function createEnhancedValidation(
   records: AttendanceRecord[],
   now: Date,
 ): ValidationEnhancement {
-  const currentPeriod = periods.find((p) => p.status === PeriodStatus.ACTIVE);
+  const activeRecord = records.find((r) => r.CheckInTime && !r.CheckOutTime);
+  const currentPeriod = activeRecord
+    ? periods.find(
+        (p) =>
+          p.type === activeRecord.type &&
+          isWithinInterval(now, {
+            start: p.startTime,
+            end: p.endTime,
+          }),
+      )
+    : null;
 
   return {
     autoCompletionRequired: enhanced.missingEntries.length > 0,
@@ -244,7 +277,7 @@ function createEnhancedValidation(
       nextPeriodStart: enhanced.pendingTransitions[0]?.transitionTime,
     },
     periodValidation: {
-      isWithinPeriod: currentPeriod?.status === PeriodStatus.ACTIVE,
+      isWithinPeriod: Boolean(currentPeriod),
       isEarlyForPeriod: checkIfEarlyForPeriod(currentPeriod, now),
       isLateForPeriod: checkIfLateForPeriod(currentPeriod, now),
       periodStart: currentPeriod?.startTime ?? now,
@@ -260,29 +293,32 @@ function createValidationFlags(
   context: { now: Date; window: ShiftWindowResponse },
   isInTransition: boolean,
 ): AttendanceFlags {
+  const isActiveAttendance = Boolean(
+    baseStatus.latestAttendance?.CheckInTime &&
+      !baseStatus.latestAttendance?.CheckOutTime,
+  );
+
+  const isInShiftTime = isWithinInterval(context.now, {
+    start: parseISO(
+      `${format(context.now, 'yyyy-MM-dd')}T${context.window.shift.startTime}`,
+    ),
+    end: parseISO(
+      `${format(context.now, 'yyyy-MM-dd')}T${context.window.shift.endTime}`,
+    ),
+  });
+
   return {
     ...baseValidation.flags,
-    hasActivePeriod: Boolean(
-      baseStatus.latestAttendance?.CheckInTime &&
-        !baseStatus.latestAttendance?.CheckOutTime,
-    ),
+    hasActivePeriod: isActiveAttendance,
     hasPendingTransition: isInTransition,
-    isInsideShift: Boolean(
-      baseStatus.latestAttendance?.shiftStartTime &&
-        isWithinInterval(context.now, {
-          start: new Date(baseStatus.latestAttendance.shiftStartTime),
-          end: new Date(baseStatus.latestAttendance.shiftEndTime || ''),
-        }),
-    ),
+    isInsideShift: isActiveAttendance && isInShiftTime,
     isEarlyCheckIn: enhancedValidation.periodValidation.isEarlyForPeriod,
     isAutoCheckIn: false,
     isAutoCheckOut: false,
-    isOvertime: isInTransition
-      ? false
-      : context.window.type === PeriodType.OVERTIME,
+    isOvertime: context.window.type === PeriodType.OVERTIME,
     isPendingDayOffOvertime: false,
-    isPendingOvertime: false,
-    isOutsideShift: false,
+    isPendingOvertime: Boolean(context.window.nextPeriod?.type === 'overtime'),
+    isOutsideShift: isActiveAttendance && !isInShiftTime,
     isLate: false,
     isEarlyCheckOut: false,
     isLateCheckIn: false,
