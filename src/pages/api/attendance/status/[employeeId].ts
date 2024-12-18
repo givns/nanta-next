@@ -154,27 +154,26 @@ function createTimelineEnhancement(
   // Find active record (checked in but not checked out)
   const activeRecord = records.find((r) => r.CheckInTime && !r.CheckOutTime);
 
+  const activeIndex = activeRecord
+    ? periods.findIndex((p) => p.type === activeRecord.type)
+    : -1;
+
   return {
-    currentPeriodIndex: activeRecord
-      ? periods.findIndex(
-          (p) =>
-            p.type === activeRecord.type &&
-            isWithinInterval(now, {
-              start: p.startTime,
-              end: p.endTime,
-            }),
-        )
-      : -1,
+    currentPeriodIndex: activeIndex,
     periodEntries: periods.map((period) => {
       const record = records.find((r) => r.type === period.type);
-      const isActive = Boolean(
-        record?.CheckInTime &&
-          !record?.CheckOutTime &&
-          isWithinInterval(now, {
-            start: period.startTime,
-            end: period.endTime,
-          }),
-      );
+
+      // If there's an active record, it takes precedence
+      if (activeRecord && record?.id === activeRecord.id) {
+        return {
+          periodType: period.type,
+          startTime: period.startTime.toISOString(),
+          endTime: period.endTime.toISOString(),
+          checkInTime: record.CheckInTime?.toISOString(),
+          checkOutTime: record.CheckOutTime?.toISOString(),
+          status: PeriodStatus.ACTIVE,
+        };
+      }
 
       return {
         periodType: period.type,
@@ -182,11 +181,9 @@ function createTimelineEnhancement(
         endTime: period.endTime.toISOString(),
         checkInTime: record?.CheckInTime?.toISOString(),
         checkOutTime: record?.CheckOutTime?.toISOString(),
-        status: isActive
-          ? PeriodStatus.ACTIVE
-          : record?.CheckOutTime
-            ? PeriodStatus.COMPLETED
-            : PeriodStatus.PENDING,
+        status: record?.CheckOutTime
+          ? PeriodStatus.COMPLETED
+          : PeriodStatus.PENDING,
       };
     }),
   };
@@ -198,11 +195,15 @@ function createPeriodValidation(
   baseValidation: ValidationResponse,
   enhanced: EnhancedAttendanceStatus,
 ): PeriodValidation {
+  const hasActiveCheckIn = Boolean(
+    enhanced.lastCheckIn && !enhanced.lastCheckOut,
+  );
+
   return {
     currentPeriod: {
-      index: timeline.currentPeriodIndex,
-      canCheckIn: baseValidation.allowed && timeline.currentPeriodIndex === -1,
-      canCheckOut: baseValidation.allowed && timeline.currentPeriodIndex !== -1,
+      index: hasActiveCheckIn ? 0 : -1,
+      canCheckIn: baseValidation.allowed && !hasActiveCheckIn,
+      canCheckOut: Boolean(baseValidation.allowed && hasActiveCheckIn),
       requiresTransition: enhanced.pendingTransitions.length > 0,
       message: baseValidation.reason,
       enhancement: {
@@ -212,40 +213,18 @@ function createPeriodValidation(
         periodStart:
           enhancedValidation.periodValidation.periodStart.toISOString(),
         periodEnd: enhancedValidation.periodValidation.periodEnd.toISOString(),
-        status: determineEnhancementStatus(
-          timeline.currentPeriodIndex,
-          enhanced,
-        ),
+        status: hasActiveCheckIn ? 'active' : 'pending',
       },
     },
     nextPeriod: enhanced.pendingTransitions[0]
       ? {
-          index: timeline.currentPeriodIndex + 1,
+          index: hasActiveCheckIn ? 1 : 0,
           availableAt:
             enhanced.pendingTransitions[0].transitionTime.toISOString(),
-          type: enhanced.pendingTransitions[0].to,
+          type: enhanced.pendingTransitions[0].to as PeriodType,
         }
       : undefined,
   };
-}
-
-function determineEnhancementStatus(
-  currentPeriodIndex: number,
-  enhanced: EnhancedAttendanceStatus,
-): 'active' | 'pending' | 'completed' {
-  if (currentPeriodIndex === -1) {
-    return 'pending';
-  }
-
-  if (enhanced.lastCheckOut) {
-    return 'completed';
-  }
-
-  if (enhanced.lastCheckIn) {
-    return 'active';
-  }
-
-  return 'pending';
 }
 
 function createEnhancedValidation(
@@ -253,8 +232,9 @@ function createEnhancedValidation(
   periods: Period[],
   records: AttendanceRecord[],
   now: Date,
+  window: ShiftWindowResponse, // Add window parameter
 ): ValidationEnhancement {
-  const activeRecord = records.find((r) => r.CheckInTime && !r.CheckOutTime);
+  const activeRecord = records.find((r) => r?.CheckInTime && !r?.CheckOutTime);
   const currentPeriod = activeRecord
     ? periods.find(
         (p) =>
@@ -351,7 +331,18 @@ function mapEnhancedResponse(
   },
 ): AttendanceStatusResponse {
   const periodManager = new PeriodManagementService();
+  const hasActiveCheckIn = Boolean(
+    baseStatus.latestAttendance?.CheckInTime &&
+      !baseStatus.latestAttendance?.CheckOutTime,
+  );
 
+  // Check if we're in the current shift time
+  const isInCurrentShift = isWithinInterval(context.now, {
+    start: parseISO(context.window.current.start),
+    end: parseISO(context.window.current.end),
+  });
+
+  // Determine transition state for overtime
   const isInTransition = Boolean(
     context.window.nextPeriod?.overtimeInfo &&
       isWithinInterval(context.now, {
@@ -367,13 +358,65 @@ function mapEnhancedResponse(
       }),
   );
 
-  const periodValidation = createPeriodValidation(
-    timeline,
-    enhancedValidation,
-    context.baseValidation,
-    enhanced,
-  );
+  // Create transition object if applicable
+  const transition = isInTransition
+    ? {
+        from: PeriodType.REGULAR, // Direct PeriodType
+        to: PeriodType.OVERTIME, // Direct PeriodType
+        transitionTime: parseISO(
+          `${format(context.now, 'yyyy-MM-dd')}T${context.window.nextPeriod?.overtimeInfo?.startTime || ''}`,
+        ).toISOString(), // Convert to string
+        isComplete: false,
+      }
+    : null;
 
+  // Update enhanced status
+  const updatedEnhanced: EnhancedAttendanceStatus = {
+    ...enhanced,
+    currentPeriod:
+      hasActiveCheckIn && isInCurrentShift
+        ? {
+            type: context.window.type,
+            startTime: parseISO(context.window.current.start),
+            endTime: parseISO(context.window.current.end),
+            isOvertime: context.window.type === PeriodType.OVERTIME,
+            status: PeriodStatus.ACTIVE,
+            isOvernight: false,
+            isConnected: Boolean(context.window.nextPeriod),
+            isDayOffOvertime: false,
+            overtimeId: context.window.nextPeriod?.overtimeInfo?.id, // Remove null, keep undefined
+          }
+        : null,
+    lastCheckIn: baseStatus.latestAttendance?.CheckInTime
+      ? {
+          time: new Date(baseStatus.latestAttendance.CheckInTime),
+          periodType: baseStatus.latestAttendance.periodType as PeriodType,
+          isOvertime: Boolean(baseStatus.latestAttendance.isOvertime),
+        }
+      : null,
+    lastCheckOut: baseStatus.latestAttendance?.CheckOutTime
+      ? {
+          time: new Date(baseStatus.latestAttendance.CheckOutTime),
+          periodType: baseStatus.latestAttendance.periodType as PeriodType,
+          isOvertime: Boolean(baseStatus.latestAttendance.isOvertime),
+        }
+      : null,
+    pendingTransitions: isInTransition
+      ? [
+          {
+            from: PeriodType.REGULAR,
+            to: PeriodType.OVERTIME,
+            transitionTime: parseISO(
+              `${format(context.now, 'yyyy-MM-dd')}T${context.window.nextPeriod?.overtimeInfo?.startTime || ''}`,
+            ),
+            isComplete: false,
+          },
+        ]
+      : [],
+    missingEntries: enhanced.missingEntries,
+  };
+
+  // Update periods with current status
   const mappedPeriods = periods.map((period) => ({
     type: period.type,
     window: {
@@ -381,36 +424,78 @@ function mapEnhancedResponse(
       end: period.endTime.toISOString(),
     },
     status: {
-      isComplete: Boolean(period?.status === PeriodStatus.COMPLETED),
-      isCurrent: Boolean(period?.status === PeriodStatus.ACTIVE),
-      requiresTransition: Boolean(enhanced?.pendingTransitions?.length > 0),
+      isComplete: Boolean(period.status === PeriodStatus.COMPLETED),
+      isCurrent: hasActiveCheckIn && period.type === context.window.type,
+      requiresTransition: isInTransition,
     },
   }));
 
+  // Create period validation
+  const periodValidation = createPeriodValidation(
+    {
+      ...timeline,
+      currentPeriodIndex: hasActiveCheckIn ? 0 : -1,
+    },
+    enhancedValidation,
+    context.baseValidation,
+    updatedEnhanced,
+  );
+
+  // Create validation flags
   const flags = createValidationFlags(
     context.baseValidation,
     baseStatus,
     enhancedValidation,
-    context,
+    {
+      ...context,
+      window: {
+        ...context.window,
+        current: {
+          start: context.window.current.start,
+          end: context.window.current.end,
+        },
+      },
+    },
     isInTransition,
   );
 
   return {
     daily: {
       date: format(context.now, 'yyyy-MM-dd'),
-      timeline,
+      timeline: {
+        ...timeline,
+        currentPeriodIndex: hasActiveCheckIn ? 0 : -1,
+      },
       periods: mappedPeriods,
-      transitions: periodManager.calculateTransitions(periods)[0] || null,
+      transitions: transition
+        ? {
+            from: {
+              periodIndex: 0,
+              type: transition.from,
+            },
+            to: {
+              periodIndex: 0,
+              type: transition.to,
+            },
+            transitionTime: transition.transitionTime,
+            isComplete: transition.isComplete,
+          }
+        : null,
     },
     base: ensureLatestAttendance(baseStatus),
     window: context.window,
     validation: {
       allowed: context.baseValidation.allowed,
       reason: context.baseValidation.reason,
-      flags,
+      flags: {
+        ...flags,
+        hasActivePeriod: hasActiveCheckIn,
+        isInsideShift: hasActiveCheckIn && isInCurrentShift,
+        hasPendingTransition: isInTransition,
+      },
       periodValidation,
     },
-    enhanced,
+    enhanced: updatedEnhanced,
   };
 }
 
@@ -491,6 +576,7 @@ export default async function handler(
       periods,
       records,
       now,
+      window,
     );
 
     const response = mapEnhancedResponse(
