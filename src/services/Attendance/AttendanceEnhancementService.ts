@@ -10,7 +10,13 @@ import {
   PeriodStatus,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { isAfter, parseISO, format, isWithinInterval } from 'date-fns';
+import {
+  isAfter,
+  parseISO,
+  format,
+  isWithinInterval,
+  subMinutes,
+} from 'date-fns';
 
 export class AttendanceEnhancementService {
   async enhanceAttendanceStatus(
@@ -23,14 +29,30 @@ export class AttendanceEnhancementService {
 
     if (!currentPeriod) return enhancedStatus;
 
+    // Set lastCheckIn if exists
     if (attendance?.CheckInTime) {
       enhancedStatus.lastCheckIn = {
         time: attendance.CheckInTime,
         periodType: attendance.type,
         isOvertime: attendance.isOvertime,
       };
+
+      // If checked in and in current period, update current period status
+      if (
+        !attendance.CheckOutTime &&
+        isWithinInterval(now, {
+          start: currentPeriod.startTime,
+          end: currentPeriod.endTime,
+        })
+      ) {
+        enhancedStatus.currentPeriod = {
+          ...currentPeriod,
+          status: PeriodStatus.ACTIVE,
+        };
+      }
     }
 
+    // Set lastCheckOut if exists
     if (attendance?.CheckOutTime) {
       enhancedStatus.lastCheckOut = {
         time: attendance.CheckOutTime,
@@ -39,22 +61,38 @@ export class AttendanceEnhancementService {
       };
     }
 
+    // Create period windows
     const periodWindow = this.createPeriodWindow(currentPeriod, attendance);
     const overtimePeriod = overtimeInfo
-      ? this.createOvertimePeriodWindow(overtimeInfo, now, attendance)
+      ? this.createOvertimePeriodWindow(overtimeInfo, now)
       : null;
-
-    // Update current period based on check-in status and time
-    if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
-      enhancedStatus.currentPeriod = {
-        ...currentPeriod,
-        status: PeriodStatus.ACTIVE,
-      };
-    }
 
     const validPeriodWindows = [periodWindow, overtimePeriod].filter(
       (p): p is PeriodWindow => p !== null,
     );
+
+    // Check for overtime transition
+    if (overtimeInfo && attendance?.CheckInTime && !attendance.CheckOutTime) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+      );
+
+      if (
+        isWithinInterval(now, {
+          start: subMinutes(overtimeStart, 30),
+          end: overtimeStart,
+        })
+      ) {
+        enhancedStatus.pendingTransitions = [
+          {
+            from: PeriodType.REGULAR,
+            to: PeriodType.OVERTIME,
+            transitionTime: overtimeStart,
+            isComplete: false,
+          },
+        ];
+      }
+    }
 
     enhancedStatus.missingEntries = this.getMissingEntries(
       attendance,
@@ -62,24 +100,7 @@ export class AttendanceEnhancementService {
       now,
     );
 
-    enhancedStatus.pendingTransitions = this.getPendingTransitions(
-      validPeriodWindows,
-      attendance,
-    );
-
     return enhancedStatus;
-  }
-
-  private createInitialStatus(
-    currentPeriod: Period | null,
-  ): EnhancedAttendanceStatus {
-    return {
-      currentPeriod,
-      lastCheckIn: null,
-      lastCheckOut: null,
-      missingEntries: [],
-      pendingTransitions: [],
-    };
   }
 
   private createPeriodWindow(
@@ -87,19 +108,20 @@ export class AttendanceEnhancementService {
     attendance: AttendanceRecord | null,
   ): PeriodWindow {
     const now = getCurrentTime();
-    const isWithinPeriod = isWithinInterval(now, {
-      start: period.startTime,
-      end: period.endTime,
-    });
 
-    // Determine status based on both time and attendance
+    // Determine status based on check-in and current time
     let status = PeriodStatus.PENDING;
-    if (attendance?.CheckInTime) {
-      if (!attendance.CheckOutTime && isWithinPeriod) {
+    if (attendance?.CheckInTime && !attendance.CheckOutTime) {
+      if (
+        isWithinInterval(now, {
+          start: period.startTime,
+          end: period.endTime,
+        })
+      ) {
         status = PeriodStatus.ACTIVE;
-      } else if (attendance.CheckOutTime) {
-        status = PeriodStatus.COMPLETED;
       }
+    } else if (attendance?.CheckOutTime) {
+      status = PeriodStatus.COMPLETED;
     }
 
     return {
@@ -115,50 +137,31 @@ export class AttendanceEnhancementService {
   private createOvertimePeriodWindow(
     overtime: ApprovedOvertimeInfo,
     now: Date,
-    attendance: AttendanceRecord | null,
   ): PeriodWindow {
     const start = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
     );
     const end = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`);
 
-    // For overtime, we only care about time interval if not started yet
-    const status =
-      attendance?.isOvertime && attendance?.CheckInTime
-        ? PeriodStatus.ACTIVE
-        : isWithinInterval(now, { start, end })
-          ? PeriodStatus.ACTIVE
-          : PeriodStatus.PENDING;
-
     return {
       start,
       end,
       type: PeriodType.OVERTIME,
       overtimeId: overtime.id,
-      isConnected: false,
-      status,
+      isConnected: true, // Connected to regular period
+      status: PeriodStatus.PENDING,
     };
   }
 
-  private getLastCheckIn(attendance: AttendanceRecord) {
-    if (!attendance.CheckInTime) return null;
+  private createInitialStatus(
+    currentPeriod: Period | null,
+  ): EnhancedAttendanceStatus {
     return {
-      time: attendance.CheckInTime,
-      periodType: attendance.isOvertime
-        ? PeriodType.OVERTIME
-        : PeriodType.REGULAR,
-      isOvertime: attendance.isOvertime,
-    };
-  }
-
-  private getLastCheckOut(attendance: AttendanceRecord) {
-    if (!attendance.CheckOutTime) return null;
-    return {
-      time: attendance.CheckOutTime,
-      periodType: attendance.isOvertime
-        ? PeriodType.OVERTIME
-        : PeriodType.REGULAR,
-      isOvertime: attendance.isOvertime,
+      currentPeriod,
+      lastCheckIn: null,
+      lastCheckOut: null,
+      missingEntries: [],
+      pendingTransitions: [],
     };
   }
 
