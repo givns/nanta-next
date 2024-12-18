@@ -338,6 +338,19 @@ function mapEnhancedResponse(
     enhanced,
   );
 
+  const mappedPeriods = periods.map((period) => ({
+    type: period.type,
+    window: {
+      start: period.startTime.toISOString(),
+      end: period.endTime.toISOString(),
+    },
+    status: {
+      isComplete: Boolean(period?.status === PeriodStatus.COMPLETED),
+      isCurrent: Boolean(period?.status === PeriodStatus.ACTIVE),
+      requiresTransition: Boolean(enhanced?.pendingTransitions?.length > 0),
+    },
+  }));
+
   const flags = createValidationFlags(
     context.baseValidation,
     baseStatus,
@@ -350,18 +363,7 @@ function mapEnhancedResponse(
     daily: {
       date: format(context.now, 'yyyy-MM-dd'),
       timeline,
-      periods: periods.map((period) => ({
-        type: period.type,
-        window: {
-          start: period.startTime.toISOString(),
-          end: period.endTime.toISOString(),
-        },
-        status: {
-          isComplete: period.status === PeriodStatus.COMPLETED,
-          isCurrent: period.status === PeriodStatus.ACTIVE,
-          requiresTransition: enhanced.pendingTransitions.length > 0,
-        },
-      })),
+      periods: mappedPeriods,
       transitions: periodManager.calculateTransitions(periods)[0] || null,
     },
     base: ensureLatestAttendance(baseStatus),
