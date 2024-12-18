@@ -47,6 +47,22 @@
   transform-origin: bottom right;
 }
 
+@keyframes wave {
+  0% {
+    transform: translateX(-50%) scaleY(1);
+  }
+  50% {
+    transform: translateX(0%) scaleY(0.8);
+  }
+  100% {
+    transform: translateX(50%) scaleY(1);
+  }
+}
+
+.animate-wave {
+  animation: wave 3s infinite linear;
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
