@@ -11,6 +11,7 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [phase, setPhase] = useState(1);
+  const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
@@ -29,7 +30,6 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
         });
       }, 50);
     }
-
     // Phase 2: Data Loading (40-80%)
     else if (phase === 2 && isLiffInitialized) {
       interval = setInterval(() => {
@@ -44,7 +44,6 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
         });
       }, 50);
     }
-
     // Phase 3: Final Animation (80-100%)
     else if (phase === 3 && isDataLoaded) {
       interval = setInterval(() => {
@@ -52,6 +51,7 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
           if (prev < 100) {
             return prev + 1;
           }
+          setFadeOut(true);
           return 100;
         });
       }, 20);
@@ -64,27 +64,71 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
     };
   }, [phase, isLiffInitialized, isDataLoaded]);
 
+  const getLoadingMessage = () => {
+    switch (phase) {
+      case 1:
+        return {
+          main: 'กำลังเริ่มต้นระบบ',
+          sub: 'โปรดรอสักครู่...',
+        };
+      case 2:
+        return {
+          main: 'กำลังเชื่อมต่อระบบ',
+          sub: 'กำลังตรวจสอบข้อมูล...',
+        };
+      default:
+        return {
+          main: 'กำลังเตรียมระบบ',
+          sub: 'เกือบพร้อมแล้ว...',
+        };
+    }
+  };
+
+  if (progress === 100 && fadeOut) {
+    return null;
+  }
+
   return (
-    <div className="fixed top-0 left-0 right-0 z-50">
-      <div className="h-1 w-full bg-gray-200">
+    <div
+      className={`fixed inset-0 z-50 bg-red-600 transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+    >
+      {/* Loading Content */}
+      <div className="flex flex-col items-center justify-center h-full">
+        {/* Logo Placeholder */}
+        <div className="w-24 h-24 mb-8 rounded-full bg-white/20 animate-pulse" />
+
+        {/* Loading Messages */}
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-white mb-2">
+            {getLoadingMessage().main}
+          </h2>
+          <p className="text-white/80">{getLoadingMessage().sub}</p>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-64 h-2 bg-white/20 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-white rounded-full transition-all duration-300 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Progress Percentage */}
+        <div className="mt-4 text-white/80">{Math.round(progress)}%</div>
+      </div>
+
+      {/* Bottom Wave Animation */}
+      <div className="absolute bottom-0 left-0 right-0 h-24 overflow-hidden">
         <div
-          className="h-full bg-green-500 transition-all duration-300 ease-out"
+          className="absolute bottom-0 left-0 right-0 h-24 bg-white/10 animate-wave"
           style={{
-            width: `${progress}%`,
-            transition: 'width 0.3s ease-out',
+            maskImage:
+              'linear-gradient(to bottom, transparent 50%, black 100%)',
+            WebkitMaskImage:
+              'linear-gradient(to bottom, transparent 50%, black 100%)',
           }}
         />
       </div>
-      {/* Optional loading message */}
-      {progress < 100 && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow text-sm text-gray-600">
-          {phase === 1
-            ? 'กำลังเริ่มต้นระบบ...'
-            : phase === 2
-              ? 'กำลังโหลดเชื่อมต่อระบบ...'
-              : 'กำลังเตรียมระบบ...'}
-        </div>
-      )}
     </div>
   );
 };
