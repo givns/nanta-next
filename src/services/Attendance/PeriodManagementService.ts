@@ -1,15 +1,15 @@
-// services/Attendance/PeriodManagementService.ts
-
 import {
   Period,
   PeriodWindow,
   PeriodTransition,
   DailyPeriods,
-  AttendanceBaseResponse,
   ShiftWindowResponse,
   OvertimeContext,
   PeriodType,
+  PeriodStatus,
 } from '@/types/attendance';
+import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
+import { getCurrentTime } from '@/utils/dateUtils';
 import {
   parseISO,
   format,
@@ -18,163 +18,92 @@ import {
   subMinutes,
   addDays,
 } from 'date-fns';
-import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
-import { getCurrentTime } from '@/utils/dateUtils';
-import { OvertimeState } from '@prisma/client';
 
 export class PeriodManagementService {
-  determineCurrentPeriod(
-    time: Date,
-    periods: Period[],
-    currentDay: Date = time,
-  ): Period | null {
-    const sortedPeriods = [...periods].sort(
-      (a, b) => a.startTime.getTime() - b.startTime.getTime(),
-    );
+  // CORE PERIOD DETERMINATION
+  determineCurrentPeriod(time: Date, periods: Period[]): Period | null {
+    const validPeriods = this.sortAndValidatePeriods(periods);
+    const overtimePeriods = validPeriods.filter((p) => p.isOvertime);
+    const regularPeriods = validPeriods.filter((p) => !p.isOvertime);
 
-    const overtimePeriods = sortedPeriods.filter((p) => p.isOvertime);
-    const regularPeriods = sortedPeriods.filter((p) => !p.isOvertime);
-
+    // Check overtime periods first
     for (const period of overtimePeriods) {
-      const adjustedPeriod = this.adjustPeriodForOvernight(period, currentDay);
-      const earlyWindow = subMinutes(
-        adjustedPeriod.startTime,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      );
+      const adjustedPeriod = this.adjustPeriodForOvernight(period, time);
+      const earlyWindow = this.calculateEarlyWindow(adjustedPeriod.startTime);
 
       if (
-        isWithinInterval(time, {
+        this.isTimeWithinPeriod(time, {
           start: earlyWindow,
           end: adjustedPeriod.endTime,
         })
       ) {
-        return period;
+        return {
+          ...period,
+          status: this.determinePeriodStatus(time, {
+            start: adjustedPeriod.startTime,
+            end: adjustedPeriod.endTime,
+          }),
+        };
       }
     }
 
+    // Then check regular periods
     for (const period of regularPeriods) {
-      const adjustedPeriod = this.adjustPeriodForOvernight(period, currentDay);
+      const adjustedPeriod = this.adjustPeriodForOvernight(period, time);
       if (
-        isWithinInterval(time, {
+        this.isTimeWithinPeriod(time, {
           start: adjustedPeriod.startTime,
           end: adjustedPeriod.endTime,
         })
       ) {
-        return period;
+        return {
+          ...period,
+          status: this.determinePeriodStatus(time, {
+            start: adjustedPeriod.startTime,
+            end: adjustedPeriod.endTime,
+          }),
+        };
       }
     }
 
     return null;
   }
 
-  determineEffectiveWindow(
-    window: ShiftWindowResponse,
-    baseStatus: AttendanceBaseResponse,
-    now: Date,
-    overtimeInfo?: OvertimeContext,
-  ): { effectiveWindow: ShiftWindowResponse; effectivePeriod: Period | null } {
-    let effectiveWindow = { ...window };
-    let effectivePeriod = null;
+  // PERIOD WINDOWS AND TRANSITIONS
+  getDailyPeriods(periods: Period[]): DailyPeriods {
+    const now = getCurrentTime();
+    const validPeriods = this.sortAndValidatePeriods(periods);
+    const periodWindows = validPeriods.map((p) => this.createPeriodWindow(p));
 
-    // During transition window (21:45), should show regular period
-    const effectiveShiftStart = this.parseWindowTime(
-      window.shift.startTime,
-      now,
-    ); // 13:00
-    const effectiveShiftEnd = this.parseWindowTime(window.shift.endTime, now); // 22:00
+    return {
+      date: format(now, 'yyyy-MM-dd'),
+      periods: periodWindows,
+      currentPeriodIndex: this.findCurrentPeriodIndex(periodWindows, now),
+      hasCompletedPeriods: this.hasCompletedPeriods(periodWindows, now),
+      hasIncompletePeriods: this.hasIncompletePeriods(periodWindows, now),
+      hasFuturePeriods: this.hasFuturePeriods(periodWindows, now),
+    };
+  }
 
-    // If overtime exists, check for transition window
-    if (overtimeInfo) {
-      const overtimeStart = this.parseWindowTime(overtimeInfo.startTime, now); // 22:00
-      const isInTransition = isWithinInterval(now, {
-        start: subMinutes(overtimeStart, 30), // 21:30
-        end: overtimeStart, // 22:00
-      });
+  calculateTransitions(periods: Period[]): PeriodTransition[] {
+    const validPeriods = this.sortAndValidatePeriods(periods);
+    const transitions: PeriodTransition[] = [];
 
-      if (
-        isInTransition &&
-        baseStatus.latestAttendance?.CheckInTime &&
-        !baseStatus.latestAttendance.CheckOutTime
-      ) {
-        // During transition, keep regular period as effective
-        return {
-          effectiveWindow: this.createRegularWindow(
-            window,
-            effectiveShiftStart,
-            effectiveShiftEnd,
-          ),
-          effectivePeriod: {
-            type: PeriodType.REGULAR,
-            startTime: effectiveShiftStart,
-            endTime: effectiveShiftEnd,
-            isOvertime: false,
-            isOvernight: window.shift.endTime < window.shift.startTime,
-            isConnected: true,
-          },
-        };
-      }
-    } else if (this.isEarlyOvertimeTransition(window, now)) {
-      // Use passed overtimeInfo if available, otherwise fall back to window
-      const currentOvertimeInfo =
-        overtimeInfo || window.nextPeriod?.overtimeInfo;
-      if (currentOvertimeInfo) {
-        const overtimeStart = this.parseWindowTime(
-          currentOvertimeInfo.startTime,
-          now,
-        );
-        const overtimeEnd = this.parseWindowTime(
-          currentOvertimeInfo.endTime,
-          now,
-        );
+    for (let i = 0; i < validPeriods.length - 1; i++) {
+      const current = validPeriods[i];
+      const next = validPeriods[i + 1];
 
-        // Use createRegularWindow for the regular period before overtime
-        effectiveWindow = this.createRegularWindow(
-          window,
-          effectiveShiftStart,
-          effectiveShiftEnd,
-        );
-
-        effectivePeriod = this.createOvertimePeriod(currentOvertimeInfo, now);
+      if (this.arePeriodsConnected(current, next)) {
+        transitions.push(this.createTransition(i, current, next));
       }
     }
 
-    // If no specific handling, create a regular window by default
-    if (!effectiveWindow.current) {
-      effectiveWindow = this.createRegularWindow(
-        window,
-        effectiveShiftStart,
-        effectiveShiftEnd,
-      );
-      effectivePeriod = {
-        type: PeriodType.REGULAR,
-        startTime: effectiveShiftStart,
-        endTime: effectiveShiftEnd,
-        isOvertime: false,
-        isOvernight: window.shift.endTime < window.shift.startTime,
-        isConnected: false,
-      };
-    }
-
-    return { effectiveWindow, effectivePeriod };
+    return transitions;
   }
 
-  private isInTransitionWindow(
-    window: ShiftWindowResponse,
-    now: Date,
-    overtimeInfo?: OvertimeContext,
-  ): boolean {
-    if (!overtimeInfo) return false;
-
-    const overtimeStart = this.parseWindowTime(overtimeInfo.startTime, now);
-    const transitionStart = subMinutes(overtimeStart, 30);
-
-    return isWithinInterval(now, {
-      start: transitionStart,
-      end: overtimeStart,
-    });
-  }
-
+  // PERIOD CREATION AND CONVERSION
   createPeriodFromWindow(window: ShiftWindowResponse): Period {
+    const now = getCurrentTime();
     return {
       type: window.type,
       startTime: parseISO(window.current.start),
@@ -183,64 +112,104 @@ export class PeriodManagementService {
       overtimeId: window.overtimeInfo?.id,
       isOvernight: this.isOvernightPeriod(window),
       isDayOffOvertime: window.overtimeInfo?.isDayOffOvertime,
+      status: this.determineStatusFromWindow(window),
+      isConnected: false,
     };
   }
 
-  private adjustPeriodForOvernight(period: Period, currentDay: Date): Period {
-    if (period.isOvernight && period.endTime < period.startTime) {
-      return {
-        ...period,
-        endTime: addDays(period.endTime, 1),
-      };
-    }
-    return period;
-  }
-
-  getDailyPeriods(periods: Period[]): DailyPeriods {
-    const now = getCurrentTime();
-    const sortedPeriods = this.sortAndValidatePeriods(periods);
-    const periodWindows = sortedPeriods.map((p) =>
-      this.convertToPeriodWindow(p),
-    );
+  createOvertimePeriod(overtimeInfo: OvertimeContext, now: Date): Period {
+    const start = this.parseWindowTime(overtimeInfo.startTime, now);
+    const end = this.parseWindowTime(overtimeInfo.endTime, now);
 
     return {
-      date: format(now, 'yyyy-MM-dd'),
-      periods: periodWindows,
-      currentPeriodIndex: periodWindows.findIndex((p) =>
-        this.isWithinPeriod(now, p),
-      ),
-      hasCompletedPeriods: periodWindows.some((p) => isAfter(now, p.end)),
-      hasIncompletePeriods: periodWindows.some((p) => !isAfter(now, p.end)),
-      hasFuturePeriods: periodWindows.some((p) => isAfter(p.start, now)),
+      type: PeriodType.OVERTIME,
+      startTime: start,
+      endTime: end,
+      isOvertime: true,
+      overtimeId: overtimeInfo.id,
+      isOvernight: overtimeInfo.endTime < overtimeInfo.startTime,
+      isDayOffOvertime: overtimeInfo.isDayOffOvertime,
+      status: this.determinePeriodStatus(now, { start: start, end: end }),
+      isConnected: false,
     };
   }
 
-  calculateTransitions(periods: Period[]): PeriodTransition[] {
-    const transitions: PeriodTransition[] = [];
-
-    for (let i = 0; i < periods.length - 1; i++) {
-      const current = periods[i];
-      const next = periods[i + 1];
-
-      if (current.isConnected) {
-        transitions.push({
-          from: {
-            periodIndex: i,
-            type: current.type,
-          },
-          to: {
-            periodIndex: i + 1,
-            type: next.type,
-          },
-          transitionTime: current.endTime.toISOString(),
-          isComplete: false,
-        });
-      }
+  // STATUS DETERMINATION
+  private determinePeriodStatus(
+    time: Date,
+    window: { start: Date; end: Date },
+  ): PeriodStatus {
+    if (isWithinInterval(time, window)) {
+      return PeriodStatus.ACTIVE;
     }
-
-    return transitions;
+    if (time < window.start) {
+      return PeriodStatus.PENDING;
+    }
+    return PeriodStatus.COMPLETED;
   }
 
+  private determineStatusFromWindow(window: ShiftWindowResponse): PeriodStatus {
+    const now = getCurrentTime();
+    const start = parseISO(window.current.start);
+    const end = parseISO(window.current.end);
+
+    return this.determinePeriodStatus(now, { start: start, end: end });
+  }
+
+  // UTILITY FUNCTIONS
+  private createPeriodWindow(period: Period): PeriodWindow {
+    const now = getCurrentTime();
+
+    return {
+      start: period.startTime,
+      end: period.endTime,
+      type: period.type,
+      overtimeId: period.overtimeId,
+      isConnected: period.isConnected || false,
+      status:
+        period.status ||
+        this.determinePeriodStatus(now, {
+          start: period.startTime,
+          end: period.endTime,
+        }),
+      nextPeriod: undefined,
+    };
+  }
+
+  private createTransition(
+    index: number,
+    current: Period,
+    next: Period,
+  ): PeriodTransition {
+    return {
+      from: {
+        periodIndex: index,
+        type: current.type,
+      },
+      to: {
+        periodIndex: index + 1,
+        type: next.type,
+      },
+      transitionTime: current.endTime.toISOString(),
+      isComplete: current.status === PeriodStatus.COMPLETED,
+    };
+  }
+
+  private sortAndValidatePeriods(periods: (Period | null)[]): Period[] {
+    const validPeriods = periods
+      .filter((p): p is Period => p !== null && this.isValidPeriod(p))
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
+
+    return validPeriods.map((period, index, array) => ({
+      ...period,
+      isConnected:
+        index < array.length - 1
+          ? this.arePeriodsConnected(period, array[index + 1])
+          : false,
+    }));
+  }
+
+  // HELPER FUNCTIONS
   private isValidPeriod(period: Period): boolean {
     return (
       period.startTime instanceof Date &&
@@ -257,134 +226,48 @@ export class PeriodManagementService {
     return diffMinutes <= 30;
   }
 
-  isWithinPeriod(date: Date, period: PeriodWindow): boolean {
-    return isWithinInterval(date, {
-      start: period.start,
-      end: period.end,
+  private adjustPeriodForOvernight(period: Period, currentDay: Date): Period {
+    if (period.isOvernight && period.endTime < period.startTime) {
+      return {
+        ...period,
+        endTime: addDays(period.endTime, 1),
+      };
+    }
+    return period;
+  }
+
+  private isTimeWithinPeriod(
+    time: Date,
+    window: { start: Date; end: Date },
+  ): boolean {
+    return isWithinInterval(time, {
+      start: window.start,
+      end: window.end,
     });
   }
 
-  private isPostOvertimeTransition(
-    baseStatus: AttendanceBaseResponse,
-    window: ShiftWindowResponse,
-  ): boolean {
-    return (
-      baseStatus?.latestAttendance?.overtimeState === OvertimeState.COMPLETED &&
-      window.nextPeriod?.type === PeriodType.REGULAR
-    );
+  private calculateEarlyWindow(startTime: Date): Date {
+    return subMinutes(startTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD);
   }
 
-  private isEarlyOvertimeTransition(
-    window: ShiftWindowResponse,
-    now: Date,
-  ): boolean {
-    if (!window.nextPeriod?.overtimeInfo) return false;
+  private findCurrentPeriodIndex(windows: PeriodWindow[], now: Date): number {
+    return windows.findIndex((w) => this.isTimeWithinPeriod(now, w));
+  }
 
-    const overtimeStart = this.parseWindowTime(
-      window.nextPeriod.overtimeInfo.startTime,
-      now,
-    );
-    const earlyWindow = subMinutes(
-      overtimeStart,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-    );
+  private hasCompletedPeriods(windows: PeriodWindow[], now: Date): boolean {
+    return windows.some((w) => isAfter(now, w.end));
+  }
 
-    return isAfter(now, earlyWindow);
+  private hasIncompletePeriods(windows: PeriodWindow[], now: Date): boolean {
+    return windows.some((w) => !isAfter(now, w.end));
+  }
+
+  private hasFuturePeriods(windows: PeriodWindow[], now: Date): boolean {
+    return windows.some((w) => isAfter(w.start, now));
   }
 
   private isOvernightPeriod(window: ShiftWindowResponse): boolean {
     return window.current.end < window.current.start;
-  }
-
-  private convertToPeriodWindow(period: Period): PeriodWindow {
-    return {
-      start: period.startTime,
-      end: period.endTime,
-      type: period.type,
-      overtimeId: period.overtimeId,
-      isConnected: period.isConnected || false,
-    };
-  }
-
-  private createRegularWindow(
-    window: ShiftWindowResponse,
-    start: Date,
-    end: Date,
-  ): ShiftWindowResponse {
-    return {
-      ...window,
-      type: PeriodType.REGULAR,
-      current: {
-        start: start.toISOString(),
-        end: end.toISOString(),
-      },
-      nextPeriod: null,
-      overtimeInfo: undefined,
-    };
-  }
-
-  private createOvertimeWindow(
-    window: ShiftWindowResponse,
-    overtimeInfo: OvertimeContext,
-    start: Date,
-    end: Date,
-  ): ShiftWindowResponse {
-    return {
-      ...window,
-      type: PeriodType.OVERTIME,
-      current: {
-        start: start.toISOString(),
-        end: end.toISOString(),
-      },
-      overtimeInfo: {
-        ...overtimeInfo,
-        startTime: format(start, 'HH:mm'),
-        endTime: format(end, 'HH:mm'),
-      },
-      nextPeriod: null,
-    };
-  }
-
-  private createRegularPeriod(start: Date, end: Date): Period {
-    return {
-      type: PeriodType.REGULAR,
-      startTime: start,
-      endTime: end,
-      isOvertime: false,
-      isOvernight: false,
-    };
-  }
-
-  createOvertimePeriod(overtimeInfo: OvertimeContext, now: Date): Period {
-    const start = this.parseWindowTime(overtimeInfo.startTime, now);
-    const end = this.parseWindowTime(overtimeInfo.endTime, now);
-
-    return {
-      type: PeriodType.OVERTIME,
-      startTime: start,
-      endTime: end,
-      isOvertime: true,
-      overtimeId: overtimeInfo.id,
-      isOvernight: overtimeInfo.endTime < overtimeInfo.startTime,
-      isDayOffOvertime: overtimeInfo.isDayOffOvertime,
-    };
-  }
-
-  // Update to handle Array filtering properly
-  sortAndValidatePeriods(periods: (Period | null)[]): Period[] {
-    const validPeriods = periods
-      .filter((p): p is Period => p !== null && this.isValidPeriod(p))
-      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
-
-    // Check for connections between periods
-    for (let i = 0; i < validPeriods.length - 1; i++) {
-      validPeriods[i].isConnected = this.arePeriodsConnected(
-        validPeriods[i],
-        validPeriods[i + 1],
-      );
-    }
-
-    return validPeriods;
   }
 
   private parseWindowTime(timeStr: string, date: Date): Date {

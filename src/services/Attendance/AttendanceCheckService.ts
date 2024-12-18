@@ -19,6 +19,7 @@ import {
   Period,
   EnhancedAttendanceStatus,
   ShiftStatus,
+  PeriodStatus,
 } from '../../types/attendance';
 import {
   getCacheData,
@@ -171,6 +172,9 @@ export class AttendanceCheckService {
       overtimeId: options?.overtimeId,
       isOvernight: format(end, 'HH:mm') < format(start, 'HH:mm'),
       isDayOffOvertime: options?.isDayOffOvertime,
+      status: isWithinInterval(now, { start, end })
+        ? PeriodStatus.ACTIVE
+        : PeriodStatus.PENDING,
     };
   }
 
@@ -189,6 +193,19 @@ export class AttendanceCheckService {
       shiftData,
       now,
     } = context;
+
+    // Add check for active period
+    if (latestAttendance?.CheckInTime && !latestAttendance.CheckOutTime) {
+      const isInActivePeriod = isWithinInterval(now, {
+        start: currentPeriod.startTime,
+        end: currentPeriod.endTime,
+      });
+
+      if (isInActivePeriod) {
+        // Update period status accordingly
+        currentPeriod.status = PeriodStatus.ACTIVE;
+      }
+    }
 
     // 2. Check for period transitions
     if (shiftData?.effectiveShift) {
@@ -1135,7 +1152,6 @@ export class AttendanceCheckService {
     const today = startOfDay(now);
 
     try {
-      // Keep your existing data fetching
       const [
         shiftData,
         holidays,
@@ -1165,6 +1181,9 @@ export class AttendanceCheckService {
         });
       }
 
+      // Declare currentPeriod at the start
+      let currentPeriod: Period;
+
       // Check for overtime period first
       if (approvedOvertime) {
         const overtimeStart = parseISO(
@@ -1184,19 +1203,28 @@ export class AttendanceCheckService {
             end: overtimeEnd,
           })
         ) {
-          const overtimePeriod = {
+          const overtimePeriod: Period = {
             type: PeriodType.OVERTIME,
             startTime: overtimeStart,
             endTime: overtimeEnd,
             isOvertime: true,
             overtimeId: approvedOvertime.id,
             isOvernight: false,
+            isDayOffOvertime: approvedOvertime.isDayOffOvertime,
+            status: this.determineInitialPeriodStatus(
+              now,
+              overtimeStart,
+              overtimeEnd,
+            ),
+            isConnected: false,
           };
+
+          currentPeriod = overtimePeriod;
 
           const enhancedStatus =
             await this.enhancementService.enhanceAttendanceStatus(
               latestAttendance,
-              overtimePeriod,
+              currentPeriod,
               approvedOvertime,
             );
 
@@ -1204,7 +1232,7 @@ export class AttendanceCheckService {
             now,
             inPremises,
             address,
-            currentPeriod: overtimePeriod,
+            currentPeriod,
             latestAttendance,
             approvedOvertime,
             enhancedStatus,
@@ -1217,13 +1245,28 @@ export class AttendanceCheckService {
         }
       }
 
-      // Create current period using your existing logic
-      const currentPeriod = this.createPeriod(
-        PeriodType.REGULAR,
-        shiftData.effectiveShift.startTime,
-        shiftData.effectiveShift.endTime,
-        now,
+      // Create regular period
+      const regularStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.startTime}`,
       );
+      const regularEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shiftData.effectiveShift.endTime}`,
+      );
+
+      currentPeriod = {
+        type: PeriodType.REGULAR,
+        startTime: regularStart,
+        endTime: regularEnd,
+        isOvertime: false,
+        isOvernight:
+          shiftData.effectiveShift.endTime < shiftData.effectiveShift.startTime,
+        status: this.determineInitialPeriodStatus(
+          now,
+          regularStart,
+          regularEnd,
+        ),
+        isConnected: false,
+      };
 
       // Get enhanced status
       const enhancedStatus =
@@ -1249,7 +1292,7 @@ export class AttendanceCheckService {
         leaveRequests: leaveRequest ? [leaveRequest] : [],
       };
 
-      // Handle basic validations first
+      // Handle leave validations
       if (pendingLeave) {
         return this.createResponse(
           false,
@@ -1262,7 +1305,6 @@ export class AttendanceCheckService {
         );
       }
 
-      // Handle basic validations first
       if (leaveRequest) {
         return this.createResponse(
           false,
@@ -1287,7 +1329,6 @@ export class AttendanceCheckService {
         ? this.handleRegularAttendance({ ...context, isCheckingIn: true })
         : this.handleRegularAttendance({ ...context, isCheckingIn: false });
     } catch (error) {
-      // Your existing error handling
       console.error('Error in isCheckInOutAllowed:', error);
       return this.createResponse(
         false,
@@ -1299,6 +1340,19 @@ export class AttendanceCheckService {
         },
       );
     }
+  }
+  private determineInitialPeriodStatus(
+    currentTime: Date,
+    startTime: Date,
+    endTime: Date,
+  ): PeriodStatus {
+    if (currentTime < startTime) {
+      return PeriodStatus.PENDING;
+    }
+    if (currentTime > endTime) {
+      return PeriodStatus.COMPLETED;
+    }
+    return PeriodStatus.ACTIVE;
   }
 
   private createResponse(

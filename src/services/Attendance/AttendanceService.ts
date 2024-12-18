@@ -20,6 +20,7 @@ import {
   AttendanceFlags,
   AttendanceRecord,
   LatestAttendanceResponse,
+  PeriodStatus,
 } from '../../types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
@@ -413,17 +414,27 @@ export class AttendanceService {
       );
 
     if (overtimeRequest) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
+      );
+
       periods.push({
         type: PeriodType.OVERTIME,
-        startTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
-        ),
-        endTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
-        ),
+        startTime: overtimeStart,
+        endTime: overtimeEnd,
         isOvertime: true,
         overtimeId: overtimeRequest.id,
         isOvernight: overtimeRequest.endTime < overtimeRequest.startTime,
+        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+        isConnected: false,
+        status: this.determineInitialPeriodStatus(
+          now,
+          overtimeStart,
+          overtimeEnd,
+        ),
       });
     }
 
@@ -432,21 +443,45 @@ export class AttendanceService {
       employeeId,
       now,
     );
+
     if (shift?.effectiveShift) {
+      const regularStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.startTime}`,
+      );
+      const regularEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.endTime}`,
+      );
+
       periods.push({
         type: PeriodType.REGULAR,
-        startTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.startTime}`,
-        ),
-        endTime: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${shift.effectiveShift.endTime}`,
-        ),
+        startTime: regularStart,
+        endTime: regularEnd,
         isOvertime: false,
         isOvernight:
           shift.effectiveShift.endTime < shift.effectiveShift.startTime,
+        isDayOffOvertime: false,
+        isConnected: false,
+        status: this.determineInitialPeriodStatus(
+          now,
+          regularStart,
+          regularEnd,
+        ),
       });
     }
 
     return periods;
+  }
+  private determineInitialPeriodStatus(
+    currentTime: Date,
+    startTime: Date,
+    endTime: Date,
+  ): PeriodStatus {
+    if (currentTime < startTime) {
+      return PeriodStatus.PENDING;
+    }
+    if (currentTime > endTime) {
+      return PeriodStatus.COMPLETED;
+    }
+    return PeriodStatus.ACTIVE;
   }
 }

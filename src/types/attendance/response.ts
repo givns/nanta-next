@@ -112,6 +112,7 @@ export interface PeriodValidation {
       isLateForPeriod: boolean;
       periodStart: string;
       periodEnd: string;
+      status: 'active' | 'pending' | 'completed';
     };
   };
   nextPeriod?: {

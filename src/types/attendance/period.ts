@@ -10,7 +10,8 @@ export interface Period {
   overtimeId?: string;
   isOvernight: boolean;
   isDayOffOvertime?: boolean;
-  isConnected?: boolean; //
+  isConnected?: boolean;
+  status: PeriodStatus;
 }
 
 export interface PeriodWindow {
@@ -19,6 +20,7 @@ export interface PeriodWindow {
   type: PeriodType;
   overtimeId?: string;
   isConnected: boolean;
+  status: PeriodStatus;
   nextPeriod?: {
     type: PeriodType;
     start: Date;

@@ -7,9 +7,10 @@ import {
   EnhancedAttendanceStatus,
   ApprovedOvertimeInfo,
   PeriodWindow,
+  PeriodStatus,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { isAfter, parseISO, format } from 'date-fns';
+import { isAfter, parseISO, format, isWithinInterval } from 'date-fns';
 
 export class AttendanceEnhancementService {
   async enhanceAttendanceStatus(
@@ -64,12 +65,19 @@ export class AttendanceEnhancementService {
   }
 
   private createPeriodWindow(period: Period): PeriodWindow {
+    const now = getCurrentTime();
     return {
       start: period.startTime,
       end: period.endTime,
       type: period.type,
       overtimeId: period.overtimeId,
       isConnected: period.isConnected || false,
+      status: isWithinInterval(now, {
+        start: period.startTime,
+        end: period.endTime,
+      })
+        ? PeriodStatus.ACTIVE
+        : PeriodStatus.PENDING,
     };
   }
 
@@ -83,6 +91,12 @@ export class AttendanceEnhancementService {
       type: PeriodType.OVERTIME,
       overtimeId: overtime.id,
       isConnected: false,
+      status: isWithinInterval(now, {
+        start: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`),
+        end: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`),
+      })
+        ? PeriodStatus.ACTIVE
+        : PeriodStatus.PENDING,
     };
   }
 
