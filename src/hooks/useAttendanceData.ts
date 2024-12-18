@@ -50,17 +50,28 @@ export function useAttendanceData({
           timeout: REQUEST_TIMEOUT,
         });
 
-        // Force immediate refresh if transition detected
-        if (
-          response.data?.daily?.transitions?.from?.type ===
-            PeriodType.OVERTIME &&
-          response.data?.base?.latestAttendance?.CheckOutTime
-        ) {
+        // Safely handle transitions
+        const transitions = response.data?.daily?.transitions;
+        const shouldForceRefresh =
+          transitions &&
+          transitions.from?.type === PeriodType.OVERTIME &&
+          response.data?.base?.latestAttendance?.CheckOutTime;
+
+        if (shouldForceRefresh) {
           await mutate(response.data, false);
         }
 
         return {
-          daily: response.data.daily,
+          daily: {
+            ...response.data.daily,
+            // Ensure transitions is never undefined
+            transitions: response.data.daily.transitions || {
+              from: null,
+              to: null,
+              transitionTime: null,
+              isComplete: false,
+            },
+          },
           base: response.data.base,
           window: response.data.window,
           validation: {
@@ -92,7 +103,7 @@ export function useAttendanceData({
               isEmergencyLeave: false,
               hasActivePeriod: false,
               hasPendingTransition:
-                response.data.daily.transitions.isComplete === false,
+                response.data.daily.transitions?.isComplete === false,
               requiresAutoCompletion: false,
               isHoliday: false,
               isDayOff: false,
