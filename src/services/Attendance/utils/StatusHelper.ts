@@ -1,19 +1,29 @@
-// services/Attendance/utils/StatusHelpers.ts
+// services/Attendance/utils/StatusHelper.ts
 
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
 import {
-  AttendanceCompositeStatus,
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
+import {
   StatusUpdateResult,
-  ApprovedOvertimeInfo,
-  ProcessingOptions,
-  AttendanceRecord,
+  AttendanceStateChange,
+  AttendanceCompositeStatus,
 } from '../../../types/attendance';
-import { addDays, format, isWithinInterval, parseISO } from 'date-fns';
 
 export class StatusHelpers {
   static processStatusTransition(
     currentStatus: AttendanceCompositeStatus,
-    options: ProcessingOptions,
+    options: {
+      isCheckIn: boolean;
+      isOvertime?: boolean;
+      isManualEntry?: boolean;
+      reason?: string;
+      source?: 'system' | 'manual' | 'auto';
+      coordinates?: { latitude: number; longitude: number; accuracy?: number };
+      updatedBy?: string;
+    },
   ): StatusUpdateResult {
     const newStatus = this.determineNewState(currentStatus, options);
 
@@ -42,40 +52,22 @@ export class StatusHelpers {
             : undefined,
       },
       timestamp: new Date(),
-      reason: this.generateStatusUpdateReason(
-        currentStatus,
-        newStatus,
-        options,
-      ),
+      reason:
+        options.reason ||
+        this.generateStatusUpdateReason(currentStatus, newStatus, options),
       metadata: {
-        source: options.isManualEntry ? 'manual' : 'system',
-        location: options.location
-          ? {
-              latitude: options.location.lat,
-              longitude: options.location.lng,
-              accuracy: options.location.accuracy,
-            }
-          : undefined,
+        source: options.source || 'system',
+        location: options.coordinates,
         updatedBy: options.updatedBy || 'system',
-        checkTime: format(new Date(options.checkTime), "yyyy-MM-dd'T'HH:mm:ss"),
       },
     };
   }
 
   static determineNewState(
     currentStatus: AttendanceCompositeStatus,
-    options: ProcessingOptions,
+    options: { isCheckIn: boolean; isOvertime?: boolean },
   ): AttendanceCompositeStatus {
     const { isCheckIn, isOvertime } = options;
-
-    if (options.requireConfirmation && options.overtimeMissed) {
-      return {
-        state: AttendanceState.PRESENT,
-        checkStatus: CheckStatus.CHECKED_OUT,
-        isOvertime: true,
-        overtimeState: OvertimeState.COMPLETED,
-      };
-    }
 
     if (isCheckIn) {
       return {
@@ -83,7 +75,7 @@ export class StatusHelpers {
           ? AttendanceState.OVERTIME
           : AttendanceState.INCOMPLETE,
         checkStatus: CheckStatus.CHECKED_IN,
-        isOvertime: !!isOvertime, // Ensure isOvertime is always a boolean value
+        isOvertime: !!isOvertime,
         overtimeState: isOvertime ? OvertimeState.IN_PROGRESS : undefined,
       };
     }
@@ -96,34 +88,92 @@ export class StatusHelpers {
     };
   }
 
-  static canTransitionToState(
-    current: AttendanceCompositeStatus,
-    target: AttendanceCompositeStatus,
+  // Status validation helpers
+  static canCheckIn(status: AttendanceCompositeStatus): boolean {
+    return status.checkStatus !== CheckStatus.CHECKED_IN;
+  }
+
+  static canCheckOut(status: AttendanceCompositeStatus): boolean {
+    return status.checkStatus === CheckStatus.CHECKED_IN;
+  }
+
+  static canTransitionToOvertime(status: AttendanceCompositeStatus): boolean {
+    return (
+      !status.isOvertime &&
+      status.checkStatus === CheckStatus.CHECKED_OUT &&
+      status.state === AttendanceState.PRESENT
+    );
+  }
+
+  static isInOvertime(status: AttendanceCompositeStatus): boolean {
+    return (
+      status.isOvertime && status.overtimeState === OvertimeState.IN_PROGRESS
+    );
+  }
+
+  static isOvertimeComplete(status: AttendanceCompositeStatus): boolean {
+    return (
+      status.isOvertime && status.overtimeState === OvertimeState.COMPLETED
+    );
+  }
+
+  static isActive(status: AttendanceCompositeStatus): boolean {
+    return status.checkStatus === CheckStatus.CHECKED_IN;
+  }
+
+  static isComplete(status: AttendanceCompositeStatus): boolean {
+    return status.checkStatus === CheckStatus.CHECKED_OUT;
+  }
+
+  static canStartNewPeriod(
+    status: AttendanceCompositeStatus,
+    periodType: PeriodType,
   ): boolean {
-    // Cannot go back to previous states
+    if (periodType === PeriodType.OVERTIME) {
+      return this.canTransitionToOvertime(status);
+    }
+    return this.canCheckIn(status);
+  }
+
+  static validateStateTransition(
+    from: AttendanceCompositeStatus,
+    to: AttendanceCompositeStatus,
+  ): { isValid: boolean; reason?: string } {
+    // Can't go back to checked-in state
     if (
-      current.checkStatus === CheckStatus.CHECKED_OUT &&
-      target.checkStatus === CheckStatus.CHECKED_IN
+      from.checkStatus === CheckStatus.CHECKED_OUT &&
+      to.checkStatus === CheckStatus.CHECKED_IN
     ) {
-      return false;
+      return { isValid: false, reason: 'Cannot check in after checking out' };
     }
 
-    // Cannot start overtime without checking out regular period
+    // Can't start overtime without completing regular period
     if (
-      !current.isOvertime &&
-      target.isOvertime &&
-      current.checkStatus !== CheckStatus.CHECKED_OUT
+      !from.isOvertime &&
+      to.isOvertime &&
+      from.checkStatus !== CheckStatus.CHECKED_OUT
     ) {
-      return false;
+      return {
+        isValid: false,
+        reason: 'Must complete regular period before starting overtime',
+      };
     }
 
-    return true;
+    // Can't change overtime state incorrectly
+    if (
+      from.overtimeState === OvertimeState.COMPLETED &&
+      to.overtimeState === OvertimeState.IN_PROGRESS
+    ) {
+      return { isValid: false, reason: 'Cannot restart completed overtime' };
+    }
+
+    return { isValid: true };
   }
 
   private static generateStatusUpdateReason(
     currentStatus: AttendanceCompositeStatus,
     newStatus: AttendanceCompositeStatus,
-    options: ProcessingOptions,
+    options: { isCheckIn: boolean; reason?: string },
   ): string {
     if (options.reason) return options.reason;
 
@@ -138,46 +188,29 @@ export class StatusHelpers {
     return newStatus.isOvertime ? 'Overtime check-out' : 'Regular check-out';
   }
 
-  static isInOvertimePeriod(
-    now: Date,
-    overtime: ApprovedOvertimeInfo | null,
-  ): boolean {
-    if (!overtime) return false;
-    const overtimeStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${overtime.startTime}`,
-    );
-    let overtimeEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${overtime.endTime}`,
-    );
+  // Helper to get display status
+  static getDisplayStatus(status: AttendanceCompositeStatus): string {
+    if (status.state === AttendanceState.HOLIDAY) return 'holiday';
+    if (status.state === AttendanceState.OFF) return 'day-off';
 
-    // Handle overnight overtime
-    if (overtimeEnd < overtimeStart) {
-      overtimeEnd = addDays(overtimeEnd, 1);
+    if (status.isOvertime) {
+      switch (status.overtimeState) {
+        case OvertimeState.IN_PROGRESS:
+          return 'overtime-active';
+        case OvertimeState.COMPLETED:
+          return 'overtime-complete';
+        default:
+          return 'overtime-pending';
+      }
     }
 
-    return isWithinInterval(now, { start: overtimeStart, end: overtimeEnd });
-  }
-
-  static getDisplayStatus(
-    attendance: AttendanceRecord,
-    isHoliday: boolean = false,
-  ): string {
-    if (isHoliday) return 'holiday';
-    if (attendance.state === AttendanceState.OFF) return 'day-off';
-
-    const details: string[] = [];
-
-    if (attendance.isLateCheckIn) details.push('late-check-in');
-    if (attendance.isEarlyCheckIn) details.push('early-check-in');
-    if (attendance.isLateCheckOut) details.push('late-check-out');
-    if (attendance.overtimeState === OvertimeState.IN_PROGRESS)
-      details.push('overtime');
-
-    return details.length > 0 ? details.join('-') : 'on-time';
-  }
-
-  /** @deprecated Use determineNewState instead */
-  static calculateStatus(status: string): AttendanceState {
-    return AttendanceState.PRESENT;
+    switch (status.checkStatus) {
+      case CheckStatus.CHECKED_IN:
+        return 'checked-in';
+      case CheckStatus.CHECKED_OUT:
+        return 'checked-out';
+      default:
+        return 'pending';
+    }
   }
 }

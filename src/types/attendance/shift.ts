@@ -1,3 +1,7 @@
+import { Holiday, PeriodType, Shift } from '@prisma/client';
+import { OvertimeContext } from './overtime';
+import { HolidayInfo } from './leave';
+
 export interface ShiftData {
   id: string;
   name: string;
@@ -20,6 +24,44 @@ export interface ShiftWindows {
   earlyWindow: Date;
   lateWindow: Date;
   overtimeWindow: Date;
+}
+
+export interface ShiftContext {
+  shift: {
+    id: string;
+    shiftCode: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    workDays: number[];
+  };
+  schedule: {
+    isHoliday: boolean;
+    isDayOff: boolean;
+    isAdjusted: boolean;
+    holidayInfo?: HolidayInfo;
+  };
+}
+
+export interface TransitionContext {
+  nextPeriod?: {
+    type: PeriodType;
+    startTime: string;
+    overtimeInfo?: OvertimeContext;
+  } | null;
+  transition?: TransitionInfo;
+}
+
+export interface TransitionInfo {
+  from: {
+    type: PeriodType;
+    end: string;
+  };
+  to: {
+    type: PeriodType;
+    start: string | null;
+  };
+  isInTransition: boolean;
 }
 
 export interface ShiftAdjustment {
@@ -64,11 +106,6 @@ export interface FutureShift {
 export interface EffectiveShiftResult {
   regularShift: ShiftData;
   effectiveShift: ShiftData;
-  shiftstatus: {
-    isOutsideShift: boolean;
-    isLate: boolean;
-    isOvertime: boolean;
-    isDayOff: boolean;
-    isHoliday: boolean;
-  };
+  shiftstatus: ShiftStatus;
+  holidayInfo: HolidayInfo | null;
 }

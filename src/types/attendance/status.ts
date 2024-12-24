@@ -1,13 +1,15 @@
 // types/attendance/status.ts
 
-import { UserData } from '../user';
-import { HolidayInfo, LeaveRequest } from './leave';
-import { FutureShift, ShiftAdjustmentInfo, ShiftData } from './shift';
-import { OvertimeContext, OvertimeEntryData, OvertimeInfo } from './overtime';
-import { Period } from './period';
-import { TimeEntry } from './records';
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
-import { LatestAttendanceResponse } from './base';
+import { LeaveRequest } from './leave';
+import { ShiftData } from './shift';
+import { OvertimeContext } from './overtime';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+  TimeEntryStatus,
+} from '@prisma/client';
 
 export enum ApprovalState {
   PENDING = 'pending',
@@ -49,16 +51,6 @@ export interface AttendanceCompositeStatus {
   overtimeState?: OvertimeState;
   approvalState?: ApprovalState;
   overtimeDuration?: number;
-}
-
-export enum TimeEntryStatus {
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-}
-
-export enum PeriodType {
-  REGULAR = 'regular',
-  OVERTIME = 'overtime',
 }
 
 export enum PeriodStatus {
@@ -114,94 +106,6 @@ export const isOvertimeRequestStatus = (
 /**
  * Core Status Interfaces
  */
-export interface AttendanceStatus {
-  basic: {
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    isOvertime: boolean; // Keep this flag
-    overtimeState?: OvertimeState;
-    overtimeDuration?: number;
-    detailedStatus: string;
-  };
-  flags: {
-    isCheckingIn: boolean;
-    isDayOff: boolean;
-    isHoliday: boolean;
-    isOutsideShift: boolean;
-    isLate: boolean;
-    isEarlyCheckIn: boolean;
-    isLateCheckIn: boolean;
-    isLateCheckOut: boolean;
-  };
-
-  data: {
-    user: UserData;
-    latestAttendance: LatestAttendanceResponse | null;
-    shiftAdjustment: ShiftAdjustmentInfo | null;
-    approvedOvertime: ApprovedOvertimeInfo | null;
-    holidayInfo?: HolidayInfo | null;
-  };
-
-  periods: {
-    dayOffType: 'holiday' | 'weekly' | 'none';
-    currentPeriod: CurrentPeriod | null;
-    nextPeriod?: NextPeriod;
-    futureShifts: FutureShift[];
-    futureOvertimes: ApprovedOvertimeInfo[];
-    overtimeAttendances: OvertimeAttendanceInfo[];
-  };
-
-  context: {
-    pendingLeaveRequest: boolean;
-  };
-}
-
-export interface AttendanceStatusInfo {
-  state: AttendanceState;
-  checkStatus: CheckStatus;
-  overtimeState?: OvertimeState;
-  isOvertime: boolean;
-  overtimeDuration: number;
-  overtimeEntries: OvertimeEntryData[];
-  isEarlyCheckIn: boolean;
-  isLateCheckIn: boolean;
-  isLateCheckOut: boolean;
-  user: UserData;
-  latestAttendance: LatestAttendanceResponse | null;
-  isCheckingIn: boolean;
-  isDayOff: boolean;
-  isHoliday: boolean;
-  holidayInfo?: HolidayInfo | null;
-  dayOffType: 'holiday' | 'weekly' | 'none';
-  isOutsideShift: boolean;
-  isLate: boolean;
-  shiftAdjustment: {
-    date: string;
-    requestedShiftId: string;
-    requestedShift: ShiftData;
-  } | null;
-  approvedOvertime: ApprovedOvertimeInfo | null;
-  futureShifts: Array<{
-    date: string;
-    shift: ShiftData;
-  }>;
-  futureOvertimes: Array<ApprovedOvertimeInfo>;
-  overtimeAttendances: OvertimeAttendanceInfo[];
-  currentPeriod: CurrentPeriodInfo;
-  detailedStatus: string;
-  pendingLeaveRequest: boolean;
-  autoCompleted?: boolean;
-  regular?: TimeEntry;
-  overtime?: TimeEntry[];
-}
-
-export interface EnhancedAttendanceStatus {
-  currentPeriod: Period | null;
-  lastCheckIn: LastEntryInfo | null;
-  lastCheckOut: LastEntryInfo | null;
-  missingEntries: MissingEntry[];
-  pendingTransitions: PendingTransition[];
-}
 
 export interface LastEntryInfo {
   time: Date;
@@ -237,18 +141,6 @@ export interface ValidationEnhancement {
     periodStart: Date;
     periodEnd: Date;
   };
-}
-
-export interface TimelineEnhancement {
-  currentPeriodIndex: number;
-  periodEntries: Array<{
-    periodType: PeriodType;
-    startTime: string;
-    endTime: string;
-    checkInTime?: string;
-    checkOutTime?: string;
-    status: PeriodStatus;
-  }>;
 }
 
 export interface CurrentPeriod {
@@ -296,7 +188,7 @@ export interface StatusUpdateResult {
   reason: string;
   metadata?: {
     updatedBy?: string;
-    source?: 'system' | 'manual' | 'auto-checkout';
+    source?: 'system' | 'manual' | 'auto';
     location?: {
       latitude: number;
       longitude: number;
@@ -337,19 +229,6 @@ export interface ApprovedOvertimeInfo {
   approverId: string | null;
   isDayOffOvertime: boolean;
   isInsideShiftHours: boolean;
-}
-
-export interface CurrentPeriodInfo {
-  type: PeriodType;
-  overtimeId?: string;
-  checkInTime?: string | null;
-  checkOutTime?: string | null;
-  isComplete: boolean;
-  current: {
-    start: string;
-    end: string;
-  };
-  next?: NextPeriod;
 }
 
 // Update StatusHelpers to use isOvertime flag

@@ -8,22 +8,13 @@ import {
   TimeEntry,
   User,
 } from '@prisma/client';
-import { AttendanceService } from '../../services/Attendance/AttendanceService';
-import { cacheService } from '@/services/CacheService';
-import { addDays, endOfMonth, format, startOfMonth } from 'date-fns';
+import { cacheService } from '@/services/cache/CacheService';
+import { addDays, format } from 'date-fns';
 import { initializeServices } from '@/services/ServiceInitializer';
 
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
+const { attendanceService } = services;
 
 const getPayrollPeriod = (date: Date = new Date()) => {
   const currentMonth = new Date(date);
@@ -113,7 +104,10 @@ export default async function handler(
         leaveRequests,
         workingDays,
       ] = await Promise.all([
-        attendanceService.getLatestAttendanceStatus(user.employeeId),
+        attendanceService.getAttendanceStatus(user.employeeId, {
+          inPremises: false,
+          address: '',
+        }),
         services.timeEntryService.getTimeEntriesForEmployee(
           user.employeeId,
           payrollPeriod.start,

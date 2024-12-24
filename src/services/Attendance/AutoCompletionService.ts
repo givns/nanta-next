@@ -1,9 +1,8 @@
 // services/Attendance/AutoCompletionService.ts (new file)
-import { PeriodType } from '@/types/attendance';
 import { AttendanceRecord } from '@/types/attendance/records';
+import { PeriodType } from '@prisma/client';
 import { addHours, isWithinInterval } from 'date-fns';
 
-// services/Attendance/AutoCompletionService.ts
 export interface AutoCompleteEntry {
   type: 'check-in' | 'check-out';
   suggestedTime: Date;

@@ -1,58 +1,36 @@
+// components/attendance/MobileAttendanceApp.tsx
 import React from 'react';
-import {
-  differenceInMinutes,
-  format,
-  isWithinInterval,
-  parseISO,
-} from 'date-fns';
+import { differenceInMinutes, format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
+import { PeriodType } from '@prisma/client';
 import {
   ShiftData,
-  CurrentPeriodInfo,
-  AttendanceStateResponse,
-  ValidationResponse,
-  PeriodType,
+  UnifiedPeriodState,
+  OvertimeContext,
+  AttendanceBaseResponse,
+  ValidationResponseWithMetadata,
+  UserData,
 } from '@/types/attendance';
-import {
-  calculateTimeDifference,
-  formatTime,
-  getCurrentTime,
-} from '@/utils/dateUtils';
-import { OvertimeState } from '@prisma/client';
-
-interface ShiftStatusInfo {
-  isHoliday: boolean;
-  isDayOff: boolean;
-}
+import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 interface MobileAttendanceAppProps {
-  userData: {
-    name: string;
-    employeeId: string;
-    departmentName: string;
-  };
+  userData: UserData;
   shiftData: ShiftData | null;
-  currentPeriod: CurrentPeriodInfo | null;
-  status: ShiftStatusInfo;
-  attendanceStatus: AttendanceStateResponse['base'];
-  overtimeInfo?: OvertimeInfoUI | null;
-  validation?: ValidationResponse;
-  onAction: () => void;
+  currentPeriod: UnifiedPeriodState;
+  status: {
+    isHoliday: boolean;
+    isDayOff: boolean;
+  };
+  attendanceStatus: AttendanceBaseResponse;
+  overtimeInfo?: OvertimeContext | null;
+  validation: ValidationResponseWithMetadata;
   locationState: {
     isReady: boolean;
     error?: string;
   };
-}
-
-interface OvertimeInfoUI {
-  id: string;
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
-  isInsideShiftHours: boolean;
-  isDayOffOvertime: boolean;
-  reason?: string;
+  onAction: () => void;
 }
 
 const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
@@ -68,190 +46,46 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = getCurrentTime();
 
-  console.log('Current time:', currentTime);
-  console.log('attendanceStatus:', attendanceStatus);
-  console.log('Current Period Data:', {
-    current: currentPeriod?.current,
-    start: currentPeriod?.current?.start,
-    end: currentPeriod?.current?.end,
-    type: typeof currentPeriod?.current?.start,
-  });
+  // Use StatusHelpers to get composite status
+  const currentCompositeStatus = React.useMemo(
+    () => ({
+      state: attendanceStatus.state,
+      checkStatus: attendanceStatus.checkStatus,
+      isOvertime: attendanceStatus.periodInfo.isOvertime,
+      overtimeState: attendanceStatus.periodInfo.overtimeState,
+    }),
+    [attendanceStatus],
+  );
 
-  const getProgressPercentage = () => {
-    console.log('Progress Calculation Start:', {
-      currentPeriod,
-      attendanceStatus: attendanceStatus?.latestAttendance,
-      regularShift: shiftData,
-    });
-
-    if (!currentPeriod?.current) {
-      console.log('No current period found');
-      return 0;
-    }
+  const getProgressPercentage = React.useCallback(() => {
+    if (!currentPeriod) return 0;
 
     try {
-      const now = getCurrentTime(); // Current time
-      const today = format(now, 'yyyy-MM-dd'); // Get current date only
+      const now = getCurrentTime();
+      const periodStart = parseISO(currentPeriod.timeWindow.start);
+      const periodEnd = parseISO(currentPeriod.timeWindow.end);
 
-      // Create proper datetime objects using shift times
-      const startTime = parseISO(`${today}T${shiftData?.startTime}`);
-      const endTime = parseISO(`${today}T${shiftData?.endTime}`);
+      // Get total duration of period
+      const totalMinutes = differenceInMinutes(periodEnd, periodStart);
+      if (totalMinutes <= 0) return 0;
 
-      // Format times for logging using utility functions
-      console.log('Time Reference Points:', {
-        nowUTC: now.toISOString(),
-        startUTC: startTime.toISOString(),
-        endUTC: endTime.toISOString(),
-        periodType: currentPeriod.type,
-        // Local times using our formatters
-        localNow: formatTime(now),
-        localStart: formatTime(startTime),
-        localEnd: formatTime(endTime),
-        localShiftStart: shiftData?.startTime,
-        localShiftEnd: shiftData?.endTime,
-      });
+      // Calculate elapsed time
+      const elapsedMinutes = differenceInMinutes(now, periodStart);
 
-      // Handle period transitions
-      if (attendanceStatus?.latestAttendance?.CheckOutTime) {
-        // If regular period completed and overtime available
-        if (
-          currentPeriod.type === 'regular' &&
-          overtimeInfo &&
-          isWithinInterval(now, {
-            start: parseISO(
-              `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-            ),
-            end: parseISO(
-              `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
-            ),
-          })
-        ) {
-          // Show overtime progress instead
-          const overtimeStart = parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-          );
-          const overtimeEnd = parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
-          );
-          const elapsedMinutes = differenceInMinutes(now, overtimeStart);
-          const totalMinutes = differenceInMinutes(overtimeEnd, overtimeStart);
-
-          return Math.max(
-            0,
-            Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-          );
-        }
-      }
-
-      // Calculate progress based on period type
-      if (currentPeriod.type === 'regular') {
-        console.log('Calculating regular shift progress');
-        const totalMinutes = calculateTimeDifference(startTime, endTime);
-        const elapsedMinutes = calculateTimeDifference(startTime, now);
-
-        console.log('Regular Shift Calculation:', {
-          totalMinutes,
-          elapsedMinutes,
-          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-          localNow: formatTime(now),
-          localStart: formatTime(startTime), // This should now show correct shift start time
-          localEnd: formatTime(endTime), // This should now show correct shift end time
-        });
-
-        const percentage = Math.max(
-          0,
-          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-        );
-        return Math.round(percentage * 100) / 100;
-      }
-
-      if (currentPeriod.type === 'overtime') {
-        // For overtime, we should also use the actual overtime start/end times
-        const overtimeStart = parseISO(
-          `${today}T${overtimeInfo?.startTime || startTime}`,
-        );
-        const overtimeEnd = parseISO(
-          `${today}T${overtimeInfo?.endTime || endTime}`,
-        );
-
-        const totalMinutes = calculateTimeDifference(
-          overtimeStart,
-          overtimeEnd,
-        );
-        const elapsedMinutes = calculateTimeDifference(overtimeStart, now);
-
-        console.log('Overtime Calculation:', {
-          totalMinutes,
-          elapsedMinutes,
-          rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-          localNow: formatTime(now),
-          localStart: formatTime(overtimeStart),
-          localEnd: formatTime(overtimeEnd),
-        });
-
-        const percentage = Math.max(
-          0,
-          Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-        );
-        return Math.round(percentage * 100) / 100;
-      }
-
-      // Fallback calculation using shift times
-      const totalMinutes = calculateTimeDifference(startTime, endTime);
-      const elapsedMinutes = calculateTimeDifference(startTime, now);
-
-      if (totalMinutes <= 0) {
-        console.log('Invalid period duration');
-        return 0;
-      }
-
-      const percentage = Math.max(
-        0,
-        Math.min((elapsedMinutes / totalMinutes) * 100, 100),
-      );
-      const roundedPercentage = Math.round(percentage * 100) / 100;
-
-      console.log('Final Progress:', {
-        totalMinutes,
-        elapsedMinutes,
-        rawPercentage: (elapsedMinutes / totalMinutes) * 100,
-        roundedPercentage,
-      });
-
-      return roundedPercentage;
+      // Calculate percentage with bounds
+      return Math.max(0, Math.min((elapsedMinutes / totalMinutes) * 100, 100));
     } catch (error) {
-      console.error('Progress calculation error:', {
-        error,
-        currentPeriod,
-        attendanceStatus,
-      });
+      console.error('Progress calculation error:', error);
       return 0;
     }
-  };
+  }, [currentPeriod]);
 
-  const getRelevantOvertimes = () => {
+  // Get relevant overtime periods
+  const relevantOvertimes = React.useMemo(() => {
     if (!overtimeInfo) return null;
-
     const currentTimeStr = format(currentTime, 'HH:mm');
 
-    if (Array.isArray(overtimeInfo)) {
-      const sortedOvertimes = [...overtimeInfo].sort((a, b) => {
-        return a.startTime.localeCompare(b.startTime);
-      });
-
-      const relevantOts = sortedOvertimes.filter((ot) => {
-        if (ot.startTime > currentTimeStr) {
-          return true;
-        }
-        if (ot.startTime <= currentTimeStr && ot.endTime > currentTimeStr) {
-          return true;
-        }
-        return false;
-      });
-
-      return relevantOts.length > 0 ? relevantOts : null;
-    }
-
+    // Check if overtime is currently active or upcoming
     if (
       overtimeInfo.startTime > currentTimeStr ||
       (overtimeInfo.startTime <= currentTimeStr &&
@@ -261,87 +95,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
 
     return null;
-  };
+  }, [overtimeInfo, currentTime]);
 
-  const getCheckInTime = () => {
-    const latestAttendance = attendanceStatus.latestAttendance;
-
-    // Return next period time if in overtime-ended state
-    if (
-      latestAttendance?.overtimeState === OvertimeState.COMPLETED &&
-      currentPeriod?.type === PeriodType.REGULAR
-    ) {
-      return '--:--';
-    }
-
-    if (latestAttendance?.CheckInTime) {
-      // Parse as ISO and format in local time
-      return format(parseISO(latestAttendance.CheckInTime), 'HH:mm');
-    }
-
-    if (currentPeriod?.checkInTime) {
-      return format(parseISO(currentPeriod.checkInTime), 'HH:mm');
-    }
-
-    // For overtime periods
-    if (
-      currentPeriod?.type === 'overtime' &&
-      !attendanceStatus.isCheckingIn &&
-      currentPeriod.current?.start
-    ) {
-      return format(parseISO(currentPeriod.current.start), 'HH:mm');
-    }
-
-    return '--:--';
-  };
-
-  const getCheckOutTime = () => {
-    const latestAttendance = attendanceStatus.latestAttendance;
-
-    // Return next period time if in overtime-ended state
-    if (
-      latestAttendance?.overtimeState === 'COMPLETED' &&
-      currentPeriod?.type === PeriodType.REGULAR
-    ) {
-      return '--:--'; // Reset time for new regular period
-    }
-
-    if (latestAttendance?.CheckOutTime) {
-      return format(parseISO(latestAttendance.CheckOutTime), 'HH:mm');
-    }
-
-    if (currentPeriod?.checkOutTime) {
-      return format(parseISO(currentPeriod.checkOutTime), 'HH:mm');
-    }
-
-    if (
-      currentPeriod?.type === 'overtime' &&
-      !attendanceStatus.isCheckingIn &&
-      currentPeriod.current?.end
-    ) {
-      const [hours, minutes] = format(
-        parseISO(currentPeriod.current.end),
-        'HH:mm',
-      ).split(':');
-      return `${hours}:${minutes}`;
-    }
-
-    return '--:--';
-  };
-
-  const isWithinOvertimePeriod =
-    overtimeInfo && currentPeriod?.current
-      ? isWithinInterval(currentTime, {
-          start: new Date(currentPeriod.current.start),
-          end: new Date(currentPeriod.current.end),
-        })
-      : false;
-
+  // Determine if we should show progress
   const shouldShowProgress =
-    status.isDayOff || status.isHoliday ? isWithinOvertimePeriod : true;
+    status.isDayOff || status.isHoliday
+      ? currentPeriod.activity.isOvertime
+      : true;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Header with current time */}
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
           <div className="text-center text-4xl font-bold mb-1">
@@ -354,6 +118,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       </header>
 
       <main className="flex-1 mt-20 mb-24 overflow-y-auto">
+        {/* User Information */}
         <div className="bg-white px-4 py-3 shadow-sm">
           <div className="flex items-center gap-3 mb-2">
             <User size={20} className="text-gray-400" />
@@ -372,23 +137,24 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           </div>
         </div>
 
+        {/* Status Card */}
         <div className="m-4 bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <div className="flex justify-between items-center mb-3">
               <div className="flex items-center gap-2">
                 <Clock size={20} className="text-primary" />
-                <span className="font-medium">สถานะการทำงาน</span>
+                <span className="font-medium">
+                  {StatusHelpers.getDisplayStatus(currentCompositeStatus)}
+                </span>
               </div>
-              {(() => {
-                const relevantOts = getRelevantOvertimes();
-                return relevantOts ? (
-                  <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                    OT
-                  </span>
-                ) : null;
-              })()}
+              {relevantOvertimes && (
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                  OT
+                </span>
+              )}
             </div>
 
+            {/* Schedule Information */}
             {(status.isDayOff || status.isHoliday) && (
               <div className="text-sm text-gray-500">
                 {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
@@ -398,129 +164,84 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
             {shiftData &&
               !status.isDayOff &&
               !status.isHoliday &&
-              currentPeriod?.type !== 'overtime' && (
+              currentPeriod.type !== PeriodType.OVERTIME && (
                 <div className="text-sm text-gray-500">
                   เวลางาน {shiftData.startTime} - {shiftData.endTime} น.
                 </div>
               )}
 
-            {(() => {
-              const relevantOts = getRelevantOvertimes();
-              if (!relevantOts) return null;
-
-              if (Array.isArray(relevantOts)) {
-                return (
-                  <div className="mt-2 text-sm text-gray-500">
-                    <div>การทำงานล่วงเวลาที่เหลือ:</div>
-                    {relevantOts.map((ot) => (
-                      <div
-                        key={ot.id}
-                        className="ml-2 flex justify-between items-center"
-                      >
-                        <span>
-                          {ot.startTime} - {ot.endTime}
-                        </span>
-                        <span className="text-xs">
-                          ({ot.durationMinutes} นาที)
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                );
-              }
-
-              return (
-                <div className="text-sm text-gray-500 mt-1">
-                  {!attendanceStatus.latestAttendance?.CheckOutTime &&
-                  !status.isDayOff
-                    ? 'มีการทำงานล่วงเวลาวันนี้: '
-                    : 'เวลาทำงานล่วงเวลา: '}
-                  {relevantOts.startTime} - {relevantOts.endTime} น.
-                  <span className="ml-2 text-xs">
-                    ({relevantOts.durationMinutes} นาที)
-                  </span>
-                </div>
-              );
-            })()}
+            {/* Overtime Information */}
+            {relevantOvertimes && (
+              <div className="text-sm text-gray-500 mt-1">
+                {!attendanceStatus.latestAttendance?.CheckOutTime &&
+                !status.isDayOff
+                  ? 'มีการทำงานล่วงเวลาวันนี้: '
+                  : 'เวลาทำงานล่วงเวลา: '}
+                {relevantOvertimes.startTime} - {relevantOvertimes.endTime} น.
+                <span className="ml-2 text-xs">
+                  ({relevantOvertimes.durationMinutes} นาที)
+                </span>
+              </div>
+            )}
           </div>
 
+          {/* Progress and Times */}
           <div className="p-4 bg-gray-50">
-            {shouldShowProgress && currentPeriod?.current && (
+            {shouldShowProgress && currentPeriod && (
               <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
                 <div
                   className={`absolute h-full transition-all duration-300 ${
-                    currentPeriod.type === 'overtime'
+                    currentPeriod.type === PeriodType.OVERTIME
                       ? 'bg-yellow-500'
                       : 'bg-blue-500'
                   }`}
-                  style={{
-                    width: `${shouldShowProgress ? getProgressPercentage() : 0}%`,
-                  }}
+                  style={{ width: `${getProgressPercentage()}%` }}
                 />
               </div>
             )}
 
-            {attendanceStatus.latestAttendance?.overtimeState ===
-              'COMPLETED' && (
-              <div className="mb-4 pb-4 border-b border-gray-200">
-                <div className="text-sm font-medium text-yellow-600 mb-2">
-                  ช่วงเวลาทำงานล่วงเวลา
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">เข้างาน OT</div>
-                    <div className="font-medium">
-                      {attendanceStatus.latestAttendance.CheckInTime
-                        ? format(
-                            parseISO(
-                              attendanceStatus.latestAttendance.CheckInTime,
-                            ),
-                            'HH:mm',
-                          )
-                        : '--:--'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">ออกงาน OT</div>
-                    <div className="font-medium">
-                      {attendanceStatus.latestAttendance.CheckOutTime
-                        ? format(
-                            parseISO(
-                              attendanceStatus.latestAttendance.CheckOutTime,
-                            ),
-                            'HH:mm',
-                          )
-                        : '--:--'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
+            {/* Regular Period Times */}
             <div>
               <div className="text-sm font-medium mb-2">กะปกติ</div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                  <div className="font-medium">{getCheckInTime()}</div>
+                  <div className="font-medium">
+                    {attendanceStatus.latestAttendance?.CheckInTime
+                      ? format(
+                          parseISO(
+                            attendanceStatus.latestAttendance.CheckInTime.toString(),
+                          ),
+                          'HH:mm',
+                        )
+                      : '--:--'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                  <div className="font-medium">{getCheckOutTime()}</div>
+                  <div className="font-medium">
+                    {attendanceStatus.latestAttendance?.CheckOutTime
+                      ? format(
+                          parseISO(
+                            attendanceStatus.latestAttendance.CheckOutTime.toString(),
+                          ),
+                          'HH:mm',
+                        )
+                      : '--:--'}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {currentPeriod?.type === 'overtime' && (
+            {/* Status Messages */}
+            {currentPeriod.type === PeriodType.OVERTIME && (
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <div className="text-sm text-gray-700">
                   {validation?.reason?.includes('ย้อนหลัง')
                     ? validation.reason
-                    : isWithinOvertimePeriod
-                      ? attendanceStatus.isCheckingIn
-                        ? 'กำลังจะลงเวลาเข้างานล่วงเวลา'
-                        : 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
-                      : currentTime < new Date(currentPeriod.current.start)
+                    : currentPeriod.activity.isActive
+                      ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
+                      : currentTime < parseISO(currentPeriod.timeWindow.start)
                         ? `เริ่มทำงานล่วงเวลาเวลา ${overtimeInfo?.startTime} น.`
                         : 'หมดเวลาทำงานล่วงเวลา'}
                 </div>
@@ -529,6 +250,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           </div>
         </div>
 
+        {/* Error Messages */}
         {locationState.error && (
           <div className="mx-4 mb-4 p-4 bg-red-50 rounded-xl">
             <div className="flex items-center gap-2 text-red-600">
@@ -542,4 +264,4 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   );
 };
 
-export default MobileAttendanceApp;
+export default React.memo(MobileAttendanceApp);

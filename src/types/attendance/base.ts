@@ -3,8 +3,13 @@
 // Core type definitions and enums
 // ===================================
 
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
-import { PeriodType } from './status';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
+import { AttendanceRecord } from './records';
 
 // Core interfaces - Keep
 export interface BaseEntity {
@@ -15,13 +20,35 @@ export interface BaseEntity {
   updatedAt: Date;
 }
 export interface Location {
+  latitude: number;
+  longitude: number;
+  lat: number;
+  lng: number;
+  accuracy?: number;
+  timestamp?: Date;
+  provider?: string;
+}
+
+// GeoLocation interface (used in our system)
+export interface GeoLocation {
   lat: number;
   lng: number;
   longitude: number;
   latitude: number;
-  accuracy?: number; // Enhanced
-  timestamp?: Date; // Enhanced
-  provider?: string; // Enhanced
+  accuracy?: number;
+  timestamp?: Date;
+  provider?: string;
+}
+
+// Type for JSON storage
+export interface GeoLocationJson extends Record<string, any> {
+  lat: number;
+  lng: number;
+  longitude: number;
+  latitude: number;
+  accuracy?: number;
+  timestamp?: string; // Note: string for JSON storage
+  provider?: string;
 }
 
 export interface LocationState {
@@ -36,6 +63,44 @@ export interface LocationState {
   error: string | null;
 }
 
+export interface BaseStatus {
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+  isCheckingIn: boolean;
+  latestAttendance: AttendanceRecord | null;
+}
+
+export interface AttendanceBaseResponse {
+  // Core status
+  state: AttendanceState;
+  checkStatus: CheckStatus;
+  isCheckingIn: boolean;
+
+  // Current attendance record
+  latestAttendance: AttendanceRecord | null; // Using our updated AttendanceRecord type
+
+  // Basic period info
+  periodInfo: {
+    type: PeriodType;
+    isOvertime: boolean;
+    overtimeState?: OvertimeState;
+  };
+
+  // Base validation
+  validation: {
+    canCheckIn: boolean;
+    canCheckOut: boolean;
+    message?: string;
+  };
+
+  // Metadata
+  metadata: {
+    lastUpdated: string; // ISO string
+    version: number;
+    source: 'system' | 'manual' | 'auto';
+  };
+}
+
 export interface AttendanceCore {
   state: AttendanceState;
   checkStatus: CheckStatus;
@@ -48,82 +113,68 @@ export interface AttendanceCore {
   };
 }
 
-export interface LatestAttendanceResponse {
+// Same structure as AttendanceRecord but with
+// Date fields as ISO strings for API response
+export interface SerializedAttendanceRecord {
+  // Core identifiers
   id: string;
   employeeId: string;
-  date: string;
-  CheckInTime: string | null;
-  CheckOutTime: string | null;
+  date: string; // ISO string
+
+  // Core status
   state: AttendanceState;
   checkStatus: CheckStatus;
+  type: PeriodType;
+
+  // Overtime information
+  isOvertime: boolean;
   overtimeState?: OvertimeState;
-  isLateCheckIn?: boolean;
-  isLateCheckOut?: boolean;
-  isEarlyCheckIn?: boolean;
-  isOvertime?: boolean;
-  isManualEntry: boolean;
-  isDayOff: boolean;
-  shiftStartTime?: string;
-  shiftEndTime?: string;
-  periodType: PeriodType;
   overtimeId?: string;
-  timeEntries?: Array<{
+  overtimeDuration?: number;
+
+  // Time fields (all ISO strings)
+  shiftStartTime: string | null;
+  shiftEndTime: string | null;
+  CheckInTime: string | null;
+  CheckOutTime: string | null;
+
+  // Status flags
+  checkTiming: {
+    isEarlyCheckIn: boolean;
+    isLateCheckIn: boolean;
+    isLateCheckOut: boolean;
+    isVeryLateCheckOut: boolean;
+    lateCheckOutMinutes: number;
+  };
+
+  // Location data
+  location: {
+    checkIn?: {
+      coordinates: GeoLocation | null;
+      address: string | null;
+    };
+    checkOut?: {
+      coordinates: GeoLocation | null;
+      address: string | null;
+    };
+  };
+
+  // Serialized time entries
+  timeEntries: Array<{
     id: string;
     startTime: string;
     endTime: string | null;
     type: PeriodType;
   }>;
-}
 
-// Then update AttendanceBaseResponse
-export interface AttendanceBaseResponse {
-  state: AttendanceState;
-  checkStatus: CheckStatus;
-  isCheckingIn: boolean;
-  latestAttendance?: LatestAttendanceResponse;
-  periodInfo: {
-    currentType: PeriodType;
-    isOvertime: boolean;
-    overtimeState?: OvertimeState;
-    isTransitioning: boolean;
-  };
-  flags: AttendanceFlags;
+  // Metadata (with serialized dates)
   metadata: {
-    lastUpdated: string;
-    version: number;
+    isManualEntry: boolean;
+    isDayOff: boolean;
+    createdAt: string;
+    updatedAt: string;
     source: 'system' | 'manual' | 'auto';
   };
-}
-
-export interface AttendanceFlags {
-  isOvertime: boolean;
-  isDayOffOvertime: boolean;
-  isPendingDayOffOvertime: boolean;
-  isPendingOvertime: boolean;
-  isOutsideShift: boolean;
-  isInsideShift: boolean;
-  isLate: boolean;
-  isEarlyCheckIn: boolean;
-  isEarlyCheckOut: boolean;
-  isLateCheckIn: boolean;
-  isLateCheckOut: boolean;
-  isVeryLateCheckOut: boolean;
-  isAutoCheckIn: boolean;
-  isAutoCheckOut: boolean;
-  isAfternoonShift: boolean;
-  isMorningShift: boolean;
-  isAfterMidshift: boolean;
-  isApprovedEarlyCheckout: boolean;
-  isPlannedHalfDayLeave: boolean;
-  isEmergencyLeave: boolean;
-  hasActivePeriod: boolean;
-  requiresAutoCompletion: boolean;
-  isHoliday: boolean;
-  isDayOff: boolean;
-  isManualEntry: boolean;
-  hasPendingTransition?: boolean;
-  requiresOvertimeCheckIn?: boolean;
-  requiresTransition?: boolean;
 }
 
 export interface AddressInput {

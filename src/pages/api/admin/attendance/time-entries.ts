@@ -1,7 +1,12 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { AttendanceState, CheckStatus, PrismaClient } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  PeriodType,
+  PrismaClient,
+} from '@prisma/client';
 import { startOfMonth, endOfMonth, parseISO, format } from 'date-fns';
-import { DetailedTimeEntry, PeriodType } from '@/types/attendance';
+import { DetailedTimeEntry } from '@/types/attendance';
 
 const prisma = new PrismaClient();
 
@@ -75,6 +80,8 @@ export default async function handler(
           },
         },
         include: {
+          checkTiming: true,
+          metadata: true,
           timeEntries: {
             include: {
               overtimeMetadata: true,
@@ -136,9 +143,9 @@ export default async function handler(
         // Map string values to proper enums
         state: mapToAttendanceState(attendance.state),
         checkStatus: mapToCheckStatus(attendance.checkStatus),
-        isLateCheckIn: attendance.isLateCheckIn || false,
-        isLateCheckOut: attendance.isLateCheckOut || false,
-        isManualEntry: attendance.isManualEntry || false,
+        isLateCheckIn: attendance.checkTiming?.isLateCheckIn || false,
+        isLateCheckOut: attendance.checkTiming?.isLateCheckOut || false,
+        isManualEntry: attendance.metadata?.isManualEntry || false,
 
         // Type and hours
         entryType: overtimeEntry ? PeriodType.OVERTIME : PeriodType.REGULAR,

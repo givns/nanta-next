@@ -7,7 +7,6 @@ import { UserRole } from '../../types/enum';
 import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
 import getRawBody from 'raw-body';
 import { initializeServices } from '@/services/ServiceInitializer';
-import { AttendanceService } from '@/services/Attendance/AttendanceService';
 
 dotenv.config({ path: './.env.local' });
 
@@ -17,15 +16,6 @@ const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
 // Initialize main service
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
 
 if (!channelSecret || !channelAccessToken) {
   throw new Error(

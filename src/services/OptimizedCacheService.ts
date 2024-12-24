@@ -1,7 +1,7 @@
 // services/OptimizedCacheService.ts
 
 import { Redis } from 'ioredis';
-import { AttendanceStatusInfo, LocationState } from '@/types/attendance';
+import { AttendanceStatusResponse, LocationState } from '@/types/attendance';
 
 interface CacheEntry<T> {
   data: T;
@@ -34,7 +34,7 @@ export class OptimizedCacheService {
     employeeId: string,
     location: LocationState,
     version: string,
-  ): Promise<AttendanceStatusInfo | null> {
+  ): Promise<AttendanceStatusResponse | null> {
     const key = this.getKey(
       'attendance',
       employeeId,
@@ -43,7 +43,7 @@ export class OptimizedCacheService {
     const cached = await this.client.get(key);
 
     if (cached) {
-      const entry: CacheEntry<AttendanceStatusInfo> = JSON.parse(cached);
+      const entry: CacheEntry<AttendanceStatusResponse> = JSON.parse(cached);
       // Only return if cache version matches and location hasn't changed significantly
       if (
         entry.version === version &&
@@ -58,7 +58,7 @@ export class OptimizedCacheService {
 
   private isLocationValid(
     current: LocationState,
-    cached: AttendanceStatusInfo,
+    cached: AttendanceStatusResponse,
   ): boolean {
     // Add logic to determine if location change is significant enough to invalidate cache
     return true; // Simplified for example
@@ -66,7 +66,7 @@ export class OptimizedCacheService {
 
   async setAttendanceStatus(
     employeeId: string,
-    data: AttendanceStatusInfo,
+    data: AttendanceStatusResponse,
     version: string,
     ttl: number = 300, // 5 minutes
   ): Promise<void> {
@@ -75,7 +75,7 @@ export class OptimizedCacheService {
       employeeId,
       new Date().toISOString().split('T')[0],
     );
-    const entry: CacheEntry<AttendanceStatusInfo> = {
+    const entry: CacheEntry<AttendanceStatusResponse> = {
       data,
       timestamp: Date.now(),
       version,

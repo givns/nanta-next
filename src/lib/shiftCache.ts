@@ -1,21 +1,10 @@
 // lib/shiftCache.ts
-import { AttendanceService } from '@/services/Attendance/AttendanceService';
-import { ShiftManagementService } from '../services/ShiftManagementService/ShiftManagementService';
-import { HolidayService } from '@/services/HolidayService';
+
 import { initializeServices } from '@/services/ServiceInitializer';
 import { PrismaClient, Shift } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
 
 // Client-side cache implementation
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds

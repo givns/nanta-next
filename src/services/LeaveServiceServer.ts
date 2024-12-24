@@ -5,9 +5,10 @@ import { Client } from '@line/bot-sdk';
 import { UserRole } from '../types/enum';
 import { ILeaveServiceServer, LeaveBalanceData } from '../types/LeaveService';
 import { NotificationService } from './NotificationService';
-import { cacheService } from './CacheService';
+import { cacheService } from './cache/CacheService';
 import { RequestService } from './RequestService';
 import { addDays } from 'date-fns';
+import { LeaveFormat } from '@/types/attendance';
 
 // Create LINE client conditionally based on environment
 let client: Client | null = null;
@@ -403,10 +404,10 @@ export class LeaveServiceServer
 
     const regularHours = this.isUnpaidLeave(leaveType)
       ? 0
-      : this.getRegularHoursForLeave(leaveRequest.leaveFormat);
+      : this.getRegularHoursForLeave(leaveRequest.leaveFormat as LeaveFormat);
 
     while (currentDate <= endDate) {
-      // Create/Update attendance record
+      // Create/Update attendance record with proper nested relations
       const attendance = await tx.attendance.upsert({
         where: {
           employee_date_attendance: {
@@ -417,18 +418,43 @@ export class LeaveServiceServer
         create: {
           employeeId,
           date: currentDate,
-          isDayOff: true,
-          state: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'OFF' : 'INCOMPLETE', // Change "incomplete" to "INCOMPLETE"
-          checkStatus: 'PENDING', // Change "pending" to "PENDING"
-          isManualEntry: true,
-          version: 1,
+          state: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'OFF' : 'INCOMPLETE',
+          checkStatus: 'PENDING',
+          type: 'REGULAR',
+          metadata: {
+            create: {
+              isManualEntry: true,
+              isDayOff: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง',
+              source: 'manual',
+            },
+          },
+          checkTiming: {
+            create: {
+              isEarlyCheckIn: false,
+              isLateCheckIn: false,
+              isLateCheckOut: false,
+              isVeryLateCheckOut: false,
+              lateCheckOutMinutes: 0,
+            },
+          },
         },
         update: {
-          isDayOff: true,
           state: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'OFF' : 'INCOMPLETE',
-          version: {
-            increment: 1,
+          metadata: {
+            upsert: {
+              create: {
+                isManualEntry: true,
+                isDayOff: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง',
+                source: 'manual',
+              },
+              update: {
+                isDayOff: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง',
+              },
+            },
           },
+        },
+        include: {
+          metadata: true,
         },
       });
 
@@ -438,14 +464,23 @@ export class LeaveServiceServer
         date: attendance.date,
         startTime: attendance.date,
         endTime: attendance.date,
-        regularHours, // Use the calculated regular hours
-        overtimeHours: 0,
-        actualMinutesLate: 0,
-        isHalfDayLate: false,
+        // Use hours object structure
+        hours: {
+          regular: regularHours,
+          overtime: 0,
+        },
+        timing: {
+          actualMinutesLate: 0,
+          isHalfDayLate: false,
+        },
         status: 'COMPLETED',
         attendanceId: attendance.id,
-        entryType:
-          leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'unpaid_leave' : 'regular',
+        // Use correct PeriodType enum
+        entryType: 'REGULAR' as const, // Always REGULAR for leave
+        metadata: {
+          source: 'manual',
+          version: 1,
+        },
       };
 
       // Check for existing time entry
@@ -461,7 +496,15 @@ export class LeaveServiceServer
       if (existingTimeEntry) {
         await tx.timeEntry.update({
           where: { id: existingTimeEntry.id },
-          data: timeEntryData,
+          data: {
+            ...timeEntryData,
+            metadata: {
+              source: 'manual',
+              version: {
+                increment: 1,
+              },
+            },
+          },
         });
       } else {
         await tx.timeEntry.create({
@@ -476,13 +519,18 @@ export class LeaveServiceServer
     await this.invalidateUserCache(employeeId);
   }
 
-  // Helper to determine regular hours based on leave format
-  private getRegularHoursForLeave(leaveFormat: string): number {
+  // Helper to determine if leave type is unpaid
+  private isUnpaidLeave(leaveType: string): boolean {
+    return leaveType === 'ลาโดยไม่ได้รับค่าจ้าง';
+  }
+
+  // Helper to calculate regular hours based on leave format
+  private getRegularHoursForLeave(leaveFormat: LeaveFormat): number {
     switch (leaveFormat) {
-      case 'ลาครึ่งวัน':
-        return 4;
       case 'ลาเต็มวัน':
         return 8;
+      case 'ลาครึ่งวัน':
+        return 4;
       default:
         return 0;
     }
@@ -527,10 +575,6 @@ export class LeaveServiceServer
       console.error('Error creating resubmitted leave request:', error.message);
       throw error;
     }
-  }
-
-  private isUnpaidLeave(leaveType: string): boolean {
-    return leaveType === 'ลาโดยไม่ได้รับค่าจ้าง';
   }
 
   async getOriginalRequest(requestId: string): Promise<LeaveRequest> {

@@ -1,7 +1,6 @@
 // services/Attendance/utils/AttendanceNormalizers.ts
 
 import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
-import { TimeEntryStatus, PeriodType } from '../../../types/attendance/status';
 
 export class AttendanceNormalizers {
   static normalizeAttendanceState(state: string): AttendanceState {
@@ -35,18 +34,6 @@ export class AttendanceNormalizers {
       default:
         return CheckStatus.PENDING;
     }
-  }
-
-  static normalizeTimeEntryStatus(status: string): TimeEntryStatus {
-    return status.toUpperCase() === 'COMPLETED'
-      ? TimeEntryStatus.COMPLETED
-      : TimeEntryStatus.IN_PROGRESS;
-  }
-
-  static normalizePeriodType(type: string): PeriodType {
-    return type.toLowerCase() === 'overtime'
-      ? PeriodType.OVERTIME
-      : PeriodType.REGULAR;
   }
 
   static normalizeOvertimeState(

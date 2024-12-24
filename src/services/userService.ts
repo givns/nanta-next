@@ -2,9 +2,9 @@
 
 import axios from 'axios';
 import { UserData } from '../types/user';
-import { AttendanceStatusInfo } from '@/types/attendance';
-import { cacheService } from './CacheService';
+import { cacheService } from './cache/CacheService';
 import { CACHE_CONSTANTS } from '@/types/attendance/base';
+import { AttendanceStateResponse } from '@/types/attendance';
 
 export class UserService {
   // Cache key patterns
@@ -71,7 +71,7 @@ export class UserService {
 
   static async getAttendanceStatus(
     lineUserId: string,
-  ): Promise<AttendanceStatusInfo | null> {
+  ): Promise<AttendanceStateResponse | null> {
     if (!cacheService) {
       return this.fetchAttendanceStatus(lineUserId);
     }
@@ -85,7 +85,7 @@ export class UserService {
 
   private static async fetchAttendanceStatus(
     lineUserId: string,
-  ): Promise<AttendanceStatusInfo> {
+  ): Promise<AttendanceStateResponse> {
     try {
       const response = await axios.get('/api/attendance/attendance-status', {
         headers: {

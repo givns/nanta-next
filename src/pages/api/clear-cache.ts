@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { cacheService } from '../../services/CacheService';
+import { cacheService } from '../../services/cache/CacheService';
 
 export default async function handler(
   req: NextApiRequest,

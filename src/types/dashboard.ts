@@ -1,7 +1,5 @@
 // types/dashboard.ts
-import { ShiftData } from './attendance';
-import { ProcessedAttendance } from './attendance/processing';
-import { AttendanceStatusInfo } from './attendance/status';
+import { AttendanceStateResponse, ShiftData, TimeEntry } from './attendance';
 import { UserData } from './user';
 
 // For UI display
@@ -12,9 +10,9 @@ export interface PayrollPeriodDisplay {
 
 export interface DashboardData {
   user: UserData & { assignedShift: ShiftData };
-  attendanceStatus: AttendanceStatusInfo | null;
+  attendanceStatus: AttendanceStateResponse | null;
   effectiveShift: ShiftData | null; // Add this
-  payrollAttendance: ProcessedAttendance[];
+  payrollAttendance: TimeEntry[];
   totalWorkingDays: number;
   totalPresent: number;
   totalAbsent: number;

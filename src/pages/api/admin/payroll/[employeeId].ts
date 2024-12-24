@@ -60,12 +60,10 @@ export default async function handler(
     };
 
     // Initialize HolidayService
-    const holidayService = new HolidayService(prisma);
 
     const payrollService = new PayrollCalculationService(
       parsedSettings,
       prisma,
-      holidayService,
     );
     const payrollData = await payrollService.calculatePayroll(
       employee,

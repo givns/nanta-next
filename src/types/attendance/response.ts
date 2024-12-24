@@ -3,19 +3,17 @@
 // API response types
 // ===================================
 
-import { z } from 'zod';
 import { AttendanceRecord, OvertimeEntry, TimeEntry } from './records';
-import {
-  EnhancedAttendanceStatus,
-  NextPeriod,
-  PeriodType,
-  TimelineEnhancement,
-} from './status';
-import { AttendanceValidation, ValidationResult } from './validation';
+import { NextPeriod } from './status';
+import { ValidationResult } from './validation';
 import { OvertimeContext } from './overtime';
-import { OvertimePeriodInfo, PeriodAttendance } from './period';
-import { LatestAttendanceResponse } from './base';
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
+import { HolidayInfo } from './leave';
 
 export interface AttendanceResponse
   extends SuccessResponse<{
@@ -31,95 +29,6 @@ export interface AttendanceResponse
     code: string;
     message: string;
   }>;
-}
-
-export interface AttendanceStateResponse {
-  daily: {
-    date: string;
-    timeline: TimelineEnhancement;
-    periods: Array<{
-      type: PeriodType;
-      window: {
-        start: string;
-        end: string;
-      };
-      status: {
-        isComplete: boolean;
-        isCurrent: boolean | null | undefined;
-        requiresTransition: boolean;
-      };
-      attendance?: PeriodAttendance;
-      overtime?: OvertimePeriodInfo;
-    }>;
-    transitions: PeriodTransition | null;
-  };
-  base: {
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    isCheckingIn: boolean;
-    latestAttendance: LatestAttendanceResponse | null;
-  };
-  window: ShiftWindowResponse;
-  validation: AttendanceValidation;
-  enhanced: EnhancedAttendanceStatus;
-}
-
-export interface AttendanceStatusResponse extends AttendanceStateResponse {}
-
-export interface DailyAttendanceStatus {
-  date: string;
-  timeline: TimelineEnhancement;
-  periods: Array<{
-    type: PeriodType;
-    window: {
-      start: string;
-      end: string;
-    };
-    status: {
-      isComplete: boolean;
-      isCurrent: boolean;
-      requiresTransition: boolean;
-    };
-    attendance?: PeriodAttendance;
-    overtime?: OvertimePeriodInfo;
-  }>;
-  transitions: PeriodTransition;
-}
-
-export interface PeriodTransition {
-  from: {
-    periodIndex: number;
-    type: PeriodType;
-  };
-  to: {
-    periodIndex: number;
-    type: PeriodType;
-  };
-  transitionTime: string;
-  isComplete: boolean;
-}
-
-export interface PeriodValidation {
-  currentPeriod: {
-    index: number;
-    canCheckIn: boolean;
-    canCheckOut: boolean;
-    requiresTransition: boolean;
-    message?: string;
-    enhancement: {
-      isWithinPeriod: boolean;
-      isEarlyForPeriod: boolean;
-      isLateForPeriod: boolean;
-      periodStart: string;
-      periodEnd: string;
-      status: 'active' | 'pending' | 'completed';
-    };
-  };
-  nextPeriod?: {
-    index: number;
-    availableAt: string;
-    type: PeriodType;
-  };
 }
 
 export interface ShiftWindowResponse {
@@ -139,10 +48,7 @@ export interface ShiftWindowResponse {
   isHoliday: boolean;
   isDayOff: boolean;
   isAdjusted: boolean;
-  holidayInfo?: {
-    name: string;
-    date: string;
-  };
+  holidayInfo?: HolidayInfo;
   overtimeInfo?: OvertimeContext;
   nextPeriod?: NextPeriod | null;
   transition?: {
@@ -187,23 +93,6 @@ export interface ValidationResponseWithMetadata {
       end: string;
       targetPeriod: PeriodType;
     };
-  };
-}
-
-export interface ValidationResponse {
-  allowed: boolean;
-  reason: string;
-  flags: {
-    isLateCheckIn: boolean;
-    isEarlyCheckOut: boolean;
-    isPlannedHalfDayLeave: boolean;
-    isEmergencyLeave: boolean;
-    isOvertime: boolean;
-    requireConfirmation: boolean;
-    isDayOffOvertime: boolean;
-    isInsideShift: boolean;
-    isAutoCheckIn: boolean;
-    isAutoCheckOut: boolean;
   };
 }
 

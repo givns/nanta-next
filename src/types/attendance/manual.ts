@@ -1,5 +1,5 @@
+import { PeriodType } from '@prisma/client';
 import { DailyRecord } from './common';
-import { PeriodType } from './status';
 
 // types/attendance/manual.ts
 export interface ManualEntryRequest {
@@ -8,7 +8,6 @@ export interface ManualEntryRequest {
   periodType: PeriodType;
   checkInTime?: string;
   checkOutTime?: string;
-  reason: string;
   overtimeRequestId?: string; // Added for overtime entries
   overtimeStartTime?: string; // Added for overtime entries
   overtimeEndTime?: string; // Added for overtime entries

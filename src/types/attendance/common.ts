@@ -1,9 +1,14 @@
 // types/attendance/common.ts
 
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
 import { LeaveRequest } from './leave';
 import { ShiftData } from './shift';
-import { ApprovedOvertimeInfo, PeriodStatus, PeriodType } from './status';
+import { ApprovedOvertimeInfo, PeriodStatus } from './status';
 
 export interface AttendancePeriodContext {
   date: Date;

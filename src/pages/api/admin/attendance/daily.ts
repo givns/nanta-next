@@ -75,6 +75,8 @@ async function handleGetDailyAttendance(
         },
       },
       include: {
+        checkTiming: true,
+        metadata: true,
         overtimeEntries: {
           include: {
             overtimeRequest: true,
@@ -134,15 +136,16 @@ async function handleGetDailyAttendance(
           : null,
 
         // Status flags
-        isLateCheckIn: attendance?.isLateCheckIn || false,
-        isLateCheckOut: attendance?.isLateCheckOut || false,
-        isEarlyCheckIn: attendance?.isEarlyCheckIn || false,
-        isVeryLateCheckOut: attendance?.isVeryLateCheckOut || false,
-        lateCheckOutMinutes: attendance?.lateCheckOutMinutes || 0,
+        isLateCheckIn: attendance?.checkTiming?.isLateCheckIn || false,
+        isLateCheckOut: attendance?.checkTiming?.isLateCheckOut || false,
+        isEarlyCheckIn: attendance?.checkTiming?.isEarlyCheckIn || false,
+        isVeryLateCheckOut:
+          attendance?.checkTiming?.isVeryLateCheckOut || false,
+        lateCheckOutMinutes: attendance?.checkTiming?.lateCheckOutMinutes || 0,
 
         // Shift and status info
         shift: shiftData,
-        isDayOff: attendance?.isDayOff || false,
+        isDayOff: attendance?.metadata?.isDayOff || false,
         leaveInfo: leaveRequest
           ? {
               type: leaveRequest.leaveType,

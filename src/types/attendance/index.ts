@@ -1,8 +1,5 @@
-import {
-  AttendanceStatusValue,
-  OvertimeRequestStatus,
-  TimeEntryStatus,
-} from '../attendance';
+import { TimeEntryStatus } from '@prisma/client';
+import { AttendanceStatusValue, OvertimeRequestStatus } from '../attendance';
 import { OvertimeStatus } from '../attendance/status';
 import { ProcessingOptions } from './processing';
 import { AttendanceRecord, TimeEntry } from './records';
@@ -25,6 +22,7 @@ export * from './validation';
 export * from './utils';
 export * from './overtime';
 export * from './period';
+export * from './state';
 
 // Re-export common external types
 export type { UserData } from '../user';
@@ -73,7 +71,7 @@ export const isAttendanceStatusValue = (
 export const isValidTimeEntryStatus = (
   status: string,
 ): status is TimeEntryStatus => {
-  return ['IN_PROGRESS', 'COMPLETED'].includes(status);
+  return ['STARTED', 'COMPLETED'].includes(status);
 };
 
 export const isValidOvertimeStatus = (

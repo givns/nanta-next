@@ -1,22 +1,17 @@
-// hooks/useSimpleAttendance.ts
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useEnhancedLocation } from './useEnhancedLocation';
 import { useAttendanceData } from './useAttendanceData';
-import { KeyedMutator } from 'swr';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
-  AttendanceStateResponse,
-  CurrentPeriodInfo,
+  UseSimpleAttendanceProps,
   UseSimpleAttendanceReturn,
+  AttendanceBaseResponse,
+  UnifiedPeriodState,
+  StateValidation,
+  ShiftContext,
+  TransitionContext,
 } from '@/types/attendance';
-import { OvertimeContext } from '@/types/attendance/overtime';
-import { AttendanceState, CheckStatus } from '@prisma/client';
-
-interface UseSimpleAttendanceProps {
-  employeeId?: string;
-  lineUserId?: string;
-  initialAttendanceStatus?: AttendanceStateResponse;
-  enabled?: boolean;
-}
+import { getCurrentTime } from '@/utils/dateUtils';
 
 export function useSimpleAttendance({
   employeeId,
@@ -24,18 +19,7 @@ export function useSimpleAttendance({
   initialAttendanceStatus,
   enabled = true,
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn {
-  useEffect(() => {
-    console.log('useSimpleAttendance initialized with:', {
-      employeeId,
-      lineUserId,
-      hasInitialStatus: !!initialAttendanceStatus,
-      enabled,
-    });
-  }, [employeeId, lineUserId, initialAttendanceStatus, enabled]);
-
   const [isInitializing, setIsInitializing] = useState(true);
-  const [overtimeContext, setOvertimeContext] =
-    useState<OvertimeContext | null>(null);
 
   const {
     locationState,
@@ -60,160 +44,177 @@ export function useSimpleAttendance({
     enabled: enabled && locationReady,
   });
 
-  useEffect(() => {
-    if (data) {
-      console.log('useAttendanceData raw response:', {
-        daily: data.daily,
-        base: data.base,
-        window: data.window,
-        validation: data.validation,
-        enhanced: data.enhanced,
-      });
-    }
-  }, [data]);
+  // Initialize default states
+  const defaultBaseState: AttendanceBaseResponse = {
+    state: AttendanceState.ABSENT,
+    checkStatus: CheckStatus.PENDING,
+    isCheckingIn: true,
+    latestAttendance: null,
+    periodInfo: {
+      type: PeriodType.REGULAR,
+      isOvertime: false,
+    },
+    validation: {
+      canCheckIn: false,
+      canCheckOut: false,
+      message: '',
+    },
+    metadata: {
+      lastUpdated: getCurrentTime().toISOString(),
+      version: 1,
+      source: 'system',
+    },
+  };
 
-  // Initialize overtime context when data changes
-  useEffect(() => {
-    if (data?.window?.overtimeInfo) {
-      setOvertimeContext({
-        id: data.window.overtimeInfo.id,
-        startTime: data.window.overtimeInfo.startTime,
-        endTime: data.window.overtimeInfo.endTime,
-        durationMinutes: data.window.overtimeInfo.durationMinutes,
-        isInsideShiftHours: data.window.overtimeInfo.isInsideShiftHours,
-        isDayOffOvertime: data.window.overtimeInfo.isDayOffOvertime,
-        reason: data.window.overtimeInfo.reason,
-      });
-    } else {
-      setOvertimeContext(null);
-    }
-  }, [data?.window?.overtimeInfo]);
+  const defaultStateValidation: StateValidation = {
+    allowed: false,
+    reason: '',
+    flags: {
+      hasActivePeriod: false,
+      isInsideShift: false,
+      isOutsideShift: false,
+      isEarlyCheckIn: false,
+      isLateCheckIn: false,
+      isEarlyCheckOut: false,
+      isLateCheckOut: false,
+      isVeryLateCheckOut: false,
+      isOvertime: false,
+      isPendingOvertime: false,
+      isDayOffOvertime: false,
+      isAutoCheckIn: false,
+      isAutoCheckOut: false,
+      requiresAutoCompletion: false,
+      hasPendingTransition: false,
+      requiresTransition: false,
+      isAfternoonShift: false,
+      isMorningShift: false,
+      isAfterMidshift: false,
+      isApprovedEarlyCheckout: false,
+      isPlannedHalfDayLeave: false,
+      isEmergencyLeave: false,
+      isHoliday: false,
+      isDayOff: false,
+      isManualEntry: false,
+    },
+    metadata: {
+      nextTransitionTime: undefined,
+      requiredAction: undefined,
+      additionalInfo: undefined,
+    },
+  };
 
-  useEffect(() => {
-    console.log('Overtime context update:', {
-      hasOvertimeInfo: !!data?.window?.overtimeInfo,
-      overtimeContext,
-    });
-  }, [data?.window?.overtimeInfo, overtimeContext]);
+  const defaultPeriodState: UnifiedPeriodState = {
+    type: PeriodType.REGULAR,
+    timeWindow: {
+      start: '',
+      end: '',
+    },
+    activity: {
+      isActive: false,
+      checkIn: null,
+      checkOut: null,
+      isOvertime: false,
+      isDayOffOvertime: false,
+    },
+    validation: {
+      isWithinBounds: false,
+      isEarly: false,
+      isLate: false,
+      isOvernight: false,
+      isConnected: false,
+    },
+  };
 
-  // Clear initializing state once data is loaded
+  const defaultContext: ShiftContext & TransitionContext = {
+    shift: {
+      id: '',
+      shiftCode: '',
+      name: '',
+      startTime: '',
+      endTime: '',
+      workDays: [],
+    },
+    schedule: {
+      isHoliday: false,
+      isDayOff: false,
+      isAdjusted: false,
+    },
+    nextPeriod: null,
+    transition: undefined,
+  };
+
   useEffect(() => {
     if (data && isInitializing) {
       setIsInitializing(false);
     }
   }, [data, isInitializing]);
 
-  useEffect(() => {
-    if (data) {
-      console.log('Attendance Data from API:', {
-        base: data.base,
-        window: data.window,
-        validation: data.validation,
-        enhanced: data.enhanced,
-      });
-    }
-  }, [data]);
+  // Map attendance status response to proper types
+  const periodState = useMemo((): UnifiedPeriodState => {
+    if (!data?.daily?.currentState) return defaultPeriodState;
+    return data.daily.currentState;
+  }, [data?.daily?.currentState]);
 
-  // Create current period info from window data
-  const currentPeriod: CurrentPeriodInfo | null = data?.window
-    ? {
-        type: data.window.type,
-        current: {
-          // Convert to ISO strings for consistency
-          start:
-            typeof data.window.current.start === 'string'
-              ? data.window.current.start
-              : (data.window.current.start as Date)
-                ? (data.window.current.start as Date).toISOString()
-                : '',
-          end:
-            typeof data.window.current.end === 'string'
-              ? data.window.current.end
-              : (data.window.current.end as Date)
-                ? (data.window.current.end as Date).toISOString()
-                : '',
-        },
-        isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
-        checkInTime: data.base.latestAttendance?.CheckInTime ?? null,
-        checkOutTime: data.base.latestAttendance?.CheckOutTime ?? null,
-        overtimeId: data.window.overtimeInfo?.id,
-      }
-    : null;
+  const context = useMemo((): ShiftContext & TransitionContext => {
+    if (!data?.context) return defaultContext;
+    return data.context;
+  }, [data?.context]);
 
-  useEffect(() => {
-    if (data) {
-      console.log('Current period calculation:', {
-        input: {
-          windowType: data.window.type,
-          windowCurrent: data.window.current,
-          latestAttendance: data.base.latestAttendance,
-          overtimeInfo: data.window.overtimeInfo,
-        },
-        output: currentPeriod,
-        derivedValues: {
-          isComplete: Boolean(data.base.latestAttendance?.CheckOutTime),
-          isCheckingIn: !data.base.latestAttendance?.CheckInTime,
-          checkInTime: data.base.latestAttendance?.CheckInTime,
-          checkOutTime: data.base.latestAttendance?.CheckOutTime,
-        },
-      });
-    }
-  }, [data, currentPeriod]);
+  // Calculate derived states
+  const transitions = useMemo(() => {
+    return data?.daily?.transitions || [];
+  }, [data?.daily?.transitions]);
 
-  // In useSimpleAttendance.ts
-  const enhancedRefreshStatus = useMemo(() => {
-    const refresh = async (options?: {
-      forceRefresh?: boolean;
-      throwOnError?: boolean;
-    }) => {
-      try {
-        await refreshAttendanceStatus(options);
-        // Force a re-fetch of the latest data
-        await mutate(undefined, { revalidate: true });
-      } catch (error) {
-        console.error('Error refreshing status:', error);
-        throw error;
-      }
-    };
+  const hasPendingTransition = useMemo(() => {
+    return transitions.length > 0;
+  }, [transitions]);
 
-    // Attach mutate property to maintain type compatibility
-    return Object.assign(refresh, {
-      mutate: mutate as KeyedMutator<AttendanceStateResponse>,
-    });
-  }, [refreshAttendanceStatus, mutate]);
-
-  // Log final return values
-  const returnValues = {
-    state: data?.base.state || AttendanceState.ABSENT,
-    checkStatus: data?.base.checkStatus || CheckStatus.PENDING,
-    isCheckingIn: data?.base.isCheckingIn ?? true,
-    base: data?.base ?? {
-      state: AttendanceState.ABSENT,
-      checkStatus: CheckStatus.PENDING,
-      isCheckingIn: true,
-      latestAttendance: null, // Change to null instead of partial object
-    },
-    effectiveShift: data?.window?.shift || null,
-    isDayOff: data?.window?.isDayOff || false,
-    isHoliday: data?.window?.isHoliday || false,
-    currentPeriod,
-    validation: data?.validation || null,
-    isLoading: isInitializing || locationLoading || isAttendanceLoading,
-  };
-
-  useEffect(() => {
-    console.log('useSimpleAttendance return values:', returnValues);
-  }, [returnValues]);
+  const nextTransition = useMemo(() => {
+    return transitions[0] || null;
+  }, [transitions]);
 
   return {
-    ...returnValues,
-    overtimeContext,
+    // Core attendance states
+    state: data?.base?.state || AttendanceState.ABSENT,
+    checkStatus: data?.base?.checkStatus || CheckStatus.PENDING,
+    isCheckingIn: data?.base?.isCheckingIn ?? true,
+    base: data?.base || defaultBaseState,
+
+    // Period and validation states
+    periodState,
+    stateValidation: data?.validation || defaultStateValidation,
+
+    // Context information
+    context,
+    transitions,
+    hasPendingTransition,
+    nextTransition,
+
+    // Schedule status
+    isDayOff: context.schedule.isDayOff,
+    isHoliday: context.schedule.isHoliday,
+    isAdjusted: context.schedule.isAdjusted,
+    holidayInfo: context.schedule.holidayInfo,
+
+    // Transition information
+    nextPeriod: context.nextPeriod,
+    transition: context.transition,
+
+    // Shift information
+    shift: context.shift,
+
+    // Loading and error states
+    isLoading: isInitializing || locationLoading || isAttendanceLoading,
+    isLocationLoading: locationLoading,
+    error: attendanceError?.message || locationError || undefined,
+
+    // Location information
     locationReady,
     locationState,
-    error: attendanceError?.message || locationError,
-    isLocationLoading: locationLoading,
+
+    // Actions
     checkInOut,
-    refreshAttendanceStatus: enhancedRefreshStatus,
+    refreshAttendanceStatus,
     getCurrentLocation,
-  } as UseSimpleAttendanceReturn;
+  };
 }

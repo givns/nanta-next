@@ -1,11 +1,8 @@
 // types/attendance/validation.ts
 
 import { ErrorCode } from '../errors';
-import { PeriodType } from './status';
-import { AttendanceFlags, Location } from './base';
 import { ValidationContext } from './context';
-import { PeriodValidation } from './response';
-import { AttendanceState } from '@prisma/client';
+import { AttendanceState, PeriodType } from '@prisma/client';
 
 // Core validation interfaces
 export interface ValidationRule {
@@ -104,15 +101,6 @@ export interface OvertimeValidationRule extends ValidationRule {
   maxHours: number;
   minHours: number;
   allowedDays: number[];
-}
-
-// Validation collection type
-
-export interface AttendanceValidation {
-  allowed: boolean;
-  reason: string;
-  flags: AttendanceFlags;
-  periodValidation: PeriodValidation;
 }
 
 // Helper type for validation functions

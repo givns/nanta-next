@@ -1,8 +1,7 @@
 // types/attendance/utils.ts
 
-import { AttendanceState } from '@prisma/client';
+import { AttendanceState, PeriodType } from '@prisma/client';
 import { OvertimeMetadata } from './records';
-import { PeriodType } from './status';
 
 export interface TimeEntryWithDate {
   id: string;

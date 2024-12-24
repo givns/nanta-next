@@ -1,19 +1,10 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { AttendanceService } from '../../services/Attendance/AttendanceService';
 import { initializeServices } from '@/services/ServiceInitializer';
 
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
+const { attendanceService } = services;
 
 export default async function handler(
   req: NextApiRequest,
@@ -27,8 +18,13 @@ export default async function handler(
     }
 
     try {
-      const attendanceStatus =
-        await attendanceService.getLatestAttendanceStatus(employeeId);
+      const attendanceStatus = await attendanceService.getAttendanceStatus(
+        employeeId,
+        {
+          inPremises: false,
+          address: '',
+        },
+      );
       res.status(200).json(attendanceStatus);
     } catch (error) {
       console.error('Error fetching attendance status:', error);

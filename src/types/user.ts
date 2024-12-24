@@ -2,7 +2,7 @@
 
 import { User, Shift } from '@prisma/client';
 import { UserRole } from './enum';
-import { AttendanceStatusInfo, AttendanceRecord } from './attendance';
+import { AttendanceRecord, AttendanceStateResponse } from './attendance';
 
 export type { User, Shift };
 
@@ -25,7 +25,7 @@ export interface UserData {
 
 export interface UserResponse {
   user: UserData;
-  attendanceStatus: AttendanceStatusInfo;
+  attendanceStatus: AttendanceStateResponse;
   recentAttendance: AttendanceRecord[];
   totalWorkingDays: number;
   totalPresent: number;

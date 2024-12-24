@@ -13,6 +13,7 @@ export enum ErrorCode {
   NETWORK_ERROR = 'NETWORK_ERROR',
   UNKNOWN_ERROR = 'UNKNOWN_ERROR',
   STATUS_FETCH_ERROR = 'STATUS_FETCH_ERROR',
+  SHIFT_DATA_ERROR = 'SHIFT_DATA_ERROR',
 }
 
 export interface AppErrorDetails {

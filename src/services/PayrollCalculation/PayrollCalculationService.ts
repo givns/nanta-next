@@ -15,9 +15,9 @@ import {
   OvertimePayByType,
   PayrollStatus,
 } from '@/types/payroll';
-import { format, isSameDay, isWeekend, min } from 'date-fns';
+import { format, isSameDay, min } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
-import { HolidayService } from '../HolidayService';
+import { initializeServices } from '../ServiceInitializer';
 
 interface TimeEntryWithMetadata extends TimeEntry {
   overtimeMetadata?: {
@@ -41,17 +41,14 @@ interface LeaveTypeMappings {
 }
 
 export class PayrollCalculationService {
-  private shiftManagementService: ShiftManagementService;
-
+  private readonly shiftService: ShiftManagementService; // Declare the property
   constructor(
     private settings: PayrollSettingsData,
     private prisma: PrismaClient,
-    private holidayService: HolidayService,
   ) {
-    this.shiftManagementService = new ShiftManagementService(
-      prisma,
-      holidayService,
-    );
+    // Initialize services using ServiceInitializer
+    const services = initializeServices(prisma);
+    this.shiftService = services.shiftService;
   }
 
   async calculatePayroll(
@@ -234,7 +231,7 @@ export class PayrollCalculationService {
 
     try {
       // Get shift data
-      const shiftData = await this.shiftManagementService.getShiftByCode(
+      const shiftData = await this.shiftService.getShiftByCode(
         employee.shiftCode,
       );
       if (!shiftData) {

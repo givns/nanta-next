@@ -3,25 +3,19 @@ import {
   AttendanceState,
   CheckStatus,
   OvertimeState,
+  PeriodType,
+  TimeEntryStatus,
   PrismaClient,
 } from '@prisma/client';
-import { parseISO, startOfDay, format, addHours, addMinutes } from 'date-fns';
+import { parseISO, startOfDay, format } from 'date-fns';
 import { initializeServices } from '@/services/ServiceInitializer';
-import { PeriodType, TimeEntryStatus } from '@/types/attendance/status';
 import { ErrorCode, AppError } from '@/types/attendance/error';
-import { AttendanceService } from '@/services/Attendance/AttendanceService';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
+const { attendanceService, cacheManager } = services;
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -129,7 +123,7 @@ export default async function handler(
         }
       }
 
-      // Create or update base attendance record first
+      // Create or update base attendance record with related records
       const attendance = await tx.attendance.upsert({
         where: {
           employee_date_attendance: {
@@ -147,7 +141,12 @@ export default async function handler(
               : checkInTime
                 ? CheckStatus.CHECKED_IN
                 : CheckStatus.PENDING,
-          isManualEntry: true,
+          type: periodType,
+          isOvertime: periodType === PeriodType.OVERTIME,
+          overtimeState:
+            periodType === PeriodType.OVERTIME
+              ? OvertimeState.NOT_STARTED
+              : null,
           CheckInTime: checkInTime ? parseISO(`${date}T${checkInTime}`) : null,
           CheckOutTime: checkOutTime
             ? parseISO(`${date}T${checkOutTime}`)
@@ -156,11 +155,37 @@ export default async function handler(
             `${date}T${shiftData.effectiveShift.startTime}`,
           ),
           shiftEndTime: parseISO(`${date}T${shiftData.effectiveShift.endTime}`),
-          isDayOff: !shiftData.effectiveShift.workDays.includes(
-            targetDate.getDay(),
-          ),
-          checkInReason: reason,
-          version: 1,
+          checkTiming: {
+            create: {
+              isEarlyCheckIn: false,
+              isLateCheckIn: false,
+              isLateCheckOut: false,
+              isVeryLateCheckOut: false,
+              lateCheckOutMinutes: 0,
+            },
+          },
+          location: {
+            create: {
+              checkInAddress: '',
+              checkOutAddress: '',
+              checkInCoordinates: { lat: 0, lng: 0, longitude: 0, latitude: 0 },
+              checkOutCoordinates: {
+                lat: 0,
+                lng: 0,
+                longitude: 0,
+                latitude: 0,
+              },
+            },
+          },
+          metadata: {
+            create: {
+              isManualEntry: true,
+              isDayOff: !shiftData.effectiveShift.workDays.includes(
+                targetDate.getDay(),
+              ),
+              source: 'manual',
+            },
+          },
         },
         update: {
           CheckInTime: checkInTime
@@ -170,66 +195,91 @@ export default async function handler(
             ? parseISO(`${date}T${checkOutTime}`)
             : undefined,
           state: AttendanceState.PRESENT,
+          type: periodType,
+          isOvertime: periodType === PeriodType.OVERTIME,
+          overtimeState:
+            periodType === PeriodType.OVERTIME
+              ? checkOutTime
+                ? OvertimeState.COMPLETED
+                : OvertimeState.IN_PROGRESS
+              : null,
           checkStatus:
             checkInTime && checkOutTime
               ? CheckStatus.CHECKED_OUT
               : checkInTime
                 ? CheckStatus.CHECKED_IN
                 : CheckStatus.PENDING,
-          isManualEntry: true,
-          checkInReason: reason,
-          version: { increment: 1 },
+          checkTiming: {
+            upsert: {
+              create: {
+                isEarlyCheckIn: false,
+                isLateCheckIn: false,
+                isLateCheckOut: false,
+                isVeryLateCheckOut: false,
+                lateCheckOutMinutes: 0,
+              },
+              update: {
+                isEarlyCheckIn: false,
+                isLateCheckIn: false,
+                isLateCheckOut: false,
+                isVeryLateCheckOut: false,
+                lateCheckOutMinutes: 0,
+              },
+            },
+          },
+          metadata: {
+            upsert: {
+              create: {
+                isManualEntry: true,
+                isDayOff: !shiftData.effectiveShift.workDays.includes(
+                  targetDate.getDay(),
+                ),
+                source: 'manual',
+              },
+              update: {
+                isManualEntry: true,
+                isDayOff: !shiftData.effectiveShift.workDays.includes(
+                  targetDate.getDay(),
+                ),
+                source: 'manual',
+              },
+            },
+          },
+        },
+        include: {
+          checkTiming: true,
+          location: true,
+          metadata: true,
         },
       });
 
-      // Create break times based on shift data
-      const calculateBreakTimes = (date: string) => {
-        const shiftStart = parseISO(
-          `${date}T${shiftData.effectiveShift.startTime}`,
-        );
-        const breakStart = addHours(shiftStart, 4); // Break after 4 hours
-        const breakEnd = addMinutes(breakStart, 60); // 1 hour break
-        return { breakStart, breakEnd };
-      };
-
       // Calculate hours for time entry
-      const calculateHours = async (
-        services: any,
-        {
-          checkInTime,
-          checkOutTime,
-          date,
-          shiftData,
-          overtimeRequest,
-          periodType,
-        }: {
-          checkInTime: string | null;
-          checkOutTime: string | null;
-          date: string;
-          shiftData: any;
-          overtimeRequest: any;
-          periodType: PeriodType;
-        },
-      ) => {
-        const { breakStart, breakEnd } = calculateBreakTimes(date);
-        const checkInDateTime = checkInTime
-          ? parseISO(`${date}T${checkInTime}`)
-          : null;
-        const checkOutDateTime = checkOutTime
-          ? parseISO(`${date}T${checkOutTime}`)
-          : null;
-
-        if (!checkInDateTime || !checkOutDateTime) {
+      const calculateHours = async ({
+        checkInTime,
+        checkOutTime,
+        date,
+        shiftData,
+        overtimeRequest,
+        periodType,
+      }: {
+        checkInTime: string | null;
+        checkOutTime: string | null;
+        date: string;
+        shiftData: any;
+        overtimeRequest: any;
+        periodType: PeriodType;
+      }) => {
+        if (!checkInTime || !checkOutTime) {
           return { regularHours: 0, overtimeHours: 0 };
         }
 
         const workingHours = services.timeEntryService.calculateWorkingHours(
-          checkInDateTime,
-          checkOutDateTime,
+          parseISO(`${date}T${checkInTime}`),
+          parseISO(`${date}T${checkOutTime}`),
           parseISO(`${date}T${shiftData.effectiveShift.startTime}`),
           parseISO(`${date}T${shiftData.effectiveShift.endTime}`),
           overtimeRequest,
-          [], // Empty leave requests array
+          [],
         );
 
         return {
@@ -240,36 +290,8 @@ export default async function handler(
         };
       };
 
-      // In the transaction, update the overtime entry creation:
-      if (periodType === PeriodType.OVERTIME && overtimeRequest) {
-        await tx.overtimeEntry.upsert({
-          where: {
-            id: `${attendance.id}-${overtimeRequest.id}`,
-          },
-          create: {
-            id: `${attendance.id}-${overtimeRequest.id}`,
-            attendance: { connect: { id: attendance.id } },
-            overtimeRequest: { connect: { id: overtimeRequest.id } },
-            actualStartTime: checkInTime
-              ? parseISO(`${date}T${checkInTime}`)
-              : '',
-            actualEndTime: checkOutTime
-              ? parseISO(`${date}T${checkOutTime}`)
-              : undefined,
-          },
-          update: {
-            actualStartTime: checkInTime
-              ? parseISO(`${date}T${checkInTime}`)
-              : undefined,
-            actualEndTime: checkOutTime
-              ? parseISO(`${date}T${checkOutTime}`)
-              : undefined,
-          },
-        });
-      }
-
       // Calculate hours
-      const hours = await calculateHours(services, {
+      const hours = await calculateHours({
         checkInTime,
         checkOutTime,
         date,
@@ -279,7 +301,7 @@ export default async function handler(
       });
 
       // Create or update time entry
-      await tx.timeEntry.upsert({
+      const timeEntry = await tx.timeEntry.upsert({
         where: {
           id: `${attendance.id}-${periodType}`,
         },
@@ -293,11 +315,22 @@ export default async function handler(
           overtimeHours: hours.overtimeHours,
           status: checkOutTime
             ? TimeEntryStatus.COMPLETED
-            : TimeEntryStatus.IN_PROGRESS,
+            : TimeEntryStatus.STARTED,
           startTime: checkInTime
             ? parseISO(`${date}T${checkInTime}`)
             : targetDate,
           endTime: checkOutTime ? parseISO(`${date}T${checkOutTime}`) : null,
+          hours: { regular: hours.regularHours, overtime: hours.overtimeHours },
+          timing: {
+            actualMinutesLate: 0,
+            isHalfDayLate: false,
+          },
+          metadata: {
+            source: 'manual',
+            version: 1,
+            createdAt: getCurrentTime().toISOString(),
+            updatedAt: getCurrentTime().toISOString(),
+          },
           ...(periodType === PeriodType.OVERTIME &&
             overtimeRequest && {
               overtimeMetadata: {
@@ -311,13 +344,14 @@ export default async function handler(
         update: {
           status: checkOutTime
             ? TimeEntryStatus.COMPLETED
-            : TimeEntryStatus.IN_PROGRESS,
+            : TimeEntryStatus.STARTED,
           regularHours: hours.regularHours,
           overtimeHours: hours.overtimeHours,
           startTime: checkInTime
             ? parseISO(`${date}T${checkInTime}`)
             : undefined,
           endTime: checkOutTime ? parseISO(`${date}T${checkOutTime}`) : null,
+          hours: { regular: hours.regularHours, overtime: hours.overtimeHours },
           ...(periodType === PeriodType.OVERTIME &&
             overtimeRequest && {
               overtimeMetadata: {
@@ -334,7 +368,38 @@ export default async function handler(
               },
             }),
         },
+        include: {
+          overtimeMetadata: true,
+        },
       });
+
+      // Update overtime entry if needed
+      if (periodType === PeriodType.OVERTIME && overtimeRequest) {
+        await tx.overtimeEntry.upsert({
+          where: {
+            id: `${attendance.id}-${overtimeRequest.id}`,
+          },
+          create: {
+            id: `${attendance.id}-${overtimeRequest.id}`,
+            attendanceId: attendance.id,
+            overtimeRequestId: overtimeRequest.id,
+            actualStartTime: checkInTime
+              ? parseISO(`${date}T${checkInTime}`)
+              : null,
+            actualEndTime: checkOutTime
+              ? parseISO(`${date}T${checkOutTime}`)
+              : null,
+          },
+          update: {
+            actualStartTime: checkInTime
+              ? parseISO(`${date}T${checkInTime}`)
+              : null,
+            actualEndTime: checkOutTime
+              ? parseISO(`${date}T${checkOutTime}`)
+              : null,
+          },
+        });
+      }
 
       // Process through attendance service
       if (checkInTime) {
@@ -342,23 +407,17 @@ export default async function handler(
           employeeId,
           lineUserId,
           checkTime: `${date}T${checkInTime}`,
-          isCheckIn: true,
-          entryType: periodType,
-          isManualEntry: true,
-          isOvertime: periodType === PeriodType.OVERTIME,
-          overtimeRequestId: overtimeRequest?.id,
-          reason,
-          state: AttendanceState.PRESENT,
-          checkStatus: CheckStatus.CHECKED_IN,
-          overtimeState:
-            periodType === PeriodType.OVERTIME
-              ? OvertimeState.IN_PROGRESS
-              : undefined,
-          updatedBy: actionUser.employeeId,
+          periodType,
+          activity: {
+            isCheckIn: true,
+            isManualEntry: true,
+            isOvertime: periodType === PeriodType.OVERTIME,
+          },
           metadata: {
+            overtimeId: overtimeRequest?.id,
+            reason,
             source: 'manual',
-            reasonType,
-            originalRequest: req.body,
+            updatedBy: actionUser.employeeId,
           },
         });
       }
@@ -368,23 +427,17 @@ export default async function handler(
           employeeId,
           lineUserId,
           checkTime: `${date}T${checkOutTime}`,
-          isCheckIn: false,
-          entryType: periodType,
-          isManualEntry: true,
-          isOvertime: periodType === PeriodType.OVERTIME,
-          overtimeRequestId: overtimeRequest?.id,
-          reason,
-          state: AttendanceState.PRESENT,
-          checkStatus: CheckStatus.CHECKED_OUT,
-          overtimeState:
-            periodType === PeriodType.OVERTIME
-              ? OvertimeState.COMPLETED
-              : undefined,
-          updatedBy: actionUser.employeeId,
+          periodType,
+          activity: {
+            isCheckIn: false,
+            isManualEntry: true,
+            isOvertime: periodType === PeriodType.OVERTIME,
+          },
           metadata: {
+            overtimeId: overtimeRequest?.id,
+            reason,
             source: 'manual',
-            reasonType,
-            originalRequest: req.body,
+            updatedBy: actionUser.employeeId,
           },
         });
       }
@@ -402,18 +455,30 @@ export default async function handler(
       }
 
       // Get final attendance status
-      const updatedStatus =
-        await attendanceService.getLatestAttendanceStatus(employeeId);
-
+      const updatedStatus = await attendanceService.getAttendanceStatus(
+        employeeId,
+        {
+          inPremises: true,
+          address: '',
+        },
+      );
       const finalAttendance = await tx.attendance.findUnique({
         where: { id: attendance.id },
         include: {
+          checkTiming: true,
+          location: true,
+          metadata: true,
           overtimeEntries: true,
           timeEntries: {
-            include: { overtimeMetadata: true },
+            include: {
+              overtimeMetadata: true,
+            },
           },
         },
       });
+
+      // Clear cache
+      await cacheManager.invalidateCache(employeeId);
 
       return res.status(200).json({
         success: true,
@@ -453,5 +518,7 @@ export default async function handler(
           : 'Failed to process manual entry',
       code: ErrorCode.INTERNAL_ERROR,
     });
+  } finally {
+    await prisma.$disconnect();
   }
 }

@@ -1,23 +1,10 @@
 // create-manager-request.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { NotificationService } from '../../../services/NotificationService';
-import { ShiftManagementService } from '../../../services/ShiftManagementService/ShiftManagementService';
-import { HolidayService } from '../../../services/HolidayService';
 import { initializeServices } from '@/services/ServiceInitializer';
-import { AttendanceService } from '@/services/Attendance/AttendanceService';
 
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
 
 interface OvertimeRequestData {
   lineUserId: string;

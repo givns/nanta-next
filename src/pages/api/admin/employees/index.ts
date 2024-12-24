@@ -1,15 +1,11 @@
 // pages/api/admin/employees/index.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { HolidayService } from '@/services/HolidayService';
-import { ShiftManagementService } from '@/services/ShiftManagementService/ShiftManagementService';
+import { initializeServices } from '@/services/ServiceInitializer';
 
 const prisma = new PrismaClient();
-const holidayService = new HolidayService(prisma);
-const shiftManagementService = new ShiftManagementService(
-  prisma,
-  holidayService,
-);
+const services = initializeServices(prisma);
+const { shiftService } = services;
 
 export default async function handler(
   req: NextApiRequest,
@@ -64,9 +60,7 @@ export default async function handler(
         const employeesWithShifts = await Promise.all(
           employees.map(async (emp) => {
             if (emp.shiftCode) {
-              const shift = await shiftManagementService.getShiftByCode(
-                emp.shiftCode,
-              );
+              const shift = await shiftService.getShiftByCode(emp.shiftCode);
               return { ...emp, shift };
             }
             return emp;

@@ -1,9 +1,14 @@
 // types/attendance/records.ts
 
-import { TimeEntryStatus, PeriodType } from './status';
-import { Location } from './base';
+import { GeoLocation } from './base';
 import { ShiftData } from './shift';
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+  TimeEntryStatus,
+} from '@prisma/client';
 
 export interface DailyAttendanceRecord {
   employeeId: string;
@@ -29,71 +34,108 @@ export interface DailyAttendanceRecord {
 }
 
 export interface AttendanceRecord {
+  // Core identifiers - Keep
   id: string;
   employeeId: string;
   date: Date;
+
+  // Core status - Keep and consolidate
   state: AttendanceState;
   checkStatus: CheckStatus;
-  isOvertime: boolean;
-  type: PeriodType; // Add this
-  overtimeState?: OvertimeState;
-  overtimeId?: string; // Add this
+  type: PeriodType;
 
-  // Time fields
+  // Overtime information - Consolidate
+  isOvertime: boolean;
+  overtimeState?: OvertimeState;
+  overtimeId?: string;
+  overtimeDuration?: number;
+
+  // Time fields - Keep
   shiftStartTime: Date | null;
   shiftEndTime: Date | null;
   CheckInTime: Date | null;
   CheckOutTime: Date | null;
 
-  // Status flags
-  isEarlyCheckIn: boolean;
-  isLateCheckIn: boolean;
-  isLateCheckOut: boolean;
-  isVeryLateCheckOut: boolean;
-  lateCheckOutMinutes: number;
+  // Status flags - Group and simplify
+  checkTiming: {
+    isEarlyCheckIn: boolean;
+    isLateCheckIn: boolean;
+    isLateCheckOut: boolean;
+    isVeryLateCheckOut: boolean;
+    lateCheckOutMinutes: number;
+  };
 
-  // Location data
-  checkInLocation: Location | null;
-  checkOutLocation: Location | null;
-  checkInAddress: string | null;
-  checkOutAddress: string | null;
+  // Location data - Group
+  location: {
+    checkIn?: {
+      coordinates: GeoLocation | null;
+      address: string | null;
+    };
+    checkOut?: {
+      coordinates: GeoLocation | null;
+      address: string | null;
+    };
+  };
 
-  // Metadata
-  isManualEntry: boolean;
-  isDayOff: boolean;
+  // Related entries - Keep
   overtimeEntries: OvertimeEntry[];
   timeEntries: TimeEntry[];
-  createdAt: Date;
-  updatedAt: Date;
+
+  // Metadata - Keep and extend
+  metadata: {
+    isManualEntry: boolean;
+    isDayOff: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    source: 'system' | 'manual' | 'auto';
+  };
 }
 
 export interface TimeEntry {
+  // Core identifiers - Keep
   id: string;
   employeeId: string;
   date: Date;
+
+  // Time fields - Keep
   startTime: Date;
   endTime: Date | null;
 
-  // Updated status fields
+  // Status and type - Keep
   status: TimeEntryStatus;
   entryType: PeriodType;
 
-  // Hours
-  regularHours: number;
-  overtimeHours: number;
+  // Duration tracking - Keep
+  hours: {
+    regular: number;
+    overtime: number;
+  };
 
-  // References
+  // References - Keep
   attendanceId: string | null;
   overtimeRequestId: string | null;
 
-  // Metadata
-  actualMinutesLate: number;
-  isHalfDayLate: boolean;
-  overtimeMetadata?: OvertimeMetadata;
+  // Timing statistics - Group
+  timing: {
+    actualMinutesLate: number;
+    isHalfDayLate: boolean;
+  };
 
-  // Timestamps
-  createdAt: Date;
-  updatedAt: Date;
+  // Overtime specific data - Move to dedicated section
+  overtime?: {
+    metadata?: OvertimeMetadata;
+    startReason?: string;
+    endReason?: string;
+    comments?: string;
+  };
+
+  // Metadata - Enhanced
+  metadata: {
+    createdAt: Date;
+    updatedAt: Date;
+    source: 'system' | 'manual' | 'auto';
+    version: number;
+  };
 }
 
 export interface OvertimeEntry {
@@ -102,8 +144,6 @@ export interface OvertimeEntry {
   overtimeRequestId: string;
   actualStartTime: Date | null;
   actualEndTime: Date | null;
-  isDayOffOvertime: boolean;
-  isInsideShiftHours: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

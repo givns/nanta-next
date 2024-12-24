@@ -1,28 +1,23 @@
+// hooks/useAttendanceData.ts
 import { useCallback, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
-  AttendanceStateResponse,
-  LocationState,
   ProcessingResult,
   CheckInOutData,
   AppError,
   ErrorCode,
   AttendanceStatusResponse,
-  PeriodType,
+  UseAttendanceDataProps,
+  ShiftContext,
+  TransitionContext,
+  StateValidation,
+  UnifiedPeriodState,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 
 const REQUEST_TIMEOUT = 40000;
-const MAX_RETRIES = 0;
-
-interface UseAttendanceDataProps {
-  employeeId?: string;
-  lineUserId?: string;
-  locationState: LocationState;
-  initialAttendanceStatus?: AttendanceStateResponse;
-  enabled?: boolean;
-}
 
 export function useAttendanceData({
   employeeId,
@@ -50,69 +45,26 @@ export function useAttendanceData({
           timeout: REQUEST_TIMEOUT,
         });
 
-        // Safely handle transitions
-        const transitions = response.data?.daily?.transitions;
-        const shouldForceRefresh =
-          transitions &&
-          transitions.from?.type === PeriodType.OVERTIME &&
-          response.data?.base?.latestAttendance?.CheckOutTime;
+        // Validate response
+        if (response.data?.daily?.transitions) {
+          const currentStatus = {
+            state: response.data.base.state,
+            checkStatus: response.data.base.checkStatus,
+            isOvertime: response.data.base.periodInfo.isOvertime,
+            overtimeState: response.data.base.periodInfo.overtimeState,
+          };
 
-        if (shouldForceRefresh) {
-          await mutate(response.data, false);
+          const shouldForceRefresh =
+            StatusHelpers.isInOvertime(currentStatus) &&
+            response.data.base.latestAttendance?.CheckOutTime &&
+            response.data.daily.transitions.length > 0;
+
+          if (shouldForceRefresh) {
+            await mutate(response.data, false);
+          }
         }
 
-        return {
-          daily: {
-            ...response.data.daily,
-            // Ensure transitions is never undefined
-            transitions: response.data.daily.transitions || {
-              from: null,
-              to: null,
-              transitionTime: null,
-              isComplete: false,
-            },
-          },
-          base: response.data.base,
-          window: response.data.window,
-          validation: {
-            allowed: response.data.validation.allowed,
-            reason: response.data.validation.reason,
-            flags: {
-              ...response.data.validation.flags,
-              isPendingDayOffOvertime: false,
-              isPendingOvertime: false,
-              isOutsideShift: false,
-              isLate: false,
-              isEarly: false,
-              isEarlyCheckIn:
-                response.data.validation.periodValidation.currentPeriod
-                  .enhancement.isEarlyForPeriod,
-              isEarlyCheckOut: false,
-              isLateCheckIn: false,
-              isLateCheckOut:
-                response.data.validation.periodValidation.currentPeriod
-                  .enhancement.isLateForPeriod,
-              isVeryLateCheckOut: false,
-              isAutoCheckIn: false,
-              isAutoCheckOut: false,
-              isAfternoonShift: false,
-              isMorningShift: false,
-              isAfterMidshift: false,
-              isApprovedEarlyCheckout: false,
-              isPlannedHalfDayLeave: false,
-              isEmergencyLeave: false,
-              hasActivePeriod: false,
-              hasPendingTransition:
-                response.data.daily.transitions?.isComplete === false,
-              requiresAutoCompletion: false,
-              isHoliday: false,
-              isDayOff: false,
-              isManualEntry: false,
-            },
-            periodValidation: response.data.validation.periodValidation,
-          },
-          enhanced: response.data.enhanced,
-        };
+        return sanitizeResponse(response.data);
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 503) {
           console.error('Service temporarily unavailable:', error);
@@ -134,6 +86,30 @@ export function useAttendanceData({
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
       try {
+        // Validate state transition before making API call
+        if (data?.base) {
+          const currentStatus = {
+            state: data.base.state,
+            checkStatus: data.base.checkStatus,
+            isOvertime: data.base.periodInfo.isOvertime,
+            overtimeState: data.base.periodInfo.overtimeState,
+          };
+
+          if (params.isCheckIn && !StatusHelpers.canCheckIn(currentStatus)) {
+            throw new AppError({
+              code: ErrorCode.PROCESSING_ERROR,
+              message: 'Invalid check-in attempt',
+            });
+          }
+
+          if (!params.isCheckIn && !StatusHelpers.canCheckOut(currentStatus)) {
+            throw new AppError({
+              code: ErrorCode.PROCESSING_ERROR,
+              message: 'Invalid check-out attempt',
+            });
+          }
+        }
+
         const response = await axios.post<ProcessingResult>(
           '/api/attendance/check-in-out',
           {
@@ -170,8 +146,133 @@ export function useAttendanceData({
         throw handleAttendanceError(error);
       }
     },
-    [employeeId, lineUserId, locationState, mutate],
+    [employeeId, lineUserId, locationState, mutate, data],
   );
+
+  // Updated sanitizeResponse to handle new structure
+  const sanitizeResponse = (data: any): AttendanceStatusResponse => {
+    // Handle daily state
+    const daily = {
+      date: data.daily.date,
+      currentState: sanitizePeriodState(data.daily.currentState),
+      transitions: Array.isArray(data.daily.transitions)
+        ? data.daily.transitions
+        : [],
+    };
+
+    // Handle base response
+    const base = {
+      ...data.base,
+      validation: {
+        canCheckIn: Boolean(data.base.validation?.canCheckIn),
+        canCheckOut: Boolean(data.base.validation?.canCheckOut),
+        message: data.base.validation?.message || '',
+      },
+      metadata: {
+        lastUpdated:
+          data.base.metadata?.lastUpdated || getCurrentTime().toISOString(),
+        version: data.base.metadata?.version || 1,
+        source: data.base.metadata?.source || 'system',
+      },
+    };
+
+    // Handle context
+    const context: ShiftContext & TransitionContext = {
+      shift: {
+        id: data.context?.shift?.id || '',
+        shiftCode: data.context?.shift?.shiftCode || '',
+        name: data.context?.shift?.name || '',
+        startTime: data.context?.shift?.startTime || '',
+        endTime: data.context?.shift?.endTime || '',
+        workDays: Array.isArray(data.context?.shift?.workDays)
+          ? data.context.shift.workDays
+          : [],
+      },
+      schedule: {
+        isHoliday: Boolean(data.context?.schedule?.isHoliday),
+        isDayOff: Boolean(data.context?.schedule?.isDayOff),
+        isAdjusted: Boolean(data.context?.schedule?.isAdjusted),
+        holidayInfo: data.context?.schedule?.holidayInfo,
+      },
+      nextPeriod: data.context?.nextPeriod || null,
+      transition: data.context?.transition,
+    };
+
+    // Handle validation
+    const validation: StateValidation = {
+      allowed: Boolean(data.validation?.allowed),
+      reason: data.validation?.reason || '',
+      flags: {
+        hasActivePeriod: Boolean(data.validation?.flags?.hasActivePeriod),
+        isInsideShift: Boolean(data.validation?.flags?.isInsideShift),
+        isOutsideShift: Boolean(data.validation?.flags?.isOutsideShift),
+        isEarlyCheckIn: Boolean(data.validation?.flags?.isEarlyCheckIn),
+        isLateCheckIn: Boolean(data.validation?.flags?.isLateCheckIn),
+        isEarlyCheckOut: Boolean(data.validation?.flags?.isEarlyCheckOut),
+        isLateCheckOut: Boolean(data.validation?.flags?.isLateCheckOut),
+        isVeryLateCheckOut: Boolean(data.validation?.flags?.isVeryLateCheckOut),
+        isOvertime: Boolean(data.validation?.flags?.isOvertime),
+        isPendingOvertime: Boolean(data.validation?.flags?.isPendingOvertime),
+        isDayOffOvertime: Boolean(data.validation?.flags?.isDayOffOvertime),
+        isAutoCheckIn: Boolean(data.validation?.flags?.isAutoCheckIn),
+        isAutoCheckOut: Boolean(data.validation?.flags?.isAutoCheckOut),
+        requiresAutoCompletion: Boolean(
+          data.validation?.flags?.requiresAutoCompletion,
+        ),
+        hasPendingTransition: daily.transitions.length > 0,
+        requiresTransition: Boolean(data.validation?.flags?.requiresTransition),
+        isAfternoonShift: Boolean(data.validation?.flags?.isAfternoonShift),
+        isMorningShift: Boolean(data.validation?.flags?.isMorningShift),
+        isAfterMidshift: Boolean(data.validation?.flags?.isAfterMidshift),
+        isApprovedEarlyCheckout: Boolean(
+          data.validation?.flags?.isApprovedEarlyCheckout,
+        ),
+        isPlannedHalfDayLeave: Boolean(
+          data.validation?.flags?.isPlannedHalfDayLeave,
+        ),
+        isEmergencyLeave: Boolean(data.validation?.flags?.isEmergencyLeave),
+        isHoliday: Boolean(data.validation?.flags?.isHoliday),
+        isDayOff: Boolean(data.validation?.flags?.isDayOff),
+        isManualEntry: Boolean(data.validation?.flags?.isManualEntry),
+      },
+      metadata: data.validation?.metadata,
+    };
+
+    return {
+      daily,
+      base,
+      context,
+      validation,
+    };
+  };
+
+  // Helper to sanitize period state
+  const sanitizePeriodState = (state: any): UnifiedPeriodState => {
+    if (!state) return {} as UnifiedPeriodState;
+
+    return {
+      type: state.type,
+      timeWindow: {
+        start: state.timeWindow?.start || '',
+        end: state.timeWindow?.end || '',
+      },
+      activity: {
+        isActive: Boolean(state.activity?.isActive),
+        checkIn: state.activity?.checkIn || null,
+        checkOut: state.activity?.checkOut || null,
+        isOvertime: Boolean(state.activity?.isOvertime),
+        isDayOffOvertime: Boolean(state.activity?.isDayOffOvertime),
+        isInsideShiftHours: Boolean(state.activity?.isInsideShiftHours),
+      },
+      validation: {
+        isWithinBounds: Boolean(state.validation?.isWithinBounds),
+        isEarly: Boolean(state.validation?.isEarly),
+        isLate: Boolean(state.validation?.isLate),
+        isOvernight: Boolean(state.validation?.isOvernight),
+        isConnected: Boolean(state.validation?.isConnected),
+      },
+    };
+  };
 
   const refreshAttendanceStatus = useCallback(
     async (options?: { forceRefresh?: boolean; throwOnError?: boolean }) => {
@@ -187,6 +288,11 @@ export function useAttendanceData({
           revalidate: true,
           throwOnError: options?.throwOnError,
         });
+      } catch (error) {
+        console.error('Error refreshing attendance status:', error);
+        if (options?.throwOnError) {
+          throw error;
+        }
       } finally {
         setIsRefreshing(false);
       }
@@ -199,7 +305,9 @@ export function useAttendanceData({
     error,
     isLoading: !data && !error,
     isRefreshing,
-    refreshAttendanceStatus,
+    refreshAttendanceStatus: Object.assign(refreshAttendanceStatus, {
+      mutate,
+    }),
     checkInOut,
     mutate,
   };

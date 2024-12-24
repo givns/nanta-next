@@ -1,7 +1,7 @@
 // pages/api/admin/leave-settings.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { cacheService } from '../../../../services/CacheService';
+import { cacheService } from '../../../../services/cache/CacheService';
 
 const prisma = new PrismaClient();
 

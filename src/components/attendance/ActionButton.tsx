@@ -1,80 +1,76 @@
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
 
-type AttendanceAction = {
-  type: 'check-in' | 'check-out';
-  period: {
-    type: 'regular' | 'overtime';
-    transition?: {
-      to: 'regular' | 'overtime';
-      at: Date;
-    };
+interface ActionButtonProps {
+  attendanceStatus: {
+    state: AttendanceState;
+    checkStatus: CheckStatus;
+    isOvertime: boolean;
+    overtimeState?: OvertimeState;
   };
-  timing?: {
-    plannedTime: Date;
-    isEarly?: boolean;
-    isLate?: boolean;
+  periodType: PeriodType;
+  periodWindow?: {
+    start: string;
+    end: string;
   };
-};
-
-interface ValidationState {
-  canProceed: boolean;
-  message?: string;
-  requireConfirmation?: boolean;
-  confirmationMessage?: string;
-  flags?: {
-    isAutoCheckIn?: boolean;
-    isCheckingIn?: boolean;
+  validation: {
+    canProceed: boolean;
+    message?: string;
+    requireConfirmation?: boolean;
+    confirmationMessage?: string;
   };
-}
-
-interface AttendanceActionButtonProps {
-  // Core attendance action context
-  action: AttendanceAction;
-
-  // Validation and requirements
-  validation: ValidationState;
-
-  // Device/System state
   systemState: {
     isReady: boolean;
     locationValid: boolean;
     error?: string;
   };
-
-  // Callbacks
+  transition?: {
+    targetType: PeriodType;
+    availableAt: Date | null; // Change to allow null since context.transition.to.start can be null
+  };
   onActionTriggered: () => void;
-  onTransitionInitiated?: () => void;
+  onTransitionRequested?: () => void;
 }
 
-export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
-  action,
+export const ActionButton: React.FC<ActionButtonProps> = ({
+  attendanceStatus,
+  periodType,
+  periodWindow,
   validation,
   systemState,
+  transition,
   onActionTriggered,
-  onTransitionInitiated,
+  onTransitionRequested,
 }) => {
+  // Is checking in if not currently checked in
+  const isCheckingIn = attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
+
   const buttonLabel = React.useMemo(() => {
     if (!systemState.isReady) return '...';
     if (!systemState.locationValid) return '!';
 
-    // Add check for post-overtime regular check-in
-    if (validation.flags?.isCheckingIn && action.period.type === 'regular') {
-      return 'IN';
+    if (isCheckingIn) {
+      return periodType === PeriodType.OVERTIME ? 'OT IN' : 'IN';
     }
 
-    switch (action.type) {
-      case 'check-in':
-        return action.period.type === 'overtime' ? 'IN' : 'IN';
-      case 'check-out':
-        if (action.period.transition?.to === 'regular') {
-          return 'IN';
-        }
-        return action.period.type === 'overtime' ? 'OUT' : 'OUT';
+    // Handle transition cases
+    if (
+      transition &&
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_OUT
+    ) {
+      return transition.targetType === PeriodType.OVERTIME ? 'START OT' : 'IN';
     }
-  }, [action, systemState, validation]);
+
+    return periodType === PeriodType.OVERTIME ? 'OT OUT' : 'OUT';
+  }, [attendanceStatus, periodType, systemState, transition, isCheckingIn]);
 
   const buttonStyle = React.useMemo(() => {
     const baseStyle =
@@ -84,18 +80,21 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
       return `${baseStyle} bg-gray-200 cursor-not-allowed`;
     }
 
-    // Styles based on period and action type
-    switch (action.period.type) {
-      case 'overtime':
-        return `${baseStyle} bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800`;
-      default:
-        return `${baseStyle} bg-red-600 hover:bg-red-700 active:bg-red-800`;
+    // Style based on period and state
+    if (
+      periodType === PeriodType.OVERTIME ||
+      transition?.targetType === PeriodType.OVERTIME
+    ) {
+      return `${baseStyle} bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800`;
     }
-  }, [action.period.type, systemState.isReady, validation.canProceed]);
+
+    return `${baseStyle} bg-red-600 hover:bg-red-700 active:bg-red-800`;
+  }, [periodType, systemState.isReady, validation.canProceed, transition]);
 
   const handleAction = React.useCallback(async () => {
     if (!validation.canProceed || !systemState.isReady) return;
 
+    // Handle confirmation if needed
     if (validation.requireConfirmation) {
       const confirmed = window.confirm(
         validation.confirmationMessage || 'Confirm action?',
@@ -103,30 +102,50 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
       if (!confirmed) return;
     }
 
-    if (action.period.transition && onTransitionInitiated) {
-      onTransitionInitiated();
+    // Handle transitions
+    if (
+      transition &&
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_OUT
+    ) {
+      if (onTransitionRequested) {
+        onTransitionRequested();
+        return;
+      }
     }
 
     onActionTriggered();
   }, [
     validation,
     systemState.isReady,
-    action,
+    transition,
+    attendanceStatus,
     onActionTriggered,
-    onTransitionInitiated,
+    onTransitionRequested,
   ]);
 
   return (
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
       {/* Status Messages */}
-      {(validation.message || systemState.error || action.timing) && (
+      {(validation.message || systemState.error || periodWindow) && (
         <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
           <div className="flex gap-2">
             <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-yellow-800">
               {systemState.error && <p>{systemState.error}</p>}
-              {validation.message && <p>{validation.message}</p>}
-              {action.timing && <div></div>}
+              {validation.message && (
+                <p className="whitespace-pre-line">{validation.message}</p>
+              )}
+              {periodWindow && !validation.message && !systemState.error && (
+                <p>
+                  {periodType === PeriodType.OVERTIME
+                    ? 'ช่วงเวลาทำงานล่วงเวลา'
+                    : 'ช่วงเวลาทำงานปกติ'}
+                  {`: ${format(parseISO(periodWindow.start), 'HH:mm')} - ${format(
+                    parseISO(periodWindow.end),
+                    'HH:mm',
+                  )} น.`}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -150,11 +169,20 @@ export const AttendanceActionButton: React.FC<AttendanceActionButtonProps> = ({
         </span>
       </button>
 
-      {/* Period Transition Indicator */}
-      {action.period.transition && (
+      {/* Period Transition Info */}
+      {transition && transition.availableAt && (
         <div className="mt-2 text-xs text-gray-500">
-          {`${action.period.transition.to === 'overtime' ? 'Overtime' : 'Regular shift'} 
-           at ${format(action.period.transition.at, 'HH:mm', { locale: th })}`}
+          {transition.targetType === PeriodType.OVERTIME ? (
+            <>
+              เริ่มทำงานล่วงเวลาเวลา{' '}
+              {format(transition.availableAt, 'HH:mm', { locale: th })} น.
+            </>
+          ) : (
+            <>
+              เริ่มกะปกติเวลา{' '}
+              {format(transition.availableAt, 'HH:mm', { locale: th })} น.
+            </>
+          )}
         </div>
       )}
     </div>

@@ -31,9 +31,9 @@ export interface HalfDayLeaveContext {
 
 export interface HolidayInfo {
   localName: string;
-  name: string;
   date: string;
 }
+
 export interface PrismaHoliday {
   id: string;
   name: string;

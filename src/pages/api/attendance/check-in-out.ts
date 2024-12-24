@@ -1,35 +1,50 @@
+// pages/api/attendance/check-in-out.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
-import { AttendanceService } from '@/services/Attendance/AttendanceService';
-import { initializeServices } from '../../../services/ServiceInitializer';
+import { PeriodType, PrismaClient, TimeEntryStatus } from '@prisma/client';
+import { initializeServices } from '@/services/ServiceInitializer';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { CACHE_CONSTANTS } from '@/types/attendance/base';
 import { getCurrentTime } from '@/utils/dateUtils';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
-import { AttendanceStatusInfo } from '@/types/attendance/status';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
-import { TimeEntry } from '@/types/attendance';
+import { AttendanceStateResponse, TimeEntry } from '@/types/attendance';
 
-// Initialize main service
+// Initialize services using ServiceInitializer
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const attendanceService = new AttendanceService(
-  prisma,
-  services.shiftService,
-  services.holidayService,
-  services.leaveService,
-  services.overtimeService,
-  services.notificationService,
-  services.timeEntryService,
-);
+const { attendanceService, notificationService } = services;
 
-// Caching
-const userCache = new Map<string, { data: any; timestamp: number }>();
+// Updated QueueResult interface
+interface QueueResult {
+  status: AttendanceStateResponse;
+  notificationSent: boolean;
+  message?: string;
+  success: boolean;
+  autoCompletedEntries?: {
+    regular?: TimeEntry;
+    overtime?: TimeEntry[];
+  };
+}
+
+interface CachedUserData {
+  employeeId: string;
+  lineUserId?: string | null; // Allow null
+}
+
+// Caching setup with typed data
+const userCache = new Map<
+  string,
+  {
+    data: CachedUserData;
+    timestamp: number;
+  }
+>();
+
 const processedRequests = new Map<
   string,
-  { timestamp: number; status: AttendanceStatusInfo }
+  { timestamp: number; status: AttendanceStateResponse }
 >();
 
 // Cache cleanup
@@ -47,22 +62,11 @@ setInterval(() => {
   }
 }, CACHE_CONSTANTS.CACHE_TIMEOUT);
 
-// types
-interface QueueResult {
-  status: AttendanceStatusInfo;
-  notificationSent: boolean;
-  message?: string;
-  success: boolean;
-  autoCompletedEntries?: {
-    regular?: TimeEntry;
-    overtime?: TimeEntry[];
-  };
-}
-
 // Helper Functions
 function getRequestKey(task: ProcessingOptions): string {
   return `${task.employeeId || task.lineUserId}-${task.checkTime}`;
 }
+
 async function getCachedUser(identifier: {
   employeeId?: string;
   lineUserId?: string;
@@ -142,9 +146,12 @@ async function processCheckInOut(
     const [processedAttendance, updatedStatus] = await Promise.all([
       attendanceService.processAttendance({
         ...task,
-        checkTime: serverTime, // Use server time
+        checkTime: serverTime.toISOString(), // Convert to ISO string
       }),
-      attendanceService.getLatestAttendanceStatus(task.employeeId!),
+      attendanceService.getAttendanceStatus(task.employeeId!, {
+        inPremises: true,
+        address: task.location?.address || '',
+      }),
     ]);
 
     if (!processedAttendance.success) {
@@ -154,7 +161,7 @@ async function processCheckInOut(
       });
     }
 
-    // Clear existing cache entries for this user
+    // Clear existing cache entries
     userCache.delete(task.employeeId || task.lineUserId!);
     processedRequests.delete(requestKey);
 
@@ -164,14 +171,13 @@ async function processCheckInOut(
       status: updatedStatus,
     });
 
-    // Handle all notifications here, after successful processing
+    // Handle notifications
     let notificationSent = false;
     if (task.lineUserId) {
       try {
         await Promise.allSettled([
-          // Base check-in/out notification
-          services.notificationService[
-            task.isCheckIn
+          notificationService[
+            task.activity.isCheckIn
               ? 'sendCheckInConfirmation'
               : 'sendCheckOutConfirmation'
           ](task.employeeId, task.lineUserId, serverTime),
@@ -179,7 +185,6 @@ async function processCheckInOut(
         notificationSent = true;
       } catch (notificationError) {
         console.error('Notification error:', notificationError);
-        // Don't fail the request if notifications fail
       }
     }
 
@@ -215,24 +220,156 @@ export default async function handler(
   }
 
   try {
-    console.log('Received request body:', req.body);
-
-    // Validate request data
     const validatedData = validateCheckInOutRequest(req.body);
 
-    // Process through queue with timeout
     const result = await Promise.race<QueueResult>([
       new Promise<QueueResult>((resolve, reject) => {
         checkInOutQueue.push(validatedData, (error, queueResult) => {
           if (error) reject(error);
           else if (queueResult) {
-            if (queueResult.status?.autoCompleted) {
+            const isAutoCompleted =
+              queueResult.status.validation.flags.requiresAutoCompletion;
+            if (isAutoCompleted) {
+              // Create regular time entry
+              const regular = queueResult.status.daily?.currentState?.timeWindow
+                ? {
+                    // Core identifiers
+                    id: 'auto-generated',
+                    employeeId: validatedData.employeeId!,
+                    date: new Date(),
+
+                    // Time fields
+                    startTime: new Date(
+                      queueResult.status.daily.currentState.timeWindow.start,
+                    ),
+                    endTime: new Date(
+                      queueResult.status.daily.currentState.timeWindow.end,
+                    ),
+
+                    // Status and type
+                    status: 'COMPLETED' as TimeEntryStatus,
+                    entryType: 'REGULAR' as PeriodType,
+
+                    // Duration tracking with separated hours
+                    hours: {
+                      regular: calculateRegularHours(
+                        new Date(
+                          queueResult.status.daily.currentState.timeWindow.start,
+                        ),
+                        new Date(
+                          queueResult.status.daily.currentState.timeWindow.end,
+                        ),
+                      ),
+                      overtime: 0,
+                    },
+
+                    // References
+                    attendanceId:
+                      queueResult.status.base.latestAttendance?.id || null,
+                    overtimeRequestId: null,
+
+                    // Timing statistics
+                    timing: {
+                      actualMinutesLate: calculateMinutesLate(
+                        new Date(
+                          queueResult.status.daily.currentState.timeWindow.start,
+                        ),
+                        new Date(
+                          queueResult.status.daily.currentState.timeWindow.end,
+                        ),
+                      ),
+                      isHalfDayLate: false,
+                    },
+
+                    // Metadata
+                    metadata: {
+                      createdAt: new Date(),
+                      updatedAt: new Date(),
+                      source: 'auto' as const,
+                      version: 1,
+                    },
+                  }
+                : undefined;
+
+              // Transform transitions to TimeEntry array for overtime
+              const overtime =
+                queueResult.status.daily?.transitions.map((transition) => {
+                  const startTime = new Date(transition.transitionTime);
+                  const endTime = null; // Overtime might not have ended yet
+                  const timeEntryId = `ot-${transition.from.periodIndex}`;
+
+                  return {
+                    // Core identifiers
+                    id: timeEntryId,
+                    employeeId: validatedData.employeeId!,
+                    date: new Date(),
+
+                    // Time fields
+                    startTime,
+                    endTime,
+
+                    // Status and type
+                    status: 'IN_PROGRESS' as TimeEntryStatus,
+                    entryType: 'OVERTIME' as PeriodType,
+
+                    // Duration tracking
+                    hours: {
+                      regular: 0,
+                      overtime: endTime
+                        ? calculateOvertimeHours(startTime, endTime)
+                        : 0,
+                    },
+
+                    // References
+                    attendanceId:
+                      queueResult.status.base.latestAttendance?.id || null,
+                    overtimeRequestId:
+                      queueResult.status.context?.nextPeriod?.overtimeInfo
+                        ?.id || null,
+
+                    // Timing statistics
+                    timing: {
+                      actualMinutesLate: 0, // Not applicable for overtime
+                      isHalfDayLate: false,
+                    },
+
+                    // Overtime specific data
+                    overtime: {
+                      metadata: {
+                        id: `otmeta-${timeEntryId}`,
+                        timeEntryId,
+                        isDayOffOvertime: Boolean(
+                          queueResult.status.context?.nextPeriod?.overtimeInfo
+                            ?.isDayOffOvertime,
+                        ),
+                        isInsideShiftHours: Boolean(
+                          queueResult.status.context?.nextPeriod?.overtimeInfo
+                            ?.isInsideShiftHours,
+                        ),
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                      },
+                      startReason: 'Auto-generated overtime entry',
+                      endReason: undefined,
+                      comments: 'Created during auto-completion',
+                    },
+
+                    // Entry metadata
+                    metadata: {
+                      createdAt: new Date(),
+                      updatedAt: new Date(),
+                      source: 'auto' as const,
+                      version: 1,
+                    },
+                  };
+                }) || [];
+
               resolve({
                 ...queueResult,
                 message: 'ระบบได้ทำการลงเวลาย้อนหลังให้เรียบร้อยแล้ว',
                 autoCompletedEntries: {
-                  regular: queueResult.status.regular,
-                  overtime: queueResult.status.overtime,
+                  regular,
+                  overtime,
                 },
               });
             } else {
@@ -264,15 +401,20 @@ export default async function handler(
       error.message?.includes('timeout')
     ) {
       try {
-        const user = await prisma.user.findUnique({
-          where: req.body.employeeId
-            ? { employeeId: req.body.employeeId }
-            : { lineUserId: req.body.lineUserId },
+        const user = await getCachedUser({
+          employeeId: req.body.employeeId,
+          lineUserId: req.body.lineUserId,
         });
 
         if (user) {
-          const currentStatus =
-            await attendanceService.getLatestAttendanceStatus(user.employeeId);
+          const currentStatus = await attendanceService.getAttendanceStatus(
+            user.employeeId,
+            {
+              inPremises: true,
+              address: '',
+            },
+          );
+
           if (currentStatus) {
             return res.status(200).json({
               success: true,
@@ -306,7 +448,6 @@ export default async function handler(
     }
 
     // Handle other errors
-    console.error('Handler error:', error);
     return res.status(500).json({
       error: ErrorCode.INTERNAL_ERROR,
       message:
@@ -314,10 +455,28 @@ export default async function handler(
       timestamp: getCurrentTime().toISOString(),
     });
   } finally {
-    try {
-      await prisma.$disconnect();
-    } catch (error) {
-      console.error('Error disconnecting from database:', error);
-    }
+    await prisma.$disconnect();
+  }
+
+  // Helper functions for calculations
+  function calculateRegularHours(startTime: Date, endTime: Date): number {
+    const diffInMilliseconds = endTime.getTime() - startTime.getTime();
+    // Convert milliseconds to hours with 2 decimal places
+    return Number((diffInMilliseconds / (1000 * 60 * 60)).toFixed(2));
+  }
+
+  function calculateOvertimeHours(startTime: Date, endTime: Date): number {
+    const diffInMilliseconds = endTime.getTime() - startTime.getTime();
+    // Convert milliseconds to hours with 2 decimal places
+    return Number((diffInMilliseconds / (1000 * 60 * 60)).toFixed(2));
+  }
+
+  function calculateMinutesLate(
+    expectedStart: Date,
+    actualStart: Date,
+  ): number {
+    if (actualStart <= expectedStart) return 0;
+    const diffInMilliseconds = actualStart.getTime() - expectedStart.getTime();
+    return Math.floor(diffInMilliseconds / (1000 * 60));
   }
 }

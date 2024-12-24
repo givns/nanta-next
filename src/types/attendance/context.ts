@@ -1,11 +1,16 @@
 // types/attendance/context.ts
 
 import { AttendanceRecord } from './records';
-import { TimeWindow, Location } from './base';
-import { HalfDayLeaveContext, LeaveRequest } from './leave';
-import { ApprovedOvertimeInfo, CurrentPeriodInfo, PeriodType } from './status';
+import { LeaveRequest } from './leave';
+import { ApprovedOvertimeInfo } from './status';
 import { ShiftData } from './shift';
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
+import { StateValidation, UnifiedPeriodState } from './state';
 
 export interface HolidayContext {
   isHoliday: boolean;
@@ -16,41 +21,44 @@ export interface HolidayContext {
   overtimeAllowed: boolean;
 }
 
-export interface AttendanceContext {
+export interface UnifiedAttendanceContext {
   // Core context
   attendance: AttendanceRecord;
   employeeId: string;
   date: Date;
 
-  // Time context
-  currentPeriod: CurrentPeriodInfo;
-  timeWindow: TimeWindow;
+  // State context
+  periodState: UnifiedPeriodState;
 
   // Status contexts
-  leaveContext: HalfDayLeaveContext;
-  overtimeContext?: OvertimeContext;
-  holidayContext?: HolidayContext;
+  leave?: {
+    type: string;
+    format: string;
+    startTime?: string;
+    endTime?: string;
+  };
+  overtime?: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    isDayOff: boolean;
+  };
+  holiday?: {
+    name: string;
+    type: string;
+  };
 
   // Location context
-  location?: Location;
-  address?: string;
+  location?: {
+    coordinates?: { lat: number; lng: number };
+    address?: string;
+  };
 
   // Validation context
-  validation: ValidationContext;
+  stateValidation: StateValidation;
 
   // Metadata
   metadata?: Record<string, unknown>;
-}
-
-export interface OvertimeContext {
-  bounds: {
-    plannedStartTime: Date;
-    plannedEndTime: Date;
-  };
-  metadata: {
-    isDayOffOvertime: boolean;
-    isInsideShiftHours: boolean;
-  };
 }
 
 export interface ValidationContext {

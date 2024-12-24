@@ -1,9 +1,12 @@
 import axios from 'axios';
-import { ProcessingOptions, AttendanceStatusInfo } from '../types/attendance';
+import {
+  AttendanceStateResponse,
+  ProcessingOptions,
+} from '../types/attendance';
 
 export const fetchLatestAttendanceStatus = async (
   employeeId: string,
-): Promise<AttendanceStatusInfo> => {
+): Promise<AttendanceStateResponse> => {
   const response = await axios.get(`/api/attendance?employeeId=${employeeId}`);
   return response.data;
 };

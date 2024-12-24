@@ -279,12 +279,7 @@ export default async function handler(
     const settings = convertSettings(rawSettings);
 
     // Initialize services
-    const holidayService = new HolidayService(prisma);
-    const payrollService = new PayrollCalculationService(
-      settings,
-      prisma,
-      holidayService,
-    );
+    const payrollService = new PayrollCalculationService(settings, prisma);
 
     // Map leave requests
     const mappedLeaveRequests = leaveRequests.map((leave) => ({

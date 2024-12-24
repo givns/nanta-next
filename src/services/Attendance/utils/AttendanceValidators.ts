@@ -5,7 +5,7 @@ import {
   ValidationResult,
   ValidationError,
   ProcessingOptions,
-  Location,
+  GeoLocation,
 } from '../../../types/attendance';
 
 export class AttendanceValidators {
@@ -34,7 +34,7 @@ export class AttendanceValidators {
     }
 
     // Overtime validation
-    if (options.isOvertime && !options.overtimeRequestId) {
+    if (options.activity.isOvertime && !options.metadata?.overtimeId) {
       errors.push({
         code: 'INVALID_OVERTIME',
         message: 'Overtime request ID is required for overtime attendance',
@@ -44,9 +44,34 @@ export class AttendanceValidators {
     }
 
     // Location validation if provided
-    if (options.location) {
-      const locationErrors = this.validateLocation(options.location);
-      errors.push(...locationErrors);
+    if (options.location?.coordinates) {
+      // Create a GeoLocation object with all required fields
+      const geoLocation: GeoLocation = {
+        lat: options.location.coordinates.latitude,
+        lng: options.location.coordinates.longitude,
+        latitude: options.location.coordinates.latitude,
+        longitude: options.location.coordinates.longitude,
+        accuracy: options.location.coordinates.accuracy,
+        timestamp: options.location.coordinates.timestamp,
+        provider: options.location.coordinates.provider,
+      };
+
+      // Only validate if we have both coordinates
+      if (
+        typeof geoLocation.lat === 'number' &&
+        typeof geoLocation.lng === 'number'
+      ) {
+        const locationErrors = this.validateLocation(geoLocation);
+        errors.push(...locationErrors);
+      } else {
+        // Push error if coordinates are missing or invalid
+        errors.push({
+          code: 'INVALID_COORDINATES',
+          message: 'Invalid or missing coordinates',
+          severity: 'error',
+          timestamp: new Date(),
+        });
+      }
     }
 
     return {
@@ -62,11 +87,13 @@ export class AttendanceValidators {
     };
   }
 
-  static validateLocation(location: Location): ValidationError[] {
+  static validateLocation(location: GeoLocation): ValidationError[] {
     const errors: ValidationError[] = [];
 
+    // Validate latitude
     if (
       typeof location.lat !== 'number' ||
+      isNaN(location.lat) ||
       location.lat < -90 ||
       location.lat > 90
     ) {
@@ -78,8 +105,10 @@ export class AttendanceValidators {
       });
     }
 
+    // Validate longitude
     if (
       typeof location.lng !== 'number' ||
+      isNaN(location.lng) ||
       location.lng < -180 ||
       location.lng > 180
     ) {
@@ -91,11 +120,34 @@ export class AttendanceValidators {
       });
     }
 
-    return errors;
-  }
+    // Optional but if provided, validate accuracy
+    if (
+      location.accuracy !== undefined &&
+      (typeof location.accuracy !== 'number' ||
+        isNaN(location.accuracy) ||
+        location.accuracy < 0)
+    ) {
+      errors.push({
+        code: 'INVALID_ACCURACY',
+        message: 'Invalid accuracy value',
+        severity: 'error',
+        timestamp: new Date(),
+      });
+    }
 
-  /** @deprecated Use validateProcessingOptions instead */
-  static validateAttendanceInput(input: any): ValidationResult {
-    return this.validateProcessingOptions(input);
+    // Validate consistency between lat/lng and latitude/longitude
+    if (
+      location.lat !== location.latitude ||
+      location.lng !== location.longitude
+    ) {
+      errors.push({
+        code: 'INCONSISTENT_COORDINATES',
+        message: 'Inconsistent coordinate values',
+        severity: 'error',
+        timestamp: new Date(),
+      });
+    }
+
+    return errors;
   }
 }

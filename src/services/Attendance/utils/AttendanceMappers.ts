@@ -2,19 +2,25 @@
 
 import { UserData } from '../../../types/user';
 import {
-  AttendanceCompositeStatus,
   AttendanceRecord,
   TimeEntry,
-  OvertimeEntry,
-  PeriodType,
-  TimeEntryStatus,
-  LatestAttendanceResponse,
+  SerializedAttendanceRecord,
+  PrismaTimeEntry,
+  UnifiedPeriodState,
+  AttendanceCompositeStatus,
+  GeoLocationJson,
 } from '../../../types/attendance';
-import { AttendanceNormalizers } from './AttendanceNormalizers';
-import { format } from 'date-fns';
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeEntry,
+  OvertimeState,
+} from '@prisma/client';
 
 export class AttendanceMappers {
+  static toLatestAttendance(attendance: any) {
+    throw new Error('Method not implemented.');
+  }
   static toUserData(user: any): UserData {
     return {
       employeeId: user.employeeId,
@@ -36,109 +42,233 @@ export class AttendanceMappers {
 
   static toAttendanceRecord(dbAttendance: any): AttendanceRecord | null {
     if (!dbAttendance) return null;
-    try {
-      return {
-        id: dbAttendance.id,
-        employeeId: dbAttendance.employeeId,
-        date: new Date(dbAttendance.date),
-        state: AttendanceNormalizers.normalizeAttendanceState(
-          dbAttendance.state,
-        ),
-        checkStatus: AttendanceNormalizers.normalizeCheckStatus(
-          dbAttendance.checkStatus,
-        ),
-        isOvertime: dbAttendance.isOvertime || false,
-        type: dbAttendance.isOvertime
-          ? PeriodType.OVERTIME
-          : PeriodType.REGULAR,
-        overtimeState: AttendanceNormalizers.normalizeOvertimeState(
-          dbAttendance.overtimeState,
-        ),
-        overtimeId: dbAttendance.overtimeId,
-
-        // Add missing fields
-        shiftStartTime: dbAttendance.shiftStartTime
-          ? new Date(dbAttendance.shiftStartTime)
-          : null,
-        shiftEndTime: dbAttendance.shiftEndTime
-          ? new Date(dbAttendance.shiftEndTime)
-          : null,
-        CheckInTime: dbAttendance.CheckInTime
-          ? new Date(dbAttendance.CheckInTime)
-          : null,
-        CheckOutTime: dbAttendance.CheckOutTime
-          ? new Date(dbAttendance.CheckOutTime)
-          : null,
-
-        isEarlyCheckIn: dbAttendance.isEarlyCheckIn || false,
-        isLateCheckIn: dbAttendance.isLateCheckIn || false,
-        isLateCheckOut: dbAttendance.isLateCheckOut || false,
-        isVeryLateCheckOut: dbAttendance.isVeryLateCheckOut || false,
-        lateCheckOutMinutes: dbAttendance.lateCheckOutMinutes || 0,
-
-        // Safely handle location data
-        checkInLocation: this.safeParseLocation(dbAttendance.checkInLocation),
-        checkOutLocation: this.safeParseLocation(dbAttendance.checkOutLocation),
-        checkInAddress: dbAttendance.checkInAddress || null,
-        checkOutAddress: dbAttendance.checkOutAddress || null,
-
-        isManualEntry: dbAttendance.isManualEntry || false,
-        isDayOff: dbAttendance.isDayOff || false,
-
-        timeEntries: (dbAttendance.timeEntries || []).map(this.mapTimeEntry),
-        overtimeEntries: (dbAttendance.overtimeEntries || []).map(
-          this.mapOvertimeEntry,
-        ),
-
-        createdAt: new Date(dbAttendance.createdAt),
-        updatedAt: new Date(dbAttendance.updatedAt),
-      };
-    } catch (error) {
-      console.error('Error mapping attendance record:', error);
-      console.error('Problem attendance data:', dbAttendance);
-      throw error;
-    }
-  }
-
-  static toLatestAttendance(
-    attendance: AttendanceRecord | null,
-  ): LatestAttendanceResponse | null {
-    if (!attendance) return null;
 
     return {
-      id: attendance.id,
-      employeeId: attendance.employeeId,
-      date: format(attendance.date, 'yyyy-MM-dd'),
-      CheckInTime: attendance.CheckInTime
-        ? format(attendance.CheckInTime, 'HH:mm:ss')
+      // Core identifiers
+      id: dbAttendance.id,
+      employeeId: dbAttendance.employeeId,
+      date: new Date(dbAttendance.date),
+
+      // Core status
+      state: dbAttendance.state,
+      checkStatus: dbAttendance.checkStatus,
+      type: dbAttendance.type,
+
+      // Overtime information
+      isOvertime: dbAttendance.isOvertime,
+      overtimeState: dbAttendance.overtimeState,
+      overtimeId: dbAttendance.overtimeId,
+      overtimeDuration: dbAttendance.overtimeDuration,
+
+      // Time fields
+      shiftStartTime: dbAttendance.shiftStartTime
+        ? new Date(dbAttendance.shiftStartTime)
         : null,
-      CheckOutTime: attendance.CheckOutTime
-        ? format(attendance.CheckOutTime, 'HH:mm:ss')
+      shiftEndTime: dbAttendance.shiftEndTime
+        ? new Date(dbAttendance.shiftEndTime)
         : null,
-      state: attendance.state,
-      checkStatus: attendance.checkStatus,
-      overtimeState: attendance.overtimeState,
-      isManualEntry: attendance.isManualEntry,
-      isDayOff: false, // Since isDayOff is not in AttendanceRecord
-      shiftStartTime: attendance.shiftStartTime
-        ? format(attendance.shiftStartTime, 'HH:mm:ss')
-        : undefined,
-      shiftEndTime: attendance.shiftEndTime
-        ? format(attendance.shiftEndTime, 'HH:mm:ss')
-        : undefined,
-      periodType: attendance.type,
-      isOvertime: attendance.isOvertime,
-      overtimeId: attendance.overtimeId,
-      timeEntries: attendance.timeEntries.map((entry) => ({
-        id: entry.id,
-        startTime: format(entry.startTime, 'HH:mm:ss'),
-        endTime: entry.endTime ? format(entry.endTime, 'HH:mm:ss') : null,
-        type: entry.entryType,
-      })),
+      CheckInTime: dbAttendance.CheckInTime
+        ? new Date(dbAttendance.CheckInTime)
+        : null,
+      CheckOutTime: dbAttendance.CheckOutTime
+        ? new Date(dbAttendance.CheckOutTime)
+        : null,
+
+      // Status flags
+      checkTiming: {
+        isEarlyCheckIn: dbAttendance.checkTiming?.isEarlyCheckIn || false,
+        isLateCheckIn: dbAttendance.checkTiming?.isLateCheckIn || false,
+        isLateCheckOut: dbAttendance.checkTiming?.isLateCheckOut || false,
+        isVeryLateCheckOut:
+          dbAttendance.checkTiming?.isVeryLateCheckOut || false,
+        lateCheckOutMinutes: dbAttendance.checkTiming?.lateCheckOutMinutes || 0,
+      },
+
+      // Location data
+      location: {
+        ...((dbAttendance.location?.checkInCoordinates ||
+          dbAttendance.location?.checkInAddress) && {
+          checkIn: {
+            coordinates: this.parseLocation(
+              dbAttendance.location.checkInCoordinates,
+            ),
+            address: dbAttendance.location.checkInAddress || null,
+          },
+        }),
+        ...((dbAttendance.location?.checkOutCoordinates ||
+          dbAttendance.location?.checkOutAddress) && {
+          checkOut: {
+            coordinates: this.parseLocation(
+              dbAttendance.location.checkOutCoordinates,
+            ),
+            address: dbAttendance.location.checkOutAddress || null,
+          },
+        }),
+      },
+
+      // Related entries
+      overtimeEntries: (dbAttendance.overtimeEntries || []).map(
+        this.mapOvertimeEntry,
+      ),
+      timeEntries: (dbAttendance.timeEntries || []).map(this.mapTimeEntry),
+
+      // Metadata
+      metadata: {
+        isManualEntry: dbAttendance.metadata?.isManualEntry || false,
+        isDayOff: dbAttendance.metadata?.isDayOff || false,
+        createdAt: new Date(
+          dbAttendance.metadata?.createdAt || dbAttendance.createdAt,
+        ),
+        updatedAt: new Date(
+          dbAttendance.metadata?.updatedAt || dbAttendance.updatedAt,
+        ),
+        source: dbAttendance.metadata?.source || 'system',
+      },
     };
   }
 
-  private static mapOvertimeEntry(entry: any): OvertimeEntry {
+  private static parseLocation(data: any): GeoLocationJson | null {
+    if (!data) return null;
+
+    try {
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+      if (
+        !parsed ||
+        typeof parsed.lat !== 'number' ||
+        typeof parsed.lng !== 'number' ||
+        typeof parsed.latitude !== 'number' ||
+        typeof parsed.longitude !== 'number'
+      ) {
+        return null;
+      }
+
+      const location: GeoLocationJson = {
+        lat: parsed.lat,
+        lng: parsed.lng,
+        latitude: parsed.latitude,
+        longitude: parsed.longitude,
+        accuracy: parsed.accuracy, // Add the missing property 'accuracy'
+      };
+
+      if (parsed.timestamp) {
+        location.timestamp = new Date(parsed.timestamp).toISOString(); // Convert Date to string
+      }
+
+      if (typeof parsed.provider === 'string') {
+        location.provider = parsed.provider;
+      }
+
+      return location;
+    } catch (error) {
+      console.warn('Failed to parse location:', error);
+      return null;
+    }
+  }
+
+  static toSerializedAttendanceRecord(
+    record: AttendanceRecord,
+  ): SerializedAttendanceRecord {
+    return {
+      // Core identifiers
+      id: record.id,
+      employeeId: record.employeeId,
+      date: record.date.toISOString(),
+
+      // Core status (remains the same)
+      state: record.state,
+      checkStatus: record.checkStatus,
+      type: record.type,
+
+      // Overtime information (remains the same)
+      isOvertime: record.isOvertime,
+      overtimeState: record.overtimeState,
+      overtimeId: record.overtimeId,
+      overtimeDuration: record.overtimeDuration,
+
+      // Time fields (convert to ISO strings)
+      shiftStartTime: record.shiftStartTime?.toISOString() || null,
+      shiftEndTime: record.shiftEndTime?.toISOString() || null,
+      CheckInTime: record.CheckInTime?.toISOString() || null,
+      CheckOutTime: record.CheckOutTime?.toISOString() || null,
+
+      // Status flags (direct copy)
+      checkTiming: record.checkTiming,
+
+      // Location data (direct copy)
+      location: {
+        checkIn: {
+          coordinates: record.location.checkIn?.coordinates || null,
+          address: record.location.checkIn?.address || null,
+        },
+        checkOut: {
+          coordinates: record.location.checkOut?.coordinates || null,
+          address: record.location.checkOut?.address || null,
+        },
+      },
+
+      // Time entries (serialize dates)
+      timeEntries: record.timeEntries.map((entry) => ({
+        id: entry.id,
+        startTime: entry.startTime.toISOString(),
+        endTime: entry.endTime?.toISOString() || null,
+        type: entry.entryType,
+      })),
+
+      // Metadata (serialize dates)
+      metadata: {
+        ...record.metadata,
+        createdAt: record.metadata.createdAt.toISOString(),
+        updatedAt: record.metadata.updatedAt.toISOString(),
+      },
+    };
+  }
+
+  static mapTimeEntry(prismaTimeEntry: PrismaTimeEntry): TimeEntry {
+    return {
+      id: prismaTimeEntry.id,
+      employeeId: prismaTimeEntry.employeeId,
+      date: prismaTimeEntry.date,
+      startTime: prismaTimeEntry.startTime,
+      endTime: prismaTimeEntry.endTime,
+      status: prismaTimeEntry.status,
+      entryType: prismaTimeEntry.entryType,
+
+      // Parse JSON fields
+      hours: JSON.parse(prismaTimeEntry.hours as string),
+      attendanceId: prismaTimeEntry.attendanceId,
+      overtimeRequestId: prismaTimeEntry.overtimeRequestId,
+
+      timing: JSON.parse(prismaTimeEntry.timing as string),
+
+      overtime: prismaTimeEntry.overtime
+        ? JSON.parse(prismaTimeEntry.overtime as string)
+        : undefined,
+
+      metadata: JSON.parse(prismaTimeEntry.metadata as string),
+    };
+  }
+
+  static toPrismaCreateInput(timeEntry: TimeEntry) {
+    return {
+      id: timeEntry.id,
+      employeeId: timeEntry.employeeId,
+      date: timeEntry.date,
+      startTime: timeEntry.startTime,
+      endTime: timeEntry.endTime,
+      status: timeEntry.status,
+      entryType: timeEntry.entryType,
+
+      hours: JSON.stringify(timeEntry.hours),
+      timing: JSON.stringify(timeEntry.timing),
+      overtime: timeEntry.overtime
+        ? JSON.stringify(timeEntry.overtime)
+        : undefined,
+      metadata: JSON.stringify(timeEntry.metadata),
+    };
+  }
+
+  static mapOvertimeEntry(entry: any): OvertimeEntry {
     return {
       id: entry.id,
       attendanceId: entry.attendanceId,
@@ -147,45 +277,42 @@ export class AttendanceMappers {
         ? new Date(entry.actualStartTime)
         : null,
       actualEndTime: entry.actualEndTime ? new Date(entry.actualEndTime) : null,
-      isDayOffOvertime: entry.isDayOffOvertime || false,
-      isInsideShiftHours: entry.isInsideShiftHours || false,
       createdAt: new Date(entry.createdAt),
       updatedAt: new Date(entry.updatedAt),
     };
   }
 
-  private static mapTimeEntry(entry: any): TimeEntry {
+  // Helper method to create UnifiedPeriodState
+  static toUnifiedPeriodState(
+    record: AttendanceRecord,
+    now: Date,
+  ): UnifiedPeriodState {
     return {
-      id: entry.id,
-      employeeId: entry.employeeId,
-      date: new Date(entry.date),
-      startTime: new Date(entry.startTime),
-      endTime: entry.endTime ? new Date(entry.endTime) : null,
-      status: entry.status || TimeEntryStatus.IN_PROGRESS,
-      entryType: entry.entryType || PeriodType.REGULAR,
-      regularHours: entry.regularHours || 0,
-      overtimeHours: entry.overtimeHours || 0,
-      attendanceId: entry.attendanceId,
-      overtimeRequestId: entry.overtimeRequestId,
-      actualMinutesLate: entry.actualMinutesLate || 0,
-      isHalfDayLate: entry.isHalfDayLate || false,
-      overtimeMetadata: entry.overtimeMetadata,
-      createdAt: new Date(entry.createdAt),
-      updatedAt: new Date(entry.updatedAt),
+      type: record.type,
+      timeWindow: {
+        start: record.shiftStartTime?.toISOString() || '',
+        end: record.shiftEndTime?.toISOString() || '',
+      },
+      activity: {
+        isActive: Boolean(record.CheckInTime && !record.CheckOutTime),
+        checkIn: record.CheckInTime?.toISOString() || null,
+        checkOut: record.CheckOutTime?.toISOString() || null,
+        isOvertime: record.isOvertime,
+        overtimeId: record.overtimeId,
+        isDayOffOvertime: record.metadata.isDayOff,
+      },
+      validation: {
+        isWithinBounds:
+          record.checkTiming.isEarlyCheckIn === false &&
+          record.checkTiming.isLateCheckOut === false,
+        isEarly: record.checkTiming.isEarlyCheckIn,
+        isLate: record.checkTiming.isLateCheckIn,
+        isOvernight: record.shiftEndTime
+          ? record.shiftEndTime < record.shiftStartTime!
+          : false,
+        isConnected: false, // This should be determined by service logic
+      },
     };
-  }
-
-  private static safeParseLocation(location: any): any {
-    if (!location) return null;
-
-    if (typeof location === 'string') {
-      try {
-        return JSON.parse(location);
-      } catch (error) {
-        console.warn('Failed to parse location string:', location);
-        return null;
-      }
-    }
   }
 
   static toCompositeStatus(

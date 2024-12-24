@@ -1,5 +1,12 @@
 //TimeEntryService
-import { PrismaClient, Prisma, TimeEntry, LeaveRequest } from '@prisma/client';
+import {
+  PrismaClient,
+  Prisma,
+  TimeEntry,
+  LeaveRequest,
+  PeriodType,
+  TimeEntryStatus,
+} from '@prisma/client';
 import {
   addDays,
   addHours,
@@ -9,19 +16,13 @@ import {
   isSameDay,
   max,
   min,
-  parseISO,
-  subMinutes,
-  isBefore,
-  isAfter,
 } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
 import { NotificationService } from './NotificationService';
-import { cacheService } from './CacheService';
+import { cacheService } from './cache/CacheService';
 import {
   ApprovedOvertimeInfo,
-  PeriodType,
   StatusUpdateResult,
-  TimeEntryStatus,
   ProcessingOptions,
   AttendanceRecord,
   ShiftData,
@@ -84,10 +85,6 @@ export class TimeEntryService {
     regular?: TimeEntry;
     overtime?: TimeEntry[];
   }> {
-    if (process.env.NODE_ENV === 'test') {
-      return this.getTestTimeEntry(attendance);
-    }
-
     try {
       // Pre-fetch all necessary data
       const [overtimeRequest, leaveRequests, shift] = await Promise.all([
@@ -151,7 +148,10 @@ export class TimeEntryService {
     const { overtimeRequest, leaveRequests } = context;
 
     // Handle auto-completion case
-    if (options.requireConfirmation && options.overtimeMissed) {
+    if (
+      options.activity.requireConfirmation &&
+      options.activity.overtimeMissed
+    ) {
       // First handle regular checkout
       const regularEntry = await this.handleRegularEntry(
         tx,
@@ -187,12 +187,12 @@ export class TimeEntryService {
     }
 
     // Existing logic for normal cases
-    if (options.isOvertime && overtimeRequest) {
+    if (options.activity.isOvertime && overtimeRequest) {
       const overtimeEntry = await this.handleOvertimeEntry(
         tx,
         attendance,
         overtimeRequest,
-        options.isCheckIn,
+        options.activity.isCheckIn,
       );
       return { overtime: [overtimeEntry] };
     }
@@ -200,7 +200,7 @@ export class TimeEntryService {
     const regularEntry = await this.handleRegularEntry(
       tx,
       attendance,
-      options.isCheckIn,
+      options.activity.isCheckIn,
       leaveRequests,
       context.shift,
     );
@@ -225,7 +225,7 @@ export class TimeEntryService {
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
         attendanceId: attendance.id,
-        entryType: 'regular',
+        entryType: PeriodType.REGULAR,
       },
     });
 
@@ -259,7 +259,11 @@ export class TimeEntryService {
     leaveRequests: LeaveRequest[],
   ) {
     try {
-      if (options.isCheckIn && !options.isOvertime && result.regular) {
+      if (
+        options.activity.isCheckIn &&
+        !options.activity.isOvertime &&
+        result.regular
+      ) {
         if (shift?.effectiveShift) {
           const shiftStart = this.parseShiftTime(
             shift.effectiveShift.startTime,
@@ -299,7 +303,7 @@ export class TimeEntryService {
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
         attendanceId: attendance.id,
-        entryType: 'overtime',
+        entryType: PeriodType.OVERTIME,
       },
       include: { overtimeMetadata: true },
     });
@@ -344,9 +348,7 @@ export class TimeEntryService {
       endTime: attendance.CheckOutTime || null,
       regularHours: 0,
       overtimeHours,
-      status: isCheckIn
-        ? TimeEntryStatus.IN_PROGRESS
-        : TimeEntryStatus.COMPLETED,
+      status: isCheckIn ? TimeEntryStatus.STARTED : TimeEntryStatus.COMPLETED,
       entryType: 'overtime' as const,
       overtimeMetadata: {
         isDayOffOvertime: overtimeRequest.isDayOffOvertime,
@@ -419,10 +421,8 @@ export class TimeEntryService {
       overtimeHours: 0,
       actualMinutesLate: metrics.minutesLate,
       isHalfDayLate: metrics.isHalfDayLate,
-      status: isCheckIn
-        ? TimeEntryStatus.IN_PROGRESS
-        : TimeEntryStatus.COMPLETED,
-      entryType: 'regular' as const,
+      status: isCheckIn ? TimeEntryStatus.STARTED : TimeEntryStatus.COMPLETED,
+      entryType: PeriodType.REGULAR,
     };
   }
 
@@ -570,7 +570,7 @@ export class TimeEntryService {
     }
   }
 
-  private calculateWorkingHours(
+  public calculateWorkingHours(
     checkInTime: Date,
     checkOutTime: Date | null,
     shiftStart: Date,

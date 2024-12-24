@@ -8,11 +8,10 @@ import { AttendanceFilters, DateRange } from '@/types/attendance/utils';
 import { ManualEntryRequest } from '@/types/attendance/manual';
 import {
   DailyAttendanceRecord,
-  PeriodType,
   UseDailyAttendanceProps,
   UseDailyAttendanceReturn,
 } from '@/types/attendance';
-import { AttendanceState } from '@prisma/client';
+import { AttendanceState, PeriodType } from '@prisma/client';
 
 export function useDailyAttendance({
   lineUserId,

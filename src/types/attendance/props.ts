@@ -1,22 +1,30 @@
 import {
   AttendanceFilters,
-  AttendanceResponse,
   AttendanceStateResponse,
-  CheckInOutAllowance,
+  AttendanceStatusResponse,
   DailyAttendanceRecord,
   DepartmentInfo,
   EarlyCheckoutType,
+  HolidayInfo,
   ManualEntryRequest,
+  OvertimeContext,
+  PeriodTransition,
+  ProcessingResult,
+  ShiftContext,
   ShiftData,
+  StateValidation,
+  TransitionContext,
+  UnifiedPeriodState,
   UserData,
-  ValidationResponse,
 } from '../attendance';
-import { ProcessingResult } from './processing';
-import { AttendanceStatusInfo, CurrentPeriodInfo, PeriodType } from './status';
 import { KeyedMutator } from 'swr';
-import { LocationState } from './base';
-import { OvertimeContext } from './overtime';
-import { AttendanceState, CheckStatus, OvertimeState } from '@prisma/client';
+import { AttendanceBaseResponse, LocationState } from './base';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
 
 export interface StatusChangeParams {
   isCheckingIn: boolean;
@@ -57,22 +65,8 @@ export interface AttendanceControlProps {
 export interface UseSimpleAttendanceProps {
   employeeId?: string;
   lineUserId?: string | null; // Changed to allow null
-  initialAttendanceStatus?: AttendanceStateResponse | null; // Changed to match API response
+  initialAttendanceStatus?: AttendanceStatusResponse; // Changed to match API response
   enabled?: boolean;
-}
-
-export interface UseSimpleAttendanceState {
-  attendanceStatus: AttendanceStatusInfo | null;
-  state: AttendanceState;
-  checkStatus: CheckStatus;
-  effectiveShift: ShiftData;
-  currentPeriod: CurrentPeriodInfo | null;
-  locationReady: boolean; // Added missing property
-  inPremises: boolean;
-  address: string;
-  isLoading: boolean;
-  error: string | null;
-  checkInOutAllowance: CheckInOutAllowance | null;
 }
 
 export interface CheckInOutData {
@@ -82,34 +76,32 @@ export interface CheckInOutData {
   checkTime: string;
   isCheckIn: boolean;
   address: string;
-  inPremises: boolean; // Added required field
-  confidence: 'high' | 'medium' | 'low' | 'manual'; // Added 'manual' option
-  entryType: PeriodType;
+  inPremises: boolean;
+  confidence: 'high' | 'medium' | 'low' | 'manual';
+  periodType: PeriodType;
 
   // Optional fields
   photo?: string;
   reason?: string;
   isOvertime?: boolean;
-  isManualEntry?: boolean; // Added optional field
-  overtimeRequestId?: string; // Added for overtime validation
-  earlyCheckoutType?: 'planned' | 'emergency';
-  isLate?: boolean;
-  state?: AttendanceState; // Added optional field
-  checkStatus?: CheckStatus; // Added optional field
-  overtimeState?: OvertimeState; // Added optional field
+  isManualEntry?: boolean;
+  overtimeId?: string;
 
   // Location data
   location?: {
-    lat: number;
-    lng: number;
+    coordinates: {
+      lat: number;
+      lng: number;
+    };
+    address: string;
   };
 
   // Metadata
   metadata?: {
-    overtimeId?: string;
-    isDayOffOvertime?: boolean;
-    isInsideShiftHours?: boolean;
-    [key: string]: unknown; // Allow additional metadata
+    source: 'system' | 'manual' | 'auto';
+    earlyCheckoutType?: 'planned' | 'emergency';
+    isLate?: boolean;
+    [key: string]: unknown;
   };
 }
 
@@ -121,32 +113,30 @@ export interface CheckInOutFormProps {
 export interface ProcessingViewProps {
   status: 'idle' | 'loading' | 'success' | 'error';
   message: string;
+  metadata?: {
+    nextAction?: string;
+    requiresConfirmation?: boolean;
+  };
   onRetry: () => void;
 }
 
 export interface ActionButtonProps {
   isEnabled: boolean;
-  validationMessage?: string;
-  nextWindowTime?: Date; // Add this
+  validation: {
+    message?: string;
+    nextTransitionTime?: string;
+  };
   isCheckingIn: boolean;
   onAction: () => void;
-  locationState: {
-    isReady: boolean;
-    error?: string;
-  };
+  locationState: LocationState;
 }
 
-export interface UseSimpleAttendanceActions {
-  // Updated to use CheckInOutData instead of ProcessingOptions
-  checkInOut: (params: CheckInOutData) => Promise<ProcessingResult>;
-  refreshAttendanceStatus: {
-    (options?: {
-      forceRefresh?: boolean;
-      throwOnError?: boolean;
-    }): Promise<void>;
-    mutate: KeyedMutator<AttendanceResponse>;
-  };
-  getCurrentLocation: (forceRefresh?: boolean) => Promise<LocationState>;
+export interface UseAttendanceDataProps {
+  employeeId?: string;
+  lineUserId?: string;
+  locationState: LocationState;
+  initialAttendanceStatus?: AttendanceStatusResponse;
+  enabled?: boolean;
 }
 
 export interface UseSimpleAttendanceReturn {
@@ -154,19 +144,50 @@ export interface UseSimpleAttendanceReturn {
   state: AttendanceState;
   checkStatus: CheckStatus;
   isCheckingIn: boolean;
-  base: AttendanceStateResponse['base']; // Add this to expose base
+  base: AttendanceBaseResponse;
 
-  // Shift and period info
-  currentPeriod: CurrentPeriodInfo | null;
-  effectiveShift: ShiftData | null;
+  // Period and validation states
+  periodState: UnifiedPeriodState;
+  stateValidation: StateValidation;
+
+  // Context information
+  context: ShiftContext & TransitionContext;
+  transitions: PeriodTransition[];
+  hasPendingTransition: boolean;
+  nextTransition: PeriodTransition | null;
+
+  // Schedule status
   isDayOff: boolean;
   isHoliday: boolean;
+  isAdjusted: boolean;
+  holidayInfo?: HolidayInfo;
 
-  // Overtime context
-  overtimeContext: OvertimeContext | null;
+  // Transition information
+  nextPeriod?: {
+    type: PeriodType;
+    startTime: string;
+  } | null;
+  transition?: {
+    from: {
+      type: PeriodType;
+      end: string;
+    };
+    to: {
+      type: PeriodType;
+      start: string | null;
+    };
+    isInTransition: boolean;
+  };
 
-  // Validation and status
-  validation: ValidationResponse | null; // Changed from ValidationResult
+  // Shift information
+  shift: {
+    id: string;
+    shiftCode: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    workDays: number[];
+  };
 
   // Loading and error states
   isLoading: boolean;
@@ -178,27 +199,23 @@ export interface UseSimpleAttendanceReturn {
   locationState: LocationState;
 
   // Actions
-  checkInOut: (params: CheckInOutData) => Promise<ProcessingResult>;
-  refreshAttendanceStatus: {
-    (options?: {
-      forceRefresh?: boolean;
-      throwOnError?: boolean;
-    }): Promise<void>;
-    mutate: KeyedMutator<AttendanceStateResponse>;
-  };
+  checkInOut: (data: CheckInOutData) => Promise<ProcessingResult>;
+  refreshAttendanceStatus: () => Promise<void>;
   getCurrentLocation: () => Promise<LocationState>;
 }
 
 export interface ManualEntryFormData {
   date: string;
   periodType: PeriodType;
-  checkInTime?: string;
-  checkOutTime?: string;
-  reasonType: 'correction' | 'missing' | 'system_error' | 'other';
-  reason: string;
-  overtimeRequestId?: string; // Added for overtime entries
-  overtimeStartTime?: string; // Added for overtime entries
-  overtimeEndTime?: string; // Added for overtime entries
+  timeWindow: {
+    start?: string; // ISO string
+    end?: string; // ISO string
+  };
+  metadata: {
+    reasonType: 'correction' | 'missing' | 'system_error' | 'other';
+    reason: string;
+    overtimeId?: string;
+  };
 }
 
 export interface CheckInOutParams {
@@ -212,89 +229,18 @@ export interface CheckInOutParams {
   lateReason?: string;
 }
 
-export interface UserShiftInfoProps {
-  userData: UserData;
-  status: {
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    isCheckingIn: boolean;
-    currentPeriod: CurrentPeriodInfo | null;
-    isHoliday: boolean;
-    isDayOff: boolean;
-    isOvertime: boolean;
-    latestAttendance?: {
-      regularCheckInTime?: Date;
-      regularCheckOutTime?: Date;
-      overtimeCheckInTime?: Date;
-      overtimeCheckOutTime?: Date;
-      isLateCheckIn?: boolean;
-      isOvertime?: boolean;
-    };
-  };
-  effectiveShift: ShiftData | null; // Add this line
-  isLoading?: boolean;
-}
-
-// Types
-export interface AttendanceContextData {
-  // Basic Info
-  userData: {
-    name: string;
-    employeeId: string;
-    departmentName: string;
-  };
-
-  // Shift Information
-  shift: {
-    data: ShiftData | null;
-    isHoliday: boolean;
-    isDayOff: boolean;
-  };
-
-  // Current Status
-  status: {
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    isCheckingIn: boolean;
-    currentPeriod: CurrentPeriodInfo | null;
-  };
-
-  // Attendance Records
-  attendance: {
-    regularCheckIn: Date | null;
-    regularCheckOut: Date | null;
-    isLate: boolean;
-    isEarly: boolean;
-  };
-
-  // Overtime Information
-  overtime: {
-    isActive: boolean;
-    info: OvertimeInfoUI | null;
-    checkIn: Date | null;
-    checkOut: Date | null;
-  };
-
-  // System State
-  system: {
-    isLoading: boolean;
-    locationReady: boolean;
-    locationError: string | null;
-    validation: {
-      allowed: boolean;
-      reason?: string;
-    } | null;
-  };
-}
-
 export interface OvertimeInfoUI {
   id: string;
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
-  isInsideShiftHours: boolean;
-  isDayOffOvertime: boolean;
-  reason?: string;
+  timeWindow: {
+    start: string;
+    end: string;
+  };
+  details: {
+    durationMinutes: number;
+    isInsideShiftHours: boolean;
+    isDayOffOvertime: boolean;
+    reason?: string;
+  };
 }
 
 export interface ProcessingState {

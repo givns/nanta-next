@@ -33,12 +33,9 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, parseISO, isBefore, isToday, set } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { CalendarIcon, Clock } from 'lucide-react';
-import {
-  DetailedTimeEntry,
-  ManualEntryFormData,
-  PeriodType,
-} from '@/types/attendance';
+import { DetailedTimeEntry, ManualEntryFormData } from '@/types/attendance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PeriodType } from '@prisma/client';
 
 const formSchema = z
   .object({
@@ -187,13 +184,15 @@ export function ManualEntryDialog({
       const formData: ManualEntryFormData = {
         date: data.date,
         periodType: data.periodType,
-        checkInTime: data.checkInTime,
-        checkOutTime: data.checkOutTime,
-        reasonType: data.reasonType,
-        reason: data.reason,
-        overtimeStartTime: data.overtimeStartTime,
-        overtimeEndTime: data.overtimeEndTime,
-        overtimeRequestId: data.overtimeRequestId,
+        timeWindow: {
+          start: data.checkInTime,
+          end: data.checkOutTime,
+        },
+        metadata: {
+          reasonType: data.reasonType,
+          reason: data.reason,
+          overtimeId: data.overtimeRequestId,
+        },
       };
 
       await onSave(formData);
