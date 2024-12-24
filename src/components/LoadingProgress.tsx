@@ -90,7 +90,7 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
 
   return (
     <div
-      className={`fixed inset-0 z-50 bg-red-600 transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
+      className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
     >
       {/* Loading Content */}
       <div className="flex flex-col items-center justify-center h-full">
@@ -102,25 +102,25 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
           <h2 className="text-2xl font-bold text-white mb-2">
             {getLoadingMessage().main}
           </h2>
-          <p className="text-white/80">{getLoadingMessage().sub}</p>
+          <p className="text-black">{getLoadingMessage().sub}</p>
         </div>
 
         {/* Progress Bar */}
-        <div className="w-64 h-2 bg-white/20 rounded-full overflow-hidden">
+        <div className="w-64 h-2 bg-blue-600 rounded-full overflow-hidden">
           <div
-            className="h-full bg-white rounded-full transition-all duration-300 ease-out"
+            className="h-full bg-blue-300 rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
 
         {/* Progress Percentage */}
-        <div className="mt-4 text-white/80">{Math.round(progress)}%</div>
+        <div className="mt-4 text-black">{Math.round(progress)}%</div>
       </div>
 
       {/* Bottom Wave Animation */}
       <div className="absolute bottom-0 left-0 right-0 h-24 overflow-hidden">
         <div
-          className="absolute bottom-0 left-0 right-0 h-24 bg-white/10 animate-wave"
+          className="absolute bottom-0 left-0 right-0 h-24 bg-blue-200 animate-wave"
           style={{
             maskImage:
               'linear-gradient(to bottom, transparent 50%, black 100%)',
