@@ -21,7 +21,7 @@ const UserDataSchema = z.object({
   sickLeaveBalance: z.number(),
   businessLeaveBalance: z.number(),
   annualLeaveBalance: z.number(),
-  updatedAt: z.date().optional(),
+  updatedAt: z.coerce.date().optional(), // Use z.coerce.date() to convert string to Date
 });
 
 type UserData = z.infer<typeof UserDataSchema>;
