@@ -44,6 +44,15 @@ export function useSimpleAttendance({
     enabled: enabled && locationReady,
   });
 
+  function isValidDate(d: Date): boolean {
+    return d instanceof Date && !isNaN(d.getTime());
+  }
+
+  const now = getCurrentTime();
+  if (!isValidDate(now)) {
+    console.error('Invalid date generated');
+  }
+
   // Initialize default states
   const defaultBaseState: AttendanceBaseResponse = {
     state: AttendanceState.ABSENT,
@@ -60,7 +69,9 @@ export function useSimpleAttendance({
       message: '',
     },
     metadata: {
-      lastUpdated: getCurrentTime().toISOString(),
+      lastUpdated: isValidDate(getCurrentTime())
+        ? getCurrentTime().toISOString()
+        : new Date().toISOString(),
       version: 1,
       source: 'system',
     },
