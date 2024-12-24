@@ -7,17 +7,15 @@ import { formatDate, getCurrentTime } from '@/utils/dateUtils';
 import { ActionButton } from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
-import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
+import { PeriodType } from '@prisma/client';
 import {
-  ShiftData,
   StateValidation,
   UnifiedPeriodState,
   OvertimeContext,
-  LocationState,
 } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
-import { format, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';

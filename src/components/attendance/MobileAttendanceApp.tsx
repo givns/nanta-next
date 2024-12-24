@@ -57,22 +57,26 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
+  // Calculate progress safely
   const getProgressPercentage = React.useCallback(() => {
-    if (!currentPeriod) return 0;
+    if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end)
+      return 0;
 
     try {
       const now = getCurrentTime();
-      const periodStart = parseISO(currentPeriod.timeWindow.start);
-      const periodEnd = parseISO(currentPeriod.timeWindow.end);
+      const periodStart = new Date(currentPeriod.timeWindow.start);
+      const periodEnd = new Date(currentPeriod.timeWindow.end);
 
-      // Get total duration of period
+      // Validate dates
+      if (isNaN(periodStart.getTime()) || isNaN(periodEnd.getTime())) {
+        console.error('Invalid period dates');
+        return 0;
+      }
+
       const totalMinutes = differenceInMinutes(periodEnd, periodStart);
       if (totalMinutes <= 0) return 0;
 
-      // Calculate elapsed time
       const elapsedMinutes = differenceInMinutes(now, periodStart);
-
-      // Calculate percentage with bounds
       return Math.max(0, Math.min((elapsedMinutes / totalMinutes) * 100, 100));
     } catch (error) {
       console.error('Progress calculation error:', error);
@@ -80,20 +84,52 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
   }, [currentPeriod]);
 
-  // Get relevant overtime periods
+  // Safe date formatting helper
+  const formatTimeFromISO = (dateString: string | null | undefined): string => {
+    if (!dateString) return '--:--';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '--:--';
+      return format(date, 'HH:mm');
+    } catch {
+      return '--:--';
+    }
+  };
+
+  // Handle check-in/check-out times safely
+  const checkInTime = React.useMemo(() => {
+    if (!attendanceStatus.latestAttendance?.CheckInTime) return '--:--';
+    return formatTimeFromISO(
+      attendanceStatus.latestAttendance.CheckInTime.toString(),
+    );
+  }, [attendanceStatus.latestAttendance?.CheckInTime]);
+
+  const checkOutTime = React.useMemo(() => {
+    if (!attendanceStatus.latestAttendance?.CheckOutTime) return '--:--';
+    return formatTimeFromISO(
+      attendanceStatus.latestAttendance.CheckOutTime.toString(),
+    );
+  }, [attendanceStatus.latestAttendance?.CheckOutTime]);
+
+  // Handle overtime periods safely
   const relevantOvertimes = React.useMemo(() => {
     if (!overtimeInfo) return null;
-    const currentTimeStr = format(currentTime, 'HH:mm');
+    try {
+      const currentTimeStr = format(currentTime, 'HH:mm');
 
-    // Check if overtime is currently active or upcoming
-    if (
-      overtimeInfo.startTime > currentTimeStr ||
-      (overtimeInfo.startTime <= currentTimeStr &&
-        overtimeInfo.endTime > currentTimeStr)
-    ) {
-      return overtimeInfo;
+      // Validate overtime times
+      if (!overtimeInfo.startTime || !overtimeInfo.endTime) return null;
+
+      if (
+        overtimeInfo.startTime > currentTimeStr ||
+        (overtimeInfo.startTime <= currentTimeStr &&
+          overtimeInfo.endTime > currentTimeStr)
+      ) {
+        return overtimeInfo;
+      }
+    } catch (error) {
+      console.error('Error processing overtime info:', error);
     }
-
     return null;
   }, [overtimeInfo, currentTime]);
 
@@ -206,29 +242,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                  <div className="font-medium">
-                    {attendanceStatus.latestAttendance?.CheckInTime
-                      ? format(
-                          parseISO(
-                            attendanceStatus.latestAttendance.CheckInTime.toString(),
-                          ),
-                          'HH:mm',
-                        )
-                      : '--:--'}
-                  </div>
+                  <div className="font-medium">{checkInTime}</div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                  <div className="font-medium">
-                    {attendanceStatus.latestAttendance?.CheckOutTime
-                      ? format(
-                          parseISO(
-                            attendanceStatus.latestAttendance.CheckOutTime.toString(),
-                          ),
-                          'HH:mm',
-                        )
-                      : '--:--'}
-                  </div>
+                  <div className="font-medium">{checkOutTime}</div>
                 </div>
               </div>
             </div>
