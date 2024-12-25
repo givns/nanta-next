@@ -21,6 +21,19 @@ const CheckInRouter: React.FC = () => {
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
+  const validateDate = (
+    dateString: string | null | undefined,
+  ): Date | undefined => {
+    if (!dateString) return undefined;
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? undefined : date;
+    } catch (error) {
+      console.error('Date validation error:', error);
+      return undefined;
+    }
+  };
+
   // User data fetching
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
@@ -43,10 +56,13 @@ const CheckInRouter: React.FC = () => {
       // Transform dates in user data if needed
       const transformedUser = {
         ...data.user,
-        // Handle any date fields that need parsing
-        updatedAt: data.user.updatedAt
-          ? new Date(data.user.updatedAt)
-          : undefined,
+        // Use validateDate for all date fields
+        updatedAt: validateDate(data.user.updatedAt),
+        // Add other date fields that need validation
+        checkInTime: validateDate(data.user.checkInTime),
+        checkOutTime: validateDate(data.user.checkOutTime),
+        shiftStartTime: validateDate(data.user.shiftStartTime),
+        shiftEndTime: validateDate(data.user.shiftEndTime),
       };
 
       setUserData(transformedUser);
@@ -61,7 +77,7 @@ const CheckInRouter: React.FC = () => {
   // Attendance hook with error boundary
   const {
     locationReady,
-    locationState,
+    locationState = { status: null }, // Add default value
     isLoading: attendanceLoading,
     error: attendanceError,
     ...attendanceProps
@@ -71,27 +87,15 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  // Debug logging (consider removing in production)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Location state:', { locationReady, locationState });
-      console.log('Attendance state:', {
-        attendanceLoading,
-        attendanceError,
-        currentStep,
-        loadingPhase,
-        userData: userData?.employeeId,
-      });
-    }
-  }, [
-    locationReady,
-    locationState,
-    attendanceLoading,
-    attendanceError,
-    currentStep,
-    loadingPhase,
-    userData,
-  ]);
+    console.group('CheckInRouter Debug');
+    console.log('Current Step:', currentStep);
+    console.log('Loading Phase:', loadingPhase);
+    console.log('User Data:', userData);
+    console.log('Location State:', locationState);
+    console.log('Attendance Props:', attendanceProps);
+    console.groupEnd();
+  }, [currentStep, loadingPhase, userData, locationState, attendanceProps]);
 
   // Initial data fetch
   useEffect(() => {
