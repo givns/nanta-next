@@ -11,6 +11,85 @@ import LoadingBar from '@/components/attendance/LoadingBar';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
+interface SafeTimeWindow {
+  start: string;
+  end: string;
+}
+
+const validateDate = (
+  dateString: string | null | undefined,
+): Date | undefined => {
+  if (!dateString) return undefined;
+  try {
+    const date = new Date(dateString);
+    return isNaN(date.getTime()) ? undefined : date;
+  } catch (error) {
+    console.error('Date validation error:', error);
+    return undefined;
+  }
+};
+const validateTime = (timeStr: string | null | undefined): string => {
+  if (!timeStr || timeStr === '') return '--:--';
+  try {
+    // Validate time string format HH:mm
+    if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+      return timeStr;
+    }
+    return '--:--';
+  } catch {
+    return '--:--';
+  }
+};
+
+const validateISODate = (dateStr: string | null | undefined): string => {
+  if (!dateStr || dateStr === '') return '';
+  try {
+    const date = new Date(dateStr);
+    return isNaN(date.getTime()) ? '' : dateStr;
+  } catch {
+    return '';
+  }
+};
+
+const isValidTimeString = (time: string | null | undefined): boolean => {
+  if (!time) return false;
+  return (
+    /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time) ||
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(time)
+  ); // ISO format
+};
+
+const getSafeTimeWindow = (timeWindow: any): SafeTimeWindow => ({
+  start: isValidTimeString(timeWindow?.start)
+    ? timeWindow.start
+    : new Date().toISOString(),
+  end: isValidTimeString(timeWindow?.end)
+    ? timeWindow.end
+    : new Date().toISOString(),
+});
+
+const createSafeAttendance = (props: any) => {
+  const safeShift = {
+    ...props.shift,
+    startTime: isValidTimeString(props.shift?.startTime)
+      ? props.shift.startTime
+      : '00:00',
+    endTime: isValidTimeString(props.shift?.endTime)
+      ? props.shift.endTime
+      : '00:00',
+  };
+
+  const safePeriodState = {
+    ...props.periodState,
+    timeWindow: getSafeTimeWindow(props.periodState?.timeWindow),
+  };
+
+  return {
+    ...props,
+    shift: safeShift,
+    periodState: safePeriodState,
+  };
+};
 
 const CheckInRouter: React.FC = () => {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -20,41 +99,6 @@ const CheckInRouter: React.FC = () => {
 
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
-
-  const validateDate = (
-    dateString: string | null | undefined,
-  ): Date | undefined => {
-    if (!dateString) return undefined;
-    try {
-      const date = new Date(dateString);
-      return isNaN(date.getTime()) ? undefined : date;
-    } catch (error) {
-      console.error('Date validation error:', error);
-      return undefined;
-    }
-  };
-  const validateTime = (timeStr: string | null | undefined): string => {
-    if (!timeStr || timeStr === '') return '--:--';
-    try {
-      // Validate time string format HH:mm
-      if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
-        return timeStr;
-      }
-      return '--:--';
-    } catch {
-      return '--:--';
-    }
-  };
-
-  const validateISODate = (dateStr: string | null | undefined): string => {
-    if (!dateStr || dateStr === '') return '';
-    try {
-      const date = new Date(dateStr);
-      return isNaN(date.getTime()) ? '' : dateStr;
-    } catch {
-      return '';
-    }
-  };
 
   // User data fetching
   const fetchUserData = useCallback(async () => {
@@ -138,33 +182,14 @@ const CheckInRouter: React.FC = () => {
     }
   }, [authLoading, userData, locationReady, locationState.status]);
 
-  const safeAttendance = useMemo(() => {
+  const safeAttendanceProps = useMemo(() => {
     if (!attendanceProps) return null;
-
-    return {
-      ...attendanceProps,
-      periodState: {
-        ...attendanceProps.periodState,
-        timeWindow: {
-          start: validateISODate(attendanceProps.periodState.timeWindow.start),
-          end: validateISODate(attendanceProps.periodState.timeWindow.end),
-        },
-      },
-      shift: attendanceProps.shift && {
-        ...attendanceProps.shift,
-        startTime: validateTime(attendanceProps.shift.startTime),
-        endTime: validateTime(attendanceProps.shift.endTime),
-      },
-      base: {
-        ...attendanceProps.base,
-        metadata: {
-          ...attendanceProps.base.metadata,
-          lastUpdated: validateISODate(
-            attendanceProps.base.metadata.lastUpdated,
-          ),
-        },
-      },
-    };
+    try {
+      return createSafeAttendance(attendanceProps);
+    } catch (error) {
+      console.error('Error creating safe attendance:', error);
+      return null;
+    }
   }, [attendanceProps]);
 
   // System ready state
@@ -195,17 +220,26 @@ const CheckInRouter: React.FC = () => {
   const mainContent = useMemo(
     () => (
       <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
-        {userData && (
+        {userData && safeAttendanceProps && (
           <CheckInOutForm
             userData={userData}
             onComplete={closeWindow}
-            {...safeAttendance} // Spread the safe attendance props
+            {...safeAttendanceProps} // Spread the safe attendance props
           />
         )}
       </div>
     ),
-    [userData, safeAttendance],
+    [userData, safeAttendanceProps],
   );
+
+  if (attendanceProps && !safeAttendanceProps) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>Invalid attendance data format</AlertDescription>
+      </Alert>
+    );
+  }
 
   // Error state
   if (error || attendanceError) {

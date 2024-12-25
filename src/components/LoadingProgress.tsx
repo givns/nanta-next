@@ -106,9 +106,9 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="w-64 h-2 bg-blue-600 rounded-full overflow-hidden">
+        <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
-            className="h-full bg-blue-300 rounded-full transition-all duration-300 ease-out"
+            className="h-full bg-blue-600 rounded-full transition-all duration-300 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
