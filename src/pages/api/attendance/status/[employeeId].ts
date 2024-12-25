@@ -10,11 +10,30 @@ import {
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
+import { CacheManager } from '@/services/cache/CacheManager';
 
 // Initialize services using ServiceInitializer
 const prisma = new PrismaClient();
 const services = initializeServices(prisma);
-const { attendanceStatusService, cacheManager } = services;
+const { shiftService, enhancementService } = services;
+
+// Initialize CacheManager properly
+try {
+  CacheManager.initialize(prisma, shiftService, enhancementService);
+} catch (error) {
+  console.error('Error initializing CacheManager:', error);
+  // Continue without cache if initialization fails
+}
+
+// Get CacheManager instance with fallback
+const getCacheManager = () => {
+  try {
+    return CacheManager.getInstance();
+  } catch (error) {
+    console.warn('CacheManager not available:', error);
+    return null;
+  }
+};
 
 // Request validation schema
 const QuerySchema = z.object({
@@ -68,19 +87,26 @@ export default async function handler(
     const now = getCurrentTime();
 
     // Try cache first
-    const cachedState = await cacheManager.getAttendanceState(employeeId);
-    if (cachedState) {
-      return res.status(200).json(cachedState);
+    // Try cache with fallback
+    const cacheManager = getCacheManager();
+    if (cacheManager) {
+      const cachedState = await cacheManager.getAttendanceState(
+        employeeId as string,
+      );
+      if (cachedState) {
+        return res.status(200).json(cachedState);
+      }
     }
 
-    // Get attendance status using the attendanceStatusService
-    const attendanceStatus = await attendanceStatusService.getAttendanceStatus(
-      employeeId,
-      {
-        inPremises,
-        address,
-      },
-    );
+    // Get attendance status
+    const attendanceStatus =
+      await services.attendanceService.getAttendanceStatus(
+        employeeId as string,
+        {
+          inPremises,
+          address: address as string,
+        },
+      );
 
     if (!attendanceStatus) {
       throw new AppError({
@@ -127,7 +153,9 @@ export default async function handler(
     };
 
     // Cache the response
-    await cacheManager.cacheAttendanceState(employeeId, response);
+    if (cacheManager) {
+      await cacheManager.cacheAttendanceState(employeeId, response);
+    }
 
     return res.status(200).json(response);
   } catch (error) {
