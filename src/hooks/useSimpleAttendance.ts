@@ -12,6 +12,7 @@ import {
   TransitionContext,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { format, addHours } from 'date-fns';
 
 export function useSimpleAttendance({
   employeeId,
@@ -114,12 +115,19 @@ export function useSimpleAttendance({
     },
   };
 
+  // 1. Add helper for default time window
+  const getDefaultTimeWindow = () => {
+    const now = getCurrentTime();
+    return {
+      start: now.toISOString(),
+      end: new Date(now.setHours(now.getHours() + 8)).toISOString(), // Default 8-hour window
+    };
+  };
+
+  // 2. Update defaultPeriodState
   const defaultPeriodState: UnifiedPeriodState = {
     type: PeriodType.REGULAR,
-    timeWindow: {
-      start: '',
-      end: '',
-    },
+    timeWindow: getDefaultTimeWindow(), // Use proper time window instead of empty strings
     activity: {
       isActive: false,
       checkIn: null,
@@ -136,13 +144,14 @@ export function useSimpleAttendance({
     },
   };
 
+  // 3. Update defaultContext with proper time values
   const defaultContext: ShiftContext & TransitionContext = {
     shift: {
       id: '',
       shiftCode: '',
       name: '',
-      startTime: '',
-      endTime: '',
+      startTime: format(getCurrentTime(), 'HH:mm'), // Use current hour/minute
+      endTime: format(addHours(getCurrentTime(), 8), 'HH:mm'), // Default 8 hours later
       workDays: [],
     },
     schedule: {
@@ -154,22 +163,61 @@ export function useSimpleAttendance({
     transition: undefined,
   };
 
+  // 4. Add validation for incoming data
+  const periodState = useMemo((): UnifiedPeriodState => {
+    if (!data?.daily?.currentState) return defaultPeriodState;
+
+    const currentState = data.daily.currentState;
+    // Validate time window
+    if (!currentState.timeWindow.start || !currentState.timeWindow.end) {
+      return {
+        ...currentState,
+        timeWindow: getDefaultTimeWindow(),
+      };
+    }
+    return currentState;
+  }, [data?.daily?.currentState]);
+
+  const context = useMemo((): ShiftContext & TransitionContext => {
+    if (!data?.context) return defaultContext;
+
+    const ctx = data.context;
+    // Validate shift times
+    if (!ctx.shift.startTime || !ctx.shift.endTime) {
+      return {
+        ...ctx,
+        shift: {
+          ...ctx.shift,
+          startTime: format(getCurrentTime(), 'HH:mm'),
+          endTime: format(addHours(getCurrentTime(), 8), 'HH:mm'),
+        },
+      };
+    }
+    return ctx;
+  }, [data?.context]);
+
+  // 5. Add date validation check
+  useEffect(() => {
+    if (data) {
+      // Validate all date/time fields
+      const timeWindow = data.daily?.currentState?.timeWindow;
+      const shift = data.context?.shift;
+
+      if (timeWindow && (!timeWindow.start || !timeWindow.end)) {
+        console.warn('Invalid time window in data:', timeWindow);
+      }
+
+      if (shift && (!shift.startTime || !shift.endTime)) {
+        console.warn('Invalid shift times in data:', shift);
+      }
+    }
+  }, [data]);
+
   useEffect(() => {
     if (data && isInitializing) {
       setIsInitializing(false);
     }
   }, [data, isInitializing]);
-
-  // Map attendance status response to proper types
-  const periodState = useMemo((): UnifiedPeriodState => {
-    if (!data?.daily?.currentState) return defaultPeriodState;
-    return data.daily.currentState;
-  }, [data?.daily?.currentState]);
-
-  const context = useMemo((): ShiftContext & TransitionContext => {
-    if (!data?.context) return defaultContext;
-    return data.context;
-  }, [data?.context]);
 
   // Calculate derived states
   const transitions = useMemo(() => {
