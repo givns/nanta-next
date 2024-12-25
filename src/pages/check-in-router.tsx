@@ -33,6 +33,28 @@ const CheckInRouter: React.FC = () => {
       return undefined;
     }
   };
+  const validateTime = (timeStr: string | null | undefined): string => {
+    if (!timeStr || timeStr === '') return '--:--';
+    try {
+      // Validate time string format HH:mm
+      if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+        return timeStr;
+      }
+      return '--:--';
+    } catch {
+      return '--:--';
+    }
+  };
+
+  const validateISODate = (dateStr: string | null | undefined): string => {
+    if (!dateStr || dateStr === '') return '';
+    try {
+      const date = new Date(dateStr);
+      return isNaN(date.getTime()) ? '' : dateStr;
+    } catch {
+      return '';
+    }
+  };
 
   // User data fetching
   const fetchUserData = useCallback(async () => {
@@ -116,6 +138,35 @@ const CheckInRouter: React.FC = () => {
     }
   }, [authLoading, userData, locationReady, locationState.status]);
 
+  const safeAttendance = useMemo(() => {
+    if (!attendanceProps) return null;
+
+    return {
+      ...attendanceProps,
+      periodState: {
+        ...attendanceProps.periodState,
+        timeWindow: {
+          start: validateISODate(attendanceProps.periodState.timeWindow.start),
+          end: validateISODate(attendanceProps.periodState.timeWindow.end),
+        },
+      },
+      shift: attendanceProps.shift && {
+        ...attendanceProps.shift,
+        startTime: validateTime(attendanceProps.shift.startTime),
+        endTime: validateTime(attendanceProps.shift.endTime),
+      },
+      base: {
+        ...attendanceProps.base,
+        metadata: {
+          ...attendanceProps.base.metadata,
+          lastUpdated: validateISODate(
+            attendanceProps.base.metadata.lastUpdated,
+          ),
+        },
+      },
+    };
+  }, [attendanceProps]);
+
   // System ready state
   const isSystemReady = useMemo(
     () =>
@@ -125,6 +176,16 @@ const CheckInRouter: React.FC = () => {
       userData !== null,
     [currentStep, attendanceLoading, locationState.status, userData],
   );
+
+  // Add validation check before rendering
+  if (!safeAttendance && isSystemReady) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>Error loading attendance data</AlertDescription>
+      </Alert>
+    );
+  }
 
   // Loading phase management
   useEffect(() => {
@@ -145,11 +206,15 @@ const CheckInRouter: React.FC = () => {
     () => (
       <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
         {userData && (
-          <CheckInOutForm userData={userData} onComplete={closeWindow} />
+          <CheckInOutForm
+            userData={userData}
+            onComplete={closeWindow}
+            {...safeAttendance} // Spread the safe attendance props
+          />
         )}
       </div>
     ),
-    [userData],
+    [userData, safeAttendance],
   );
 
   // Error state
