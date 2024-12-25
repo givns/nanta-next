@@ -177,16 +177,6 @@ const CheckInRouter: React.FC = () => {
     [currentStep, attendanceLoading, locationState.status, userData],
   );
 
-  // Add validation check before rendering
-  if (!safeAttendance && isSystemReady) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Error loading attendance data</AlertDescription>
-      </Alert>
-    );
-  }
-
   // Loading phase management
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -200,6 +190,16 @@ const CheckInRouter: React.FC = () => {
       if (timer) clearTimeout(timer);
     };
   }, [isSystemReady, loadingPhase]);
+
+    // Add validation check before rendering
+    if (!safeAttendance && isSystemReady) {
+      return (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Error loading attendance data</AlertDescription>
+        </Alert>
+      );
+    }
 
   // Main content
   const mainContent = useMemo(
