@@ -18,6 +18,30 @@ import { getCurrentTime } from '@/utils/dateUtils';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 
 const REQUEST_TIMEOUT = 40000;
+const RETRY_CONFIG = {
+  MAX_RETRIES: 3,
+  INITIAL_DELAY: 1000,
+  MAX_DELAY: 5000,
+};
+
+// Add retry utility
+const retryWithBackoff = async <T>(
+  fn: () => Promise<T>,
+  retries = RETRY_CONFIG.MAX_RETRIES,
+  delay = RETRY_CONFIG.INITIAL_DELAY,
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries === 0) throw error;
+
+    // Calculate next delay with exponential backoff
+    const nextDelay = Math.min(delay * 2, RETRY_CONFIG.MAX_DELAY);
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    return retryWithBackoff(fn, retries - 1, nextDelay);
+  }
+};
 
 export function useAttendanceData({
   employeeId,
@@ -34,43 +58,71 @@ export function useAttendanceData({
       ? ['/api/attendance/status/[employeeId]', employeeId, locationState]
       : null,
     async ([_, id]): Promise<AttendanceStatusResponse> => {
-      try {
-        const response = await axios.get(`/api/attendance/status/${id}`, {
-          params: {
-            inPremises: locationState.inPremises,
-            address: locationState.address,
-            confidence: locationState.confidence,
-            coordinates: locationState.coordinates,
-          },
-          timeout: REQUEST_TIMEOUT,
-        });
+      return retryWithBackoff(async () => {
+        try {
+          const response = await axios.get(`/api/attendance/status/${id}`, {
+            params: {
+              inPremises: locationState.inPremises,
+              address: locationState.address,
+              confidence: locationState.confidence,
+              coordinates: locationState.coordinates,
+            },
+            timeout: REQUEST_TIMEOUT,
+          });
 
-        // Validate response
-        if (response.data?.daily?.transitions) {
-          const currentStatus = {
-            state: response.data.base.state,
-            checkStatus: response.data.base.checkStatus,
-            isOvertime: response.data.base.periodInfo.isOvertime,
-            overtimeState: response.data.base.periodInfo.overtimeState,
-          };
-
-          const shouldForceRefresh =
-            StatusHelpers.isInOvertime(currentStatus) &&
-            response.data.base.latestAttendance?.CheckOutTime &&
-            response.data.daily.transitions.length > 0;
-
-          if (shouldForceRefresh) {
-            await mutate(response.data, false);
+          // Validate response data first
+          if (!response.data) {
+            throw new AppError({
+              code: ErrorCode.INVALID_RESPONSE,
+              message: 'Empty response received',
+            });
           }
-        }
 
-        return sanitizeResponse(response.data);
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.response?.status === 503) {
-          console.error('Service temporarily unavailable:', error);
+          // Validate transitions and force refresh if needed
+          if (response.data?.daily?.transitions) {
+            const currentStatus = {
+              state: response.data.base.state,
+              checkStatus: response.data.base.checkStatus,
+              isOvertime: response.data.base.periodInfo.isOvertime,
+              overtimeState: response.data.base.periodInfo.overtimeState,
+            };
+
+            const shouldForceRefresh =
+              StatusHelpers.isInOvertime(currentStatus) &&
+              response.data.base.latestAttendance?.CheckOutTime &&
+              response.data.daily.transitions.length > 0;
+
+            if (shouldForceRefresh) {
+              await mutate(response.data, false);
+            }
+          }
+
+          // Sanitize and validate the response
+          const sanitized = sanitizeResponse(response.data);
+          validateAttendanceResponse(sanitized);
+
+          return sanitized;
+        } catch (error) {
+          if (axios.isAxiosError(error)) {
+            // Handle specific HTTP errors
+            if (error.response?.status === 503) {
+              throw new AppError({
+                code: ErrorCode.SERVICE_UNAVAILABLE,
+                message: 'Service temporarily unavailable',
+                originalError: error,
+              });
+            }
+            if (error.response?.status === 500) {
+              throw new AppError({
+                code: ErrorCode.SERVER_ERROR,
+                message: 'Internal server error occurred',
+                originalError: error,
+              });
+            }
+          }
+          throw handleAttendanceError(error);
         }
-        throw handleAttendanceError(error);
-      }
+      });
     },
     {
       revalidateOnFocus: false,
@@ -82,6 +134,28 @@ export function useAttendanceData({
       },
     },
   );
+
+  // Add validation for attendance response
+  const validateAttendanceResponse = (data: AttendanceStatusResponse) => {
+    if (!data.daily || !data.base || !data.context || !data.validation) {
+      throw new AppError({
+        code: ErrorCode.INVALID_RESPONSE,
+        message: 'Invalid response structure',
+      });
+    }
+
+    // Validate time window
+    const timeWindow = data.daily.currentState?.timeWindow;
+    if (timeWindow && (!timeWindow.start || !timeWindow.end)) {
+      console.warn('Invalid time window:', timeWindow);
+    }
+
+    // Validate shift times
+    const shift = data.context.shift;
+    if (shift && (!shift.startTime || !shift.endTime)) {
+      console.warn('Invalid shift times:', shift);
+    }
+  };
 
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
