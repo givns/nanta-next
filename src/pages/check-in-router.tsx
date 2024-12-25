@@ -191,16 +191,6 @@ const CheckInRouter: React.FC = () => {
     };
   }, [isSystemReady, loadingPhase]);
 
-    // Add validation check before rendering
-    if (!safeAttendance && isSystemReady) {
-      return (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Error loading attendance data</AlertDescription>
-        </Alert>
-      );
-    }
-
   // Main content
   const mainContent = useMemo(
     () => (
