@@ -349,7 +349,7 @@ export default async function handler(
                     endTime,
 
                     // Status and type
-                    status: 'IN_PROGRESS' as TimeEntryStatus,
+                    status: 'STARTED' as TimeEntryStatus,
                     entryType: 'OVERTIME' as PeriodType,
 
                     // Duration tracking
