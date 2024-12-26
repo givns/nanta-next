@@ -719,29 +719,6 @@ export class TimeEntryService {
     );
   }
 
-  private getTestTimeEntry(attendance: AttendanceRecord) {
-    return {
-      regular: {
-        id: 'test-entry',
-        employeeId: attendance.employeeId,
-        date: attendance.date,
-        startTime: attendance.CheckInTime || new Date(),
-        endTime: attendance.CheckOutTime,
-        status: 'completed',
-        entryType: PeriodType.REGULAR,
-        regularHours: 8,
-        overtimeHours: 0,
-        attendanceId: attendance.id,
-        overtimeRequestId: null,
-        actualMinutesLate: 0,
-        isHalfDayLate: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      overtime: [],
-    };
-  }
-
   private async updateOvertimeEntry(
     tx: Prisma.TransactionClient,
     id: string,

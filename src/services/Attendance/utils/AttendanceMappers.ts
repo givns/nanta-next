@@ -234,18 +234,30 @@ export class AttendanceMappers {
       status: prismaTimeEntry.status,
       entryType: prismaTimeEntry.entryType,
 
-      // Parse JSON fields
-      hours: JSON.parse(prismaTimeEntry.hours as string),
+      // Add safety checks and handle both string and object cases
+      hours:
+        typeof prismaTimeEntry.hours === 'string'
+          ? JSON.parse(prismaTimeEntry.hours)
+          : prismaTimeEntry.hours,
+
       attendanceId: prismaTimeEntry.attendanceId,
       overtimeRequestId: prismaTimeEntry.overtimeRequestId,
 
-      timing: JSON.parse(prismaTimeEntry.timing as string),
+      timing:
+        typeof prismaTimeEntry.timing === 'string'
+          ? JSON.parse(prismaTimeEntry.timing)
+          : prismaTimeEntry.timing,
 
       overtime: prismaTimeEntry.overtime
-        ? JSON.parse(prismaTimeEntry.overtime as string)
+        ? typeof prismaTimeEntry.overtime === 'string'
+          ? JSON.parse(prismaTimeEntry.overtime)
+          : prismaTimeEntry.overtime
         : undefined,
 
-      metadata: JSON.parse(prismaTimeEntry.metadata as string),
+      metadata:
+        typeof prismaTimeEntry.metadata === 'string'
+          ? JSON.parse(prismaTimeEntry.metadata)
+          : prismaTimeEntry.metadata,
     };
   }
 
