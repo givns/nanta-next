@@ -2,10 +2,44 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
+import { AppError, ErrorCode } from '@/types/attendance';
 
+// Initialize Prisma client
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const { shiftService } = services;
+
+// Define the services type
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+};
+
+// Initialize services at startup
+let services: InitializedServices;
+getServices()
+  .then((s) => {
+    services = s;
+  })
+  .catch((error) => {
+    console.error('Failed to initialize services:', error);
+    process.exit(1); // Exit if services can't be initialized
+  });
 
 export default async function handler(
   req: NextApiRequest,
@@ -72,7 +106,9 @@ export default async function handler(
     const employeesWithShifts = await Promise.all(
       employees.map(async (emp) => {
         if (emp.shiftCode) {
-          const shift = await shiftService.getShiftByCode(emp.shiftCode);
+          const shift = await services.shiftService.getShiftByCode(
+            emp.shiftCode,
+          );
           return { ...emp, shift };
         }
         return emp;

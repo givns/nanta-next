@@ -25,7 +25,6 @@ import {
   StatusUpdateResult,
   ProcessingOptions,
   AttendanceRecord,
-  ShiftData,
 } from '../types/attendance';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';

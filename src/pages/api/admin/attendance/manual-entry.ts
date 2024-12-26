@@ -11,10 +11,41 @@ import { parseISO, startOfDay, format } from 'date-fns';
 import { initializeServices } from '@/services/ServiceInitializer';
 import { ErrorCode, AppError } from '@/types/attendance/error';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { CacheManager } from '@/services/cache/CacheManager';
 
+// Initialize Prisma client
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const { attendanceService, cacheManager } = services;
+
+// Define the services type
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Initialize CacheManager once
+let cacheManager = CacheManager.getInstance();
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  // Update cacheManager reference if needed
+  if (!cacheManager) {
+    cacheManager = CacheManager.getInstance();
+  }
+
+  return services;
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -30,6 +61,27 @@ export default async function handler(
   }
 
   try {
+    // Initialize services with proper typing
+    const services = await getServices();
+    const {
+      attendanceService,
+      notificationService,
+      timeEntryService,
+      shiftService,
+    } = services;
+
+    // Validate services
+    if (
+      !attendanceService ||
+      !notificationService ||
+      !timeEntryService ||
+      !shiftService
+    ) {
+      throw new AppError({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Required services not initialized',
+      });
+    }
     const {
       employeeId,
       date,
@@ -301,7 +353,7 @@ export default async function handler(
       });
 
       // Create or update time entry
-      const timeEntry = await tx.timeEntry.upsert({
+      const timeEntryResult = await tx.timeEntry.upsert({
         where: {
           id: `${attendance.id}-${periodType}`,
         },
@@ -372,6 +424,8 @@ export default async function handler(
           overtimeMetadata: true,
         },
       });
+
+      console.log('Created/Updated time entry:', timeEntryResult.id);
 
       // Update overtime entry if needed
       if (periodType === PeriodType.OVERTIME && overtimeRequest) {
@@ -478,7 +532,11 @@ export default async function handler(
       });
 
       // Clear cache
-      await cacheManager.invalidateCache(employeeId);
+      if (cacheManager) {
+        await cacheManager.invalidateCache(employeeId);
+      } else {
+        console.warn('CacheManager not available for cache invalidation');
+      }
 
       return res.status(200).json({
         success: true,

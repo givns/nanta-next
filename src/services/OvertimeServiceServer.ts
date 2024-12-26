@@ -8,7 +8,6 @@ import {
   CheckStatus,
 } from '@prisma/client';
 import { IOvertimeServiceServer } from '../types/OvertimeService';
-import { TimeEntryService } from './TimeEntryService';
 import {
   parseISO,
   format,
@@ -46,7 +45,6 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     private holidayService: HolidayService,
     private leaveService: LeaveServiceServer,
     private shiftService: ShiftManagementService,
-    private timeEntryService: TimeEntryService,
     private notificationService: NotificationService,
   ) {}
 

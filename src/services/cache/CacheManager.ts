@@ -3,7 +3,6 @@
 import { endOfDay, format, startOfDay } from 'date-fns';
 import { cacheService } from './CacheService';
 import { PrismaClient } from '@prisma/client';
-
 import {
   AttendanceRecord,
   CACHE_CONSTANTS,
@@ -14,110 +13,94 @@ import { ShiftManagementService } from '../ShiftManagementService/ShiftManagemen
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService';
 import { AttendanceMappers } from '../Attendance/utils/AttendanceMappers';
 
-// Cache key generation
-const generateCacheKey = {
-  user: (id: string) => `user:${id}`,
-  attendance: (id: string, date: string) => `attendance:${id}:${date}`,
-  shift: (id: string) => `shift:${id}`,
-  all: (employeeId: string) => ({
-    user: generateCacheKey.user(employeeId),
-    attendance: generateCacheKey.attendance(
-      employeeId,
-      format(new Date(), 'yyyy-MM-dd'),
-    ),
-    shift: generateCacheKey.shift(employeeId),
-  }),
-};
-
 export class CacheManager {
-  static getStatus(employeeId: any): any {
-    throw new Error('Method not implemented.');
-  }
-  static fetchData(
-    employeeId: any,
-  ):
-    | [any, any, any, any, any, any, any, any, any]
-    | PromiseLike<[any, any, any, any, any, any, any, any, any]> {
-    throw new Error('Method not implemented.');
-  }
-  static cacheAttendanceStatus(employeeId: any, status: string) {
-    throw new Error('Method not implemented.');
-  }
   private static instance: CacheManager | null = null;
+  private static initPromise: Promise<void> | null = null;
+  private initialized = false;
+
   private constructor(
     private readonly prisma: PrismaClient,
     private readonly shiftService: ShiftManagementService,
     private readonly enhancementService: AttendanceEnhancementService,
-  ) {}
+  ) {
+    this.initialized = true;
+  }
 
-  // Core caching methods
-  public async cacheAttendanceState(
+  static async initialize(
+    prisma: PrismaClient,
+    shiftService: ShiftManagementService,
+    enhancementService: AttendanceEnhancementService,
+  ): Promise<void> {
+    if (!this.initPromise) {
+      this.initPromise = (async () => {
+        try {
+          // If already initialized, just return
+          if (CacheManager.instance?.initialized) {
+            return;
+          }
+
+          // Create new instance
+          CacheManager.instance = new CacheManager(
+            prisma,
+            shiftService,
+            enhancementService,
+          );
+
+          // Any additional async initialization can go here
+          // Note: Removed the connect call since it's not available
+        } catch (error) {
+          console.error('Failed to initialize CacheManager:', error);
+          CacheManager.instance = null;
+          throw error;
+        }
+      })();
+    }
+    return this.initPromise;
+  }
+
+  static getInstance(): CacheManager | null {
+    if (!CacheManager.instance?.initialized) {
+      return null;
+    }
+    return CacheManager.instance;
+  }
+
+  async getAttendanceState(
+    employeeId: string,
+  ): Promise<AttendanceStatusResponse | null> {
+    if (!this.initialized || !cacheService || process.env.NODE_ENV === 'test') {
+      return null;
+    }
+
+    const cacheKey = this.generateCacheKey(employeeId, 'attendance');
+    try {
+      const cached = await cacheService.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (error) {
+      console.warn('Cache read failed:', error);
+    }
+    return null;
+  }
+
+  async cacheAttendanceState(
     employeeId: string,
     state: AttendanceStatusResponse,
     ttl = CACHE_CONSTANTS.ATTENDANCE_CACHE_TTL,
   ): Promise<void> {
-    if (!cacheService || process.env.NODE_ENV === 'test') return;
-
-    const cacheKey = this.generateCacheKey(employeeId, 'attendance');
-    await cacheService.set(cacheKey, JSON.stringify(state), ttl);
-  }
-
-  // State fetching with caching
-  async getAttendanceState(
-    employeeId: string,
-  ): Promise<AttendanceStatusResponse | null> {
-    const cacheKey = this.generateCacheKey(employeeId, 'attendance');
-    const cached = await cacheService?.get(cacheKey);
-
-    if (cached) {
-      return JSON.parse(cached);
+    if (!this.initialized || !cacheService || process.env.NODE_ENV === 'test') {
+      return;
     }
 
-    // Fetch fresh data
-    const [record, window] = await Promise.all([
-      this.fetchAttendanceRecord(employeeId),
-      this.shiftService.getCurrentWindow(employeeId, getCurrentTime()),
-    ]);
-
-    if (!window) return null;
-
-    // Generate fresh state
-    const state = await this.enhancementService.enhanceAttendanceStatus(
-      record,
-      window,
-      getCurrentTime(),
-    );
-
-    // Cache the result
-    await this.cacheAttendanceState(employeeId, state);
-
-    return state;
+    const cacheKey = this.generateCacheKey(employeeId, 'attendance');
+    try {
+      await cacheService.set(cacheKey, JSON.stringify(state), ttl);
+    } catch (error) {
+      console.warn('Cache write failed:', error);
+    }
   }
 
-  // Record fetching with mapping
-  private async fetchAttendanceRecord(
-    employeeId: string,
-  ): Promise<AttendanceRecord | null> {
-    const today = startOfDay(getCurrentTime());
-
-    const record = await this.prisma.attendance.findFirst({
-      where: {
-        employeeId,
-        date: {
-          gte: today,
-          lt: endOfDay(today),
-        },
-      },
-      include: {
-        timeEntries: true,
-        overtimeEntries: true,
-      },
-    });
-
-    return record ? AttendanceMappers.toAttendanceRecord(record) : null;
-  }
-
-  // Cache key management
   private generateCacheKey(
     employeeId: string,
     type: 'attendance' | 'window' | 'validation',
@@ -126,9 +109,10 @@ export class CacheManager {
     return `${type}:${employeeId}:${date}`;
   }
 
-  // Cache invalidation
   async invalidateCache(employeeId: string): Promise<void> {
-    if (!cacheService) return;
+    if (!this.initialized || !cacheService) {
+      return;
+    }
 
     const patterns = [
       this.generateCacheKey(employeeId, 'attendance'),
@@ -136,30 +120,14 @@ export class CacheManager {
       this.generateCacheKey(employeeId, 'validation'),
     ];
 
-    await Promise.all(
-      patterns.map((pattern) => cacheService.invalidatePattern(`${pattern}*`)),
-    );
-  }
-
-  // Singleton management
-  static initialize(
-    prisma: PrismaClient,
-    shiftService: ShiftManagementService,
-    enhancementService: AttendanceEnhancementService,
-  ): void {
-    if (!CacheManager.instance) {
-      CacheManager.instance = new CacheManager(
-        prisma,
-        shiftService,
-        enhancementService,
+    try {
+      await Promise.all(
+        patterns.map((pattern) =>
+          cacheService.invalidatePattern(`${pattern}*`),
+        ),
       );
+    } catch (error) {
+      console.warn('Cache invalidation failed:', error);
     }
-  }
-
-  static getInstance(): CacheManager {
-    if (!CacheManager.instance) {
-      throw new Error('CacheManager not initialized');
-    }
-    return CacheManager.instance;
   }
 }

@@ -2,10 +2,34 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
+import { CacheManager } from '@/services/cache/CacheManager';
+import { AppError, ErrorCode } from '@/types/attendance';
 
+// Initialize Prisma client
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const { shiftService } = services;
+
+// Define the services type
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+};
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,6 +41,26 @@ export default async function handler(
   }
 
   try {
+    const services = await getServices();
+    const {
+      attendanceService,
+      notificationService,
+      timeEntryService,
+      shiftService,
+    } = services;
+
+    // Validate services
+    if (
+      !attendanceService ||
+      !notificationService ||
+      !timeEntryService ||
+      !shiftService
+    ) {
+      throw new AppError({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Required services not initialized',
+      });
+    }
     // First verify the requesting user is an admin
     const adminUser = await prisma.user.findUnique({
       where: { lineUserId },

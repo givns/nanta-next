@@ -1,55 +1,51 @@
+// services/ServiceInitializer.ts
+
 import { PrismaClient } from '@prisma/client';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
-import { HolidayService } from './HolidayService';
-import { OvertimeServiceServer } from './OvertimeServiceServer';
-import { NotificationService } from './NotificationService';
-import { LeaveServiceServer } from './LeaveServiceServer';
-import { TimeEntryService } from './TimeEntryService';
-import { AttendanceRecordService } from './Attendance/AttendanceRecordService';
-import { PeriodManagementService } from './Attendance/PeriodManagementService';
-import { CacheManager } from './cache/CacheManager';
-import { AttendanceStatusService } from './Attendance/AttendanceStatusService';
-import { AttendanceEnhancementService } from './Attendance/AttendanceEnhancementService';
 import { AttendanceService } from './Attendance/AttendanceService';
+import { AttendanceEnhancementService } from './Attendance/AttendanceEnhancementService';
+import { PeriodManagementService } from './Attendance/PeriodManagementService';
+import { TimeEntryService } from './TimeEntryService';
+import { CacheManager } from './cache/CacheManager';
+import { AttendanceRecordService } from './Attendance/AttendanceRecordService';
+import { AttendanceStatusService } from './Attendance/AttendanceStatusService';
+import { HolidayService } from './HolidayService';
+import { NotificationService } from './NotificationService';
+import { createLeaveServiceServer } from './LeaveServiceServer';
+import { OvertimeServiceServer } from './OvertimeServiceServer';
 
-export const initializeServices = (prisma: PrismaClient) => {
-  // Basic services
+export async function initializeServices(prisma: PrismaClient) {
+  // Initialize supporting services first
   const holidayService = new HolidayService(prisma);
   const notificationService = new NotificationService(prisma);
   const attendanceRecordService = new AttendanceRecordService(prisma);
-  const periodManager = new PeriodManagementService();
-  const enhancementService = new AttendanceEnhancementService(periodManager);
-  const cacheManager = CacheManager.getInstance();
 
-  // Initialize services with circular dependencies first as placeholders
-  let overtimeService: OvertimeServiceServer;
-  let timeEntryService: TimeEntryService;
-
+  // Initialize base services
   const shiftService = new ShiftManagementService(
     prisma,
     holidayService,
     attendanceRecordService,
   );
-  const leaveService = new LeaveServiceServer(prisma, notificationService);
-  const attendanceStatusService = new AttendanceStatusService(
-    shiftService,
-    enhancementService,
-    attendanceRecordService,
-    cacheManager,
+
+  const periodManager = new PeriodManagementService();
+
+  // Create leave service
+  const leaveService = await createLeaveServiceServer(
+    prisma,
+    notificationService,
   );
 
-  // Create temporary overtimeService without TimeEntryService
-  overtimeService = new OvertimeServiceServer(
+  // Create overtime service with correct order of dependencies
+  const overtimeService = new OvertimeServiceServer(
     prisma,
     holidayService,
     leaveService,
     shiftService,
-    undefined as any, // Temporary undefined for circular dependency
     notificationService,
   );
 
-  // Create TimeEntryService with temporary overtimeService
-  timeEntryService = new TimeEntryService(
+  // Initialize time entry service with correct order of dependencies
+  const timeEntryService = new TimeEntryService(
     prisma,
     notificationService,
     overtimeService,
@@ -57,15 +53,30 @@ export const initializeServices = (prisma: PrismaClient) => {
     shiftService,
   );
 
-  // Now update overtimeService with proper TimeEntryService reference
-  Object.defineProperty(overtimeService, 'timeEntryService', {
-    value: timeEntryService,
-    writable: false,
-    configurable: false,
-  });
+  // Initialize enhancement service
+  const enhancementService = new AttendanceEnhancementService(periodManager);
 
-  // Set up interdependencies
-  shiftService.setOvertimeService(overtimeService);
+  // Initialize CacheManager
+  let cacheManager: CacheManager;
+  try {
+    await CacheManager.initialize(prisma, shiftService, enhancementService);
+    const instance = CacheManager.getInstance();
+    if (!instance) {
+      throw new Error('Failed to initialize CacheManager');
+    }
+    cacheManager = instance;
+  } catch (error) {
+    console.warn('CacheManager initialization failed:', error);
+    throw error; // Re-throw as services require CacheManager
+  }
+
+  // Initialize attendance-related services
+  const statusService = new AttendanceStatusService(
+    shiftService,
+    enhancementService,
+    attendanceRecordService,
+    cacheManager,
+  );
 
   const attendanceService = new AttendanceService(
     prisma,
@@ -79,16 +90,15 @@ export const initializeServices = (prisma: PrismaClient) => {
 
   return {
     shiftService,
+    enhancementService,
+    periodManager,
+    timeEntryService,
+    attendanceService,
+    statusService,
+    attendanceRecordService,
     holidayService,
+    notificationService,
     leaveService,
     overtimeService,
-    notificationService,
-    timeEntryService,
-    attendanceRecordService,
-    periodManager,
-    cacheManager,
-    attendanceStatusService,
-    enhancementService,
-    attendanceService,
   };
-};
+}

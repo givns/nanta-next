@@ -11,10 +11,42 @@ import MemoryStore from 'better-queue-memory';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
 import { AttendanceStateResponse, TimeEntry } from '@/types/attendance';
 
-// Initialize services using ServiceInitializer
+// Initialize Prisma client
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const { attendanceService, notificationService } = services;
+
+// Define the services type
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+};
+
+// Initialize services at startup
+let services: InitializedServices;
+getServices()
+  .then((s) => {
+    services = s;
+  })
+  .catch((error) => {
+    console.error('Failed to initialize services:', error);
+    process.exit(1); // Exit if services can't be initialized
+  });
 
 // Updated QueueResult interface
 interface QueueResult {
@@ -122,6 +154,14 @@ const checkInOutQueue = new BetterQueue<ProcessingOptions, QueueResult>(
 async function processCheckInOut(
   task: ProcessingOptions,
 ): Promise<QueueResult> {
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Services not initialized',
+    });
+  }
+
+  const { attendanceService, notificationService } = services;
   const requestKey = getRequestKey(task);
   const serverTime = getCurrentTime();
 
@@ -407,13 +447,14 @@ export default async function handler(
         });
 
         if (user) {
-          const currentStatus = await attendanceService.getAttendanceStatus(
-            user.employeeId,
-            {
-              inPremises: true,
-              address: '',
-            },
-          );
+          const currentStatus =
+            await services.attendanceService.getAttendanceStatus(
+              user.employeeId,
+              {
+                inPremises: true,
+                address: '',
+              },
+            );
 
           if (currentStatus) {
             return res.status(200).json({

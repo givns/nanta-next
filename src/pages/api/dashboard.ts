@@ -11,10 +11,44 @@ import {
 import { cacheService } from '@/services/cache/CacheService';
 import { addDays, format } from 'date-fns';
 import { initializeServices } from '@/services/ServiceInitializer';
+import { AppError, ErrorCode } from '@/types/attendance';
 
+// Initialize Prisma client
 const prisma = new PrismaClient();
-const services = initializeServices(prisma);
-const { attendanceService } = services;
+
+// Define the services type
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+};
+
+// Initialize services at startup
+let services: InitializedServices;
+getServices()
+  .then((s) => {
+    services = s;
+  })
+  .catch((error) => {
+    console.error('Failed to initialize services:', error);
+    process.exit(1); // Exit if services can't be initialized
+  });
 
 const getPayrollPeriod = (date: Date = new Date()) => {
   const currentMonth = new Date(date);
@@ -66,6 +100,15 @@ export default async function handler(
   }
 
   try {
+    if (!services) {
+      throw new AppError({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Services not initialized',
+      });
+    }
+
+    const { attendanceService } = services;
+
     const cacheKey = `dashboard:${lineUserId}`;
     let dashboardData = cacheService ? await cacheService.get(cacheKey) : null;
 

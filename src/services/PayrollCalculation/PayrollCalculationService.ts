@@ -17,6 +17,7 @@ import {
 } from '@/types/payroll';
 import { format, isSameDay, min } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
+
 import { initializeServices } from '../ServiceInitializer';
 
 interface TimeEntryWithMetadata extends TimeEntry {
@@ -41,14 +42,20 @@ interface LeaveTypeMappings {
 }
 
 export class PayrollCalculationService {
-  private readonly shiftService: ShiftManagementService; // Declare the property
+  private shiftService!: ShiftManagementService; // Use ! to assert it will be assigned
+  private initialized: boolean = false;
+
   constructor(
     private settings: PayrollSettingsData,
     private prisma: PrismaClient,
-  ) {
-    // Initialize services using ServiceInitializer
-    const services = initializeServices(prisma);
+  ) {}
+
+  public async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    const services = await initializeServices(this.prisma);
     this.shiftService = services.shiftService;
+    this.initialized = true;
   }
 
   async calculatePayroll(

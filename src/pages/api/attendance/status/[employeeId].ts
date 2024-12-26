@@ -14,9 +14,22 @@ import { format } from 'date-fns';
 // Initialize Prisma client
 const prisma = new PrismaClient();
 
-// Initialize services using ServiceInitializer
-const services = initializeServices(prisma);
-const { shiftService, enhancementService, attendanceService } = services;
+// Type for initialized services
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Create services with proper initialization handling
+const initializeServicesOnce = async () => {
+  try {
+    const services = await initializeServices(prisma);
+    return services;
+  } catch (error) {
+    console.error('Failed to initialize services:', error);
+    throw error;
+  }
+};
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
 
 // Request validation schema
 const QuerySchema = z.object({
@@ -57,6 +70,20 @@ export default async function handler(
   }
 
   try {
+    // Initialize services if not already initialized
+    if (!servicesPromise) {
+      servicesPromise = initializeServicesOnce();
+    }
+
+    // Await services and handle potential null
+    const services = await servicesPromise;
+    if (!services) {
+      throw new AppError({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Failed to initialize services',
+      });
+    }
+
     const validatedParams = QuerySchema.safeParse(req.query);
     if (!validatedParams.success) {
       return res.status(400).json({
@@ -70,13 +97,14 @@ export default async function handler(
     const now = getCurrentTime();
 
     // Get attendance status directly from the attendance service
-    const attendanceStatus = await attendanceService.getAttendanceStatus(
-      employeeId as string,
-      {
-        inPremises,
-        address: address as string,
-      },
-    );
+    const attendanceStatus =
+      await services.attendanceService.getAttendanceStatus(
+        employeeId as string,
+        {
+          inPremises,
+          address: address as string,
+        },
+      );
 
     if (!attendanceStatus) {
       throw new AppError({

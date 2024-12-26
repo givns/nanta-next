@@ -7,6 +7,7 @@ import { UserRole } from '../../types/enum';
 import { createAndAssignRichMenu } from '../../utils/richMenuUtils';
 import getRawBody from 'raw-body';
 import { initializeServices } from '@/services/ServiceInitializer';
+import { AppError, ErrorCode } from '@/types/attendance';
 
 dotenv.config({ path: './.env.local' });
 
@@ -14,8 +15,39 @@ const prisma = new PrismaClient();
 const channelSecret = process.env.LINE_CHANNEL_SECRET || '';
 const channelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
 
-// Initialize main service
-const services = initializeServices(prisma);
+// Define the services type
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+};
+
+// Initialize services at startup
+let services: InitializedServices;
+getServices()
+  .then((s) => {
+    services = s;
+  })
+  .catch((error) => {
+    console.error('Failed to initialize services:', error);
+    process.exit(1); // Exit if services can't be initialized
+  });
 
 if (!channelSecret || !channelAccessToken) {
   throw new Error(
