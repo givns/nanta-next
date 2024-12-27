@@ -89,8 +89,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     if (!dateString) return '--:--';
     try {
       const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '--:--';
-      return format(date, 'HH:mm');
+      // Adjust the timezone offset
+      const adjustedDate = new Date(
+        date.getTime() - date.getTimezoneOffset() * 60000,
+      );
+      return format(adjustedDate, 'HH:mm');
     } catch {
       return '--:--';
     }
