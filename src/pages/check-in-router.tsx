@@ -203,64 +203,46 @@ const CheckInRouter: React.FC = () => {
   );
 
   useEffect(() => {
-    console.log('Phase transition effect:', {
-      isSystemReady,
-      loadingPhase,
-      currentStep,
-      locationReady,
-      attendanceLoading,
-    });
-
     let timer: NodeJS.Timeout;
-    if (isSystemReady && loadingPhase === 'loading') {
-      console.log('Starting fadeOut transition');
-      setLoadingPhase('fadeOut');
-      timer = setTimeout(() => {
-        console.log('Completing phase transition');
-        setLoadingPhase('complete');
-      }, 500);
-    }
-    return () => {
-      if (timer) {
-        console.log('Cleaning up timer');
-        clearTimeout(timer);
+
+    if (isSystemReady) {
+      if (loadingPhase === 'loading') {
+        setLoadingPhase('fadeOut');
+      } else if (loadingPhase === 'fadeOut') {
+        timer = setTimeout(() => {
+          setLoadingPhase('complete');
+        }, 500);
       }
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
     };
   }, [isSystemReady, loadingPhase]);
 
-  // Add safety check for rendering conditions
-  const canRenderForm = useMemo(() => {
-    const ready = userData && safeAttendanceProps;
-    console.log('Can render form:', {
-      hasUserData: !!userData,
-      hasAttendanceProps: !!safeAttendanceProps,
+  // Add debug output for phase changes
+  useEffect(() => {
+    console.log('Phase changed:', {
       loadingPhase,
+      isSystemReady,
+      currentStep,
     });
-    return ready;
-  }, [userData, safeAttendanceProps, loadingPhase]);
+  }, [loadingPhase, isSystemReady, currentStep]);
 
-  const mainContent = useMemo(() => {
-    console.log('Rendering main content', {
-      loadingPhase,
-      canRenderForm,
-    });
-
-    return (
+  const mainContent = useMemo(
+    () => (
       <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
-        {canRenderForm ? (
+        {userData && safeAttendanceProps && (
           <CheckInOutForm
-            userData={userData!}
+            userData={userData}
             onComplete={closeWindow}
-            {...safeAttendanceProps!}
+            {...safeAttendanceProps}
           />
-        ) : (
-          <div className="flex items-center justify-center min-h-screen">
-            <LoadingBar step={currentStep} />
-          </div>
         )}
       </div>
-    );
-  }, [userData, safeAttendanceProps, loadingPhase, currentStep, canRenderForm]);
+    ),
+    [userData, safeAttendanceProps],
+  );
 
   if (attendanceProps && !safeAttendanceProps) {
     return (
@@ -281,9 +263,8 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  // Add fallback for loading state
+  // Loading state render
   if (loadingPhase !== 'complete') {
-    console.log('Rendering loading state:', loadingPhase);
     return (
       <>
         <div
@@ -293,6 +274,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar step={currentStep} />
         </div>
+        {/* Keep the main content rendered but hidden for smooth transition */}
         <div className="opacity-0">{mainContent}</div>
       </>
     );
