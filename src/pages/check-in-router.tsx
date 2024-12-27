@@ -202,35 +202,65 @@ const CheckInRouter: React.FC = () => {
     [currentStep, attendanceLoading, locationState.status, userData],
   );
 
-  // Loading phase management
   useEffect(() => {
+    console.log('Phase transition effect:', {
+      isSystemReady,
+      loadingPhase,
+      currentStep,
+      locationReady,
+      attendanceLoading,
+    });
+
     let timer: NodeJS.Timeout;
     if (isSystemReady && loadingPhase === 'loading') {
+      console.log('Starting fadeOut transition');
       setLoadingPhase('fadeOut');
       timer = setTimeout(() => {
+        console.log('Completing phase transition');
         setLoadingPhase('complete');
       }, 500);
     }
     return () => {
-      if (timer) clearTimeout(timer);
+      if (timer) {
+        console.log('Cleaning up timer');
+        clearTimeout(timer);
+      }
     };
   }, [isSystemReady, loadingPhase]);
 
-  // Main content
-  const mainContent = useMemo(
-    () => (
+  // Add safety check for rendering conditions
+  const canRenderForm = useMemo(() => {
+    const ready = userData && safeAttendanceProps;
+    console.log('Can render form:', {
+      hasUserData: !!userData,
+      hasAttendanceProps: !!safeAttendanceProps,
+      loadingPhase,
+    });
+    return ready;
+  }, [userData, safeAttendanceProps, loadingPhase]);
+
+  const mainContent = useMemo(() => {
+    console.log('Rendering main content', {
+      loadingPhase,
+      canRenderForm,
+    });
+
+    return (
       <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
-        {userData && safeAttendanceProps && (
+        {canRenderForm ? (
           <CheckInOutForm
-            userData={userData}
+            userData={userData!}
             onComplete={closeWindow}
-            {...safeAttendanceProps} // Spread the safe attendance props
+            {...safeAttendanceProps!}
           />
+        ) : (
+          <div className="flex items-center justify-center min-h-screen">
+            <LoadingBar step={currentStep} />
+          </div>
         )}
       </div>
-    ),
-    [userData, safeAttendanceProps],
-  );
+    );
+  }, [userData, safeAttendanceProps, loadingPhase, currentStep, canRenderForm]);
 
   if (attendanceProps && !safeAttendanceProps) {
     return (
@@ -251,8 +281,9 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  // Loading state
+  // Add fallback for loading state
   if (loadingPhase !== 'complete') {
+    console.log('Rendering loading state:', loadingPhase);
     return (
       <>
         <div
@@ -267,6 +298,7 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  console.log('Rendering final content');
   return mainContent;
 };
 

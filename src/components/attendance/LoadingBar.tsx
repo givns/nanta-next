@@ -10,11 +10,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({ step }) => {
   const getProgressTarget = () => {
     switch (step) {
       case 'auth':
-        return 33;
+        return 25;
       case 'user':
-        return 66;
+        return 50;
       case 'location':
-        return 99;
+        return 75;
       case 'ready':
         return 100;
     }
