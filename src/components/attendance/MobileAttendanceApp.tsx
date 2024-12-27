@@ -1,6 +1,6 @@
 // components/attendance/MobileAttendanceApp.tsx
 import React from 'react';
-import { differenceInMinutes, format, parseISO } from 'date-fns';
+import { addMinutes, differenceInMinutes, format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
@@ -84,16 +84,19 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
   }, [currentPeriod]);
 
+  const formatUtcTime = (isoString: string) => {
+    const date = parseISO(isoString);
+    // Add offset to keep the UTC time
+    const utcDate = addMinutes(date, date.getTimezoneOffset());
+    return format(utcDate, 'HH:mm');
+  };
+
   // Safe date formatting helper
   const formatTimeFromISO = (dateString: string | null | undefined): string => {
     if (!dateString) return '--:--';
     try {
-      const date = new Date(dateString);
-      // Adjust the timezone offset
-      const adjustedDate = new Date(
-        date.getTime() - date.getTimezoneOffset() * 60000,
-      );
-      return format(adjustedDate, 'HH:mm');
+      // When the input is UTC (has Z suffix), treat it as UTC
+      return formatUtcTime(dateString), 'HH:mm';
     } catch {
       return '--:--';
     }

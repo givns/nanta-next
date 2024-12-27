@@ -1,4 +1,4 @@
-import { format, parseISO } from 'date-fns';
+import { addMinutes, format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
@@ -91,6 +91,18 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     return `${baseStyle} bg-red-600 hover:bg-red-700 active:bg-red-800`;
   }, [periodType, systemState.isReady, validation.canProceed, transition]);
 
+  const formatUtcTime = (isoString: string) => {
+    const date = parseISO(isoString);
+    // Add offset to keep the UTC time
+    const utcDate = addMinutes(date, date.getTimezoneOffset());
+    return format(utcDate, 'HH:mm');
+  };
+
+  // Then in the render
+  {
+    `: ${formatUtcTime(periodWindow?.start ?? '')} - ${formatUtcTime(periodWindow?.end ?? '')} น.`;
+  }
+
   const handleAction = React.useCallback(async () => {
     if (!validation.canProceed || !systemState.isReady) return;
 
@@ -140,10 +152,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
                   {periodType === PeriodType.OVERTIME
                     ? 'ช่วงเวลาทำงานล่วงเวลา'
                     : 'ช่วงเวลาทำงานปกติ'}
-                  {`: ${format(parseISO(periodWindow.start), 'HH:mm')} - ${format(
-                    parseISO(periodWindow.end),
-                    'HH:mm',
-                  )} น.`}
+                  {`: ${formatUtcTime(periodWindow.start)} - ${formatUtcTime(periodWindow.end)} น.`}
                 </p>
               )}
             </div>
