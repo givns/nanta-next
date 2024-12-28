@@ -64,17 +64,26 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     try {
       const now = getCurrentTime();
-      // Ensure all times are in UTC
+      // Parse the UTC times
       const periodStart = parseISO(currentPeriod.timeWindow.start);
       const periodEnd = parseISO(currentPeriod.timeWindow.end);
-      // Adjust now to UTC for comparison
+
+      // Convert now to UTC for comparison
       const utcNow = addMinutes(now, now.getTimezoneOffset());
 
-      const totalMinutes = differenceInMinutes(periodEnd, periodStart);
-      if (totalMinutes <= 0) return 0;
+      console.log('Time debug:', {
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        now: now.toISOString(),
+        utcNow: utcNow.toISOString(),
+      });
 
+      const totalMinutes = differenceInMinutes(periodEnd, periodStart);
       const elapsedMinutes = differenceInMinutes(utcNow, periodStart);
+
       console.log('Progress calc:', { elapsedMinutes, totalMinutes });
+
+      if (totalMinutes <= 0) return 0;
       return Math.max(0, Math.min((elapsedMinutes / totalMinutes) * 100, 100));
     } catch (error) {
       console.error('Progress calculation error:', error);
