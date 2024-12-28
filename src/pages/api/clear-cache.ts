@@ -1,5 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { cacheService } from '../../services/cache/CacheService';
+import { format } from 'date-fns';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 export default async function handler(
   req: NextApiRequest,
@@ -16,12 +18,19 @@ export default async function handler(
   }
 
   try {
-    const cacheKey = `attendance:status:${employeeId}`;
-    await cacheService.del(cacheKey);
+    const date = format(getCurrentTime(), 'yyyy-MM-dd');
+    // Clear all possible cache types for this employee
+    const cacheKeys = [
+      `attendance:${employeeId}:${date}`,
+      `window:${employeeId}:${date}`,
+      `validation:${employeeId}:${date}`,
+    ];
+
+    await Promise.all(cacheKeys.map((key) => cacheService.del(key)));
 
     return res.status(200).json({
       message: 'Cache cleared successfully',
-      clearedKey: cacheKey,
+      clearedKeys: cacheKeys,
     });
   } catch (error) {
     console.error('Error clearing cache:', error);
