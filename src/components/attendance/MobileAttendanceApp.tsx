@@ -64,19 +64,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     try {
       const now = getCurrentTime();
-      const periodStart = new Date(currentPeriod.timeWindow.start);
-      const periodEnd = new Date(currentPeriod.timeWindow.end);
-
-      // Validate dates
-      if (isNaN(periodStart.getTime()) || isNaN(periodEnd.getTime())) {
-        console.error('Invalid period dates');
-        return 0;
-      }
+      // Ensure all times are in UTC
+      const periodStart = parseISO(currentPeriod.timeWindow.start);
+      const periodEnd = parseISO(currentPeriod.timeWindow.end);
+      // Adjust now to UTC for comparison
+      const utcNow = addMinutes(now, now.getTimezoneOffset());
 
       const totalMinutes = differenceInMinutes(periodEnd, periodStart);
       if (totalMinutes <= 0) return 0;
 
-      const elapsedMinutes = differenceInMinutes(now, periodStart);
+      const elapsedMinutes = differenceInMinutes(utcNow, periodStart);
+      console.log('Progress calc:', { elapsedMinutes, totalMinutes });
       return Math.max(0, Math.min((elapsedMinutes / totalMinutes) * 100, 100));
     } catch (error) {
       console.error('Progress calculation error:', error);
