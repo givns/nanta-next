@@ -10,6 +10,7 @@ import { getCurrentTime } from '@/utils/dateUtils';
 import {
   addMinutes,
   differenceInMinutes,
+  format,
   isBefore,
   isWithinInterval,
   parseISO,
@@ -169,6 +170,32 @@ export class AttendanceCheckService {
     };
   }> {
     const hasCheckedIn = Boolean(currentState.activity.checkIn);
+
+    // Debug time calculations for midshift
+    const midShift = addMinutes(
+      parseISO(currentState.timeWindow.start),
+      differenceInMinutes(
+        parseISO(currentState.timeWindow.end),
+        parseISO(currentState.timeWindow.start),
+      ) / 2,
+    );
+
+    console.log('Validation debug:', {
+      times: {
+        now: format(now, 'HH:mm'),
+        midShift: format(midShift, 'HH:mm'),
+        shiftStart: format(parseISO(currentState.timeWindow.start), 'HH:mm'),
+        shiftEnd: format(parseISO(currentState.timeWindow.end), 'HH:mm'),
+        checkInTime: currentState.activity.checkIn
+          ? format(parseISO(currentState.activity.checkIn), 'HH:mm')
+          : null,
+      },
+      checks: {
+        hasCheckedIn,
+        isBeforeMidShift: isBefore(now, midShift),
+        isBeforeShiftEnd: isBefore(now, parseISO(currentState.timeWindow.end)),
+      },
+    });
     const checkTime = {
       isEarly: this.isEarlyForPeriod(now, currentState),
       isLate: this.isLateForPeriod(now, currentState),
@@ -176,6 +203,8 @@ export class AttendanceCheckService {
       isVeryEarlyCheckout:
         hasCheckedIn && this.isVeryEarlyCheckout(now, currentState),
     };
+
+    console.log('Validation flags:', checkTime);
 
     // Early check-in validation
     if (!hasCheckedIn && checkTime.isEarly) {
@@ -250,7 +279,13 @@ export class AttendanceCheckService {
         parseISO(state.timeWindow.start),
       ) / 2,
     );
-    return isBefore(now, midShift);
+    const result = isBefore(now, midShift);
+    console.log('isVeryEarlyCheckout check:', {
+      now: format(now, 'HH:mm'),
+      midShift: format(midShift, 'HH:mm'),
+      result,
+    });
+    return result;
   }
 
   private createStateValidation(
