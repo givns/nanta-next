@@ -297,14 +297,16 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
                 return (
                   <div className="space-y-1">
-                    <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
-                      {/* Missed/Late time indicator */}
-                      {metrics.lateMinutes > 0 && !metrics.isMissed && (
+                    <div className="relative h-3 rounded-full overflow-hidden mb-4">
+                      {/* Base layer - full shift duration */}
+                      <div className="absolute w-full h-full bg-gray-100" />
+
+                      {/* Missed time - subtle pattern or gradient */}
+                      {metrics.lateMinutes > 0 && (
                         <div
-                          className="absolute h-full bg-red-200"
+                          className="absolute h-full bg-gradient-to-r from-yellow-100 to-orange-100"
                           style={{
                             width: `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
-                            left: '0%',
                           }}
                         />
                       )}

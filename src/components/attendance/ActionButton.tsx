@@ -91,17 +91,11 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     return `${baseStyle} bg-red-600 hover:bg-red-700 active:bg-red-800`;
   }, [periodType, systemState.isReady, validation.canProceed, transition]);
 
-  const formatUtcTime = (isoString: string) => {
+  const formatLocalTime = (isoString: string) => {
+    // Since our times are already local (no Z), just parse and format
     const date = parseISO(isoString);
-    // Add offset to keep the UTC time
-    const utcDate = addMinutes(date, date.getTimezoneOffset());
-    return format(utcDate, 'HH:mm');
+    return format(date, 'HH:mm');
   };
-
-  // Then in the render
-  {
-    `: ${formatUtcTime(periodWindow?.start ?? '')} - ${formatUtcTime(periodWindow?.end ?? '')} น.`;
-  }
 
   const handleAction = React.useCallback(async () => {
     if (!validation.canProceed || !systemState.isReady) return;
@@ -152,7 +146,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
                   {periodType === PeriodType.OVERTIME
                     ? 'ช่วงเวลาทำงานล่วงเวลา'
                     : 'ช่วงเวลาทำงานปกติ'}
-                  {`: ${formatUtcTime(periodWindow.start)} - ${formatUtcTime(periodWindow.end)} น.`}
+                  {`: ${formatLocalTime(periodWindow.start)} - ${formatLocalTime(periodWindow.end)} น.`}
                 </p>
               )}
             </div>
