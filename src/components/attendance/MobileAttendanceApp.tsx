@@ -304,7 +304,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                       {/* Missed time - subtle pattern or gradient */}
                       {metrics.lateMinutes > 0 && (
                         <div
-                          className="absolute h-full bg-gradient-to-r from-yellow-100 to-orange-100"
+                          className="absolute h-full bg-gradient-to-r from-blue-100 to-blue-300"
                           style={{
                             width: `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
                           }}

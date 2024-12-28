@@ -25,9 +25,9 @@ export class PeriodManagementService {
     const periodEnd = parseISO(periodState.current.end);
     // Add timezone offset to now for comparison
     // Format now as local time string to match others
-  const nowLocal = format(now, "yyyy-MM-dd'T'HH:mm:ss.SSS");
-  const nowDate = parseISO(nowLocal);
-  console.log('nowDate:', nowDate);
+    const nowLocal = format(now, "yyyy-MM-dd'T'HH:mm:ss.SSS");
+    const nowDate = parseISO(nowLocal);
+    console.log('nowDate:', nowDate);
 
     const isCheckedIn = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
