@@ -39,6 +39,7 @@ interface ProgressMetrics {
   isEarly: boolean;
   progressPercent: number;
   totalShiftMinutes: number;
+  isMissed: boolean;
 }
 
 const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
@@ -74,6 +75,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isEarly: false,
         progressPercent: 0,
         totalShiftMinutes: 0,
+        isMissed: true,
       };
     }
 
@@ -83,7 +85,22 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       const shiftEnd = parseISO(currentPeriod.timeWindow.end);
       const checkInTime = currentPeriod.activity.checkIn
         ? parseISO(currentPeriod.activity.checkIn)
-        : now;
+        : null;
+
+      // Calculate total shift duration
+      const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
+
+      // If no check-in, show full shift as missed
+      if (!checkInTime) {
+        return {
+          lateMinutes: totalShiftMinutes,
+          earlyMinutes: 0,
+          isEarly: false,
+          progressPercent: 0,
+          totalShiftMinutes,
+          isMissed: true,
+        };
+      }
 
       // Early check-in calculation
       const earlyMinutes = Math.max(
@@ -92,20 +109,20 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       );
       const isEarly = earlyMinutes > 0;
 
-      // Calculate late minutes (if checked in after shift start)
-      const lateMinutes = Math.max(
+      // Late calculation (only if not early)
+      const lateMinutes = !isEarly
+        ? Math.max(0, differenceInMinutes(checkInTime, shiftStart))
+        : 0;
+
+      // Progress calculation
+      const progressStartTime = isEarly ? shiftStart : checkInTime;
+      const elapsedMinutes = Math.max(
         0,
-        differenceInMinutes(checkInTime, shiftStart),
+        differenceInMinutes(now, progressStartTime),
       );
-
-      // Calculate total shift duration
-      const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-
-      // Calculate progress since check-in
-      const elapsedMinutes = differenceInMinutes(now, checkInTime);
-      const progressPercent = Math.max(
-        0,
-        Math.min((elapsedMinutes / totalShiftMinutes) * 100, 100),
+      const progressPercent = Math.min(
+        (elapsedMinutes / totalShiftMinutes) * 100,
+        100,
       );
 
       return {
@@ -114,6 +131,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isEarly,
         progressPercent,
         totalShiftMinutes,
+        isMissed: false,
       };
     } catch (error) {
       console.error('Progress calculation error:', error);
@@ -123,6 +141,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isEarly: false,
         progressPercent: 0,
         totalShiftMinutes: 0,
+        isMissed: true,
       };
     }
   }, [currentPeriod]);
@@ -277,38 +296,67 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                 const metrics = calculateProgressMetrics();
 
                 return (
-                  <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
-                    {/* Late time indicator */}
-                    <div
-                      className="absolute h-full bg-red-200"
-                      style={{
-                        width: `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
-                      }}
-                    />
-                    {/* Early check-in indicator */}
-                    {metrics.isEarly && (
-                      <div
-                        className="absolute h-full bg-green-200"
-                        style={{
-                          width: `${metrics.progressPercent}%`,
-                        }}
-                      />
-                    )}
-                    {/* Progress since check-in */}
-                    <div
-                      className={`absolute h-full transition-all duration-300 ${
-                        currentPeriod.type === PeriodType.OVERTIME
-                          ? 'bg-yellow-500'
-                          : 'bg-blue-500'
-                      }`}
-                      style={{
-                        width: `${metrics.progressPercent}%`,
-                        left: `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
-                      }}
-                    />
+                  <div className="space-y-1">
+                    <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+                      {/* Missed/Late time indicator */}
+                      {metrics.lateMinutes > 0 && !metrics.isMissed && (
+                        <div
+                          className="absolute h-full bg-red-200"
+                          style={{
+                            width: `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
+                            left: '0%',
+                          }}
+                        />
+                      )}
+
+                      {/* Early arrival indicator */}
+                      {metrics.isEarly && (
+                        <div
+                          className="absolute h-full bg-green-200"
+                          style={{
+                            width: `${(metrics.earlyMinutes / metrics.totalShiftMinutes) * 100}%`,
+                            left: '0%',
+                          }}
+                        />
+                      )}
+
+                      {/* Work progress */}
+                      {!metrics.isMissed && (
+                        <div
+                          className={`absolute h-full transition-all duration-300 ${
+                            currentPeriod.type === PeriodType.OVERTIME
+                              ? 'bg-yellow-500'
+                              : 'bg-blue-500'
+                          }`}
+                          style={{
+                            width: `${metrics.progressPercent}%`,
+                            left: metrics.isEarly
+                              ? `${(metrics.earlyMinutes / metrics.totalShiftMinutes) * 100}%`
+                              : `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
+                          }}
+                        />
+                      )}
+
+                      {/* Missed entire shift */}
+                      {metrics.isMissed && (
+                        <div
+                          className="absolute h-full bg-red-400"
+                          style={{
+                            width: '100%',
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {/* Optional: Progress indicator text */}
+                    <div className="text-xs text-gray-500 flex justify-between px-1">
+                      <span>{shiftData?.startTime}</span>
+                      <span>{shiftData?.endTime}</span>
+                    </div>
                   </div>
                 );
               })()}
+
             {/* Regular Period Times */}
             <div>
               <div className="text-sm font-medium mb-2">กะปกติ</div>
