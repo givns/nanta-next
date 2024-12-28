@@ -112,12 +112,15 @@ export class AttendanceEnhancementService {
     const isMorningShift = shiftStartHour >= 4 && shiftStartHour < 12;
     const isAfternoonShift = !isMorningShift;
 
-    // Check if after midshift
+    // Calculate midshift and early checkout status
     const midShiftTime = this.calculateMidShift(
       parseISO(window.current.start),
       parseISO(window.current.end),
     );
     const isAfterMidshift = now > midShiftTime;
+    const isVeryEarlyCheckout = isActiveAttendance && !isAfterMidshift;
+    const isEarlyCheckout =
+      isActiveAttendance && this.checkIfEarlyCheckout(attendance, window);
 
     // Get timing flags from attendance record
     const timingFlags = attendance?.checkTiming || {
@@ -146,16 +149,11 @@ export class AttendanceEnhancementService {
     const requiresTransition =
       hasPendingTransition && currentState.activity.isActive;
 
-    // Handle auto-completion requirements
-    const requiresAutoCompletion = this.checkIfRequiresAutoCompletion(
-      attendance,
-      window,
-    );
-
-    // Rather than relying on metadata for these flags, we'll use other data points
-    const isApprovedEarlyCheckout = false; // This should come from a leave/permission system
-    const isPlannedHalfDayLeave = false; // This should come from a leave system
-    const isEmergencyLeave = false; // This should come from a leave system
+    // Emergency leave or early checkout validation
+    const requiresAutoCompletion =
+      isActiveAttendance &&
+      (isVeryEarlyCheckout ||
+        this.checkIfRequiresAutoCompletion(attendance, window));
 
     const validation: StateValidation = {
       allowed: currentState.validation.isWithinBounds,
@@ -167,12 +165,12 @@ export class AttendanceEnhancementService {
         isOutsideShift:
           isActiveAttendance && !currentState.validation.isWithinBounds,
 
-        // Check-in Related - Use attendance.checkTiming
+        // Check-in Related
         isEarlyCheckIn: timingFlags.isEarlyCheckIn,
         isLateCheckIn: timingFlags.isLateCheckIn,
 
-        // Check-out Related - Use attendance.checkTiming
-        isEarlyCheckOut: this.checkIfEarlyCheckout(attendance, window),
+        // Check-out Related
+        isEarlyCheckOut: isEarlyCheckout,
         isLateCheckOut: timingFlags.isLateCheckOut,
         isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
 
@@ -181,10 +179,11 @@ export class AttendanceEnhancementService {
         isPendingOvertime,
         isDayOffOvertime,
 
-        // Auto-completion
+        // Auto-completion & Emergency Leave
         isAutoCheckIn: attendance?.metadata?.source === 'auto',
         isAutoCheckOut: attendance?.metadata?.source === 'auto',
         requiresAutoCompletion,
+        isEmergencyLeave: isVeryEarlyCheckout,
 
         // Transition
         hasPendingTransition,
@@ -196,57 +195,31 @@ export class AttendanceEnhancementService {
         isAfterMidshift,
 
         // Special Cases
-        isApprovedEarlyCheckout,
-        isPlannedHalfDayLeave,
-        isEmergencyLeave,
+        isApprovedEarlyCheckout: false,
+        isPlannedHalfDayLeave: false,
         isHoliday: window.isHoliday,
         isDayOff: Boolean(window.isDayOff || attendance?.metadata?.isDayOff),
         isManualEntry: attendance?.metadata?.source === 'manual',
       },
     };
-    // Add metadata if we have values
-    const additionalInfo: Record<string, unknown> = {
-      overtimeInfo: window.overtimeInfo,
-      holidayInfo: window.holidayInfo,
-      checkTiming: attendance?.checkTiming
-        ? {
-            lateCheckOutMinutes: attendance.checkTiming.lateCheckOutMinutes,
-          }
-        : undefined,
-      timeEntries: attendance?.timeEntries?.length ?? 0,
-      overtimeEntries: attendance?.overtimeEntries?.length ?? 0,
-    };
 
-    if (attendance?.location) {
-      additionalInfo.location = {
-        checkIn: attendance.location.checkIn,
-        checkOut: attendance.location.checkOut,
-      };
-    }
-
-    if (attendance?.metadata) {
-      additionalInfo.recordMetadata = {
-        createdAt: attendance.metadata.createdAt,
-        updatedAt: attendance.metadata.updatedAt,
-        source: attendance.metadata.source,
-      };
-    }
-
-    // Only add metadata field if we have values to add
+    // Add metadata if needed
+    const nextTransitionTime = window.transition?.to.start;
     if (
-      window.transition?.to.start ||
+      nextTransitionTime ||
       this.getRequiredAction(currentState, window, attendance)
     ) {
       validation.metadata = {
-        nextTransitionTime: window.transition?.to.start || undefined,
+        nextTransitionTime: nextTransitionTime || undefined, // Will be string | undefined
         requiredAction: this.getRequiredAction(
           currentState,
           window,
           attendance,
         ),
-        additionalInfo,
+        additionalInfo: this.buildAdditionalInfo(attendance, window),
       };
     }
+
     return validation;
   }
 
@@ -306,6 +279,41 @@ export class AttendanceEnhancementService {
       return 'Holiday';
     }
     return '';
+  }
+
+  private buildAdditionalInfo(
+    attendance: AttendanceRecord | null,
+    window: ShiftWindowResponse,
+  ): Record<string, unknown> {
+    const additionalInfo: Record<string, unknown> = {
+      overtimeInfo: window.overtimeInfo,
+      holidayInfo: window.holidayInfo,
+      timeEntries: attendance?.timeEntries?.length ?? 0,
+      overtimeEntries: attendance?.overtimeEntries?.length ?? 0,
+    };
+
+    if (attendance?.checkTiming) {
+      additionalInfo.checkTiming = {
+        lateCheckOutMinutes: attendance.checkTiming.lateCheckOutMinutes,
+      };
+    }
+
+    if (attendance?.location) {
+      additionalInfo.location = {
+        checkIn: attendance.location.checkIn,
+        checkOut: attendance.location.checkOut,
+      };
+    }
+
+    if (attendance?.metadata) {
+      additionalInfo.recordMetadata = {
+        createdAt: attendance.metadata.createdAt,
+        updatedAt: attendance.metadata.updatedAt,
+        source: attendance.metadata.source,
+      };
+    }
+
+    return additionalInfo;
   }
 
   private getRequiredAction(
