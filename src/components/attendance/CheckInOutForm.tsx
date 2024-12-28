@@ -307,10 +307,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const renderActionComponent = () => {
     if (
-      !periodState.activity.checkIn &&
+      periodState.activity.checkIn && // User is checked in
       periodState.type === PeriodType.REGULAR &&
-      stateValidation.flags.isEarlyCheckOut &&
-      stateValidation.flags.isEmergencyLeave
+      stateValidation.flags.isEarlyCheckOut && // Early checkout
+      stateValidation.flags.isEmergencyLeave // Emergency leave
     ) {
       return (
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
