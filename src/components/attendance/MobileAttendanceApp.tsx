@@ -85,21 +85,20 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   }, [currentPeriod]);
 
   const formatUtcTime = (isoString: string) => {
-    const date = parseISO(isoString);
-    // Add offset to keep the UTC time
-    const utcDate = addMinutes(date, date.getTimezoneOffset());
-    return format(utcDate, 'HH:mm');
+    try {
+      const date = parseISO(isoString);
+      // Add offset to keep the UTC time
+      const utcDate = addMinutes(date, date.getTimezoneOffset());
+      return format(utcDate, 'HH:mm');
+    } catch {
+      return '--:--';
+    }
   };
 
   // Safe date formatting helper
   const formatTimeFromISO = (dateString: string | null | undefined): string => {
     if (!dateString) return '--:--';
-    try {
-      // When the input is UTC (has Z suffix), treat it as UTC
-      return formatUtcTime(dateString), 'HH:mm';
-    } catch {
-      return '--:--';
-    }
+    return formatUtcTime(dateString);
   };
 
   // Handle check-in/check-out times safely
