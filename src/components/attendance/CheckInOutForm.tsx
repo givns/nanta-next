@@ -306,6 +306,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   );
 
   const renderActionComponent = () => {
+    console.log('Render Action Component Debug:', {
+      isCheckIn: periodState.activity.checkIn,
+      periodType: periodState.type,
+      isEarlyCheckOut: stateValidation.flags.isEarlyCheckOut,
+      isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+    });
     if (
       periodState.activity.checkIn && // User is checked in
       periodState.type === PeriodType.REGULAR &&
