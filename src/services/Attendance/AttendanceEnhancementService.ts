@@ -122,6 +122,24 @@ export class AttendanceEnhancementService {
     const isEarlyCheckout =
       isActiveAttendance && this.checkIfEarlyCheckout(attendance, window);
 
+    console.log('Validation Calculations:', {
+      now: format(now, 'HH:mm'),
+      midshift: format(midShiftTime, 'HH:mm'),
+      checkIn: attendance?.CheckInTime
+        ? format(new Date(attendance.CheckInTime), 'HH:mm')
+        : null,
+      shiftTimes: {
+        start: window.shift.startTime,
+        end: window.shift.endTime,
+      },
+    });
+
+    console.log('Flag Calculations:', {
+      isActiveAttendance,
+      isAfterMidshift,
+      isVeryEarlyCheckout,
+    });
+
     // Get timing flags from attendance record
     const timingFlags = attendance?.checkTiming || {
       isEarlyCheckIn: false,
