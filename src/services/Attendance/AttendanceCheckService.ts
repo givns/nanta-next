@@ -113,8 +113,11 @@ export class AttendanceCheckService {
         isAfterMidshift: false,
         isApprovedEarlyCheckout: false,
         isPlannedHalfDayLeave: false,
-        isEmergencyLeave: false,
-        requiresAutoCompletion: false,
+        isEmergencyLeave: periodValidation.validationFlags.isVeryEarlyCheckout, // Set based on midshift check
+        requiresAutoCompletion: Boolean(
+          currentState.activity.checkIn &&
+            periodValidation.validationFlags.isVeryEarlyCheckout,
+        ),
         isHoliday: window.isHoliday,
         isDayOff: window.isDayOff,
         isManualEntry: false,
@@ -165,18 +168,21 @@ export class AttendanceCheckService {
       isVeryEarlyCheckout: boolean;
     };
   }> {
+    const hasCheckedIn = Boolean(currentState.activity.checkIn);
     const checkTime = {
       isEarly: this.isEarlyForPeriod(now, currentState),
       isLate: this.isLateForPeriod(now, currentState),
       isEarlyCheckout: this.isEarlyCheckout(now, currentState),
-      isVeryEarlyCheckout: this.isVeryEarlyCheckout(now, currentState),
+      isVeryEarlyCheckout:
+        hasCheckedIn && this.isVeryEarlyCheckout(now, currentState), // Only if checked in
     };
 
-    if (checkTime.isVeryEarlyCheckout) {
+    // If checked in and before midshift, mark for emergency leave
+    if (hasCheckedIn && checkTime.isVeryEarlyCheckout) {
       return {
-        isValid: false,
-        message: 'Cannot checkout too early. Please contact HR.',
-        validationFlags: checkTime,
+        isValid: true, // Allow but will require SliderUnlock
+        message: 'Early checkout will be recorded as sick leave',
+        validationFlags: checkTime, // Using existing flags
       };
     }
 
