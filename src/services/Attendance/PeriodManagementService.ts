@@ -23,17 +23,15 @@ export class PeriodManagementService {
   ): UnifiedPeriodState {
     const periodStart = parseISO(periodState.current.start);
     const periodEnd = parseISO(periodState.current.end);
-    // Add timezone offset to now for comparison
-    // Format now as local time string to match others
-    const nowLocal = format(now, "yyyy-MM-dd'T'HH:mm:ss.SSS");
-    const nowDate = parseISO(nowLocal);
-    console.log('nowDate:', nowDate);
 
-    const isCheckedIn = Boolean(
-      attendance?.CheckInTime && !attendance?.CheckOutTime,
-    );
+    // For check-in time - strip the timezone indicator since it's actually local time
+    const checkInTime = attendance?.CheckInTime
+      ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+      : null;
 
-    const isInShiftTime = isWithinInterval(nowDate, {
+    const isCheckedIn = Boolean(checkInTime && !attendance?.CheckOutTime);
+
+    const isInShiftTime = isWithinInterval(now, {
       start: periodStart,
       end: periodEnd,
     });
@@ -46,11 +44,9 @@ export class PeriodManagementService {
       },
       activity: {
         isActive: isCheckedIn && isInShiftTime,
-        checkIn: attendance?.CheckInTime
-          ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS") // No Z
-          : null,
+        checkIn: checkInTime,
         checkOut: attendance?.CheckOutTime
-          ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS") // No Z
+          ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
           : null,
         isOvertime: periodState.type === PeriodType.OVERTIME,
         overtimeId: periodState.overtimeInfo?.id,
