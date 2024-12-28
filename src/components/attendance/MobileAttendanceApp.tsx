@@ -63,14 +63,16 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       return 0;
 
     try {
-      const periodStart = parseISO(currentPeriod.timeWindow.start); // "2024-12-17T08:00:00.000Z"
-      const periodEnd = parseISO(currentPeriod.timeWindow.end); // "2024-12-17T17:00:00.000Z"
       const now = getCurrentTime();
+      // Since times are now local time strings without Z, parse directly
+      const periodStart = parseISO(currentPeriod.timeWindow.start);
+      const periodEnd = parseISO(currentPeriod.timeWindow.end);
 
-      console.log('Time debug:', {
-        periodStart: periodStart.toISOString(),
-        periodEnd: periodEnd.toISOString(),
-        now: now.toISOString(),
+      // Add debug logging
+      console.log('Progress calculation:', {
+        periodStart: format(periodStart, 'HH:mm'),
+        periodEnd: format(periodEnd, 'HH:mm'),
+        now: format(now, 'HH:mm'),
       });
 
       const totalMinutes = differenceInMinutes(periodEnd, periodStart);

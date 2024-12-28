@@ -396,20 +396,26 @@ export class ShiftManagementService {
         current: {
           start:
             currentPeriod.type === PeriodType.REGULAR
-              ? windows.start.toISOString()
+              ? format(windows.start, "yyyy-MM-dd'T'HH:mm:ss.SSS")
               : currentPeriod.overtimeInfo
-                ? parseISO(
-                    `${format(date, 'yyyy-MM-dd')}T${currentPeriod.overtimeInfo.startTime}`,
-                  ).toISOString()
-                : windows.start.toISOString(),
+                ? format(
+                    parseISO(
+                      `${format(date, 'yyyy-MM-dd')}T${currentPeriod.overtimeInfo.startTime}`,
+                    ),
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                  )
+                : format(windows.start, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
           end:
             currentPeriod.type === PeriodType.REGULAR
-              ? windows.end.toISOString()
+              ? format(windows.end, "yyyy-MM-dd'T'HH:mm:ss.SSS")
               : currentPeriod.overtimeInfo
-                ? parseISO(
-                    `${format(date, 'yyyy-MM-dd')}T${currentPeriod.overtimeInfo.endTime}`,
-                  ).toISOString()
-                : windows.end.toISOString(),
+                ? format(
+                    parseISO(
+                      `${format(date, 'yyyy-MM-dd')}T${currentPeriod.overtimeInfo.endTime}`,
+                    ),
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                  )
+                : format(windows.end, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
         },
         type: currentPeriod.type,
         shift: this.mapShiftData(effectiveShift),
