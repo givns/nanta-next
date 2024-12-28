@@ -20,12 +20,18 @@ export class PeriodManagementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): UnifiedPeriodState {
+    const periodStart = parseISO(periodState.current.start);
+    const periodEnd = parseISO(periodState.current.end);
+    // Add timezone offset to now for comparison
+    const utcNow = addMinutes(now, now.getTimezoneOffset());
+
     const isCheckedIn = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
-    const isInShiftTime = isWithinInterval(now, {
-      start: parseISO(periodState.current.start),
-      end: parseISO(periodState.current.end),
+
+    const isInShiftTime = isWithinInterval(utcNow, {
+      start: periodStart,
+      end: periodEnd,
     });
 
     return {
@@ -41,7 +47,7 @@ export class PeriodManagementService {
         isOvertime: periodState.type === PeriodType.OVERTIME,
         overtimeId: periodState.overtimeInfo?.id,
         isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
-        isInsideShiftHours: periodState.overtimeInfo?.isInsideShiftHours,
+        isInsideShiftHours: isInShiftTime, // Add this
       },
       validation: {
         isWithinBounds: isInShiftTime,

@@ -95,9 +95,9 @@ export class AttendanceCheckService {
       flags: {
         hasActivePeriod: currentState.activity.isActive,
         isInsideShift: currentState.validation.isWithinBounds,
-        isOutsideShift:
-          currentState.activity.isActive &&
-          !currentState.validation.isWithinBounds,
+        isOutsideShift: currentState.activity.isActive
+          ? !currentState.validation.isWithinBounds
+          : false,
         isEarlyCheckIn: periodValidation.validationFlags.isEarly,
         isLateCheckIn: periodValidation.validationFlags.isLate,
         isEarlyCheckOut: periodValidation.validationFlags.isEarlyCheckout,
