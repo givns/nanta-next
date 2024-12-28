@@ -147,7 +147,9 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
 
           {/* Call to Action Text */}
           <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500 select-none">
-            {progress >= 90 ? 'ปล่อยเพื่อยืนยัน' : 'เลื่อนเพื่อยืนยันการออกงาน'}
+            {progress >= 90
+              ? 'ปล่อยเพื่อยืนยัน'
+              : 'เลื่อนเพื่อออกงานกรณีฉุกเฉิน'}
           </div>
 
           {/* Slider Thumb */}
