@@ -192,25 +192,20 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     try {
-      if (stateValidation?.flags.isEarlyCheckOut) {
-        if (
-          stateValidation.flags.isEmergencyLeave &&
-          !isConfirmedEarlyCheckout
-        ) {
-          const confirmed = window.confirm(
-            'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
-          );
-          if (!confirmed) return;
-          setIsConfirmedEarlyCheckout(true);
-        }
+      if (stateValidation.flags.isEmergencyLeave && !isConfirmedEarlyCheckout) {
+        const confirmed = window.confirm(
+          'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
+        );
+        if (!confirmed) return;
+        setIsConfirmedEarlyCheckout(true);
+      }
 
-        if (stateValidation.flags.isEmergencyLeave && userData?.lineUserId) {
-          const leaveCreated = await createSickLeaveRequest(
-            userData.lineUserId,
-            now,
-          );
-          if (!leaveCreated) return;
-        }
+      if (stateValidation.flags.isEmergencyLeave && userData?.lineUserId) {
+        const leaveCreated = await createSickLeaveRequest(
+          userData.lineUserId,
+          now,
+        );
+        if (!leaveCreated) return;
       }
 
       setStep('processing');
