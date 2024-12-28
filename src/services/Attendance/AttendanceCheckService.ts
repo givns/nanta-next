@@ -172,29 +172,13 @@ export class AttendanceCheckService {
     const checkTime = {
       isEarly: this.isEarlyForPeriod(now, currentState),
       isLate: this.isLateForPeriod(now, currentState),
-      isEarlyCheckout: this.isEarlyCheckout(now, currentState),
+      isEarlyCheckout: hasCheckedIn && this.isEarlyCheckout(now, currentState),
       isVeryEarlyCheckout:
-        hasCheckedIn && this.isVeryEarlyCheckout(now, currentState), // Only if checked in
+        hasCheckedIn && this.isVeryEarlyCheckout(now, currentState),
     };
 
-    // If checked in and before midshift, mark for emergency leave
-    if (hasCheckedIn && checkTime.isVeryEarlyCheckout) {
-      return {
-        isValid: true, // Allow but will require SliderUnlock
-        message: 'Early checkout will be recorded as sick leave',
-        validationFlags: checkTime, // Using existing flags
-      };
-    }
-
-    if (checkTime.isEarlyCheckout) {
-      return {
-        isValid: false,
-        message: 'Early checkout requires approval',
-        validationFlags: checkTime,
-      };
-    }
-
-    if (checkTime.isEarly) {
+    // Early check-in validation
+    if (!hasCheckedIn && checkTime.isEarly) {
       return {
         isValid: false,
         message: 'Too early to check in',
@@ -202,6 +186,26 @@ export class AttendanceCheckService {
       };
     }
 
+    // Check-out validations only if checked in
+    if (hasCheckedIn) {
+      if (checkTime.isVeryEarlyCheckout) {
+        return {
+          isValid: true, // Allow but will require SliderUnlock
+          message: 'Early checkout will be recorded as sick leave',
+          validationFlags: checkTime,
+        };
+      }
+
+      if (checkTime.isEarlyCheckout) {
+        return {
+          isValid: false,
+          message: 'Early checkout requires approval',
+          validationFlags: checkTime,
+        };
+      }
+    }
+
+    // Default case - everything valid
     return {
       isValid: true,
       message: '',
