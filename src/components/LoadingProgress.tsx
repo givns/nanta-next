@@ -1,3 +1,4 @@
+import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 
 interface LoadingProgressProps {
@@ -10,124 +11,59 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
   isDataLoaded = false,
 }) => {
   const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState(1);
-  const [fadeOut, setFadeOut] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
-
-    // Phase 1: LIFF Initialization (0-40%)
-    if (phase === 1) {
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev < 40) {
-            return prev + 0.5;
-          }
-          if (isLiffInitialized) {
-            setPhase(2);
-          }
-          return 40;
-        });
-      }, 50);
-    }
-    // Phase 2: Data Loading (40-80%)
-    else if (phase === 2 && isLiffInitialized) {
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev < 80) {
-            return prev + 0.8;
-          }
-          if (isDataLoaded) {
-            setPhase(3);
-          }
-          return 80;
-        });
-      }, 50);
-    }
-    // Phase 3: Final Animation (80-100%)
-    else if (phase === 3 && isDataLoaded) {
-      interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev < 100) {
-            return prev + 1;
-          }
-          setFadeOut(true);
-          return 100;
-        });
-      }, 20);
-    }
-
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
-  }, [phase, isLiffInitialized, isDataLoaded]);
+    const interval = setInterval(() => {
+      setProgress((prev) =>
+        prev < 95 ? prev + (isLiffInitialized ? 2 : 1) : 100,
+      );
+    }, 50);
+    return () => clearInterval(interval);
+  }, [isLiffInitialized]);
 
   const getLoadingMessage = () => {
-    switch (phase) {
-      case 1:
-        return {
-          main: 'กำลังเริ่มต้นระบบ',
-          sub: 'โปรดรอสักครู่...',
-        };
-      case 2:
-        return {
-          main: 'กำลังเชื่อมต่อระบบ',
-          sub: 'กำลังตรวจสอบข้อมูล...',
-        };
-      default:
-        return {
-          main: 'กำลังเตรียมระบบ',
-          sub: 'เกือบพร้อมแล้ว...',
-        };
+    if (router.pathname === '/register') {
+      return {
+        title: 'เตรียมลงทะเบียน',
+        description: 'กำลังเชื่อมต่อข้อมูลผู้ใช้...',
+        icon: '👤',
+      };
     }
+
+    if (!isLiffInitialized) {
+      return {
+        title: 'เริ่มเชื่อมต่อ LINE',
+        description: 'กำลังตรวจสอบข้อมูล...',
+        icon: '🔗',
+      };
+    }
+
+    return {
+      title: 'ตรวจสอบสิทธิ์การเข้าใช้',
+      description: 'กำลังโหลดข้อมูลส่วนตัว...',
+      icon: '🔐',
+    };
   };
 
-  if (progress === 100 && fadeOut) {
-    return null;
-  }
+  const { title, description, icon } = getLoadingMessage();
 
   return (
-    <div
-      className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}
-    >
-      {/* Loading Content */}
-      <div className="flex flex-col items-center justify-center h-full">
-        {/* Logo Placeholder */}
-        <div className="w-24 h-24 mb-8 rounded-full bg-white/20 animate-pulse" />
+    <div className="fixed inset-0 z-50 bg-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-6xl mb-6 text-center animate-pulse">{icon}</div>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">{title}</h1>
+        <p className="text-gray-600 mb-6">{description}</p>
 
-        {/* Loading Messages */}
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-white mb-2">
-            {getLoadingMessage().main}
-          </h2>
-          <p className="text-black">{getLoadingMessage().sub}</p>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+        <div className="w-64 bg-gray-200 rounded-full h-2 overflow-hidden">
           <div
-            className="h-full bg-blue-600 rounded-full transition-all duration-300 ease-out"
+            className="h-full bg-blue-500 transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
-
-        {/* Progress Percentage */}
-        <div className="mt-4 text-black">{Math.round(progress)}%</div>
-      </div>
-
-      {/* Bottom Wave Animation */}
-      <div className="absolute bottom-0 left-0 right-0 h-24 overflow-hidden">
-        <div
-          className="absolute bottom-0 left-0 right-0 h-24 bg-blue-200 animate-wave"
-          style={{
-            maskImage:
-              'linear-gradient(to bottom, transparent 50%, black 100%)',
-            WebkitMaskImage:
-              'linear-gradient(to bottom, transparent 50%, black 100%)',
-          }}
-        />
+        <div className="mt-2 text-sm text-gray-500">
+          {Math.round(progress)}%
+        </div>
       </div>
     </div>
   );

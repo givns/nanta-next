@@ -7,59 +7,56 @@ interface LoadingBarProps {
 
 const LoadingBar: React.FC<LoadingBarProps> = ({ step }) => {
   const [progress, setProgress] = useState(0);
-  const getProgressTarget = () => {
-    switch (step) {
-      case 'auth':
-        return 25;
-      case 'user':
-        return 50;
-      case 'location':
-        return 75;
-      case 'ready':
-        return 100;
-    }
+
+  const steps = {
+    auth: {
+      message: 'ตรวจสอบสิทธิ์การเข้างาน',
+      color: 'bg-blue-500',
+      icon: '🔐',
+    },
+    user: {
+      message: 'โหลดข้อมูลพนักงาน',
+      color: 'bg-green-500',
+      icon: '👤',
+    },
+    location: {
+      message: 'ตรวจสอบตำแหน่ง',
+      color: 'bg-yellow-500',
+      icon: '📍',
+    },
+    ready: {
+      message: 'เตรียมระบบบันทึกเวลา',
+      color: 'bg-purple-500',
+      icon: '✅',
+    },
   };
 
   useEffect(() => {
-    const target = getProgressTarget();
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= target) {
-          clearInterval(interval);
-          return target;
-        }
-        return prev + 1;
-      });
+      setProgress((prev) => (prev >= target ? target : prev + 1));
     }, 30);
     return () => clearInterval(interval);
   }, [step]);
 
-  const getMessage = () => {
-    switch (step) {
-      case 'auth':
-        return 'กำลังตรวจสอบสิทธิ์...';
-      case 'user':
-        return 'กำลังโหลดข้อมูลผู้ใช้...';
-      case 'location':
-        return 'กำลังตรวจสอบตำแหน่ง...';
-      case 'ready':
-        return 'กำลังเตรียมระบบ...';
-    }
-  };
+  const currentStep = steps[step];
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-white to-gray-100 z-50">
-      <div className="w-72 text-center">
-        <div className="mb-4 text-lg font-semibold text-gray-700">
+    <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
+      <div className="text-center">
+        <div className="text-6xl mb-6 text-center animate-bounce">
+          {currentStep.icon}
+        </div>
+        <div className="mb-4 text-xl font-semibold text-gray-700">
           {progress}%
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
+        <div className="w-64 bg-gray-200 rounded-full h-2 overflow-hidden mb-4">
           <div
-            className="bg-blue-600 h-3 rounded-full transition-all duration-500"
+            className={`h-2 rounded-full transition-all duration-500 ${currentStep.color}`}
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="mt-6 text-gray-700 font-medium">{getMessage()}</div>
+        <div className="text-gray-700 font-medium">{currentStep.message}</div>
       </div>
     </div>
   );
