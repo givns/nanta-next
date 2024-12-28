@@ -5,6 +5,7 @@ import {
   AttendanceRecord,
 } from '@/types/attendance';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
+import { getCurrentTime } from '@/utils/dateUtils';
 import { PeriodType } from '@prisma/client';
 import {
   parseISO,
@@ -23,13 +24,13 @@ export class PeriodManagementService {
     const periodStart = parseISO(periodState.current.start);
     const periodEnd = parseISO(periodState.current.end);
     // Add timezone offset to now for comparison
-    const utcNow = addMinutes(now, now.getTimezoneOffset());
+    const currentTime = getCurrentTime();
 
     const isCheckedIn = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
 
-    const isInShiftTime = isWithinInterval(utcNow, {
+    const isInShiftTime = isWithinInterval(currentTime, {
       start: periodStart,
       end: periodEnd,
     });

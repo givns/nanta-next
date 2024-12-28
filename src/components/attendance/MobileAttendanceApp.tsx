@@ -63,23 +63,18 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       return 0;
 
     try {
+      const periodStart = parseISO(currentPeriod.timeWindow.start); // "2024-12-17T08:00:00.000Z"
+      const periodEnd = parseISO(currentPeriod.timeWindow.end); // "2024-12-17T17:00:00.000Z"
       const now = getCurrentTime();
-      // Parse the UTC times
-      const periodStart = parseISO(currentPeriod.timeWindow.start);
-      const periodEnd = parseISO(currentPeriod.timeWindow.end);
-
-      // Convert now to UTC for comparison
-      const utcNow = addMinutes(now, now.getTimezoneOffset());
 
       console.log('Time debug:', {
         periodStart: periodStart.toISOString(),
         periodEnd: periodEnd.toISOString(),
         now: now.toISOString(),
-        utcNow: utcNow.toISOString(),
       });
 
       const totalMinutes = differenceInMinutes(periodEnd, periodStart);
-      const elapsedMinutes = differenceInMinutes(utcNow, periodStart);
+      const elapsedMinutes = differenceInMinutes(now, periodStart);
 
       console.log('Progress calc:', { elapsedMinutes, totalMinutes });
 
