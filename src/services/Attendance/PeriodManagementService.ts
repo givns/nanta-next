@@ -20,19 +20,38 @@ export class PeriodManagementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): UnifiedPeriodState {
+    // Parse all times
     const periodStart = parseISO(periodState.current.start);
     const periodEnd = parseISO(periodState.current.end);
-
-    // For check-in time - strip the timezone indicator since it's actually local time
     const checkInTime = attendance?.CheckInTime
-      ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+      ? parseISO(format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"))
       : null;
 
-    const isCheckedIn = Boolean(checkInTime && !attendance?.CheckOutTime);
+    console.log('Time debug:', {
+      periodStart: format(periodStart, 'HH:mm'),
+      periodEnd: format(periodEnd, 'HH:mm'),
+      checkInTime: checkInTime ? format(checkInTime, 'HH:mm') : null,
+      now: format(now, 'HH:mm'),
+    });
 
+    const isCheckedIn = Boolean(
+      attendance?.CheckInTime && !attendance?.CheckOutTime,
+    );
+
+    // If checked in at 09:00 and shift is 08:00-17:00, this should be true
     const isInShiftTime = isWithinInterval(now, {
       start: periodStart,
       end: periodEnd,
+    });
+
+    console.log('Validation checks:', {
+      isCheckedIn,
+      isInShiftTime,
+      withinBounds: {
+        now: format(now, 'HH:mm'),
+        start: format(periodStart, 'HH:mm'),
+        end: format(periodEnd, 'HH:mm'),
+      },
     });
 
     return {
@@ -43,22 +62,22 @@ export class PeriodManagementService {
       },
       activity: {
         isActive: isCheckedIn && isInShiftTime,
-        checkIn: checkInTime,
+        checkIn: attendance?.CheckInTime
+          ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+          : null,
         checkOut: attendance?.CheckOutTime
           ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
           : null,
         isOvertime: periodState.type === PeriodType.OVERTIME,
         overtimeId: periodState.overtimeInfo?.id,
         isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
-        isInsideShiftHours: isInShiftTime, // Add this
+        isInsideShiftHours: isInShiftTime,
       },
       validation: {
         isWithinBounds: isInShiftTime,
-        isEarly: this.checkIfEarly(now, parseISO(periodState.current.start)),
-        isLate: this.checkIfLate(now, parseISO(periodState.current.start)),
-        isOvernight:
-          parseISO(periodState.current.end) <
-          parseISO(periodState.current.start),
+        isEarly: this.checkIfEarly(now, periodStart),
+        isLate: this.checkIfLate(now, periodStart),
+        isOvernight: periodEnd < periodStart,
         isConnected: Boolean(periodState.nextPeriod),
       },
     };
