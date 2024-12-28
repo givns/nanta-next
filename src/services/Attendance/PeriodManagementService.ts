@@ -5,7 +5,6 @@ import {
   AttendanceRecord,
 } from '@/types/attendance';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
-import { getCurrentTime } from '@/utils/dateUtils';
 import { PeriodType } from '@prisma/client';
 import {
   parseISO,

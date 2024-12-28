@@ -365,7 +365,14 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                  <div className="font-medium">{checkInTime}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium">{checkInTime}</div>
+                    {validation.flags.isLateCheckIn && (
+                      <span className="text-xs px-1.5 py-0.5 bg-red-50 text-red-600 rounded">
+                        เข้างานสาย
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
