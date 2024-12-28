@@ -10,6 +10,7 @@ import {
 import { CacheManager } from '../cache/CacheManager';
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService'; // Add this line
 import { AttendanceRecordService } from './AttendanceRecordService';
+import { cacheService } from '../cache/CacheService';
 
 export class AttendanceStatusService {
   constructor(
@@ -27,11 +28,17 @@ export class AttendanceStatusService {
     },
   ): Promise<AttendanceStatusResponse> {
     const now = getCurrentTime();
+    const forceRefreshKey = `forceRefresh:${employeeId}`;
+    const forceRefresh = await cacheService.get(forceRefreshKey);
 
-    // Try cache first
-    const cachedStatus = await this.cacheManager.getAttendanceState(employeeId);
-    if (cachedStatus) {
-      return cachedStatus;
+    // If force refresh flag exists, bypass cache
+    if (!forceRefresh) {
+      // Try cache first
+      const cachedStatus =
+        await this.cacheManager.getAttendanceState(employeeId);
+      if (cachedStatus) {
+        return cachedStatus;
+      }
     }
 
     // Get base data
@@ -56,6 +63,7 @@ export class AttendanceStatusService {
       );
 
     // Cache the result
+    await cacheService.del(forceRefreshKey);
     await this.cacheManager.cacheAttendanceState(employeeId, enhancedStatus);
 
     return enhancedStatus;
