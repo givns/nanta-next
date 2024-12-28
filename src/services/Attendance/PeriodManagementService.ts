@@ -43,8 +43,12 @@ export class PeriodManagementService {
       },
       activity: {
         isActive: isCheckedIn && isInShiftTime,
-        checkIn: attendance?.CheckInTime?.toISOString() || null,
-        checkOut: attendance?.CheckOutTime?.toISOString() || null,
+        checkIn: attendance?.CheckInTime
+          ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS") // No Z
+          : null,
+        checkOut: attendance?.CheckOutTime
+          ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS") // No Z
+          : null,
         isOvertime: periodState.type === PeriodType.OVERTIME,
         overtimeId: periodState.overtimeInfo?.id,
         isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
