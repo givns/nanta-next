@@ -341,7 +341,8 @@ export class ShiftManagementService {
     date: Date,
   ): Promise<ShiftWindowResponse | null> {
     const now = getCurrentTime();
-    const today = startOfDay(now);
+    const localNow = addMinutes(now, -now.getTimezoneOffset());
+    const today = startOfDay(localNow);
 
     try {
       // Get shift data
@@ -382,14 +383,14 @@ export class ShiftManagementService {
         sortedOvertimes,
         effectiveShift,
         windows,
-        now,
+        localNow,
       );
 
       // Calculate transition if any
       const transition = this.calculateTransition(
         currentPeriod,
         nextPeriod,
-        now,
+        localNow,
       );
 
       return {
