@@ -120,7 +120,7 @@ export class AttendanceEnhancementService {
     const isAfterMidshift = now > midShiftTime;
     const isVeryEarlyCheckout = isActiveAttendance && !isAfterMidshift;
     const isEarlyCheckout =
-      isActiveAttendance && this.checkIfEarlyCheckout(attendance, window);
+      isActiveAttendance && this.checkIfEarlyCheckout(window, now);
 
     console.log('Validation Calculations:', {
       now: format(now, 'HH:mm'),
@@ -242,16 +242,12 @@ export class AttendanceEnhancementService {
   }
 
   private checkIfEarlyCheckout(
-    attendance: AttendanceRecord | null,
     window: ShiftWindowResponse,
+    now: Date,
   ): boolean {
-    if (!attendance?.CheckOutTime || !attendance.shiftEndTime) {
-      return false;
-    }
-
     const endTime = parseISO(window.current.end);
     return isBefore(
-      attendance.CheckOutTime,
+      now,
       subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD),
     );
   }
