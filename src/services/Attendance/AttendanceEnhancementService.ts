@@ -119,8 +119,10 @@ export class AttendanceEnhancementService {
       lateCheckOutMinutes: 0,
     };
 
-    // Shift timing calculations
-    const shiftEnd = parseISO(window.current.end);
+    // Shift timing calculations - Use shift end time instead of window end
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+    );
     const shiftStartHour = parseInt(window.shift.startTime.split(':')[0], 10);
     const isMorningShift = shiftStartHour >= 4 && shiftStartHour < 12;
     const isAfternoonShift = !isMorningShift;
@@ -134,8 +136,8 @@ export class AttendanceEnhancementService {
 
     // Calculate checkout validation windows
     const midShiftTime = this.calculateMidShift(
-      parseISO(window.current.start),
-      parseISO(window.current.end),
+      parseISO(`${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`),
+      shiftEnd,
     );
     const isAfterMidshift = now > midShiftTime;
     const isVeryEarlyCheckout = isActiveAttendance && !isAfterMidshift;
@@ -144,13 +146,23 @@ export class AttendanceEnhancementService {
 
     // Calculate transition window
     const transitionWindow = {
-      start: subMinutes(shiftEnd, 15), // Start showing transition 15 min before shift end
+      start: subMinutes(shiftEnd, 15),
       end: shiftEnd,
     };
 
+    // Debug time calculations
+    console.log('Time calculations:', {
+      now: format(now, 'HH:mm'),
+      shiftEnd: format(shiftEnd, 'HH:mm'),
+      transitionStart: format(transitionWindow.start, 'HH:mm'),
+      transitionEnd: format(transitionWindow.end, 'HH:mm'),
+      hasUpcomingOvertime: Boolean(window.overtimeInfo),
+      overtimeStartTime: window.overtimeInfo?.startTime,
+    });
+
     const isInTransitionWindow = isWithinInterval(now, transitionWindow);
     const hasUpcomingOvertime = Boolean(
-      overtimeStart === window.shift.endTime || // Overtime starts at shift end
+      overtimeStart === window.shift.endTime ||
         window.overtimeInfo?.startTime === window.shift.endTime,
     );
 
@@ -278,7 +290,10 @@ export class AttendanceEnhancementService {
 
       return {
         allowed: false,
-        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} นาที กรุณาลงเวลาออกตอน ${format(subMinutes(shiftEnd, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
+        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} นาที กรุณาลงเวลาออกตอน ${format(
+          subMinutes(shiftEnd, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD),
+          'HH:mm',
+        )}`,
         flags,
       };
     }
@@ -287,7 +302,7 @@ export class AttendanceEnhancementService {
     if (isActiveAttendance && hasPendingTransition) {
       return {
         allowed: true,
-        reason: 'Overtime period starting at 17:00. Do you want to continue?',
+        reason: `Overtime period starting at ${window.shift.endTime}. Do you want to continue?`,
         flags: {
           ...flags,
           isPendingOvertime: true,
