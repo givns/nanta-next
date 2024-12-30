@@ -202,7 +202,7 @@ export class AttendanceEnhancementService {
 
       return {
         allowed: false, // Block early checkout
-        reason: `Cannot checkout ${minutesUntilEnd} minutes early. Please wait until ${format(subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
+        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} กรุณาลงเวลาออกตอน ${format(subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
         flags: {
           // Core Status Flags
           hasActivePeriod: isActiveAttendance,
