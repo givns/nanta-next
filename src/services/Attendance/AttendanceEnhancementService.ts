@@ -188,6 +188,55 @@ export class AttendanceEnhancementService {
       (isVeryEarlyCheckout ||
         this.checkIfRequiresAutoCompletion(attendance, window));
 
+    if (isActiveAttendance && isEarlyCheckout) {
+      const endTime = parseISO(window.current.end);
+      const minutesUntilEnd = differenceInMinutes(endTime, now);
+
+      console.log('Early checkout validation:', {
+        now: format(now, 'HH:mm'),
+        shiftEnd: format(endTime, 'HH:mm'),
+        minutesUntilEnd,
+        threshold: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+        isEarly: isEarlyCheckout,
+      });
+
+      return {
+        allowed: false, // Block early checkout
+        reason: `Cannot checkout ${minutesUntilEnd} minutes early. Please wait until ${format(subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
+        flags: {
+          // Core Status Flags
+          hasActivePeriod: isActiveAttendance,
+          isInsideShift: currentState.validation.isWithinBounds,
+          isOutsideShift:
+            isActiveAttendance && !currentState.validation.isWithinBounds,
+
+          // Keep existing flags
+          isEarlyCheckIn: timingFlags.isEarlyCheckIn,
+          isLateCheckIn: timingFlags.isLateCheckIn,
+          isEarlyCheckOut: true, // Set early checkout flag
+          isLateCheckOut: timingFlags.isLateCheckOut,
+          isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
+          isOvertime,
+          isPendingOvertime,
+          isDayOffOvertime,
+          isAutoCheckIn: attendance?.metadata?.source === 'auto',
+          isAutoCheckOut: attendance?.metadata?.source === 'auto',
+          requiresAutoCompletion,
+          isEmergencyLeave: isVeryEarlyCheckout,
+          hasPendingTransition,
+          requiresTransition,
+          isAfternoonShift,
+          isMorningShift,
+          isAfterMidshift,
+          isApprovedEarlyCheckout: false,
+          isPlannedHalfDayLeave: false,
+          isHoliday: window.isHoliday,
+          isDayOff: Boolean(window.isDayOff || attendance?.metadata?.isDayOff),
+          isManualEntry: attendance?.metadata?.source === 'manual',
+        },
+      };
+    }
+
     const validation: StateValidation = {
       allowed: currentState.validation.isWithinBounds,
       reason: this.getValidationReason(currentState, window, attendance),
@@ -306,10 +355,19 @@ export class AttendanceEnhancementService {
     now: Date,
   ): boolean {
     const endTime = parseISO(window.current.end);
-    return isBefore(
-      now,
-      subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD),
+    const earlyCheckoutTime = subMinutes(
+      endTime,
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
     );
+
+    console.log('Early checkout check:', {
+      currentTime: format(now, 'HH:mm'),
+      shiftEnd: format(endTime, 'HH:mm'),
+      earlyCheckoutThreshold: format(earlyCheckoutTime, 'HH:mm'),
+      isEarly: isBefore(now, earlyCheckoutTime),
+    });
+
+    return isBefore(now, earlyCheckoutTime);
   }
 
   private checkIfRequiresAutoCompletion(

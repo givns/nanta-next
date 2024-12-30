@@ -446,6 +446,27 @@ export class ShiftManagementService {
   ): Promise<CurrentPeriod> {
     const now = getCurrentTime();
 
+    // First check for active overtime periods
+    for (const ot of sortedOvertimes) {
+      const otStartTime = parseISO(
+        `${format(date, 'yyyy-MM-dd')}T${ot.startTime}`,
+      );
+
+      // Check if we're approaching overtime
+      const isApproachingOt = isWithinInterval(now, {
+        start: subMinutes(otStartTime, 15),
+        end: otStartTime,
+      });
+
+      if (isApproachingOt || this.isWithinOvertimePeriod(now, date, ot)) {
+        return {
+          type: PeriodType.OVERTIME,
+          overtimeInfo: this.mapOvertimeInfo(ot),
+          isComplete: isApproachingOt ? false : true,
+        };
+      }
+    }
+
     // Handle incomplete overtime
     const incompleteOvertime =
       attendance?.CheckInTime &&
@@ -519,34 +540,36 @@ export class ShiftManagementService {
     nextPeriod: NextPeriod | null,
     now: Date,
   ): TransitionInfo | undefined {
-    if (!nextPeriod || !currentPeriod.isComplete) {
+    if (!nextPeriod) {
       return undefined;
     }
 
-    const transitionWindow = 30; // minutes
+    // Remove isComplete check for transitions
     const nextStart = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${nextPeriod.startTime}`,
     );
-    const isInTransitionWindow = isWithinInterval(now, {
-      start: subMinutes(nextStart, transitionWindow),
+
+    // Check if approaching shift end with upcoming overtime
+    const isApproachingShiftEnd = isWithinInterval(now, {
+      start: subMinutes(nextStart, 15),
       end: nextStart,
     });
 
-    if (!isInTransitionWindow) {
-      return undefined;
+    if (isApproachingShiftEnd && nextPeriod.type === PeriodType.OVERTIME) {
+      return {
+        from: {
+          type: currentPeriod.type,
+          end: format(now, 'HH:mm'),
+        },
+        to: {
+          type: nextPeriod.type,
+          start: nextPeriod.startTime,
+        },
+        isInTransition: true,
+      };
     }
 
-    return {
-      from: {
-        type: currentPeriod.type,
-        end: format(now, 'HH:mm'),
-      },
-      to: {
-        type: nextPeriod.type,
-        start: nextPeriod.startTime,
-      },
-      isInTransition: true,
-    };
+    return undefined;
   }
 
   private async calculateNextPeriod(
