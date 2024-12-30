@@ -44,6 +44,9 @@ export async function initializeServices(prisma: PrismaClient) {
     notificationService,
   );
 
+  // Set the overtime service in shiftService - ADD THIS LINE
+  shiftService.setOvertimeService(overtimeService);
+
   // Initialize time entry service with correct order of dependencies
   const timeEntryService = new TimeEntryService(
     prisma,
