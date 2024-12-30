@@ -105,42 +105,10 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): StateValidation {
+    // Core attendance state
     const isActiveAttendance = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
-
-    // Determine shift type based on start time
-    const shiftStartHour = parseInt(window.shift.startTime.split(':')[0], 10);
-    const isMorningShift = shiftStartHour >= 4 && shiftStartHour < 12;
-    const isAfternoonShift = !isMorningShift;
-
-    // Calculate midshift and early checkout status
-    const midShiftTime = this.calculateMidShift(
-      parseISO(window.current.start),
-      parseISO(window.current.end),
-    );
-    const isAfterMidshift = now > midShiftTime;
-    const isVeryEarlyCheckout = isActiveAttendance && !isAfterMidshift;
-    const isEarlyCheckout =
-      isActiveAttendance && this.checkIfEarlyCheckout(window, now);
-
-    console.log('Validation Calculations:', {
-      now: format(now, 'HH:mm'),
-      midshift: format(midShiftTime, 'HH:mm'),
-      checkIn: attendance?.CheckInTime
-        ? format(new Date(attendance.CheckInTime), 'HH:mm')
-        : null,
-      shiftTimes: {
-        start: window.shift.startTime,
-        end: window.shift.endTime,
-      },
-    });
-
-    console.log('Flag Calculations:', {
-      isActiveAttendance,
-      isAfterMidshift,
-      isVeryEarlyCheckout,
-    });
 
     // Get timing flags from attendance record
     const timingFlags = attendance?.checkTiming || {
@@ -151,171 +119,176 @@ export class AttendanceEnhancementService {
       lateCheckOutMinutes: 0,
     };
 
-    // Handle overtime scenarios
+    // Shift timing calculations
+    const shiftEnd = parseISO(window.current.end);
+    const shiftStartHour = parseInt(window.shift.startTime.split(':')[0], 10);
+    const isMorningShift = shiftStartHour >= 4 && shiftStartHour < 12;
+    const isAfternoonShift = !isMorningShift;
+
+    // Calculate checkout validation windows
+    const midShiftTime = this.calculateMidShift(
+      parseISO(window.current.start),
+      parseISO(window.current.end),
+    );
+    const isAfterMidshift = now > midShiftTime;
+    const isVeryEarlyCheckout = isActiveAttendance && !isAfterMidshift;
+    const isEarlyCheckout =
+      isActiveAttendance && this.checkIfEarlyCheckout(window, now);
+
+    // Overtime and transition detection
+    const transitionWindow = {
+      start: subMinutes(shiftEnd, 15),
+      end: shiftEnd,
+    };
+    const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+    const hasUpcomingOvertime = Boolean(
+      window.nextPeriod?.type === PeriodType.OVERTIME ||
+        window.overtimeInfo?.startTime === window.shift.endTime,
+    );
+    const hasPendingTransition = isInTransitionWindow && hasUpcomingOvertime;
+    const requiresTransition = hasPendingTransition && isActiveAttendance;
+
+    // Overtime status
     const isOvertime =
       attendance?.isOvertime || currentState.activity.isOvertime;
-    const isPendingOvertime = Boolean(
-      window.nextPeriod?.type === PeriodType.OVERTIME ||
-        attendance?.overtimeEntries?.some((entry) => !entry.actualStartTime),
-    );
     const isDayOffOvertime = Boolean(
       currentState.activity.isDayOffOvertime ||
         window.overtimeInfo?.isDayOffOvertime ||
         (attendance?.isOvertime && attendance?.metadata?.isDayOff),
     );
 
-    // Handle pending transitions
-    const shiftEnd = parseISO(window.current.end);
-    const transitionWindow = {
-      start: subMinutes(shiftEnd, 15),
-      end: addMinutes(shiftEnd, 15),
+    // Debug logging
+    console.log('Validation state:', {
+      timing: {
+        now: format(now, 'HH:mm'),
+        midshift: format(midShiftTime, 'HH:mm'),
+        shiftEnd: format(shiftEnd, 'HH:mm'),
+      },
+      checkouts: {
+        isVeryEarly: isVeryEarlyCheckout,
+        isEarly: isEarlyCheckout,
+        isAfterMidshift,
+      },
+      transitions: {
+        isInWindow: isInTransitionWindow,
+        hasOvertime: hasUpcomingOvertime,
+        requiresTransition,
+      },
+    });
+
+    // Build validation flags
+    const flags = {
+      // Core Status
+      hasActivePeriod: isActiveAttendance,
+      isInsideShift: currentState.validation.isWithinBounds,
+      isOutsideShift:
+        isActiveAttendance && !currentState.validation.isWithinBounds,
+
+      // Check-in/out Status
+      isEarlyCheckIn: timingFlags.isEarlyCheckIn,
+      isLateCheckIn: timingFlags.isLateCheckIn,
+      isEarlyCheckOut: isEarlyCheckout,
+      isLateCheckOut: timingFlags.isLateCheckOut,
+      isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
+
+      // Overtime
+      isOvertime,
+      isPendingOvertime: hasUpcomingOvertime,
+      isDayOffOvertime,
+
+      // Auto-completion
+      isAutoCheckIn: attendance?.metadata?.source === 'auto',
+      isAutoCheckOut: attendance?.metadata?.source === 'auto',
+      requiresAutoCompletion: isActiveAttendance && isVeryEarlyCheckout,
+      isEmergencyLeave: isVeryEarlyCheckout,
+
+      // Transition
+      hasPendingTransition,
+      requiresTransition,
+
+      // Schedule
+      isAfternoonShift,
+      isMorningShift,
+      isAfterMidshift,
+
+      // Special Cases
+      isApprovedEarlyCheckout: false,
+      isPlannedHalfDayLeave: false,
+      isHoliday: window.isHoliday,
+      isDayOff: Boolean(window.isDayOff || attendance?.metadata?.isDayOff),
+      isManualEntry: attendance?.metadata?.source === 'manual',
     };
 
-    // Check for pending transition
-    const isInTransitionWindow = isWithinInterval(now, transitionWindow);
-    const hasUpcomingOvertime = Boolean(
-      window.nextPeriod?.type === PeriodType.OVERTIME,
-    );
-    const hasPendingTransition = isInTransitionWindow && hasUpcomingOvertime;
-
-    // Requires transition if checked in and in transition window
-    const requiresTransition =
-      hasPendingTransition && currentState.activity.isActive;
-
-    // Emergency leave or early checkout validation
-    const requiresAutoCompletion =
-      isActiveAttendance &&
-      (isVeryEarlyCheckout ||
-        this.checkIfRequiresAutoCompletion(attendance, window));
-
-    if (isActiveAttendance && isEarlyCheckout && !isVeryEarlyCheckout) {
-      const endTime = parseISO(window.current.end);
-      const minutesUntilEnd = differenceInMinutes(endTime, now);
-
-      console.log('Early checkout validation:', {
-        now: format(now, 'HH:mm'),
-        shiftEnd: format(endTime, 'HH:mm'),
-        minutesUntilEnd,
-        threshold: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
-        isEarly: isEarlyCheckout,
-      });
-
+    // Handle emergency leave case
+    if (isActiveAttendance && isVeryEarlyCheckout) {
       return {
-        allowed: false, // Block early checkout
-        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} นาที กรุณาลงเวลาออกตอน ${format(subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
-        flags: {
-          // Core Status Flags
-          hasActivePeriod: isActiveAttendance,
-          isInsideShift: currentState.validation.isWithinBounds,
-          isOutsideShift:
-            isActiveAttendance && !currentState.validation.isWithinBounds,
-
-          // Keep existing flags
-          isEarlyCheckIn: timingFlags.isEarlyCheckIn,
-          isLateCheckIn: timingFlags.isLateCheckIn,
-          isEarlyCheckOut: true, // Set early checkout flag
-          isLateCheckOut: timingFlags.isLateCheckOut,
-          isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
-          isOvertime,
-          isPendingOvertime,
-          isDayOffOvertime,
-          isAutoCheckIn: attendance?.metadata?.source === 'auto',
-          isAutoCheckOut: attendance?.metadata?.source === 'auto',
-          requiresAutoCompletion,
-          isEmergencyLeave: isVeryEarlyCheckout,
-          hasPendingTransition,
-          requiresTransition,
-          isAfternoonShift,
-          isMorningShift,
-          isAfterMidshift,
-          isApprovedEarlyCheckout: false,
-          isPlannedHalfDayLeave: false,
-          isHoliday: window.isHoliday,
-          isDayOff: Boolean(window.isDayOff || attendance?.metadata?.isDayOff),
-          isManualEntry: attendance?.metadata?.source === 'manual',
-        },
+        allowed: true,
+        reason: 'Early checkout will be recorded as sick leave',
+        flags,
       };
     }
 
-    const validation: StateValidation = {
+    // Handle early checkout case
+    if (isActiveAttendance && isEarlyCheckout && !isVeryEarlyCheckout) {
+      const minutesUntilEnd = differenceInMinutes(shiftEnd, now);
+
+      // Allow early checkout if approaching overtime
+      if (hasPendingTransition) {
+        return {
+          allowed: true,
+          reason: 'Overtime period starting soon. Would you like to continue?',
+          flags: {
+            ...flags,
+            isPendingOvertime: true,
+            hasPendingTransition: true,
+            requiresTransition: true,
+          },
+          metadata: {
+            nextTransitionTime: shiftEnd.toISOString(),
+            requiredAction: 'Overtime transition available',
+            additionalInfo: {
+              overtimeInfo: window.overtimeInfo,
+              transitionWindow: {
+                start: format(transitionWindow.start, 'HH:mm'),
+                end: format(transitionWindow.end, 'HH:mm'),
+                type: 'OVERTIME',
+              },
+            },
+          },
+        };
+      }
+
+      return {
+        allowed: false,
+        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} นาที กรุณาลงเวลาออกตอน ${format(subMinutes(shiftEnd, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
+        flags,
+      };
+    }
+
+    // Handle normal validation
+    return {
       allowed: currentState.validation.isWithinBounds,
       reason: this.getValidationReason(currentState, window, attendance),
-      flags: {
-        // Core Status Flags
-        hasActivePeriod: isActiveAttendance,
-        isInsideShift: currentState.validation.isWithinBounds,
-        isOutsideShift:
-          isActiveAttendance && !currentState.validation.isWithinBounds,
-
-        // Check-in Related
-        isEarlyCheckIn: timingFlags.isEarlyCheckIn,
-        isLateCheckIn: timingFlags.isLateCheckIn,
-
-        // Check-out Related
-        isEarlyCheckOut: isEarlyCheckout,
-        isLateCheckOut: timingFlags.isLateCheckOut,
-        isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
-
-        // Overtime Related
-        isOvertime,
-        isPendingOvertime: hasUpcomingOvertime,
-        isDayOffOvertime,
-
-        // Auto-completion & Emergency Leave
-        isAutoCheckIn: attendance?.metadata?.source === 'auto',
-        isAutoCheckOut: attendance?.metadata?.source === 'auto',
-        requiresAutoCompletion,
-        isEmergencyLeave: isVeryEarlyCheckout,
-
-        // Transition
-        hasPendingTransition,
-        requiresTransition,
-
-        // Schedule Related
-        isAfternoonShift,
-        isMorningShift,
-        isAfterMidshift,
-
-        // Special Cases
-        isApprovedEarlyCheckout: false,
-        isPlannedHalfDayLeave: false,
-        isHoliday: window.isHoliday,
-        isDayOff: Boolean(window.isDayOff || attendance?.metadata?.isDayOff),
-        isManualEntry: attendance?.metadata?.source === 'manual',
-      },
-    };
-
-    // Enhanced metadata handling
-    const nextTransitionTime =
-      window.transition?.to.start ||
-      (hasUpcomingOvertime ? shiftEnd.toISOString() : undefined);
-
-    if (
-      nextTransitionTime ||
-      this.getRequiredAction(currentState, window, attendance)
-    ) {
-      validation.metadata = {
-        nextTransitionTime,
-        requiredAction: this.getRequiredAction(
-          currentState,
-          window,
-          attendance,
-        ),
-        additionalInfo: {
-          ...this.buildAdditionalInfo(attendance, window),
-          // Add transition window info if relevant
-          ...(hasPendingTransition && {
+      flags,
+      ...(hasPendingTransition && {
+        metadata: {
+          nextTransitionTime: shiftEnd.toISOString(),
+          requiredAction: this.getRequiredAction(
+            currentState,
+            window,
+            attendance,
+          ),
+          additionalInfo: {
+            ...this.buildAdditionalInfo(attendance, window),
             transitionWindow: {
               start: format(transitionWindow.start, 'HH:mm'),
               end: format(transitionWindow.end, 'HH:mm'),
               type: 'OVERTIME',
             },
-          }),
+          },
         },
-      };
-    }
-
-    return validation;
+      }),
+    };
   }
 
   private getRequiredAction(
