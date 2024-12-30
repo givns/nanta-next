@@ -20,85 +20,72 @@ export class PeriodManagementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): UnifiedPeriodState {
-    // Parse all times
-    const periodStart = parseISO(periodState.current.start);
-    const periodEnd = parseISO(periodState.current.end);
+    // For regular period, always use shift times
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
+    );
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+    );
+
+    // For overtime, use overtime window if available
+    const isOvertimePeriod = periodState.type === PeriodType.OVERTIME;
+    const overtimeStart =
+      isOvertimePeriod && periodState.overtimeInfo
+        ? parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo.startTime}`,
+          )
+        : null;
+    const overtimeEnd =
+      isOvertimePeriod && periodState.overtimeInfo
+        ? parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo.endTime}`,
+          )
+        : null;
+
+    // Determine which times to use for window
+    const periodStart =
+      isOvertimePeriod && overtimeStart ? overtimeStart : shiftStart;
+    const periodEnd = isOvertimePeriod && overtimeEnd ? overtimeEnd : shiftEnd;
+
+    // Activity status
+    const isCheckedIn = Boolean(
+      attendance?.CheckInTime && !attendance?.CheckOutTime,
+    );
     const checkInTime = attendance?.CheckInTime
       ? parseISO(format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"))
       : null;
 
-    console.log('Time debug:', {
-      periodStart: format(periodStart, 'HH:mm'),
-      periodEnd: format(periodEnd, 'HH:mm'),
-      checkInTime: checkInTime ? format(checkInTime, 'HH:mm') : null,
-      now: format(now, 'HH:mm'),
-    });
-
-    const isCheckedIn = Boolean(
-      attendance?.CheckInTime && !attendance?.CheckOutTime,
-    );
-
-    // If we're before overtime start time, we're still in regular period
-    if (
-      periodState.overtimeInfo &&
-      now <
-        parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo.startTime}`,
-        )
-    ) {
-      return {
-        type: PeriodType.REGULAR,
-        timeWindow: {
-          start: periodState.current.start,
-          end: periodState.current.end,
-        },
-        activity: {
-          isActive: isCheckedIn,
-          checkIn: attendance?.CheckInTime
-            ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
-            : null,
-          checkOut: attendance?.CheckOutTime
-            ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
-            : null,
-          isOvertime: false,
-          overtimeId: undefined,
-          isDayOffOvertime: false,
-          isInsideShiftHours: isWithinInterval(now, {
-            start: periodStart,
-            end: periodEnd,
-          }),
-        },
-        validation: {
-          isWithinBounds: true,
-          isEarly: this.checkIfEarly(now, periodStart),
-          isLate: this.checkIfLate(now, periodStart),
-          isOvernight: periodEnd < periodStart,
-          isConnected: Boolean(periodState.nextPeriod),
-        },
-      };
-    }
-
-    // If checked in at 09:00 and shift is 08:00-17:00, this should be true
+    // Inside hours check uses appropriate period window
     const isInShiftTime = isWithinInterval(now, {
       start: periodStart,
       end: periodEnd,
     });
 
-    console.log('Validation checks:', {
+    // Debug logging
+    console.log('Period resolution:', {
+      currentTime: format(now, 'HH:mm'),
+      periodType: periodState.type,
+      shiftWindow: {
+        start: format(shiftStart, 'HH:mm'),
+        end: format(shiftEnd, 'HH:mm'),
+      },
+      overtimeWindow: overtimeStart
+        ? {
+            start: format(overtimeStart, 'HH:mm'),
+            end: format(overtimeEnd!, 'HH:mm'),
+          }
+        : null,
       isCheckedIn,
       isInShiftTime,
-      withinBounds: {
-        now: format(now, 'HH:mm'),
-        start: format(periodStart, 'HH:mm'),
-        end: format(periodEnd, 'HH:mm'),
-      },
+      checkInTime: checkInTime ? format(checkInTime, 'HH:mm') : null,
     });
 
     return {
       type: periodState.type,
       timeWindow: {
-        start: periodState.current.start,
-        end: periodState.current.end,
+        start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
       },
       activity: {
         isActive: isCheckedIn && isInShiftTime,
@@ -109,9 +96,9 @@ export class PeriodManagementService {
           ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
           : null,
         isOvertime: periodState.type === PeriodType.OVERTIME,
-        overtimeId: periodState.overtimeInfo?.id,
         isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
         isInsideShiftHours: isInShiftTime,
+        overtimeId: periodState.overtimeInfo?.id,
       },
       validation: {
         isWithinBounds: isInShiftTime,
