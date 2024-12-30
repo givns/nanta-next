@@ -58,7 +58,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     if (!systemState.locationValid) return '!';
 
     if (isCheckingIn) {
-      return periodType === PeriodType.OVERTIME ? 'OT IN' : 'IN';
+      return periodType === PeriodType.OVERTIME ? 'OT' : 'IN';
     }
 
     // Handle transition cases
@@ -66,10 +66,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       transition &&
       attendanceStatus.checkStatus === CheckStatus.CHECKED_OUT
     ) {
-      return transition.targetType === PeriodType.OVERTIME ? 'START OT' : 'IN';
+      return transition.targetType === PeriodType.OVERTIME ? 'OT' : 'IN';
     }
 
-    return periodType === PeriodType.OVERTIME ? 'OT OUT' : 'OUT';
+    return periodType === PeriodType.OVERTIME ? 'OT' : 'OUT';
   }, [attendanceStatus, periodType, systemState, transition, isCheckingIn]);
 
   const buttonStyle = React.useMemo(() => {

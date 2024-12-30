@@ -579,10 +579,6 @@ export class ShiftManagementService {
     windows: ShiftWindows,
     now: Date,
   ): Promise<NextPeriod | null> {
-    if (!currentPeriod.isComplete) {
-      return null;
-    }
-
     if (currentPeriod.type === PeriodType.REGULAR) {
       const nextOt = sortedOvertimes.find(
         (ot) => parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.startTime}`) > now,
