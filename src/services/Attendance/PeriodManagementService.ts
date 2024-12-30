@@ -38,6 +38,46 @@ export class PeriodManagementService {
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
 
+    // If we're before overtime start time, we're still in regular period
+    if (
+      periodState.overtimeInfo &&
+      now <
+        parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo.startTime}`,
+        )
+    ) {
+      return {
+        type: PeriodType.REGULAR,
+        timeWindow: {
+          start: periodState.current.start,
+          end: periodState.current.end,
+        },
+        activity: {
+          isActive: isCheckedIn,
+          checkIn: attendance?.CheckInTime
+            ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+            : null,
+          checkOut: attendance?.CheckOutTime
+            ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+            : null,
+          isOvertime: false,
+          overtimeId: undefined,
+          isDayOffOvertime: false,
+          isInsideShiftHours: isWithinInterval(now, {
+            start: periodStart,
+            end: periodEnd,
+          }),
+        },
+        validation: {
+          isWithinBounds: true,
+          isEarly: this.checkIfEarly(now, periodStart),
+          isLate: this.checkIfLate(now, periodStart),
+          isOvernight: periodEnd < periodStart,
+          isConnected: Boolean(periodState.nextPeriod),
+        },
+      };
+    }
+
     // If checked in at 09:00 and shift is 08:00-17:00, this should be true
     const isInShiftTime = isWithinInterval(now, {
       start: periodStart,

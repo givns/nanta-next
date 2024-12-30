@@ -581,7 +581,7 @@ export class ShiftManagementService {
   ): Promise<NextPeriod | null> {
     if (currentPeriod.type === PeriodType.REGULAR) {
       const nextOt = sortedOvertimes.find(
-        (ot) => parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.startTime}`) > now,
+        (ot) => ot.startTime === effectiveShift.endTime,
       );
 
       console.log('Next overtime:', nextOt);

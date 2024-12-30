@@ -238,7 +238,7 @@ export class AttendanceEnhancementService {
     };
 
     // Handle emergency leave case
-    if (isActiveAttendance && isVeryEarlyCheckout) {
+    if (isActiveAttendance && isVeryEarlyCheckout && !isEarlyCheckout) {
       return {
         allowed: true,
         reason: 'Early checkout will be recorded as sick leave',
