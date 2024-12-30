@@ -584,6 +584,8 @@ export class ShiftManagementService {
         (ot) => parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.startTime}`) > now,
       );
 
+      console.log('Next overtime:', nextOt);
+
       if (nextOt) {
         return {
           type: PeriodType.OVERTIME,
