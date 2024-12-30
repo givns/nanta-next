@@ -188,7 +188,7 @@ export class AttendanceEnhancementService {
       (isVeryEarlyCheckout ||
         this.checkIfRequiresAutoCompletion(attendance, window));
 
-    if (isActiveAttendance && isEarlyCheckout) {
+    if (isActiveAttendance && isEarlyCheckout && !isVeryEarlyCheckout) {
       const endTime = parseISO(window.current.end);
       const minutesUntilEnd = differenceInMinutes(endTime, now);
 
@@ -202,7 +202,7 @@ export class AttendanceEnhancementService {
 
       return {
         allowed: false, // Block early checkout
-        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} กรุณาลงเวลาออกตอน ${format(subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
+        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} นาที กรุณาลงเวลาออกตอน ${format(subMinutes(endTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD), 'HH:mm')}`,
         flags: {
           // Core Status Flags
           hasActivePeriod: isActiveAttendance,
