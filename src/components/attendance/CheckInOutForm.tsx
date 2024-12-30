@@ -15,7 +15,7 @@ import {
 } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
-import { parseISO } from 'date-fns';
+import { differenceInMilliseconds, parseISO } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -206,6 +206,38 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           now,
         );
         if (!leaveCreated) return;
+      }
+
+      // Handle overtime transition prompt
+      if (stateValidation.flags.hasPendingTransition) {
+        const confirmed = window.confirm(
+          'คุณต้องการเข้างานล่วงเวลาต่อหรือไม่?',
+        );
+
+        if (confirmed && stateValidation.metadata?.nextTransitionTime) {
+          setStep('processing');
+          // First check out from regular shift
+          await handleAttendanceSubmit();
+
+          // Then set a timer to prompt for overtime check-in
+          const transitionTime = parseISO(
+            stateValidation.metadata.nextTransitionTime,
+          );
+          const timeUntilTransition = differenceInMilliseconds(
+            transitionTime,
+            now,
+          );
+
+          if (timeUntilTransition > 0) {
+            setTimeout(() => {
+              handleAttendanceSubmit({
+                isOvertime: true,
+                overtimeId: context.nextPeriod?.overtimeInfo?.id,
+              });
+            }, timeUntilTransition);
+          }
+          return;
+        }
       }
 
       setStep('processing');

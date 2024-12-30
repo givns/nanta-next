@@ -14,10 +14,12 @@ import {
   differenceInMinutes,
   format,
   isBefore,
+  isWithinInterval,
   parseISO,
   subMinutes,
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
@@ -163,7 +165,20 @@ export class AttendanceEnhancementService {
     );
 
     // Handle pending transitions
-    const hasPendingTransition = Boolean(window.transition?.isInTransition);
+    const shiftEnd = parseISO(window.current.end);
+    const transitionWindow = {
+      start: subMinutes(shiftEnd, 15),
+      end: addMinutes(shiftEnd, 15),
+    };
+
+    // Check for pending transition
+    const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+    const hasUpcomingOvertime = Boolean(
+      window.nextPeriod?.type === PeriodType.OVERTIME,
+    );
+    const hasPendingTransition = isInTransitionWindow && hasUpcomingOvertime;
+
+    // Requires transition if checked in and in transition window
     const requiresTransition =
       hasPendingTransition && currentState.activity.isActive;
 
@@ -194,7 +209,7 @@ export class AttendanceEnhancementService {
 
         // Overtime Related
         isOvertime,
-        isPendingOvertime,
+        isPendingOvertime: hasUpcomingOvertime,
         isDayOffOvertime,
 
         // Auto-completion & Emergency Leave
@@ -221,24 +236,69 @@ export class AttendanceEnhancementService {
       },
     };
 
-    // Add metadata if needed
-    const nextTransitionTime = window.transition?.to.start;
+    // Enhanced metadata handling
+    const nextTransitionTime =
+      window.transition?.to.start ||
+      (hasUpcomingOvertime ? shiftEnd.toISOString() : undefined);
+
     if (
       nextTransitionTime ||
       this.getRequiredAction(currentState, window, attendance)
     ) {
       validation.metadata = {
-        nextTransitionTime: nextTransitionTime || undefined, // Will be string | undefined
+        nextTransitionTime,
         requiredAction: this.getRequiredAction(
           currentState,
           window,
           attendance,
         ),
-        additionalInfo: this.buildAdditionalInfo(attendance, window),
+        additionalInfo: {
+          ...this.buildAdditionalInfo(attendance, window),
+          // Add transition window info if relevant
+          ...(hasPendingTransition && {
+            transitionWindow: {
+              start: format(transitionWindow.start, 'HH:mm'),
+              end: format(transitionWindow.end, 'HH:mm'),
+              type: 'OVERTIME',
+            },
+          }),
+        },
       };
     }
 
     return validation;
+  }
+
+  private getRequiredAction(
+    state: UnifiedPeriodState,
+    window: ShiftWindowResponse,
+    attendance: AttendanceRecord | null,
+  ): string | undefined {
+    if (window.transition?.isInTransition) {
+      return 'Transition to next period required';
+    }
+
+    // Add check for upcoming overtime transition
+    if (
+      state.activity.isActive &&
+      window.nextPeriod?.type === PeriodType.OVERTIME &&
+      isWithinInterval(getCurrentTime(), {
+        start: subMinutes(parseISO(window.current.end), 15),
+        end: parseISO(window.current.end),
+      })
+    ) {
+      return 'Overtime period starting soon';
+    }
+
+    if (attendance?.overtimeEntries.some((entry) => !entry.actualEndTime)) {
+      return 'Overtime completion required';
+    }
+
+    if (state.activity.isActive && !state.validation.isWithinBounds) {
+      return 'Check-out required';
+    }
+
+    return undefined;
   }
 
   private checkIfEarlyCheckout(
@@ -279,6 +339,12 @@ export class AttendanceEnhancementService {
     }
     if (attendance?.checkTiming?.isLateCheckIn) {
       return 'Late check-in';
+    }
+    if (
+      window.nextPeriod?.type === PeriodType.OVERTIME &&
+      state.activity.isActive
+    ) {
+      return 'Please check out and transition to overtime period';
     }
     if (attendance?.checkTiming?.isLateCheckOut) {
       return `Late check-out (${attendance.checkTiming.lateCheckOutMinutes} minutes)`;
@@ -328,23 +394,6 @@ export class AttendanceEnhancementService {
     }
 
     return additionalInfo;
-  }
-
-  private getRequiredAction(
-    state: UnifiedPeriodState,
-    window: ShiftWindowResponse,
-    attendance: AttendanceRecord | null,
-  ): string | undefined {
-    if (window.transition?.isInTransition) {
-      return 'Transition to next period required';
-    }
-    if (attendance?.overtimeEntries.some((entry) => !entry.actualEndTime)) {
-      return 'Overtime completion required';
-    }
-    if (state.activity.isActive && !state.validation.isWithinBounds) {
-      return 'Check-out required';
-    }
-    return undefined;
   }
 
   // 3. Add helper functions for state validation

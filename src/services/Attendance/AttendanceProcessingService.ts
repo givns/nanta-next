@@ -6,6 +6,7 @@ import {
   AttendanceState,
   CheckStatus,
   OvertimeState,
+  PeriodType,
 } from '@prisma/client';
 import {
   ProcessingOptions,
@@ -19,7 +20,14 @@ import {
   StatusUpdateResult,
 } from '../../types/attendance';
 import { getCurrentTime } from '../../utils/dateUtils';
-import { startOfDay, endOfDay, parseISO } from 'date-fns';
+import {
+  startOfDay,
+  endOfDay,
+  parseISO,
+  isWithinInterval,
+  subMinutes,
+  addMinutes,
+} from 'date-fns';
 
 // Import services
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
@@ -232,7 +240,17 @@ export class AttendanceProcessingService {
   ): Promise<AttendanceRecord> {
     const isCheckIn = options.activity.isCheckIn;
 
-    // Add status validation
+    // Enhanced transition detection
+    const shiftEnd = parseISO(window.current.end);
+    const isInTransitionWindow = isWithinInterval(now, {
+      start: subMinutes(shiftEnd, 15),
+      end: addMinutes(shiftEnd, 15),
+    });
+    const hasUpcomingOvertime = Boolean(
+      window.nextPeriod?.type === PeriodType.OVERTIME,
+    );
+
+    // Status validation for overtime
     if (options.activity.isOvertime && currentRecord) {
       const currentStatus = {
         state: currentRecord.state,
@@ -253,7 +271,7 @@ export class AttendanceProcessingService {
       ? this.prepareLocationData(options, isCheckIn)
       : undefined;
 
-    // Prepare attendance data
+    // Prepare attendance data using correct schema structure
     const attendanceData: Prisma.AttendanceCreateInput = {
       user: { connect: { employeeId: options.employeeId } },
       date: startOfDay(now),
@@ -272,11 +290,15 @@ export class AttendanceProcessingService {
         create: {
           isManualEntry: options.activity.isManualEntry || false,
           isDayOff: window.isDayOff,
-          source: options.metadata?.source || 'system',
+          source:
+            hasUpcomingOvertime && isInTransitionWindow
+              ? 'auto'
+              : options.metadata?.source || 'system',
         },
       },
     };
 
+    // Use schema-compliant update structure
     const attendance = await tx.attendance.upsert({
       where: {
         employee_date_attendance: {
@@ -301,6 +323,16 @@ export class AttendanceProcessingService {
             },
           },
         }),
+        // Update metadata using the correct schema fields
+        ...(hasUpcomingOvertime &&
+          isInTransitionWindow && {
+            metadata: {
+              update: {
+                source: 'auto',
+                updatedAt: now,
+              },
+            },
+          }),
       },
       include: {
         timeEntries: true,

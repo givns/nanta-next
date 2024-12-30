@@ -89,18 +89,25 @@ export class PeriodManagementService {
     now: Date,
   ): PeriodTransition[] {
     const transitions: PeriodTransition[] = [];
+    const shiftEnd = parseISO(window.current.end);
 
-    if (window.transition?.isInTransition) {
+    // Check for upcoming transitions regardless of completion
+    const isApproachingTransition = isWithinInterval(now, {
+      start: subMinutes(shiftEnd, 15),
+      end: addMinutes(shiftEnd, 15),
+    });
+
+    if (window.nextPeriod && isApproachingTransition) {
       transitions.push({
         from: {
           periodIndex: 0,
-          type: window.transition.from.type,
+          type: currentState.type,
         },
         to: {
           periodIndex: 1,
-          type: window.transition.to.type,
+          type: window.nextPeriod.type,
         },
-        transitionTime: window.transition.to.start || window.current.end,
+        transitionTime: window.nextPeriod.startTime || window.current.end,
         isComplete: false,
       });
     }
