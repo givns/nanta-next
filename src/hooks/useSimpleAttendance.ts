@@ -165,20 +165,38 @@ export function useSimpleAttendance({
     console.log('Raw attendance data:', {
       shift: rawData.context?.shift,
       timeWindow: rawData.daily?.currentState?.timeWindow,
+      hasContext: Boolean(rawData.context),
+      hasDaily: Boolean(rawData.daily),
     });
 
-    // Check for empty or invalid shift data
+    // Validate shift data structure exists
+    if (!rawData.context) {
+      console.warn('No context in raw data, using defaults');
+      return {
+        ...rawData,
+        context: defaultContext,
+      };
+    }
+
+    // Check for valid shift data
     const hasValidShift = Boolean(
-      rawData.context?.shift?.id &&
-        rawData.context?.shift?.startTime &&
-        rawData.context?.shift?.endTime,
+      rawData.context.shift?.id &&
+        rawData.context.shift?.startTime &&
+        rawData.context.shift?.endTime &&
+        rawData.context.shift?.shiftCode,
     );
 
     if (!hasValidShift) {
-      console.warn(
-        'Invalid shift data, using defaults:',
-        rawData.context?.shift,
-      );
+      console.warn('Invalid shift data, using defaults:', {
+        receivedShift: rawData.context.shift,
+        hasShift: Boolean(rawData.context.shift),
+        shiftDetails: {
+          id: rawData.context.shift?.id,
+          startTime: rawData.context.shift?.startTime,
+          endTime: rawData.context.shift?.endTime,
+          shiftCode: rawData.context.shift?.shiftCode,
+        },
+      });
       return {
         ...rawData,
         context: {
@@ -188,6 +206,7 @@ export function useSimpleAttendance({
       };
     }
 
+    // Keep original data if all validations pass
     return rawData;
   }, [rawData]);
 
@@ -200,34 +219,47 @@ export function useSimpleAttendance({
     const currentState = data.daily.currentState;
     const timeWindow = currentState.timeWindow;
 
+    // Log time window validation
+    console.log('Time window validation:', {
+      hasTimeWindow: Boolean(timeWindow),
+      start: timeWindow?.start,
+      end: timeWindow?.end,
+      isValid: Boolean(timeWindow?.start && timeWindow?.end),
+    });
+
     if (!timeWindow || !timeWindow.start || !timeWindow.end) {
-      console.warn(
-        'Invalid time window, using default period state:',
-        timeWindow,
-      );
-      return defaultPeriodState;
+      return {
+        ...defaultPeriodState,
+        timeWindow: {
+          start: format(now, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          end: format(addHours(now, 8), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        },
+      };
     }
 
     return currentState;
-  }, [data?.daily?.currentState]);
+  }, [data?.daily?.currentState, now]);
 
   const context = useMemo((): ShiftContext & TransitionContext => {
+    console.log('Context processing:', {
+      hasData: Boolean(data),
+      hasContext: Boolean(data?.context),
+      rawShift: data?.context?.shift,
+    });
+
     if (!data?.context) {
-      console.warn('No context available, using default context');
       return defaultContext;
     }
 
     const ctx = data.context;
-    if (
-      !ctx.shift ||
-      !ctx.shift.startTime ||
-      !ctx.shift.endTime ||
-      !ctx.shift.id
-    ) {
-      console.warn(
-        'Invalid shift in context, using default context:',
-        ctx.shift,
-      );
+    const isValidShift = Boolean(
+      ctx.shift?.id &&
+        ctx.shift?.startTime &&
+        ctx.shift?.endTime &&
+        ctx.shift?.shiftCode,
+    );
+
+    if (!isValidShift) {
       return {
         ...defaultContext,
         schedule: ctx.schedule || defaultContext.schedule,
