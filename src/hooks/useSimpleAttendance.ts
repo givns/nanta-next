@@ -31,7 +31,7 @@ export function useSimpleAttendance({
   } = useEnhancedLocation();
 
   const {
-    data,
+    data: rawData,
     error: attendanceError,
     isLoading: isAttendanceLoading,
     refreshAttendanceStatus,
@@ -54,7 +54,6 @@ export function useSimpleAttendance({
     console.error('Invalid date generated');
   }
 
-  // Initialize default states
   const defaultBaseState: AttendanceBaseResponse = {
     state: AttendanceState.ABSENT,
     checkStatus: CheckStatus.PENDING,
@@ -115,25 +114,41 @@ export function useSimpleAttendance({
     },
   };
 
-  // 1. Add helper for default time window
-  const getDefaultTimeWindow = () => {
-    const now = getCurrentTime();
-    return {
-      start: now.toISOString(),
-      end: new Date(now.setHours(now.getHours() + 8)).toISOString(), // Default 8-hour window
-    };
+  const defaultShift = {
+    id: '',
+    shiftCode: '',
+    name: '',
+    startTime: '08:00',
+    endTime: '17:00',
+    workDays: [],
   };
 
-  // 2. Update defaultPeriodState
+  const defaultContext: ShiftContext & TransitionContext = {
+    shift: defaultShift,
+    schedule: {
+      isHoliday: false,
+      isDayOff: false,
+      isAdjusted: false,
+    },
+    nextPeriod: null,
+    transition: undefined,
+  };
+
+  const defaultTimeWindow = {
+    start: now.toISOString(),
+    end: format(addHours(now, 8), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+  };
+
   const defaultPeriodState: UnifiedPeriodState = {
     type: PeriodType.REGULAR,
-    timeWindow: getDefaultTimeWindow(), // Use proper time window instead of empty strings
+    timeWindow: defaultTimeWindow,
     activity: {
       isActive: false,
       checkIn: null,
       checkOut: null,
       isOvertime: false,
       isDayOffOvertime: false,
+      isInsideShiftHours: false,
     },
     validation: {
       isWithinBounds: false,
@@ -144,71 +159,95 @@ export function useSimpleAttendance({
     },
   };
 
-  // 3. Update defaultContext with proper time values
-  const defaultContext: ShiftContext & TransitionContext = {
-    shift: {
-      id: '',
-      shiftCode: '',
-      name: '',
-      startTime: format(getCurrentTime(), 'HH:mm'), // Use current hour/minute
-      endTime: format(addHours(getCurrentTime(), 8), 'HH:mm'), // Default 8 hours later
-      workDays: [],
-    },
-    schedule: {
-      isHoliday: false,
-      isDayOff: false,
-      isAdjusted: false,
-    },
-    nextPeriod: null,
-    transition: undefined,
-  };
+  const data = useMemo(() => {
+    if (!rawData) return null;
 
-  // 4. Add validation for incoming data
-  const periodState = useMemo((): UnifiedPeriodState => {
-    if (!data?.daily?.currentState) return defaultPeriodState;
+    console.log('Raw attendance data:', {
+      shift: rawData.context?.shift,
+      timeWindow: rawData.daily?.currentState?.timeWindow,
+    });
 
-    const currentState = data.daily.currentState;
-    // Validate time window
-    if (!currentState.timeWindow.start || !currentState.timeWindow.end) {
+    // Check for empty or invalid shift data
+    const hasValidShift = Boolean(
+      rawData.context?.shift?.id &&
+        rawData.context?.shift?.startTime &&
+        rawData.context?.shift?.endTime,
+    );
+
+    if (!hasValidShift) {
+      console.warn(
+        'Invalid shift data, using defaults:',
+        rawData.context?.shift,
+      );
       return {
-        ...currentState,
-        timeWindow: getDefaultTimeWindow(),
+        ...rawData,
+        context: {
+          ...rawData.context,
+          shift: defaultShift,
+        },
       };
     }
+
+    return rawData;
+  }, [rawData]);
+
+  const periodState = useMemo((): UnifiedPeriodState => {
+    if (!data?.daily?.currentState) {
+      console.warn('No current state available, using default period state');
+      return defaultPeriodState;
+    }
+
+    const currentState = data.daily.currentState;
+    const timeWindow = currentState.timeWindow;
+
+    if (!timeWindow || !timeWindow.start || !timeWindow.end) {
+      console.warn(
+        'Invalid time window, using default period state:',
+        timeWindow,
+      );
+      return defaultPeriodState;
+    }
+
     return currentState;
   }, [data?.daily?.currentState]);
 
   const context = useMemo((): ShiftContext & TransitionContext => {
-    if (!data?.context) return defaultContext;
+    if (!data?.context) {
+      console.warn('No context available, using default context');
+      return defaultContext;
+    }
 
     const ctx = data.context;
-    // Validate shift times
-    if (!ctx.shift.startTime || !ctx.shift.endTime) {
+    if (
+      !ctx.shift ||
+      !ctx.shift.startTime ||
+      !ctx.shift.endTime ||
+      !ctx.shift.id
+    ) {
+      console.warn(
+        'Invalid shift in context, using default context:',
+        ctx.shift,
+      );
       return {
-        ...ctx,
-        shift: {
-          ...ctx.shift,
-          startTime: format(getCurrentTime(), 'HH:mm'),
-          endTime: format(addHours(getCurrentTime(), 8), 'HH:mm'),
-        },
+        ...defaultContext,
+        schedule: ctx.schedule || defaultContext.schedule,
       };
     }
+
     return ctx;
   }, [data?.context]);
 
-  // 5. Add date validation check
   useEffect(() => {
     if (data) {
-      // Validate all date/time fields
       const timeWindow = data.daily?.currentState?.timeWindow;
       const shift = data.context?.shift;
 
       if (timeWindow && (!timeWindow.start || !timeWindow.end)) {
-        console.warn('Invalid time window in data:', timeWindow);
+        console.warn('Invalid time window detected:', timeWindow);
       }
 
       if (shift && (!shift.startTime || !shift.endTime)) {
-        console.warn('Invalid shift times in data:', shift);
+        console.warn('Invalid shift times detected:', shift);
       }
     }
   }, [data]);
@@ -219,7 +258,6 @@ export function useSimpleAttendance({
     }
   }, [data, isInitializing]);
 
-  // Calculate derived states
   const transitions = useMemo(() => {
     return data?.daily?.transitions || [];
   }, [data?.daily?.transitions]);
@@ -233,45 +271,36 @@ export function useSimpleAttendance({
   }, [transitions]);
 
   return {
-    // Core attendance states
     state: data?.base?.state || AttendanceState.ABSENT,
     checkStatus: data?.base?.checkStatus || CheckStatus.PENDING,
     isCheckingIn: data?.base?.isCheckingIn ?? true,
     base: data?.base || defaultBaseState,
 
-    // Period and validation states
     periodState,
     stateValidation: data?.validation || defaultStateValidation,
 
-    // Context information
     context,
     transitions,
     hasPendingTransition,
     nextTransition,
 
-    // Schedule status
     isDayOff: context.schedule.isDayOff,
     isHoliday: context.schedule.isHoliday,
     isAdjusted: context.schedule.isAdjusted,
     holidayInfo: context.schedule.holidayInfo,
 
-    // Transition information
     nextPeriod: context.nextPeriod,
     transition: context.transition,
 
-    // Shift information
     shift: context.shift,
 
-    // Loading and error states
     isLoading: isInitializing || locationLoading || isAttendanceLoading,
     isLocationLoading: locationLoading,
     error: attendanceError?.message || locationError || undefined,
 
-    // Location information
     locationReady,
     locationState,
 
-    // Actions
     checkInOut,
     refreshAttendanceStatus,
     getCurrentLocation,
