@@ -7,6 +7,8 @@ import {
   ShiftContext,
   TransitionContext,
   ATTENDANCE_CONSTANTS,
+  OvertimeContext,
+  TransitionInfo,
 } from '@/types/attendance';
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
@@ -23,6 +25,86 @@ import { getCurrentTime } from '@/utils/dateUtils';
 
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
+
+  private determineTransitionContext(
+    now: Date,
+    periodState: ShiftWindowResponse,
+    overtimeInfo?: OvertimeContext | null,
+  ): TransitionInfo | undefined {
+    if (!overtimeInfo) return undefined;
+
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
+    );
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+    );
+    const overtimeStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+    );
+
+    console.log('Determining transition:', {
+      currentTime: format(now, 'HH:mm'),
+      shift: {
+        start: format(shiftStart, 'HH:mm'),
+        end: format(shiftEnd, 'HH:mm'),
+      },
+      overtime: {
+        start: format(overtimeStart, 'HH:mm'),
+        startTime: overtimeInfo.startTime,
+      },
+    });
+
+    // For post-shift overtime (most common case)
+    if (overtimeStart >= shiftEnd) {
+      const transitionWindow = {
+        start: subMinutes(shiftEnd, 15),
+        end: shiftEnd,
+      };
+
+      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+
+      if (isInTransitionWindow) {
+        return {
+          from: {
+            type: PeriodType.REGULAR,
+            end: periodState.shift.endTime,
+          },
+          to: {
+            type: PeriodType.OVERTIME,
+            start: overtimeInfo.startTime,
+          },
+          isInTransition: true,
+        };
+      }
+    }
+
+    // For pre-shift overtime
+    if (overtimeStart < shiftStart) {
+      const transitionWindow = {
+        start: subMinutes(shiftStart, 15),
+        end: shiftStart,
+      };
+
+      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+
+      if (isInTransitionWindow) {
+        return {
+          from: {
+            type: PeriodType.OVERTIME,
+            end: overtimeInfo.endTime,
+          },
+          to: {
+            type: PeriodType.REGULAR,
+            start: periodState.shift.startTime,
+          },
+          isInTransition: true,
+        };
+      }
+    }
+
+    return undefined;
+  }
 
   async enhanceAttendanceStatus(
     attendance: AttendanceRecord | null,
@@ -43,14 +125,6 @@ export class AttendanceEnhancementService {
       now,
     );
 
-    // Create state validation
-    const stateValidation = this.createStateValidation(
-      attendance,
-      currentState,
-      periodState,
-      now,
-    );
-
     // Map ShiftWindowResponse to our context interfaces
     const context: ShiftContext & TransitionContext = {
       shift: periodState.shift,
@@ -60,9 +134,28 @@ export class AttendanceEnhancementService {
         isAdjusted: periodState.isAdjusted,
         holidayInfo: periodState.holidayInfo,
       },
-      nextPeriod: periodState.nextPeriod,
-      transition: periodState.transition,
+      nextPeriod:
+        transitions.length > 0
+          ? {
+              type: transitions[0].to.type,
+              startTime: transitions[0].transitionTime,
+              overtimeInfo: periodState.overtimeInfo,
+            }
+          : null,
+      transition: this.determineTransitionContext(
+        now,
+        periodState,
+        periodState.overtimeInfo,
+      ),
     };
+
+    // Create state validation
+    const stateValidation = this.createStateValidation(
+      attendance,
+      currentState,
+      periodState,
+      now,
+    );
 
     return {
       daily: {
