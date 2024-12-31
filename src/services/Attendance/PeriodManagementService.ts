@@ -12,6 +12,8 @@ import {
   isWithinInterval,
   subMinutes,
   addMinutes,
+  startOfDay,
+  endOfDay,
 } from 'date-fns';
 
 export class PeriodManagementService {
@@ -20,84 +22,161 @@ export class PeriodManagementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): UnifiedPeriodState {
-    // Parse all relevant times
-    const shiftStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
-    );
-    const shiftEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+    // Validate shift data first
+    const isValidShift = Boolean(
+      periodState.shift?.startTime &&
+        periodState.shift?.endTime &&
+        periodState.shift?.id,
     );
 
-    // Check for transition conditions
-    const transitionWindow = {
-      start: subMinutes(shiftEnd, 15),
-      end: shiftEnd,
-    };
-
-    const hasUpcomingOvertime = Boolean(
-      periodState.overtimeInfo?.startTime === periodState.shift.endTime,
-    );
-    const isInTransitionWindow = isWithinInterval(now, transitionWindow);
-
-    // Core status checks
-    const isCheckedIn = Boolean(
-      attendance?.CheckInTime && !attendance?.CheckOutTime,
-    );
-    const isInShiftTime = isWithinInterval(now, {
-      start: shiftStart,
-      end: shiftEnd,
+    // Debug validation
+    console.log('Shift validation:', {
+      hasShift: Boolean(periodState.shift),
+      startTime: periodState.shift?.startTime,
+      endTime: periodState.shift?.endTime,
+      id: periodState.shift?.id,
+      isValid: isValidShift,
     });
 
-    console.log('Period resolution:', {
-      currentTime: format(now, 'HH:mm'),
-      shift: {
-        start: format(shiftStart, 'HH:mm'),
-        end: format(shiftEnd, 'HH:mm'),
-      },
-      transition: {
-        window: {
-          start: format(transitionWindow.start, 'HH:mm'),
-          end: format(transitionWindow.end, 'HH:mm'),
+    // Get default time window if shift is invalid
+    const defaultWindow = {
+      start: format(startOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+      end: format(endOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+    };
+
+    try {
+      // Parse shift times if valid
+      const timeWindow = isValidShift
+        ? {
+            start: format(
+              parseISO(
+                `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
+              ),
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+            end: format(
+              parseISO(
+                `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+              ),
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+          }
+        : defaultWindow;
+
+      // Core status checks
+      const isCheckedIn = Boolean(
+        attendance?.CheckInTime && !attendance?.CheckOutTime,
+      );
+      const isInShiftTime = isValidShift
+        ? isWithinInterval(now, {
+            start: parseISO(timeWindow.start),
+            end: parseISO(timeWindow.end),
+          })
+        : false;
+
+      // Check for transition conditions if shift is valid
+      const transitionWindow = isValidShift
+        ? {
+            start: subMinutes(parseISO(timeWindow.end), 15),
+            end: parseISO(timeWindow.end),
+          }
+        : null;
+
+      const hasUpcomingOvertime = Boolean(
+        isValidShift &&
+          periodState.overtimeInfo?.startTime === periodState.shift.endTime,
+      );
+
+      const isInTransitionWindow = transitionWindow
+        ? isWithinInterval(now, transitionWindow)
+        : false;
+
+      // Debug logging
+      console.log('Period resolution:', {
+        currentTime: format(now, 'HH:mm'),
+        shift: {
+          isValid: isValidShift,
+          startTime: periodState.shift?.startTime,
+          endTime: periodState.shift?.endTime,
         },
-        isInWindow: isInTransitionWindow,
-        hasOvertime: hasUpcomingOvertime,
-        overtimeInfo: periodState.overtimeInfo,
-      },
-      activity: {
-        isCheckedIn,
-        isInShiftTime,
-      },
-    });
+        window: {
+          start: format(parseISO(timeWindow.start), 'HH:mm'),
+          end: format(parseISO(timeWindow.end), 'HH:mm'),
+        },
+        transition: transitionWindow
+          ? {
+              start: format(transitionWindow.start, 'HH:mm'),
+              end: format(transitionWindow.end, 'HH:mm'),
+              isInWindow: isInTransitionWindow,
+              hasOvertime: hasUpcomingOvertime,
+              overtimeInfo: periodState.overtimeInfo,
+            }
+          : null,
+        activity: {
+          isCheckedIn,
+          isInShiftTime,
+        },
+      });
 
-    return {
-      type: PeriodType.REGULAR,
-      timeWindow: {
-        start: format(shiftStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-        end: format(shiftEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-      },
-      activity: {
-        isActive: isCheckedIn && isInShiftTime,
-        checkIn: attendance?.CheckInTime
-          ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
-          : null,
-        checkOut: attendance?.CheckOutTime
-          ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
-          : null,
-        isOvertime: false,
-        isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
-        isInsideShiftHours: isInShiftTime,
-      },
-      validation: {
-        isWithinBounds: isInShiftTime,
-        isEarly: this.checkIfEarly(now, shiftStart),
-        isLate: this.checkIfLate(now, shiftStart),
-        isOvernight: shiftEnd < shiftStart,
-        // Connect if we have next period OR we're in transition window with overtime
-        isConnected:
-          Boolean(periodState.nextPeriod) ||
-          (isInTransitionWindow && hasUpcomingOvertime),
-      },
-    };
+      return {
+        type: PeriodType.REGULAR,
+        timeWindow,
+        activity: {
+          isActive: isCheckedIn && isInShiftTime,
+          checkIn: attendance?.CheckInTime
+            ? format(
+                new Date(attendance.CheckInTime),
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+              )
+            : null,
+          checkOut: attendance?.CheckOutTime
+            ? format(
+                new Date(attendance.CheckOutTime),
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+              )
+            : null,
+          isOvertime: false,
+          isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
+          isInsideShiftHours: isInShiftTime,
+        },
+        validation: {
+          isWithinBounds: isInShiftTime,
+          isEarly: isValidShift
+            ? this.checkIfEarly(now, parseISO(timeWindow.start))
+            : false,
+          isLate: isValidShift
+            ? this.checkIfLate(now, parseISO(timeWindow.start))
+            : false,
+          isOvernight: isValidShift
+            ? parseISO(timeWindow.end) < parseISO(timeWindow.start)
+            : false,
+          isConnected:
+            isValidShift && isInTransitionWindow && hasUpcomingOvertime,
+        },
+      };
+    } catch (error) {
+      console.error('Error resolving period:', error);
+      // Return safe defaults on error
+      return {
+        type: PeriodType.REGULAR,
+        timeWindow: defaultWindow,
+        activity: {
+          isActive: false,
+          checkIn: null,
+          checkOut: null,
+          isOvertime: false,
+          isDayOffOvertime: false,
+          isInsideShiftHours: false,
+        },
+        validation: {
+          isWithinBounds: false,
+          isEarly: false,
+          isLate: false,
+          isOvernight: false,
+          isConnected: false,
+        },
+      };
+    }
   }
 
   calculatePeriodTransitions(
@@ -105,68 +184,38 @@ export class PeriodManagementService {
     window: ShiftWindowResponse,
     now: Date,
   ): PeriodTransition[] {
-    if (!window.overtimeInfo) return [];
-
-    const shiftStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`,
-    );
-    const shiftEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
-    );
-    const overtimeStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-    );
-
-    // Determine overtime position relative to shift
-    const isPreShiftOvertime = overtimeStart < shiftStart;
-    const isPostShiftOvertime = overtimeStart >= shiftEnd;
-
-    console.log('Transition calculation:', {
-      currentTime: format(now, 'HH:mm'),
-      shift: {
-        start: format(shiftStart, 'HH:mm'),
-        end: format(shiftEnd, 'HH:mm'),
-      },
-      overtime: {
-        start: format(overtimeStart, 'HH:mm'),
-        isPreShift: isPreShiftOvertime,
-        isPostShift: isPostShiftOvertime,
-      },
-    });
-
-    // Handle pre-shift overtime
-    if (isPreShiftOvertime) {
-      const transitionWindow = {
-        start: subMinutes(shiftStart, 15),
-        end: shiftStart,
-      };
-
-      if (isWithinInterval(now, transitionWindow)) {
-        return [
-          {
-            from: {
-              periodIndex: 0,
-              type: PeriodType.OVERTIME,
-            },
-            to: {
-              periodIndex: 1,
-              type: PeriodType.REGULAR,
-            },
-            transitionTime: window.shift.startTime,
-            isComplete: false,
-          },
-        ];
-      }
+    // Don't attempt transitions for invalid shifts
+    if (!window.overtimeInfo || !window.shift?.endTime || !window.shift?.id) {
+      return [];
     }
 
-    // Handle post-shift overtime
-    if (isPostShiftOvertime) {
+    try {
+      const shiftEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+      );
       const transitionWindow = {
         start: subMinutes(shiftEnd, 15),
         end: shiftEnd,
       };
 
-      if (isWithinInterval(now, transitionWindow)) {
+      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+      const hasUpcomingOvertime =
+        window.overtimeInfo.startTime === window.shift.endTime;
+
+      console.log('Transition calculation:', {
+        currentTime: format(now, 'HH:mm'),
+        shift: { end: format(shiftEnd, 'HH:mm') },
+        window: {
+          start: format(transitionWindow.start, 'HH:mm'),
+          end: format(transitionWindow.end, 'HH:mm'),
+        },
+        conditions: {
+          isInWindow: isInTransitionWindow,
+          hasOvertime: hasUpcomingOvertime,
+        },
+      });
+
+      if (isInTransitionWindow && hasUpcomingOvertime) {
         return [
           {
             from: {
@@ -177,27 +226,39 @@ export class PeriodManagementService {
               periodIndex: 1,
               type: PeriodType.OVERTIME,
             },
-            transitionTime: window.overtimeInfo.startTime,
+            transitionTime: window.shift.endTime,
             isComplete: false,
           },
         ];
       }
+    } catch (error) {
+      console.error('Error calculating transitions:', error);
     }
 
     return [];
   }
 
   private checkIfEarly(now: Date, start: Date): boolean {
-    return isWithinInterval(now, {
-      start: subMinutes(start, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
-      end: start,
-    });
+    try {
+      return isWithinInterval(now, {
+        start: subMinutes(start, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
+        end: start,
+      });
+    } catch (error) {
+      console.error('Error checking early status:', error);
+      return false;
+    }
   }
 
   private checkIfLate(now: Date, start: Date): boolean {
-    return isWithinInterval(now, {
-      start,
-      end: addMinutes(start, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD),
-    });
+    try {
+      return isWithinInterval(now, {
+        start,
+        end: addMinutes(start, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD),
+      });
+    } catch (error) {
+      console.error('Error checking late status:', error);
+      return false;
+    }
   }
 }
