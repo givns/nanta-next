@@ -43,6 +43,7 @@ const retryWithBackoff = async <T>(
   }
 };
 
+// hooks/useAttendanceData.ts
 export function useAttendanceData({
   employeeId,
   lineUserId,
@@ -58,74 +59,54 @@ export function useAttendanceData({
       ? ['/api/attendance/status/[employeeId]', employeeId, locationState]
       : null,
     async ([_, id]): Promise<AttendanceStatusResponse> => {
-      return retryWithBackoff(async () => {
-        try {
-          const response = await axios.get(`/api/attendance/status/${id}`, {
-            params: {
-              inPremises: locationState.inPremises,
-              address: locationState.address,
-              confidence: locationState.confidence,
-              coordinates: locationState.coordinates,
-            },
-            timeout: REQUEST_TIMEOUT,
+      console.log('Fetching attendance data for:', id); // Debug log
+      try {
+        const response = await axios.get(`/api/attendance/status/${id}`, {
+          params: {
+            inPremises: locationState.inPremises,
+            address: locationState.address,
+            confidence: locationState.confidence,
+            coordinates: locationState.coordinates,
+          },
+          timeout: REQUEST_TIMEOUT,
+        });
+
+        console.log('Raw API response:', response.data);
+
+        if (!response.data) {
+          throw new AppError({
+            code: ErrorCode.INVALID_RESPONSE,
+            message: 'Empty response received',
           });
-
-          console.log('Raw API response:', response.data); // Debug log
-
-          // Validate response data first
-          if (!response.data) {
-            throw new AppError({
-              code: ErrorCode.INVALID_RESPONSE,
-              message: 'Empty response received',
-            });
-          }
-
-          // Validate transitions and force refresh if needed
-          if (response.data?.daily?.transitions) {
-            const currentStatus = {
-              state: response.data.base.state,
-              checkStatus: response.data.base.checkStatus,
-              isOvertime: response.data.base.periodInfo.isOvertime,
-              overtimeState: response.data.base.periodInfo.overtimeState,
-            };
-
-            const shouldForceRefresh =
-              StatusHelpers.isInOvertime(currentStatus) &&
-              response.data.base.latestAttendance?.CheckOutTime &&
-              response.data.daily.transitions.length > 0;
-
-            if (shouldForceRefresh) {
-              await mutate(response.data, false);
-            }
-          }
-
-          // Sanitize and validate the response
-          const sanitized = sanitizeResponse(response.data);
-          validateAttendanceResponse(sanitized);
-          console.log('Sanitized response:', sanitized);
-
-          return sanitized;
-        } catch (error) {
-          if (axios.isAxiosError(error)) {
-            // Handle specific HTTP errors
-            if (error.response?.status === 503) {
-              throw new AppError({
-                code: ErrorCode.SERVICE_UNAVAILABLE,
-                message: 'Service temporarily unavailable',
-                originalError: error,
-              });
-            }
-            if (error.response?.status === 500) {
-              throw new AppError({
-                code: ErrorCode.SERVER_ERROR,
-                message: 'Internal server error occurred',
-                originalError: error,
-              });
-            }
-          }
-          throw handleAttendanceError(error);
         }
-      });
+
+        // Validate required fields
+        if (!response.data.context?.shift?.id) {
+          console.error('Missing shift data in response');
+          throw new AppError({
+            code: ErrorCode.INVALID_RESPONSE,
+            message: 'Invalid shift data received',
+          });
+        }
+
+        // Sanitize and validate the response
+        const sanitized = sanitizeResponse(response.data);
+        console.log('Sanitized response:', sanitized);
+
+        // Log the final data being returned
+        console.log('Returning attendance data:', {
+          hasData: true,
+          employeeId,
+          context: sanitized.context,
+          base: sanitized.base,
+          validation: sanitized.validation,
+        });
+
+        return sanitized;
+      } catch (error) {
+        console.error('Fetch error:', error);
+        throw error;
+      }
     },
     {
       revalidateOnFocus: false,
@@ -135,10 +116,22 @@ export function useAttendanceData({
       onError: (error) => {
         console.error('SWR Error:', error);
       },
+      // Add these SWR options to help with data persistence
+      revalidateOnMount: true,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
     },
   );
 
-  // Debug effect to track data changes
+  // Add effect to handle location state changes
+  useEffect(() => {
+    if (locationState.status === 'ready' && !data) {
+      console.log('Location ready, triggering data refresh');
+      mutate();
+    }
+  }, [locationState.status, data, mutate]);
+
+  // Add effect to track data changes
   useEffect(() => {
     console.log('useAttendanceData data changed:', {
       hasData: !!data,
@@ -148,6 +141,23 @@ export function useAttendanceData({
       validation: data?.validation,
     });
   }, [data, employeeId]);
+
+  const refreshAttendanceStatus = useCallback(async () => {
+    if (isRefreshing) return;
+
+    try {
+      setIsRefreshing(true);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+
+      await mutate(undefined, { revalidate: true });
+    } catch (error) {
+      console.error('Error refreshing attendance status:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, mutate]);
 
   // Add validation for attendance response
   const validateAttendanceResponse = (data: AttendanceStatusResponse) => {
@@ -239,10 +249,17 @@ export function useAttendanceData({
 
   // Updated sanitizeResponse to handle new structure
   const sanitizeResponse = (data: any): AttendanceStatusResponse => {
+    // First, log what we received
+    console.log('Sanitizing response data:', {
+      hasBase: !!data.base,
+      hasContext: !!data.context,
+      hasDaily: !!data.daily,
+    });
+
     // Handle daily state
     const daily = {
       date: data.daily.date,
-      currentState: sanitizePeriodState(data.daily.currentState),
+      currentState: data.daily.currentState,
       transitions: Array.isArray(data.daily.transitions)
         ? data.daily.transitions
         : [],
@@ -265,66 +282,46 @@ export function useAttendanceData({
     };
 
     // Handle context
-    const context: ShiftContext & TransitionContext = {
+    const context = {
       shift: {
-        id: data.context?.shift?.id || '',
-        shiftCode: data.context?.shift?.shiftCode || '',
-        name: data.context?.shift?.name || '',
-        startTime: data.context?.shift?.startTime || '',
-        endTime: data.context?.shift?.endTime || '',
-        workDays: Array.isArray(data.context?.shift?.workDays)
+        id: data.context.shift.id,
+        shiftCode: data.context.shift.shiftCode,
+        name: data.context.shift.name,
+        startTime: data.context.shift.startTime,
+        endTime: data.context.shift.endTime,
+        workDays: Array.isArray(data.context.shift.workDays)
           ? data.context.shift.workDays
           : [],
       },
       schedule: {
-        isHoliday: Boolean(data.context?.schedule?.isHoliday),
-        isDayOff: Boolean(data.context?.schedule?.isDayOff),
-        isAdjusted: Boolean(data.context?.schedule?.isAdjusted),
-        holidayInfo: data.context?.schedule?.holidayInfo,
+        isHoliday: Boolean(data.context.schedule.isHoliday),
+        isDayOff: Boolean(data.context.schedule.isDayOff),
+        isAdjusted: Boolean(data.context.schedule.isAdjusted),
+        holidayInfo: data.context.schedule.holidayInfo,
       },
-      nextPeriod: data.context?.nextPeriod || null,
-      transition: data.context?.transition,
+      nextPeriod: data.context.nextPeriod,
+      transition: data.context.transition,
     };
 
     // Handle validation
-    const validation: StateValidation = {
-      allowed: Boolean(data.validation?.allowed),
-      reason: data.validation?.reason || '',
+    const validation = {
+      allowed: Boolean(data.validation.allowed),
+      reason: data.validation.reason || '',
       flags: {
-        hasActivePeriod: Boolean(data.validation?.flags?.hasActivePeriod),
-        isInsideShift: Boolean(data.validation?.flags?.isInsideShift),
-        isOutsideShift: Boolean(data.validation?.flags?.isOutsideShift),
-        isEarlyCheckIn: Boolean(data.validation?.flags?.isEarlyCheckIn),
-        isLateCheckIn: Boolean(data.validation?.flags?.isLateCheckIn),
-        isEarlyCheckOut: Boolean(data.validation?.flags?.isEarlyCheckOut),
-        isLateCheckOut: Boolean(data.validation?.flags?.isLateCheckOut),
-        isVeryLateCheckOut: Boolean(data.validation?.flags?.isVeryLateCheckOut),
-        isOvertime: Boolean(data.validation?.flags?.isOvertime),
-        isPendingOvertime: Boolean(data.validation?.flags?.isPendingOvertime),
-        isDayOffOvertime: Boolean(data.validation?.flags?.isDayOffOvertime),
-        isAutoCheckIn: Boolean(data.validation?.flags?.isAutoCheckIn),
-        isAutoCheckOut: Boolean(data.validation?.flags?.isAutoCheckOut),
-        requiresAutoCompletion: Boolean(
-          data.validation?.flags?.requiresAutoCompletion,
-        ),
+        ...data.validation.flags,
         hasPendingTransition: daily.transitions.length > 0,
-        requiresTransition: Boolean(data.validation?.flags?.requiresTransition),
-        isAfternoonShift: Boolean(data.validation?.flags?.isAfternoonShift),
-        isMorningShift: Boolean(data.validation?.flags?.isMorningShift),
-        isAfterMidshift: Boolean(data.validation?.flags?.isAfterMidshift),
-        isApprovedEarlyCheckout: Boolean(
-          data.validation?.flags?.isApprovedEarlyCheckout,
-        ),
-        isPlannedHalfDayLeave: Boolean(
-          data.validation?.flags?.isPlannedHalfDayLeave,
-        ),
-        isEmergencyLeave: Boolean(data.validation?.flags?.isEmergencyLeave),
-        isHoliday: Boolean(data.validation?.flags?.isHoliday),
-        isDayOff: Boolean(data.validation?.flags?.isDayOff),
-        isManualEntry: Boolean(data.validation?.flags?.isManualEntry),
       },
-      metadata: data.validation?.metadata,
+      metadata: data.validation.metadata,
     };
+
+    // Log what we're returning
+    console.log('Sanitized result:', {
+      hasBase: true,
+      hasContext: true,
+      hasDaily: true,
+      transitions: daily.transitions.length,
+      shiftId: context.shift.id,
+    });
 
     return {
       daily,
@@ -361,32 +358,6 @@ export function useAttendanceData({
       },
     };
   };
-
-  const refreshAttendanceStatus = useCallback(
-    async (options?: { forceRefresh?: boolean; throwOnError?: boolean }) => {
-      if (isRefreshing) return;
-
-      try {
-        setIsRefreshing(true);
-        if (refreshTimeoutRef.current) {
-          clearTimeout(refreshTimeoutRef.current);
-        }
-
-        await mutate(undefined, {
-          revalidate: true,
-          throwOnError: options?.throwOnError,
-        });
-      } catch (error) {
-        console.error('Error refreshing attendance status:', error);
-        if (options?.throwOnError) {
-          throw error;
-        }
-      } finally {
-        setIsRefreshing(false);
-      }
-    },
-    [isRefreshing, mutate],
-  );
 
   return {
     data,

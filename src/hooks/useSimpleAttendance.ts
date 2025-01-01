@@ -44,7 +44,6 @@ export function useSimpleAttendance({
     enabled: enabled && locationReady,
   });
 
-  // Add this right after the useAttendanceData hook
   // Debug effects to track data flow
   useEffect(() => {
     console.log('Location state:', locationState);
@@ -219,8 +218,8 @@ export function useSimpleAttendance({
     isAttendanceLoading ||
     !context?.shift?.id;
 
-  // Only return complete data when we have real data
-  if (!context?.shift?.id) {
+  // Only return complete data when ready
+  if (!rawData || !rawData.context?.shift?.id) {
     console.log('Returning loading state - waiting for shift data');
     return {
       state: initialAttendanceStatus?.base?.state || AttendanceState.ABSENT,
@@ -257,7 +256,7 @@ export function useSimpleAttendance({
       holidayInfo: undefined,
       nextPeriod: null,
       transition: undefined,
-      shift: initialAttendanceStatus?.context?.shift || null,
+      shift: null,
       isLoading: true,
       isLocationLoading: locationLoading,
       error: attendanceError?.message || locationError,
@@ -269,31 +268,59 @@ export function useSimpleAttendance({
     };
   }
 
-  console.log('Returning complete state with data');
-  // Return complete data only when we have real shift data
+  console.log('Returning complete state with data:', {
+    hasData: true,
+    state: rawData.base.state,
+    checkStatus: rawData.base.checkStatus,
+    shiftId: rawData.context.shift.id,
+    transitions: rawData.daily.transitions.length,
+  });
+
+  // Return complete data with actual server response
   return {
-    state: rawData?.base?.state || AttendanceState.ABSENT,
-    checkStatus: rawData?.base?.checkStatus || CheckStatus.PENDING,
-    isCheckingIn: rawData?.base?.isCheckingIn ?? true,
-    base: baseState,
-    periodState,
-    stateValidation: rawData?.validation || defaultStateValidation,
-    context,
-    transitions,
-    hasPendingTransition,
-    nextTransition: transitions[0] || null,
-    isDayOff: context.schedule.isDayOff,
-    isHoliday: context.schedule.isHoliday,
-    isAdjusted: context.schedule.isAdjusted,
-    holidayInfo: context.schedule.holidayInfo,
-    nextPeriod: context.nextPeriod,
-    transition: context.transition,
-    shift: context.shift,
-    isLoading,
+    // Base states
+    state: rawData.base.state,
+    checkStatus: rawData.base.checkStatus,
+    isCheckingIn: rawData.base.isCheckingIn,
+    base: rawData.base,
+
+    // Period and validation states
+    periodState: rawData.daily.currentState,
+    stateValidation: rawData.validation,
+
+    // Context and transitions
+    context: rawData.context,
+    transitions: rawData.daily.transitions,
+    hasPendingTransition: Boolean(
+      rawData.daily.transitions.length > 0 ||
+        rawData.context.transition?.isInTransition ||
+        rawData.validation.flags.hasPendingTransition,
+    ),
+    nextTransition: rawData.daily.transitions[0] || null,
+
+    // Schedule info
+    isDayOff: rawData.context.schedule.isDayOff,
+    isHoliday: rawData.context.schedule.isHoliday,
+    isAdjusted: rawData.context.schedule.isAdjusted,
+    holidayInfo: rawData.context.schedule.holidayInfo,
+
+    // Period transitions
+    nextPeriod: rawData.context.nextPeriod,
+    transition: rawData.context.transition,
+
+    // Shift data
+    shift: rawData.context.shift,
+
+    // Loading and error states
+    isLoading: false,
     isLocationLoading: locationLoading,
     error: attendanceError?.message || locationError,
+
+    // Location states
     locationReady,
     locationState,
+
+    // Actions
     checkInOut,
     refreshAttendanceStatus,
     getCurrentLocation,
