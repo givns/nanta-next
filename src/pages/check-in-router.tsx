@@ -18,11 +18,10 @@ const createSafeAttendance = (props: any) => {
     return null;
   }
 
-  console.log('Creating safe attendance for:', {
-    hasBase: !!props.base,
-    hasContext: !!props.context,
-    shiftId: props.context?.shift?.id,
-    state: props.base?.state,
+  console.log('Creating safe attendance:', {
+    hasTimeWindow: !!props?.periodState?.timeWindow,
+    timeWindow: props?.periodState?.timeWindow,
+    rawPeriodState: props?.periodState,
   });
 
   try {

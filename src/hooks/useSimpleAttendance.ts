@@ -104,25 +104,59 @@ export function useSimpleAttendance({
     };
   }, [rawData?.base, initialAttendanceStatus]);
 
-  // Modified period state to prioritize initial data
+  // In useSimpleAttendance.ts
+
+  // Add this helper function at the top
+  const getValidTimeWindow = (timeWindow: any, rawTimeWindow: any) => {
+    // Debug log the time windows
+    console.log('Time window validation:', {
+      computed: timeWindow,
+      raw: rawTimeWindow,
+    });
+
+    // If we have valid raw time window, use it
+    if (rawTimeWindow?.start && rawTimeWindow?.end) {
+      return {
+        start: rawTimeWindow.start,
+        end: rawTimeWindow.end,
+      };
+    }
+
+    // Otherwise use computed window
+    return timeWindow;
+  };
+
+  // Update the periodState memo
   const periodState = useMemo((): UnifiedPeriodState => {
     if (rawData?.daily?.currentState) {
-      console.log('Using raw data period state');
-      return rawData.daily.currentState;
+      const currentState = rawData.daily.currentState;
+      console.log('Using raw period state:', {
+        type: currentState.type,
+        timeWindow: currentState.timeWindow,
+        activity: currentState.activity,
+      });
+
+      return {
+        ...currentState,
+        timeWindow: currentState.timeWindow,
+        activity: {
+          ...currentState.activity,
+          // Do not modify time values
+          checkIn: currentState.activity.checkIn,
+          checkOut: currentState.activity.checkOut,
+        },
+        validation: currentState.validation,
+      };
     }
 
-    if (initialAttendanceStatus?.daily?.currentState) {
-      console.log('Using initial attendance status period state');
-      return initialAttendanceStatus.daily.currentState;
-    }
-
+    // Return default period state
     console.log('Using default period state');
     const now = getCurrentTime();
     return {
       type: PeriodType.REGULAR,
       timeWindow: {
-        start: format(now, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-        end: format(addHours(now, 8), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        start: now.toISOString(),
+        end: addHours(now, 8).toISOString(),
       },
       activity: {
         isActive: false,
@@ -140,7 +174,7 @@ export function useSimpleAttendance({
         isConnected: false,
       },
     };
-  }, [rawData?.daily?.currentState, initialAttendanceStatus]);
+  }, [rawData?.daily?.currentState]);
 
   // Default state validation
   const defaultStateValidation: StateValidation = {
@@ -268,12 +302,10 @@ export function useSimpleAttendance({
     };
   }
 
-  console.log('Returning complete state with data:', {
-    hasData: true,
-    state: rawData.base.state,
-    checkStatus: rawData.base.checkStatus,
-    shiftId: rawData.context.shift.id,
-    transitions: rawData.daily.transitions.length,
+  console.log('Returning complete state with:', {
+    periodState: rawData.daily.currentState,
+    timeWindow: rawData.daily.currentState.timeWindow,
+    hasTransitions: rawData.daily.transitions.length,
   });
 
   // Return complete data with actual server response
@@ -285,7 +317,7 @@ export function useSimpleAttendance({
     base: rawData.base,
 
     // Period and validation states
-    periodState: rawData.daily.currentState,
+    periodState: rawData.daily.currentState, // Use raw state directly
     stateValidation: rawData.validation,
 
     // Context and transitions
