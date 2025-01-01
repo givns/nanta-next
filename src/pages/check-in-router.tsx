@@ -12,69 +12,64 @@ import LoadingBar from '@/components/attendance/LoadingBar';
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
 
-const validateISODate = (
-  dateString: string | null | undefined,
-): string | null => {
-  if (!dateString) return null;
-  try {
-    const date = new Date(dateString);
-    return isNaN(date.getTime()) ? null : dateString;
-  } catch {
-    return null;
-  }
-};
-
-const isValidTimeString = (timeStr: string | null | undefined): boolean => {
-  if (!timeStr) return false;
-  try {
-    return (
-      /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr) || // HH:mm
-      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(timeStr)
-    ); // ISO format
-  } catch {
-    return false;
-  }
-};
-
 const createSafeAttendance = (props: any) => {
   if (!props) {
     console.warn('No attendance props provided');
     return null;
   }
 
+  console.log('Creating safe attendance for:', {
+    hasBase: !!props.base,
+    hasContext: !!props.context,
+    shiftId: props.context?.shift?.id,
+    state: props.base?.state,
+  });
+
   try {
-    // Only process if we have real data
+    // Only proceed if we have valid base data
     if (!props.base?.state || !props.context?.shift?.id) {
-      console.log('No valid attendance data yet');
+      console.log('Missing required base data');
       return null;
     }
 
-    console.log('Processing attendance data:', {
-      state: props.base.state,
-      shiftId: props.context.shift.id,
-      hasTransitions: props.transitions?.length > 0,
-    });
+    // Create a copy of props without modification
+    const safeProps = {
+      // Base props
+      state: props.state,
+      checkStatus: props.checkStatus,
+      isCheckingIn: props.isCheckingIn,
+      base: props.base,
 
-    // Create safe return object
-    return {
-      ...props,
-      // Ensure transitions are properly handled
-      transitions: Array.isArray(props.transitions) ? props.transitions : [],
-      hasPendingTransition: Boolean(
-        props.transitions?.length > 0 ||
-          props.context?.transition?.isInTransition,
-      ),
-      // Ensure context is complete
-      context: {
-        ...props.context,
-        schedule: {
-          isHoliday: Boolean(props.context.schedule?.isHoliday),
-          isDayOff: Boolean(props.context.schedule?.isDayOff),
-          isAdjusted: Boolean(props.context.schedule?.isAdjusted),
-          holidayInfo: props.context.schedule?.holidayInfo,
-        },
-      },
+      // Period and validation states
+      periodState: props.periodState,
+      stateValidation: props.stateValidation,
+
+      // Context information
+      context: props.context,
+      transitions: props.transitions || [],
+      hasPendingTransition: props.hasPendingTransition,
+      nextTransition: props.nextTransition,
+
+      // Schedule info
+      isDayOff: props.isDayOff,
+      isHoliday: props.isHoliday,
+      isAdjusted: props.isAdjusted,
+      holidayInfo: props.holidayInfo,
+
+      // Transition info
+      nextPeriod: props.nextPeriod,
+      transition: props.transition,
+
+      // Shift info
+      shift: props.shift,
+
+      // Functions and methods
+      checkInOut: props.checkInOut,
+      refreshAttendanceStatus: props.refreshAttendanceStatus,
+      getCurrentLocation: props.getCurrentLocation,
     };
+
+    return safeProps;
   } catch (error) {
     console.error('Error creating safe attendance:', error);
     return null;
@@ -90,18 +85,7 @@ const CheckInRouter: React.FC = () => {
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
-  // Debug effect for data flow
-  useEffect(() => {
-    console.group('CheckInRouter State');
-    console.log('Current Step:', currentStep);
-    console.log('Loading Phase:', loadingPhase);
-    console.log('User Data:', userData);
-    console.log('Line User ID:', lineUserId);
-    console.log('Is Initialized:', isInitialized);
-    console.groupEnd();
-  }, [currentStep, loadingPhase, userData, lineUserId, isInitialized]);
-
-  // User data fetching
+  // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
 
@@ -129,15 +113,14 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
-  // Initial data fetch
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Attendance hook with error boundary
+  // Get attendance data
   const {
     locationReady,
-    locationState,
+    locationState = { status: null },
     isLoading: attendanceLoading,
     error: attendanceError,
     ...attendanceProps
@@ -147,9 +130,9 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  // Process attendance props safely
+  // Process attendance props
   const safeAttendanceProps = useMemo(() => {
-    console.log('Processing attendance props:', attendanceProps);
+    if (!attendanceProps) return null;
     return createSafeAttendance(attendanceProps);
   }, [attendanceProps]);
 
@@ -162,39 +145,42 @@ const CheckInRouter: React.FC = () => {
         setCurrentStep('user');
       } else if (!locationReady || !locationState?.status) {
         setCurrentStep('location');
-      } else if (safeAttendanceProps) {
+      } else {
         setCurrentStep('ready');
       }
     } catch (error) {
       console.error('Error updating step:', error);
       setError('Error initializing application');
     }
-  }, [
-    authLoading,
-    userData,
-    locationReady,
-    locationState?.status,
-    safeAttendanceProps,
-  ]);
+  }, [authLoading, userData, locationReady, locationState?.status]);
 
   // System ready state
-  const isSystemReady = useMemo(
-    () =>
-      Boolean(
-        currentStep === 'ready' &&
-          !attendanceLoading &&
-          locationState?.status === 'ready' &&
-          userData &&
-          safeAttendanceProps,
-      ),
-    [
-      currentStep,
-      attendanceLoading,
-      locationState?.status,
-      userData,
-      safeAttendanceProps,
-    ],
-  );
+  const isSystemReady = useMemo(() => {
+    const ready = Boolean(
+      currentStep === 'ready' &&
+        !attendanceLoading &&
+        locationState?.status === 'ready' &&
+        userData &&
+        safeAttendanceProps?.base?.state,
+    );
+
+    console.log('System ready check:', {
+      step: currentStep,
+      loading: attendanceLoading,
+      locationStatus: locationState?.status,
+      hasUser: !!userData,
+      hasAttendance: !!safeAttendanceProps?.base?.state,
+      isReady: ready,
+    });
+
+    return ready;
+  }, [
+    currentStep,
+    attendanceLoading,
+    locationState?.status,
+    userData,
+    safeAttendanceProps,
+  ]);
 
   // Loading phase management
   useEffect(() => {
@@ -213,9 +199,11 @@ const CheckInRouter: React.FC = () => {
     };
   }, [isSystemReady, loadingPhase]);
 
-  // Main content rendering
+  // Main content
   const mainContent = useMemo(() => {
-    if (!userData || !safeAttendanceProps) return null;
+    if (!userData || !safeAttendanceProps?.base?.state) {
+      return null;
+    }
 
     return (
       <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
@@ -228,22 +216,12 @@ const CheckInRouter: React.FC = () => {
     );
   }, [userData, safeAttendanceProps]);
 
-  // Error handling
+  // Error state
   if (error || attendanceError) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>{error || attendanceError}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  // Invalid data handling
-  if (attendanceProps && !safeAttendanceProps) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Invalid attendance data format</AlertDescription>
       </Alert>
     );
   }
@@ -264,6 +242,7 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  // Render main content
   return mainContent;
 };
 
