@@ -1,5 +1,5 @@
 // utils/timeUtils.ts
-import { format, parseISO } from 'date-fns';
+import { addHours, format, parseISO } from 'date-fns';
 
 export const ensureDate = (
   time: Date | string | null | undefined,
@@ -65,6 +65,26 @@ export const normalizeTimeString = (timeStr: string): string => {
   return `${timeStr}+07:00`;
 };
 
+export const parseToLocalTime = (
+  dateStr: string | null | undefined,
+): Date | null => {
+  if (!dateStr) return null;
+  try {
+    // If it's already has timezone info, parse it directly
+    if (dateStr.includes('+') || dateStr.includes('Z')) {
+      const parsedDate = parseISO(dateStr);
+      // Add 7 hours to get back to local time
+      return addHours(parsedDate, 7);
+    }
+
+    // If no timezone info, parse as local time
+    return parseISO(dateStr);
+  } catch (error) {
+    console.error('Parse to local time error:', error);
+    return null;
+  }
+};
+
 export const formatSafeTime = (
   timeStr: string | Date | null | undefined,
 ): string => {
@@ -78,9 +98,9 @@ export const formatSafeTime = (
 
     // Handle ISO strings
     if (isISOString(timeStr)) {
-      // Normalize the time string to include timezone
-      const normalizedTime = normalizeTimeString(timeStr);
-      return format(parseISO(normalizedTime), 'HH:mm');
+      const parsedDate = parseToLocalTime(timeStr);
+      if (!parsedDate) return '--:--';
+      return format(parsedDate, 'HH:mm');
     }
 
     // Handle HH:mm format
@@ -91,24 +111,23 @@ export const formatSafeTime = (
     console.warn('Invalid time format:', timeStr);
     return '--:--';
   } catch (error) {
-    console.error('Time format error for:', timeStr, error);
+    console.error('Time format error:', error);
     return '--:--';
   }
 };
 
+// Update this function to handle timezone correctly
 export const parseAndFormatISO = (
   dateStr: string | null | undefined,
 ): Date | null => {
   if (!dateStr) return null;
   try {
     if (isISOString(dateStr)) {
-      // Normalize the date string to include timezone
-      const normalizedDate = normalizeTimeString(dateStr);
-      return parseISO(normalizedDate);
+      return parseToLocalTime(dateStr);
     }
     return null;
   } catch (error) {
-    console.error('Date parsing error:', error, { dateStr });
+    console.error('Date parsing error:', error);
     return null;
   }
 };
