@@ -1,4 +1,3 @@
-// pages/api/attendance/status/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
@@ -11,27 +10,10 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 
-// Initialize Prisma client
 const prisma = new PrismaClient();
-
-// Type for initialized services
 type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
-
-// Create services with proper initialization handling
-const initializeServicesOnce = async () => {
-  try {
-    const services = await initializeServices(prisma);
-    return services;
-  } catch (error) {
-    console.error('Failed to initialize services:', error);
-    throw error;
-  }
-};
-
-// Cache the services initialization promise
 let servicesPromise: Promise<InitializedServices> | null = null;
 
-// Request validation schema
 const QuerySchema = z.object({
   employeeId: z.string(),
   inPremises: z
@@ -58,6 +40,21 @@ type ApiResponse =
       details?: unknown;
     };
 
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+  return services;
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
@@ -70,21 +67,9 @@ export default async function handler(
   }
 
   try {
-    // Initialize services if not already initialized
-    if (!servicesPromise) {
-      servicesPromise = initializeServicesOnce();
-    }
-
-    // Await services and handle potential null
-    const services = await servicesPromise;
-    if (!services) {
-      throw new AppError({
-        code: ErrorCode.INTERNAL_ERROR,
-        message: 'Failed to initialize services',
-      });
-    }
-
+    const services = await getServices();
     const validatedParams = QuerySchema.safeParse(req.query);
+
     if (!validatedParams.success) {
       return res.status(400).json({
         error: ErrorCode.INVALID_INPUT,
@@ -96,15 +81,12 @@ export default async function handler(
     const { employeeId, inPremises, address } = validatedParams.data;
     const now = getCurrentTime();
 
-    // Get attendance status directly from the attendance service
+    // Get attendance status
     const attendanceStatus =
-      await services.attendanceService.getAttendanceStatus(
-        employeeId as string,
-        {
-          inPremises,
-          address: address as string,
-        },
-      );
+      await services.attendanceService.getAttendanceStatus(employeeId, {
+        inPremises,
+        address,
+      });
 
     if (!attendanceStatus) {
       throw new AppError({
@@ -113,12 +95,31 @@ export default async function handler(
       });
     }
 
-    // Construct the response using the new structure
+    // Log the state before processing
+    console.log('Pre-processing state:', {
+      transitions: attendanceStatus.daily?.transitions?.length || 0,
+      hasShift: Boolean(attendanceStatus.context?.shift),
+      hasOvertime: Boolean(attendanceStatus.context?.nextPeriod?.overtimeInfo),
+    });
+
+    // Construct the enhanced response
     const response: AttendanceStatusResponse = {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
         currentState: attendanceStatus.daily.currentState,
-        transitions: attendanceStatus.daily.transitions,
+        transitions: attendanceStatus.daily.transitions.map((transition) => ({
+          ...transition,
+          from: {
+            ...transition.from,
+            periodIndex: transition.from.periodIndex || 0,
+          },
+          to: {
+            ...transition.to,
+            periodIndex: transition.to.periodIndex || 1,
+          },
+          transitionTime: transition.transitionTime,
+          isComplete: transition.isComplete || false,
+        })),
       },
       base: {
         ...attendanceStatus.base,
@@ -129,19 +130,26 @@ export default async function handler(
         },
       },
       context: {
-        shift: attendanceStatus.context.shift,
+        shift: {
+          id: attendanceStatus.context.shift.id,
+          shiftCode: attendanceStatus.context.shift.shiftCode,
+          name: attendanceStatus.context.shift.name,
+          startTime: attendanceStatus.context.shift.startTime,
+          endTime: attendanceStatus.context.shift.endTime,
+          workDays: attendanceStatus.context.shift.workDays,
+        },
         schedule: {
-          isHoliday: attendanceStatus.context.schedule.isHoliday,
-          isDayOff: attendanceStatus.context.schedule.isDayOff,
-          isAdjusted: attendanceStatus.context.schedule.isAdjusted,
+          isHoliday: Boolean(attendanceStatus.context.schedule.isHoliday),
+          isDayOff: Boolean(attendanceStatus.context.schedule.isDayOff),
+          isAdjusted: Boolean(attendanceStatus.context.schedule.isAdjusted),
           holidayInfo: attendanceStatus.context.schedule.holidayInfo,
         },
         nextPeriod: attendanceStatus.context.nextPeriod,
         transition: attendanceStatus.context.transition,
       },
       validation: {
-        allowed: attendanceStatus.validation.allowed,
-        reason: attendanceStatus.validation.reason,
+        allowed: Boolean(attendanceStatus.validation.allowed),
+        reason: attendanceStatus.validation.reason || '',
         flags: {
           ...attendanceStatus.validation.flags,
           hasPendingTransition: attendanceStatus.daily.transitions.length > 0,
@@ -149,6 +157,14 @@ export default async function handler(
         metadata: attendanceStatus.validation.metadata,
       },
     };
+
+    // Log the final response state
+    console.log('Final response state:', {
+      hasTransitions: response.daily.transitions.length > 0,
+      hasShift: Boolean(response.context.shift.id),
+      hasOvertime: Boolean(response.context.nextPeriod?.overtimeInfo),
+      transitionState: response.context.transition,
+    });
 
     return res.status(200).json(response);
   } catch (error) {
