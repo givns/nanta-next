@@ -180,14 +180,7 @@ export interface UseSimpleAttendanceReturn {
   };
 
   // Shift information
-  shift: {
-    id: string;
-    shiftCode: string;
-    name: string;
-    startTime: string;
-    endTime: string;
-    workDays: number[];
-  };
+  shift: ShiftData | null;
 
   // Loading and error states
   isLoading: boolean;
