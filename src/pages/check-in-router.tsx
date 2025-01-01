@@ -11,84 +11,74 @@ import LoadingBar from '@/components/attendance/LoadingBar';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
-interface SafeTimeWindow {
-  start: string;
-  end: string;
-}
 
-const validateDate = (
+const validateISODate = (
   dateString: string | null | undefined,
-): Date | undefined => {
-  if (!dateString) return undefined;
+): string | null => {
+  if (!dateString) return null;
   try {
     const date = new Date(dateString);
-    return isNaN(date.getTime()) ? undefined : date;
-  } catch (error) {
-    console.error('Date validation error:', error);
-    return undefined;
-  }
-};
-const validateTime = (timeStr: string | null | undefined): string => {
-  if (!timeStr || timeStr === '') return '--:--';
-  try {
-    // Validate time string format HH:mm
-    if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
-      return timeStr;
-    }
-    return '--:--';
+    return isNaN(date.getTime()) ? null : dateString;
   } catch {
-    return '--:--';
+    return null;
   }
 };
 
-const validateISODate = (dateStr: string | null | undefined): string => {
-  if (!dateStr || dateStr === '') return '';
+const isValidTimeString = (timeStr: string | null | undefined): boolean => {
+  if (!timeStr) return false;
   try {
-    const date = new Date(dateStr);
-    return isNaN(date.getTime()) ? '' : dateStr;
+    return (
+      /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr) || // HH:mm
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(timeStr)
+    ); // ISO format
   } catch {
-    return '';
+    return false;
   }
 };
-
-const isValidTimeString = (time: string | null | undefined): boolean => {
-  if (!time) return false;
-  return (
-    /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time) ||
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(time)
-  ); // ISO format
-};
-
-const getSafeTimeWindow = (timeWindow: any): SafeTimeWindow => ({
-  start: isValidTimeString(timeWindow?.start)
-    ? timeWindow.start
-    : new Date().toISOString(),
-  end: isValidTimeString(timeWindow?.end)
-    ? timeWindow.end
-    : new Date().toISOString(),
-});
 
 const createSafeAttendance = (props: any) => {
-  const safeShift = {
-    ...props.shift,
-    startTime: isValidTimeString(props.shift?.startTime)
-      ? props.shift.startTime
-      : '00:00',
-    endTime: isValidTimeString(props.shift?.endTime)
-      ? props.shift.endTime
-      : '00:00',
-  };
+  if (!props) {
+    console.warn('No attendance props provided');
+    return null;
+  }
 
-  const safePeriodState = {
-    ...props.periodState,
-    timeWindow: getSafeTimeWindow(props.periodState?.timeWindow),
-  };
+  try {
+    // Only process if we have real data
+    if (!props.base?.state || !props.context?.shift?.id) {
+      console.log('No valid attendance data yet');
+      return null;
+    }
 
-  return {
-    ...props,
-    shift: safeShift,
-    periodState: safePeriodState,
-  };
+    console.log('Processing attendance data:', {
+      state: props.base.state,
+      shiftId: props.context.shift.id,
+      hasTransitions: props.transitions?.length > 0,
+    });
+
+    // Create safe return object
+    return {
+      ...props,
+      // Ensure transitions are properly handled
+      transitions: Array.isArray(props.transitions) ? props.transitions : [],
+      hasPendingTransition: Boolean(
+        props.transitions?.length > 0 ||
+          props.context?.transition?.isInTransition,
+      ),
+      // Ensure context is complete
+      context: {
+        ...props.context,
+        schedule: {
+          isHoliday: Boolean(props.context.schedule?.isHoliday),
+          isDayOff: Boolean(props.context.schedule?.isDayOff),
+          isAdjusted: Boolean(props.context.schedule?.isAdjusted),
+          holidayInfo: props.context.schedule?.holidayInfo,
+        },
+      },
+    };
+  } catch (error) {
+    console.error('Error creating safe attendance:', error);
+    return null;
+  }
 };
 
 const CheckInRouter: React.FC = () => {
@@ -99,6 +89,17 @@ const CheckInRouter: React.FC = () => {
 
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
+
+  // Debug effect for data flow
+  useEffect(() => {
+    console.group('CheckInRouter State');
+    console.log('Current Step:', currentStep);
+    console.log('Loading Phase:', loadingPhase);
+    console.log('User Data:', userData);
+    console.log('Line User ID:', lineUserId);
+    console.log('Is Initialized:', isInitialized);
+    console.groupEnd();
+  }, [currentStep, loadingPhase, userData, lineUserId, isInitialized]);
 
   // User data fetching
   const fetchUserData = useCallback(async () => {
@@ -119,19 +120,7 @@ const CheckInRouter: React.FC = () => {
         throw new Error('No user data received');
       }
 
-      // Transform dates in user data if needed
-      const transformedUser = {
-        ...data.user,
-        // Use validateDate for all date fields
-        updatedAt: validateDate(data.user.updatedAt),
-        // Add other date fields that need validation
-        checkInTime: validateDate(data.user.checkInTime),
-        checkOutTime: validateDate(data.user.checkOutTime),
-        shiftStartTime: validateDate(data.user.shiftStartTime),
-        shiftEndTime: validateDate(data.user.shiftEndTime),
-      };
-
-      setUserData(transformedUser);
+      setUserData(data.user);
     } catch (error) {
       console.error('Error fetching user data:', error);
       setError(
@@ -140,10 +129,15 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
+  // Initial data fetch
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
+
   // Attendance hook with error boundary
   const {
     locationReady,
-    locationState = { status: null }, // Add default value
+    locationState,
     isLoading: attendanceLoading,
     error: attendanceError,
     ...attendanceProps
@@ -153,55 +147,56 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  useEffect(() => {
-    console.group('CheckInRouter Debug');
-    console.log('Current Step:', currentStep);
-    console.log('Loading Phase:', loadingPhase);
-    console.log('User Data:', userData);
-    console.log('Location State:', locationState);
-    console.log('Attendance Props:', attendanceProps);
-    console.groupEnd();
-  }, [currentStep, loadingPhase, userData, locationState, attendanceProps]);
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchUserData();
-  }, [fetchUserData]);
+  // Process attendance props safely
+  const safeAttendanceProps = useMemo(() => {
+    console.log('Processing attendance props:', attendanceProps);
+    return createSafeAttendance(attendanceProps);
+  }, [attendanceProps]);
 
   // Step management
   useEffect(() => {
     try {
-      if (authLoading) setCurrentStep('auth');
-      else if (!userData) setCurrentStep('user');
-      else if (!locationReady || !locationState.status)
+      if (authLoading) {
+        setCurrentStep('auth');
+      } else if (!userData) {
+        setCurrentStep('user');
+      } else if (!locationReady || !locationState?.status) {
         setCurrentStep('location');
-      else setCurrentStep('ready');
+      } else if (safeAttendanceProps) {
+        setCurrentStep('ready');
+      }
     } catch (error) {
       console.error('Error updating step:', error);
       setError('Error initializing application');
     }
-  }, [authLoading, userData, locationReady, locationState.status]);
-
-  const safeAttendanceProps = useMemo(() => {
-    if (!attendanceProps) return null;
-    try {
-      return createSafeAttendance(attendanceProps);
-    } catch (error) {
-      console.error('Error creating safe attendance:', error);
-      return null;
-    }
-  }, [attendanceProps]);
+  }, [
+    authLoading,
+    userData,
+    locationReady,
+    locationState?.status,
+    safeAttendanceProps,
+  ]);
 
   // System ready state
   const isSystemReady = useMemo(
     () =>
-      currentStep === 'ready' &&
-      !attendanceLoading &&
-      locationState.status === 'ready' &&
-      userData !== null,
-    [currentStep, attendanceLoading, locationState.status, userData],
+      Boolean(
+        currentStep === 'ready' &&
+          !attendanceLoading &&
+          locationState?.status === 'ready' &&
+          userData &&
+          safeAttendanceProps,
+      ),
+    [
+      currentStep,
+      attendanceLoading,
+      locationState?.status,
+      userData,
+      safeAttendanceProps,
+    ],
   );
 
+  // Loading phase management
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
@@ -209,9 +204,7 @@ const CheckInRouter: React.FC = () => {
       if (loadingPhase === 'loading') {
         setLoadingPhase('fadeOut');
       } else if (loadingPhase === 'fadeOut') {
-        timer = setTimeout(() => {
-          setLoadingPhase('complete');
-        }, 500);
+        timer = setTimeout(() => setLoadingPhase('complete'), 500);
       }
     }
 
@@ -220,40 +213,22 @@ const CheckInRouter: React.FC = () => {
     };
   }, [isSystemReady, loadingPhase]);
 
-  // Add debug output for phase changes
-  useEffect(() => {
-    console.log('Phase changed:', {
-      loadingPhase,
-      isSystemReady,
-      currentStep,
-    });
-  }, [loadingPhase, isSystemReady, currentStep]);
+  // Main content rendering
+  const mainContent = useMemo(() => {
+    if (!userData || !safeAttendanceProps) return null;
 
-  const mainContent = useMemo(
-    () => (
-      <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
-        {userData && safeAttendanceProps && (
-          <CheckInOutForm
-            userData={userData}
-            onComplete={closeWindow}
-            {...safeAttendanceProps}
-          />
-        )}
-      </div>
-    ),
-    [userData, safeAttendanceProps],
-  );
-
-  if (attendanceProps && !safeAttendanceProps) {
     return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>Invalid attendance data format</AlertDescription>
-      </Alert>
+      <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
+        <CheckInOutForm
+          userData={userData}
+          onComplete={closeWindow}
+          {...safeAttendanceProps}
+        />
+      </div>
     );
-  }
+  }, [userData, safeAttendanceProps]);
 
-  // Error state
+  // Error handling
   if (error || attendanceError) {
     return (
       <Alert variant="destructive">
@@ -263,7 +238,17 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  // Loading state render
+  // Invalid data handling
+  if (attendanceProps && !safeAttendanceProps) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>Invalid attendance data format</AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Loading state
   if (loadingPhase !== 'complete') {
     return (
       <>
@@ -274,13 +259,11 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar step={currentStep} />
         </div>
-        {/* Keep the main content rendered but hidden for smooth transition */}
         <div className="opacity-0">{mainContent}</div>
       </>
     );
   }
 
-  console.log('Rendering final content');
   return mainContent;
 };
 
