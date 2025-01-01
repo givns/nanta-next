@@ -135,6 +135,15 @@ const CheckInRouter: React.FC = () => {
     return createSafeAttendance(attendanceProps);
   }, [attendanceProps]);
 
+  useEffect(() => {
+    if (safeAttendanceProps?.periodState) {
+      console.log('Safe attendance periodState:', {
+        type: safeAttendanceProps.periodState.type,
+        timeWindow: safeAttendanceProps.periodState.timeWindow,
+      });
+    }
+  }, [safeAttendanceProps]);
+
   // Step management
   useEffect(() => {
     try {

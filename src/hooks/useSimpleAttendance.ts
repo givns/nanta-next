@@ -104,8 +104,6 @@ export function useSimpleAttendance({
     };
   }, [rawData?.base, initialAttendanceStatus]);
 
-  // In useSimpleAttendance.ts
-
   // Add this helper function at the top
   const getValidTimeWindow = (timeWindow: any, rawTimeWindow: any) => {
     // Debug log the time windows
