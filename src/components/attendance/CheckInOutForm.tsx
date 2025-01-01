@@ -15,7 +15,7 @@ import {
 } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
-import { differenceInMilliseconds, parseISO } from 'date-fns';
+import { differenceInMilliseconds, format, parseISO } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -342,6 +342,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isCheckIn: periodState.activity.checkIn,
       periodType: periodState.type,
       isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+      transition: context?.transition,
+      nextPeriod: context?.nextPeriod,
+      availableAt: context?.transition?.to?.start,
     });
     if (
       periodState.activity.checkIn && // User is checked in
@@ -405,11 +408,14 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           error: locationState.error || undefined,
         }}
         transition={
-          context.transition
+          context?.transition?.to
             ? {
                 targetType: context.transition.to.type,
+                // Parse the time string to a date if it's a string
                 availableAt: context.transition.to.start
-                  ? parseISO(context.transition.to.start)
+                  ? parseISO(
+                      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${context.transition.to.start}`,
+                    )
                   : null,
               }
             : undefined

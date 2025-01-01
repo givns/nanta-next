@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import {
   AttendanceState,
@@ -51,6 +51,27 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   onActionTriggered,
   onTransitionRequested,
 }) => {
+  useEffect(() => {
+    if (transition) {
+      console.log('ActionButton transition:', {
+        type: transition.targetType,
+        time: transition.availableAt,
+        formattedTime: transition.availableAt
+          ? format(transition.availableAt, 'HH:mm')
+          : null,
+      });
+    }
+  }, [transition]);
+
+  const transitionTime = useMemo(() => {
+    if (!transition?.availableAt) return '--:--';
+    try {
+      return format(transition.availableAt, 'HH:mm');
+    } catch (error) {
+      console.error('Error formatting transition time:', error);
+      return '--:--';
+    }
+  }, [transition?.availableAt]);
   // Is checking in if not currently checked in
   const isCheckingIn = attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
 
@@ -168,14 +189,12 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       </button>
 
       {/* Period Transition Info */}
-      {transition && transition.availableAt && (
+      {transition && (
         <div className="mt-2 text-xs text-gray-500">
           {transition.targetType === PeriodType.OVERTIME ? (
-            <>
-              เริ่มทำงานล่วงเวลาเวลา {formatSafeTime(transition.availableAt)} น.
-            </>
+            <>เริ่มทำงานล่วงเวลาเวลา {transitionTime} น.</>
           ) : (
-            <>เริ่มกะปกติเวลา {formatSafeTime(transition.availableAt)} น.</>
+            <>เริ่มกะปกติเวลา {transitionTime} น.</>
           )}
         </div>
       )}

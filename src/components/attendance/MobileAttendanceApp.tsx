@@ -14,7 +14,7 @@ import {
 } from '@/types/attendance';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { parseAndFormatISO } from '@/shared/timeUtils';
+import { normalizeTimeString, parseAndFormatISO } from '@/shared/timeUtils';
 
 interface MobileAttendanceAppProps {
   userData: UserData;
@@ -84,15 +84,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     try {
       const now = getCurrentTime();
 
-      // Log time values for debugging
-      console.log('Time values:', {
-        start: currentPeriod.timeWindow.start,
-        end: currentPeriod.timeWindow.end,
-        checkIn: currentPeriod.activity.checkIn,
+      // Log normalized time values
+      console.log('Normalized time values:', {
+        start: normalizeTimeString(currentPeriod.timeWindow.start),
+        end: normalizeTimeString(currentPeriod.timeWindow.end),
+        checkIn: currentPeriod.activity.checkIn
+          ? normalizeTimeString(currentPeriod.activity.checkIn)
+          : null,
         now: now.toISOString(),
       });
 
-      // Safe parsing
+      // Safe parsing with normalized times
       const shiftStart = parseAndFormatISO(currentPeriod.timeWindow.start);
       const shiftEnd = parseAndFormatISO(currentPeriod.timeWindow.end);
       const checkInTime = currentPeriod.activity.checkIn
@@ -111,10 +113,16 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         };
       }
 
-      // Calculate total shift duration
+      // Log parsed dates
+      console.log('Parsed dates:', {
+        shiftStart: shiftStart.toISOString(),
+        shiftEnd: shiftEnd.toISOString(),
+        checkInTime: checkInTime?.toISOString(),
+        now: now.toISOString(),
+      });
+
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
 
-      // If no check-in, show full shift as missed
       if (!checkInTime) {
         return {
           lateMinutes: totalShiftMinutes,
@@ -126,13 +134,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         };
       }
 
-      // Rest of your calculations...
       const earlyMinutes = Math.max(
         0,
         differenceInMinutes(shiftStart, checkInTime),
       );
       const isEarly = earlyMinutes > 0;
-
       const lateMinutes = !isEarly
         ? Math.max(0, differenceInMinutes(checkInTime, shiftStart))
         : 0;
