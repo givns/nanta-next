@@ -6,6 +6,7 @@ import {
   UseSimpleAttendanceProps,
   UseSimpleAttendanceReturn,
   AttendanceBaseResponse,
+  UnifiedPeriodState,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format, addHours } from 'date-fns';
@@ -75,64 +76,107 @@ export function useSimpleAttendance({
   // Process raw data
   const data = useMemo(() => {
     if (!rawData) {
-      console.log('No attendance data available');
+      console.log('No raw data available');
       return null;
     }
 
     console.log('Raw attendance data:', {
       shift: rawData.context?.shift,
       timeWindow: rawData.daily?.currentState?.timeWindow,
+      hasContext: Boolean(rawData.context),
+      hasDaily: Boolean(rawData.daily),
     });
 
+    // Preserve raw data without modification
     return rawData;
   }, [rawData]);
 
-  // Get period state
-  const periodState = useMemo(() => {
-    if (!data?.daily?.currentState) {
-      console.log('No period state available');
-      return (
-        initialAttendanceStatus?.daily?.currentState || {
-          type: PeriodType.REGULAR,
-          timeWindow: {
-            start: format(getCurrentTime(), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-            end: format(
-              addHours(getCurrentTime(), 8),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            ),
-          },
-          activity: {
-            isActive: false,
-            checkIn: null,
-            checkOut: null,
-            isOvertime: false,
-            isDayOffOvertime: false,
-            isInsideShiftHours: false,
-          },
-          validation: {
-            isWithinBounds: false,
-            isEarly: false,
-            isLate: false,
-            isOvernight: false,
-            isConnected: false,
-          },
-        }
-      );
+  // Get period state - ensure we always return a UnifiedPeriodState
+  const periodState = useMemo((): UnifiedPeriodState => {
+    // If we have valid period state, use it
+    if (data?.daily?.currentState) {
+      return data.daily.currentState;
     }
-    return data.daily.currentState;
-  }, [data?.daily?.currentState, initialAttendanceStatus]);
 
-  // Get context
+    // If we have shift data, construct a period state from it
+    if (data?.context?.shift) {
+      return {
+        type: PeriodType.REGULAR,
+        timeWindow: {
+          start: format(
+            getCurrentTime(),
+            `yyyy-MM-dd'T'${data.context.shift.startTime}:00.000`,
+          ),
+          end: format(
+            getCurrentTime(),
+            `yyyy-MM-dd'T'${data.context.shift.endTime}:00.000`,
+          ),
+        },
+        activity: {
+          isActive: false,
+          checkIn: null,
+          checkOut: null,
+          isOvertime: false,
+          isDayOffOvertime: false,
+          isInsideShiftHours: false,
+        },
+        validation: {
+          isWithinBounds: false,
+          isEarly: false,
+          isLate: false,
+          isOvernight: false,
+          isConnected: false,
+        },
+      };
+    }
+
+    // If we have initial state, use it
+    if (initialAttendanceStatus?.daily?.currentState) {
+      return initialAttendanceStatus.daily.currentState;
+    }
+
+    // Final fallback - empty period state
+    const now = getCurrentTime();
+    return {
+      type: PeriodType.REGULAR,
+      timeWindow: {
+        start: format(now, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        end: format(addHours(now, 8), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+      },
+      activity: {
+        isActive: false,
+        checkIn: null,
+        checkOut: null,
+        isOvertime: false,
+        isDayOffOvertime: false,
+        isInsideShiftHours: false,
+      },
+      validation: {
+        isWithinBounds: false,
+        isEarly: false,
+        isLate: false,
+        isOvernight: false,
+        isConnected: false,
+      },
+    };
+  }, [
+    data?.daily?.currentState,
+    data?.context?.shift,
+    initialAttendanceStatus,
+  ]);
+
+  // Get context - preserve original shift data
   const context = useMemo(() => {
     if (!data?.context) {
+      console.log('No context available');
       return (
         initialAttendanceStatus?.context || {
-          shift: {
+          shift: initialAttendanceStatus?.context?.shift || {
             id: '',
             shiftCode: '',
             name: '',
-            startTime: format(getCurrentTime(), 'HH:mm'),
-            endTime: format(addHours(getCurrentTime(), 8), 'HH:mm'),
+            startTime: '08:00',
+            endTime: '17:00',
             workDays: [],
           },
           schedule: {
@@ -145,6 +189,7 @@ export function useSimpleAttendance({
         }
       );
     }
+    // Keep original context
     return data.context;
   }, [data?.context, initialAttendanceStatus]);
 
