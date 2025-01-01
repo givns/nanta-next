@@ -43,14 +43,16 @@ export function useSimpleAttendance({
     enabled: enabled && locationReady,
   });
 
-  // Base state handling
+  // Base state
   const baseState: AttendanceBaseResponse = useMemo(() => {
     if (rawData?.base) {
-      console.log('Using provided base state:', rawData.base);
       return rawData.base;
     }
 
-    console.log('Using default base state');
+    if (initialAttendanceStatus?.base) {
+      return initialAttendanceStatus.base;
+    }
+
     return {
       state: AttendanceState.ABSENT,
       checkStatus: CheckStatus.PENDING,
@@ -71,57 +73,18 @@ export function useSimpleAttendance({
         source: 'system',
       },
     };
-  }, [rawData?.base]);
+  }, [rawData?.base, initialAttendanceStatus]);
 
-  // Period state processing
+  // Period state
   const periodState = useMemo((): UnifiedPeriodState => {
     if (rawData?.daily?.currentState) {
-      console.log('Using provided period state:', rawData.daily.currentState);
       return rawData.daily.currentState;
     }
 
-    if (rawData?.context?.shift) {
-      const now = getCurrentTime();
-      console.log(
-        'Constructing period state from shift context:',
-        rawData.context.shift,
-      );
-      return {
-        type: PeriodType.REGULAR,
-        timeWindow: {
-          start: format(
-            now,
-            `yyyy-MM-dd'T'${rawData.context.shift.startTime}:00.000`,
-          ),
-          end: format(
-            now,
-            `yyyy-MM-dd'T'${rawData.context.shift.endTime}:00.000`,
-          ),
-        },
-        activity: {
-          isActive: false,
-          checkIn: null,
-          checkOut: null,
-          isOvertime: false,
-          isDayOffOvertime: false,
-          isInsideShiftHours: false,
-        },
-        validation: {
-          isWithinBounds: false,
-          isEarly: false,
-          isLate: false,
-          isOvernight: false,
-          isConnected: false,
-        },
-      };
-    }
-
     if (initialAttendanceStatus?.daily?.currentState) {
-      console.log('Using initial period state');
       return initialAttendanceStatus.daily.currentState;
     }
 
-    console.log('Using default period state');
     const now = getCurrentTime();
     return {
       type: PeriodType.REGULAR,
@@ -145,46 +108,57 @@ export function useSimpleAttendance({
         isConnected: false,
       },
     };
-  }, [
-    rawData?.daily?.currentState,
-    rawData?.context?.shift,
-    initialAttendanceStatus,
-  ]);
+  }, [rawData?.daily?.currentState, initialAttendanceStatus]);
 
-  // Context processing
+  // Context handling
   const context = useMemo(() => {
-    if (!rawData?.context) {
-      console.log('No context available, using initial status');
-      if (!initialAttendanceStatus?.context) {
-        console.error('No context found in either raw data or initial status');
-        // Since context is required, we return initial context to prevent app crash
-        // but log an error for debugging
-        return {
-          shift: initialAttendanceStatus?.context?.shift || {
-            id: '',
-            shiftCode: '',
-            name: '',
-            startTime: '',
-            endTime: '',
-            workDays: [],
-          },
-          schedule: {
-            isHoliday: false,
-            isDayOff: false,
-            isAdjusted: false,
-          },
-          nextPeriod: null,
-          transition: undefined,
-        };
-      }
+    if (rawData?.context) {
+      return rawData.context;
+    }
+
+    if (initialAttendanceStatus?.context) {
       return initialAttendanceStatus.context;
     }
 
-    console.log('Using provided context:', rawData.context);
-    return rawData.context;
+    // Only as a last resort - should log error if this happens
+    console.error('No context available in either raw data or initial status');
+    return {
+      shift: {
+        id: '',
+        shiftCode: '',
+        name: '',
+        startTime: '',
+        endTime: '',
+        workDays: [],
+      },
+      schedule: {
+        isHoliday: false,
+        isDayOff: false,
+        isAdjusted: false,
+      },
+      nextPeriod: null,
+      transition: undefined,
+    };
   }, [rawData?.context, initialAttendanceStatus]);
 
-  // State validation with all required flags
+  // Transitions
+  const transitions = useMemo(() => {
+    return rawData?.daily?.transitions || [];
+  }, [rawData?.daily?.transitions]);
+
+  const hasPendingTransition = useMemo(() => {
+    return (
+      transitions.length > 0 ||
+      Boolean(context.transition?.isInTransition) ||
+      Boolean(rawData?.validation?.flags.hasPendingTransition)
+    );
+  }, [
+    transitions,
+    context.transition,
+    rawData?.validation?.flags.hasPendingTransition,
+  ]);
+
+  // Default state validation with all required flags
   const defaultStateValidation: StateValidation = {
     allowed: false,
     reason: '',
@@ -217,61 +191,53 @@ export function useSimpleAttendance({
     },
   };
 
-  // Transitions handling
-  const transitions = useMemo(() => {
-    const currentTransitions = rawData?.daily?.transitions || [];
-    console.log('Current transitions:', currentTransitions);
-    return currentTransitions;
-  }, [rawData?.daily?.transitions]);
-
-  const hasPendingTransition = useMemo(() => {
-    const hasTransition = transitions.length > 0;
-    console.log('Pending transition:', hasTransition);
-    return hasTransition;
-  }, [transitions]);
-
-  const nextTransition = useMemo(() => {
-    return transitions[0] || null;
-  }, [transitions]);
-
+  // Initialize state
   useEffect(() => {
     if (rawData && isInitializing) {
-      console.log('Initialization complete');
       setIsInitializing(false);
     }
   }, [rawData, isInitializing]);
 
   return {
+    // Base states
     state: rawData?.base?.state || AttendanceState.ABSENT,
     checkStatus: rawData?.base?.checkStatus || CheckStatus.PENDING,
     isCheckingIn: rawData?.base?.isCheckingIn ?? true,
     base: baseState,
 
+    // Period and validation states
     periodState,
     stateValidation: rawData?.validation || defaultStateValidation,
 
+    // Context and transitions
     context,
     transitions,
     hasPendingTransition,
-    nextTransition,
+    nextTransition: transitions[0] || null,
 
+    // Schedule info
     isDayOff: context.schedule.isDayOff,
     isHoliday: context.schedule.isHoliday,
     isAdjusted: context.schedule.isAdjusted,
     holidayInfo: context.schedule.holidayInfo,
 
+    // Period transitions
     nextPeriod: context.nextPeriod,
     transition: context.transition,
 
+    // Shift info
     shift: context.shift,
 
+    // Loading and error states
     isLoading: isInitializing || locationLoading || isAttendanceLoading,
     isLocationLoading: locationLoading,
     error: attendanceError?.message || locationError,
 
+    // Location state
     locationReady,
     locationState,
 
+    // Actions
     checkInOut,
     refreshAttendanceStatus,
     getCurrentLocation,

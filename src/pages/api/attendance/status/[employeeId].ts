@@ -10,10 +10,33 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 
+// Initialize Prisma client
 const prisma = new PrismaClient();
+
+// Type for initialized services
 type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
 let servicesPromise: Promise<InitializedServices> | null = null;
 
+// Initialize services once
+const getServices = async (): Promise<InitializedServices> => {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+};
+
+// Request validation schema
 const QuerySchema = z.object({
   employeeId: z.string(),
   inPremises: z
@@ -40,21 +63,6 @@ type ApiResponse =
       details?: unknown;
     };
 
-// Initialize services once
-const getServices = async (): Promise<InitializedServices> => {
-  if (!servicesPromise) {
-    servicesPromise = initializeServices(prisma);
-  }
-  const services = await servicesPromise;
-  if (!services) {
-    throw new AppError({
-      code: ErrorCode.INTERNAL_ERROR,
-      message: 'Failed to initialize services',
-    });
-  }
-  return services;
-};
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
@@ -67,9 +75,11 @@ export default async function handler(
   }
 
   try {
+    // Initialize services
     const services = await getServices();
-    const validatedParams = QuerySchema.safeParse(req.query);
 
+    // Validate request parameters
+    const validatedParams = QuerySchema.safeParse(req.query);
     if (!validatedParams.success) {
       return res.status(400).json({
         error: ErrorCode.INVALID_INPUT,
@@ -95,31 +105,19 @@ export default async function handler(
       });
     }
 
-    // Log the state before processing
+    // Log pre-processing state
     console.log('Pre-processing state:', {
       transitions: attendanceStatus.daily?.transitions?.length || 0,
       hasShift: Boolean(attendanceStatus.context?.shift),
       hasOvertime: Boolean(attendanceStatus.context?.nextPeriod?.overtimeInfo),
     });
 
-    // Construct the enhanced response
+    // Construct response
     const response: AttendanceStatusResponse = {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
         currentState: attendanceStatus.daily.currentState,
-        transitions: attendanceStatus.daily.transitions.map((transition) => ({
-          ...transition,
-          from: {
-            ...transition.from,
-            periodIndex: transition.from.periodIndex || 0,
-          },
-          to: {
-            ...transition.to,
-            periodIndex: transition.to.periodIndex || 1,
-          },
-          transitionTime: transition.transitionTime,
-          isComplete: transition.isComplete || false,
-        })),
+        transitions: attendanceStatus.daily.transitions,
       },
       base: {
         ...attendanceStatus.base,
@@ -158,7 +156,7 @@ export default async function handler(
       },
     };
 
-    // Log the final response state
+    // Log final state
     console.log('Final response state:', {
       hasTransitions: response.daily.transitions.length > 0,
       hasShift: Boolean(response.context.shift.id),
