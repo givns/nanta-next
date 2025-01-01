@@ -44,27 +44,45 @@ export function useSimpleAttendance({
     enabled: enabled && locationReady,
   });
 
-  // Check if data is ready
+  // Add this right after the useAttendanceData hook
+  // Debug effects to track data flow
   useEffect(() => {
-    if (rawData && !isDataReady) {
-      console.log('Raw attendance data received:', rawData);
+    console.log('Location state:', locationState);
+  }, [locationState]);
+
+  useEffect(() => {
+    if (rawData) {
+      console.log('Raw attendance data:', {
+        hasBase: !!rawData.base,
+        hasContext: !!rawData.context,
+        hasTransitions: rawData.daily?.transitions?.length || 0,
+        context: rawData.context,
+        validation: rawData.validation,
+      });
+    }
+  }, [rawData]);
+
+  // Modified data ready check
+  useEffect(() => {
+    if (rawData?.context?.shift?.id && !isDataReady) {
+      console.log('Data is ready with shift:', rawData.context.shift);
       setIsDataReady(true);
     }
   }, [rawData, isDataReady]);
 
-  useEffect(() => {
-    if (isDataReady && isInitializing) {
-      setIsInitializing(false);
-    }
-  }, [isDataReady, isInitializing]);
-
-  // Base state
+  // Modified base state to handle loading case
   const baseState = useMemo((): AttendanceBaseResponse => {
+    if (!rawData && initialAttendanceStatus?.base) {
+      console.log('Using initial attendance status base');
+      return initialAttendanceStatus.base;
+    }
+
     if (rawData?.base) {
+      console.log('Using raw data base');
       return rawData.base;
     }
 
-    // Return default base state
+    console.log('Using default base state');
     return {
       state: AttendanceState.ABSENT,
       checkStatus: CheckStatus.PENDING,
@@ -85,15 +103,21 @@ export function useSimpleAttendance({
         source: 'system',
       },
     };
-  }, [rawData?.base]);
+  }, [rawData?.base, initialAttendanceStatus]);
 
-  // Period state
+  // Modified period state to prioritize initial data
   const periodState = useMemo((): UnifiedPeriodState => {
     if (rawData?.daily?.currentState) {
+      console.log('Using raw data period state');
       return rawData.daily.currentState;
     }
 
-    // Return default period state
+    if (initialAttendanceStatus?.daily?.currentState) {
+      console.log('Using initial attendance status period state');
+      return initialAttendanceStatus.daily.currentState;
+    }
+
+    console.log('Using default period state');
     const now = getCurrentTime();
     return {
       type: PeriodType.REGULAR,
@@ -117,7 +141,7 @@ export function useSimpleAttendance({
         isConnected: false,
       },
     };
-  }, [rawData?.daily?.currentState]);
+  }, [rawData?.daily?.currentState, initialAttendanceStatus]);
 
   // Default state validation
   const defaultStateValidation: StateValidation = {
@@ -152,41 +176,62 @@ export function useSimpleAttendance({
     },
   };
 
-  // Context and transition states
+  // Modified context handling to always wait for real data
   const context = useMemo(() => {
-    return rawData?.context;
-  }, [rawData?.context]);
+    if (rawData?.context) {
+      console.log('Using raw data context');
+      return rawData.context;
+    }
 
+    if (initialAttendanceStatus?.context) {
+      console.log('Using initial attendance status context');
+      return initialAttendanceStatus.context;
+    }
+
+    return null;
+  }, [rawData?.context, initialAttendanceStatus]);
+
+  // Enhanced transitions handling
   const transitions = useMemo(() => {
-    return rawData?.daily?.transitions || [];
+    const currentTransitions = rawData?.daily?.transitions || [];
+    console.log('Current transitions:', currentTransitions);
+    return currentTransitions;
   }, [rawData?.daily?.transitions]);
 
   const hasPendingTransition = useMemo(() => {
-    return Boolean(
+    const hasTransition = Boolean(
       transitions.length > 0 ||
         context?.transition?.isInTransition ||
         rawData?.validation?.flags.hasPendingTransition,
     );
+    console.log('Pending transition:', hasTransition);
+    return hasTransition;
   }, [
     transitions,
     context?.transition,
     rawData?.validation?.flags.hasPendingTransition,
   ]);
 
-  // Compute loading state
+  // Modified loading state check
   const isLoading =
-    isInitializing || locationLoading || isAttendanceLoading || !isDataReady;
+    isInitializing ||
+    locationLoading ||
+    isAttendanceLoading ||
+    !context?.shift?.id;
 
-  // Only return complete data when ready
-  if (!isDataReady || !context) {
+  // Only return complete data when we have real data
+  if (!context?.shift?.id) {
+    console.log('Returning loading state - waiting for shift data');
     return {
-      state: AttendanceState.ABSENT,
-      checkStatus: CheckStatus.PENDING,
-      isCheckingIn: true,
+      state: initialAttendanceStatus?.base?.state || AttendanceState.ABSENT,
+      checkStatus:
+        initialAttendanceStatus?.base?.checkStatus || CheckStatus.PENDING,
+      isCheckingIn: initialAttendanceStatus?.base?.isCheckingIn ?? true,
       base: baseState,
-      periodState,
-      stateValidation: defaultStateValidation,
-      context: {
+      periodState: initialAttendanceStatus?.daily?.currentState || periodState,
+      stateValidation:
+        initialAttendanceStatus?.validation || defaultStateValidation,
+      context: initialAttendanceStatus?.context || {
         shift: {
           id: '',
           shiftCode: '',
@@ -212,15 +257,8 @@ export function useSimpleAttendance({
       holidayInfo: undefined,
       nextPeriod: null,
       transition: undefined,
-      shift: {
-        id: '',
-        shiftCode: '',
-        name: '',
-        startTime: '',
-        endTime: '',
-        workDays: [],
-      },
-      isLoading,
+      shift: initialAttendanceStatus?.context?.shift || null,
+      isLoading: true,
       isLocationLoading: locationLoading,
       error: attendanceError?.message || locationError,
       locationReady,
@@ -231,7 +269,8 @@ export function useSimpleAttendance({
     };
   }
 
-  // Return complete data
+  console.log('Returning complete state with data');
+  // Return complete data only when we have real shift data
   return {
     state: rawData?.base?.state || AttendanceState.ABSENT,
     checkStatus: rawData?.base?.checkStatus || CheckStatus.PENDING,

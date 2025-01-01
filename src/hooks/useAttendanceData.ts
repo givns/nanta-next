@@ -1,5 +1,5 @@
 // hooks/useAttendanceData.ts
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
@@ -70,6 +70,8 @@ export function useAttendanceData({
             timeout: REQUEST_TIMEOUT,
           });
 
+          console.log('Raw API response:', response.data); // Debug log
+
           // Validate response data first
           if (!response.data) {
             throw new AppError({
@@ -100,6 +102,7 @@ export function useAttendanceData({
           // Sanitize and validate the response
           const sanitized = sanitizeResponse(response.data);
           validateAttendanceResponse(sanitized);
+          console.log('Sanitized response:', sanitized);
 
           return sanitized;
         } catch (error) {
@@ -134,6 +137,17 @@ export function useAttendanceData({
       },
     },
   );
+
+  // Debug effect to track data changes
+  useEffect(() => {
+    console.log('useAttendanceData data changed:', {
+      hasData: !!data,
+      employeeId,
+      context: data?.context,
+      base: data?.base,
+      validation: data?.validation,
+    });
+  }, [data, employeeId]);
 
   // Add validation for attendance response
   const validateAttendanceResponse = (data: AttendanceStatusResponse) => {
