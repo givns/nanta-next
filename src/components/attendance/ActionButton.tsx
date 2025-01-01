@@ -1,4 +1,4 @@
-import { addMinutes, format, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
@@ -8,6 +8,7 @@ import {
   OvertimeState,
   PeriodType,
 } from '@prisma/client';
+import { formatSafeTime } from '@/shared/timeUtils';
 
 interface ActionButtonProps {
   attendanceStatus: {
@@ -91,25 +92,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     return `${baseStyle} bg-red-600 hover:bg-red-700 active:bg-red-800`;
   }, [periodType, systemState.isReady, validation.canProceed, transition]);
 
-  const formatSafeTime = (timeStr: string | null | undefined): string => {
-    if (!timeStr) return '--:--';
-    try {
-      // Handle both ISO strings and HH:mm format
-      if (timeStr.includes('T')) {
-        const date = parseISO(timeStr);
-        return format(date, 'HH:mm');
-      }
-      // If it's already in HH:mm format, return as is
-      if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
-        return timeStr;
-      }
-      return '--:--';
-    } catch (error) {
-      console.error('Time format error:', error);
-      return '--:--';
-    }
-  };
-
   const handleAction = React.useCallback(async () => {
     if (!validation.canProceed || !systemState.isReady) return;
 
@@ -190,14 +172,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         <div className="mt-2 text-xs text-gray-500">
           {transition.targetType === PeriodType.OVERTIME ? (
             <>
-              เริ่มทำงานล่วงเวลาเวลา{' '}
-              {format(transition.availableAt, 'HH:mm', { locale: th })} น.
+              เริ่มทำงานล่วงเวลาเวลา {formatSafeTime(transition.availableAt)} น.
             </>
           ) : (
-            <>
-              เริ่มกะปกติเวลา{' '}
-              {format(transition.availableAt, 'HH:mm', { locale: th })} น.
-            </>
+            <>เริ่มกะปกติเวลา {formatSafeTime(transition.availableAt)} น.</>
           )}
         </div>
       )}

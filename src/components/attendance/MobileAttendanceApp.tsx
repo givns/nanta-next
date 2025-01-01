@@ -14,6 +14,7 @@ import {
 } from '@/types/attendance';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { parseAndFormatISO } from '@/shared/timeUtils';
 
 interface MobileAttendanceAppProps {
   userData: UserData;
@@ -66,7 +67,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
-  // Calculate progress safely
+  // In MobileAttendanceApp.tsx
+
   const calculateProgressMetrics = React.useCallback((): ProgressMetrics => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
@@ -81,11 +83,33 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     try {
       const now = getCurrentTime();
-      const shiftStart = parseISO(currentPeriod.timeWindow.start);
-      const shiftEnd = parseISO(currentPeriod.timeWindow.end);
+
+      // Log time values for debugging
+      console.log('Time values:', {
+        start: currentPeriod.timeWindow.start,
+        end: currentPeriod.timeWindow.end,
+        checkIn: currentPeriod.activity.checkIn,
+        now: now.toISOString(),
+      });
+
+      // Safe parsing
+      const shiftStart = parseAndFormatISO(currentPeriod.timeWindow.start);
+      const shiftEnd = parseAndFormatISO(currentPeriod.timeWindow.end);
       const checkInTime = currentPeriod.activity.checkIn
-        ? parseISO(currentPeriod.activity.checkIn)
+        ? parseAndFormatISO(currentPeriod.activity.checkIn)
         : null;
+
+      if (!shiftStart || !shiftEnd) {
+        console.error('Invalid shift times');
+        return {
+          lateMinutes: 0,
+          earlyMinutes: 0,
+          isEarly: false,
+          progressPercent: 0,
+          totalShiftMinutes: 0,
+          isMissed: true,
+        };
+      }
 
       // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
@@ -102,19 +126,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         };
       }
 
-      // Early check-in calculation
+      // Rest of your calculations...
       const earlyMinutes = Math.max(
         0,
         differenceInMinutes(shiftStart, checkInTime),
       );
       const isEarly = earlyMinutes > 0;
 
-      // Late calculation (only if not early)
       const lateMinutes = !isEarly
         ? Math.max(0, differenceInMinutes(checkInTime, shiftStart))
         : 0;
 
-      // Progress calculation
       const progressStartTime = isEarly ? shiftStart : checkInTime;
       const elapsedMinutes = Math.max(
         0,
@@ -134,7 +156,10 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isMissed: false,
       };
     } catch (error) {
-      console.error('Progress calculation error:', error);
+      console.error('Progress calculation error:', error, {
+        timeWindow: currentPeriod.timeWindow,
+        activity: currentPeriod.activity,
+      });
       return {
         lateMinutes: 0,
         earlyMinutes: 0,
