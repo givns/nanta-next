@@ -91,10 +91,23 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     return `${baseStyle} bg-red-600 hover:bg-red-700 active:bg-red-800`;
   }, [periodType, systemState.isReady, validation.canProceed, transition]);
 
-  const formatLocalTime = (isoString: string) => {
-    // Since our times are already local (no Z), just parse and format
-    const date = parseISO(isoString);
-    return format(date, 'HH:mm');
+  const formatSafeTime = (timeStr: string | null | undefined): string => {
+    if (!timeStr) return '--:--';
+    try {
+      // Handle both ISO strings and HH:mm format
+      if (timeStr.includes('T')) {
+        const date = parseISO(timeStr);
+        return format(date, 'HH:mm');
+      }
+      // If it's already in HH:mm format, return as is
+      if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+        return timeStr;
+      }
+      return '--:--';
+    } catch (error) {
+      console.error('Time format error:', error);
+      return '--:--';
+    }
   };
 
   const handleAction = React.useCallback(async () => {
@@ -146,7 +159,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
                   {periodType === PeriodType.OVERTIME
                     ? 'ช่วงเวลาทำงานล่วงเวลา'
                     : 'ช่วงเวลาทำงานปกติ'}
-                  {`: ${formatLocalTime(periodWindow.start)} - ${formatLocalTime(periodWindow.end)} น.`}
+                  {`: ${formatSafeTime(periodWindow.start)} - ${formatSafeTime(periodWindow.end)} น.`}
                 </p>
               )}
             </div>

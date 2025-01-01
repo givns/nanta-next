@@ -1,5 +1,5 @@
 // components/attendance/MobileAttendanceApp.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { addMinutes, differenceInMinutes, format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
@@ -146,34 +146,36 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
   }, [currentPeriod]);
 
-  const formatUtcTime = (isoString: string) => {
+  const formatSafeTime = (timeStr: string | null | undefined): string => {
+    if (!timeStr) return '--:--';
     try {
-      const date = parseISO(isoString);
-      // Add offset to keep the UTC time
-      const utcDate = addMinutes(date, date.getTimezoneOffset());
-      return format(utcDate, 'HH:mm');
-    } catch {
+      // Handle both ISO strings and HH:mm format
+      if (timeStr.includes('T')) {
+        const date = parseISO(timeStr);
+        return format(date, 'HH:mm');
+      }
+      // If it's already in HH:mm format, return as is
+      if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+        return timeStr;
+      }
+      return '--:--';
+    } catch (error) {
+      console.error('Time format error:', error);
       return '--:--';
     }
   };
 
-  // Safe date formatting helper
-  const formatTimeFromISO = (dateString: string | null | undefined): string => {
-    if (!dateString) return '--:--';
-    return formatUtcTime(dateString);
-  };
-
   // Handle check-in/check-out times safely
-  const checkInTime = React.useMemo(() => {
+  const checkInTime = useMemo(() => {
     if (!attendanceStatus.latestAttendance?.CheckInTime) return '--:--';
-    return formatTimeFromISO(
+    return formatSafeTime(
       attendanceStatus.latestAttendance.CheckInTime.toString(),
     );
   }, [attendanceStatus.latestAttendance?.CheckInTime]);
 
-  const checkOutTime = React.useMemo(() => {
+  const checkOutTime = useMemo(() => {
     if (!attendanceStatus.latestAttendance?.CheckOutTime) return '--:--';
-    return formatTimeFromISO(
+    return formatSafeTime(
       attendanceStatus.latestAttendance.CheckOutTime.toString(),
     );
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);
@@ -352,8 +354,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
                     {/* Optional: Progress indicator text */}
                     <div className="text-xs text-gray-500 flex justify-between px-1">
-                      <span>{shiftData?.startTime}</span>
-                      <span>{shiftData?.endTime}</span>
+                      <span>{formatSafeTime(shiftData?.startTime)}</span>
+                      <span>{formatSafeTime(shiftData?.endTime)}</span>
                     </div>
                   </div>
                 );
