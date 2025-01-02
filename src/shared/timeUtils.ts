@@ -64,17 +64,16 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
     }
 
     // For ISO strings with timezone info
-    let date = parseISO(timeStr);
+    const date = parseISO(timeStr);
 
-    // Debug log
+    // Just take the hours and minutes directly without conversion
+    const formatted = format(date, 'HH:mm');
+
     console.log('formatSafeTime processing:', {
       input: timeStr,
-      hasZ: timeStr.includes('Z'),
-      parsedDate: date.toISOString(),
-      localTime: format(date, 'HH:mm'),
+      formattedTime: formatted,
     });
 
-    const formatted = format(date, 'HH:mm');
     return formatted;
   } catch (error) {
     console.error('Time format error:', error);
