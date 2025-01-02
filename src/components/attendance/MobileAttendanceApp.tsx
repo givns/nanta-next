@@ -20,7 +20,11 @@ import {
 } from '@/types/attendance';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { normalizeTimeString, parseAndFormatISO } from '@/shared/timeUtils';
+import {
+  formatSafeTime,
+  normalizeTimeString,
+  parseAndFormatISO,
+} from '@/shared/timeUtils';
 
 interface MobileAttendanceAppProps {
   userData: UserData;
@@ -169,57 +173,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
   }, [currentPeriod]);
-
-  const formatSafeTime = (timeStr: string | null | undefined): string => {
-    if (!timeStr) return '--:--';
-
-    try {
-      // If it's already in HH:mm format, return as is
-      if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
-        return timeStr;
-      }
-
-      // For ISO strings
-      if (timeStr.includes('T')) {
-        // Debug log the input
-        console.log('Formatting time:', {
-          input: timeStr,
-          hasZ: timeStr.includes('Z'),
-          hasPlus: timeStr.includes('+'),
-        });
-
-        let dateToFormat;
-
-        if (timeStr.includes('Z')) {
-          // For UTC times (Z), add 7 hours for +07:00
-          const utcDate = parseISO(timeStr);
-          dateToFormat = addHours(utcDate, 7);
-        } else if (timeStr.includes('+')) {
-          // For times with timezone, use as is
-          dateToFormat = parseISO(timeStr);
-        } else {
-          // For local times without timezone, treat as +07:00
-          dateToFormat = parseISO(timeStr);
-        }
-
-        const formatted = format(dateToFormat, 'HH:mm');
-
-        // Debug log the output
-        console.log('Time formatting result:', {
-          input: timeStr,
-          date: dateToFormat.toISOString(),
-          formatted,
-        });
-
-        return formatted;
-      }
-
-      return '--:--';
-    } catch (error) {
-      console.error('Time format error:', error, { input: timeStr });
-      return '--:--';
-    }
-  };
 
   // Handle check-in/check-out times safely
   const checkInTime = useMemo(() => {
