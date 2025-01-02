@@ -73,12 +73,6 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
       parsedDate: date.toISOString(),
     });
 
-    // Convert UTC (Z) times to +07:00
-    if (timeStr.includes('Z')) {
-      date = addHours(date, 7);
-      console.log('After timezone adjustment:', date.toISOString());
-    }
-
     // Log formatted output
     const formatted = format(date, 'HH:mm');
     console.log('Final formatted time:', formatted);
