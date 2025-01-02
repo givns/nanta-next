@@ -84,43 +84,30 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     try {
       const now = getCurrentTime();
 
-      // Log normalized time values
-      console.log('Normalized time values:', {
-        start: normalizeTimeString(currentPeriod.timeWindow.start),
-        end: normalizeTimeString(currentPeriod.timeWindow.end),
-        checkIn: currentPeriod.activity.checkIn
-          ? normalizeTimeString(currentPeriod.activity.checkIn)
-          : null,
-        now: now.toISOString(),
-      });
-
-      // Safe parsing with normalized times
-      const shiftStart = parseAndFormatISO(currentPeriod.timeWindow.start);
-      const shiftEnd = parseAndFormatISO(currentPeriod.timeWindow.end);
-      const checkInTime = currentPeriod.activity.checkIn
-        ? parseAndFormatISO(currentPeriod.activity.checkIn)
+      // Normalize the times
+      const normalizedStart = normalizeTimeString(
+        currentPeriod.timeWindow.start,
+      );
+      const normalizedEnd = normalizeTimeString(currentPeriod.timeWindow.end);
+      const normalizedCheckIn = currentPeriod.activity.checkIn
+        ? normalizeTimeString(currentPeriod.activity.checkIn)
         : null;
 
-      if (!shiftStart || !shiftEnd) {
-        console.error('Invalid shift times');
-        return {
-          lateMinutes: 0,
-          earlyMinutes: 0,
-          isEarly: false,
-          progressPercent: 0,
-          totalShiftMinutes: 0,
-          isMissed: true,
-        };
-      }
+      // Direct parse of normalized times
+      const shiftStart = parseISO(normalizedStart);
+      const shiftEnd = parseISO(normalizedEnd);
+      const checkInTime = normalizedCheckIn
+        ? parseISO(normalizedCheckIn)
+        : null;
 
-      // Log parsed dates
-      console.log('Parsed dates:', {
-        shiftStart: shiftStart.toISOString(),
-        shiftEnd: shiftEnd.toISOString(),
-        checkInTime: checkInTime?.toISOString(),
+      console.log('Using normalized times:', {
+        normalizedStart,
+        normalizedEnd,
+        normalizedCheckIn,
         now: now.toISOString(),
       });
 
+      // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
 
       if (!checkInTime) {
