@@ -20,11 +20,7 @@ import {
 } from '@/types/attendance';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
-import {
-  formatSafeTime,
-  normalizeTimeString,
-  parseAndFormatISO,
-} from '@/shared/timeUtils';
+import { formatSafeTime, normalizeTimeString } from '@/shared/timeUtils';
 
 interface MobileAttendanceAppProps {
   userData: UserData;
@@ -94,7 +90,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     try {
       const now = getCurrentTime();
 
-      // Normalize the times
+      // Normalize the times to +07:00
       const normalizedStart = normalizeTimeString(
         currentPeriod.timeWindow.start,
       );
@@ -103,19 +99,19 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         ? normalizeTimeString(currentPeriod.activity.checkIn)
         : null;
 
-      // Direct parse of normalized times
-      const shiftStart = parseISO(normalizedStart);
-      const shiftEnd = parseISO(normalizedEnd);
-      const checkInTime = normalizedCheckIn
-        ? parseISO(normalizedCheckIn)
-        : null;
-
       console.log('Using normalized times:', {
         normalizedStart,
         normalizedEnd,
         normalizedCheckIn,
         now: now.toISOString(),
       });
+
+      // Direct parse of normalized times
+      const shiftStart = parseISO(normalizedStart);
+      const shiftEnd = parseISO(normalizedEnd);
+      const checkInTime = normalizedCheckIn
+        ? parseISO(normalizedCheckIn)
+        : null;
 
       // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
@@ -179,10 +175,11 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const rawTime = attendanceStatus.latestAttendance?.CheckInTime;
     if (!rawTime) return '--:--';
 
-    // Log for debugging
-    console.log('Formatting check-in time:', {
-      rawTime,
-      formatted: formatSafeTime(rawTime.toString()),
+    // Debug the raw time
+    console.log('Processing check in time:', {
+      raw: rawTime,
+      toString: rawTime.toString(),
+      isUTC: rawTime.toString().includes('Z'),
     });
 
     return formatSafeTime(rawTime.toString());
@@ -191,12 +188,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const checkOutTime = useMemo(() => {
     const rawTime = attendanceStatus.latestAttendance?.CheckOutTime;
     if (!rawTime) return '--:--';
-
-    // Log for debugging
-    console.log('Formatting check-out time:', {
-      rawTime,
-      formatted: formatSafeTime(rawTime.toString()),
-    });
 
     return formatSafeTime(rawTime.toString());
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);

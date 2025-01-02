@@ -54,10 +54,6 @@ const isISOString = (str: string): boolean => {
   }
 };
 
-const isTimeString = (str: string): boolean => {
-  return /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(str);
-};
-
 export const formatSafeTime = (timeStr: string | null | undefined): string => {
   if (!timeStr) return '--:--';
 
@@ -67,63 +63,56 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
       return timeStr;
     }
 
-    // For ISO strings
-    if (timeStr.includes('T')) {
-      let date = parseISO(timeStr);
-      // If the time is in UTC (has Z), add 7 hours for +07:00
-      if (timeStr.includes('Z')) {
-        date = addHours(date, 7);
-      }
-      return format(date, 'HH:mm');
+    // For ISO strings with timezone info
+    let date = parseISO(timeStr);
+
+    // Debug log
+    console.log('formatSafeTime processing:', {
+      input: timeStr,
+      hasZ: timeStr.includes('Z'),
+      parsedDate: date.toISOString(),
+    });
+
+    // Convert UTC (Z) times to +07:00
+    if (timeStr.includes('Z')) {
+      date = addHours(date, 7);
+      console.log('After timezone adjustment:', date.toISOString());
     }
 
-    return '--:--';
+    // Log formatted output
+    const formatted = format(date, 'HH:mm');
+    console.log('Final formatted time:', formatted);
+
+    return formatted;
   } catch (error) {
     console.error('Time format error:', error);
     return '--:--';
   }
 };
 
-export const parseToLocalTime = (
-  dateStr: string | null | undefined,
-): Date | null => {
-  if (!dateStr) return null;
-  try {
-    const date = parseISO(dateStr);
-    // If the date is in UTC (has Z), add 7 hours
-    return dateStr.includes('Z') ? addHours(date, 7) : date;
-  } catch (error) {
-    console.error('Parse to local time error:', { input: dateStr, error });
-    return null;
-  }
-};
-
+// For normalized times
 export const normalizeTimeString = (timeStr: string): string => {
   if (!timeStr) return timeStr;
 
-  // If already has timezone, return as is
-  if (timeStr.includes('+') || timeStr.includes('Z')) {
+  try {
+    // Debug input
+    console.log('Normalizing time:', timeStr);
+
+    // If already has timezone info, return as is
+    if (timeStr.includes('+') || timeStr.includes('Z')) {
+      // If UTC, convert to +07:00
+      if (timeStr.includes('Z')) {
+        const date = parseISO(timeStr);
+        const adjusted = addHours(date, 7);
+        return format(adjusted, "yyyy-MM-dd'T'HH:mm:ss.SSS'+07:00'");
+      }
+      return timeStr;
+    }
+
+    // Add +07:00 for local times
+    return `${timeStr}+07:00`;
+  } catch (error) {
+    console.error('Normalization error:', error);
     return timeStr;
   }
-
-  return `${timeStr}+07:00`;
 };
-
-// Update this function to handle timezone correctly
-export const parseAndFormatISO = (
-  dateStr: string | null | undefined,
-): Date | null => {
-  if (!dateStr) return null;
-  try {
-    if (isISOString(dateStr)) {
-      return parseToLocalTime(dateStr);
-    }
-    return null;
-  } catch (error) {
-    console.error('Date parsing error:', error);
-    return null;
-  }
-};
-function zonedTimeToUtc(utcDate: Date, TIMEZONE: any): Date | null {
-  throw new Error('Function not implemented.');
-}
