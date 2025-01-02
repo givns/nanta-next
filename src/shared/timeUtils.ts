@@ -66,17 +66,20 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
     // For ISO strings with timezone info
     let date = parseISO(timeStr);
 
+    // For UTC times (Z), add 7 hours to get to +07:00
+    if (timeStr.includes('Z')) {
+      date = addHours(date, 7);
+    }
+
     // Debug log
     console.log('formatSafeTime processing:', {
       input: timeStr,
       hasZ: timeStr.includes('Z'),
       parsedDate: date.toISOString(),
+      localTime: format(date, 'HH:mm'),
     });
 
-    // Log formatted output
     const formatted = format(date, 'HH:mm');
-    console.log('Final formatted time:', formatted);
-
     return formatted;
   } catch (error) {
     console.error('Time format error:', error);
