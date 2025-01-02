@@ -1,5 +1,6 @@
 // components/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
+import '@flaticon/flaticon-uicons/css/all/all.css';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
@@ -11,23 +12,23 @@ const LoadingBar: React.FC<LoadingBarProps> = ({ step }) => {
   const steps = {
     auth: {
       message: 'ตรวจสอบสิทธิ์การเข้างาน',
-      color: 'bg-blue-500',
-      icon: '🔐',
+      color: 'bg-yellow-500',
+      icon: <i className="fi fi-rs-key"></i>,
     },
     user: {
       message: 'โหลดข้อมูลพนักงาน',
-      color: 'bg-green-500',
-      icon: '👤',
+      color: 'bg-yellow-500',
+      icon: <i className="fi fi-br-user"></i>,
     },
     location: {
       message: 'ตรวจสอบตำแหน่ง',
-      color: 'bg-yellow-500',
-      icon: '📍',
+      color: 'bg-orange-500',
+      icon: <i className="fi fi-sr-marker" />, // Using Flaticon icon
     },
     ready: {
       message: 'เตรียมระบบบันทึกเวลา',
-      color: 'bg-purple-500',
-      icon: '✅',
+      color: 'bg-red-500',
+      icon: <i className="fi fi-br-time-check"></i>,
     },
   };
 

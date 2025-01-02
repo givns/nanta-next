@@ -1,5 +1,6 @@
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
+import '@flaticon/flaticon-uicons/css/all/all.css';
 
 interface LoadingProgressProps {
   isLiffInitialized?: boolean;
@@ -27,7 +28,7 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
       return {
         title: 'เตรียมลงทะเบียน',
         description: 'กำลังเชื่อมต่อข้อมูลผู้ใช้...',
-        icon: '👤',
+        icon: <i className="fi fi-br-user"></i>,
       };
     }
 
@@ -35,14 +36,14 @@ const LoadingProgress: React.FC<LoadingProgressProps> = ({
       return {
         title: 'เริ่มเชื่อมต่อ LINE',
         description: 'กำลังตรวจสอบข้อมูล...',
-        icon: '🔗',
+        icon: <i className="fi fi-br-link-alt"></i>,
       };
     }
 
     return {
       title: 'ตรวจสอบสิทธิ์การเข้าใช้',
       description: 'กำลังโหลดข้อมูลส่วนตัว...',
-      icon: '🔐',
+      icon: <i className="fi fi-rs-key"></i>,
     };
   };
 
