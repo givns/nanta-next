@@ -1,5 +1,7 @@
 // utils/timeUtils.ts
-import { addHours, format, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+
+const TIMEZONE = 'Asia/Bangkok';
 
 export const ensureDate = (
   time: Date | string | null | undefined,
@@ -56,33 +58,45 @@ const isTimeString = (str: string): boolean => {
   return /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(str);
 };
 
-export const normalizeTimeString = (timeStr: string): string => {
-  // If the string already has timezone info, return as is
-  if (timeStr.includes('+') || timeStr.includes('Z')) {
-    return timeStr;
-  }
-  // For local time strings without timezone, treat as local time
-  return `${timeStr}+07:00`;
-};
-
 export const parseToLocalTime = (
   dateStr: string | null | undefined,
 ): Date | null => {
   if (!dateStr) return null;
+
   try {
-    // If it's already has timezone info, parse it directly
-    if (dateStr.includes('+') || dateStr.includes('Z')) {
-      const parsedDate = parseISO(dateStr);
-      // Add 7 hours to get back to local time
-      return addHours(parsedDate, 7);
+    // For dates that already include timezone
+    if (dateStr.includes('+07:00')) {
+      // Remove timezone and parse as local time
+      const localDate = dateStr.replace('+07:00', '');
+      return parseISO(localDate);
     }
 
-    // If no timezone info, parse as local time
+    // For UTC dates (with Z)
+    if (dateStr.includes('Z')) {
+      const utcDate = parseISO(dateStr);
+      return zonedTimeToUtc(utcDate, TIMEZONE);
+    }
+
+    // For dates without timezone, treat as local
     return parseISO(dateStr);
   } catch (error) {
-    console.error('Parse to local time error:', error);
+    console.error('Parse to local time error:', {
+      input: dateStr,
+      error,
+    });
     return null;
   }
+};
+
+export const normalizeTimeString = (timeStr: string): string => {
+  if (!timeStr) return timeStr;
+
+  // If already has timezone, return as is
+  if (timeStr.includes('+') || timeStr.includes('Z')) {
+    return timeStr;
+  }
+
+  return `${timeStr}+07:00`;
 };
 
 export const formatSafeTime = (
@@ -131,3 +145,6 @@ export const parseAndFormatISO = (
     return null;
   }
 };
+function zonedTimeToUtc(utcDate: Date, TIMEZONE: any): Date | null {
+  throw new Error('Function not implemented.');
+}
