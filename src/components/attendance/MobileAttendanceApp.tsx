@@ -167,35 +167,56 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const formatSafeTime = (timeStr: string | null | undefined): string => {
     if (!timeStr) return '--:--';
     try {
-      // Handle both ISO strings and HH:mm format
-      if (timeStr.includes('T')) {
-        const date = parseISO(timeStr);
-        return format(date, 'HH:mm');
-      }
       // If it's already in HH:mm format, return as is
       if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
         return timeStr;
       }
+
+      // For ISO strings with time zone
+      if (timeStr.includes('T')) {
+        // Normalize to +07:00 timezone if not specified
+        const normalizedTime =
+          !timeStr.includes('+') && !timeStr.includes('Z')
+            ? `${timeStr}+07:00`
+            : timeStr;
+
+        // Parse and format
+        const date = parseISO(normalizedTime);
+        return format(date, 'HH:mm');
+      }
+
       return '--:--';
     } catch (error) {
-      console.error('Time format error:', error);
+      console.error('Time format error:', error, { input: timeStr });
       return '--:--';
     }
   };
 
   // Handle check-in/check-out times safely
   const checkInTime = useMemo(() => {
-    if (!attendanceStatus.latestAttendance?.CheckInTime) return '--:--';
-    return formatSafeTime(
-      attendanceStatus.latestAttendance.CheckInTime.toString(),
-    );
+    const rawTime = attendanceStatus.latestAttendance?.CheckInTime;
+    if (!rawTime) return '--:--';
+
+    // Log for debugging
+    console.log('Formatting check-in time:', {
+      rawTime,
+      formatted: formatSafeTime(rawTime.toString()),
+    });
+
+    return formatSafeTime(rawTime.toString());
   }, [attendanceStatus.latestAttendance?.CheckInTime]);
 
   const checkOutTime = useMemo(() => {
-    if (!attendanceStatus.latestAttendance?.CheckOutTime) return '--:--';
-    return formatSafeTime(
-      attendanceStatus.latestAttendance.CheckOutTime.toString(),
-    );
+    const rawTime = attendanceStatus.latestAttendance?.CheckOutTime;
+    if (!rawTime) return '--:--';
+
+    // Log for debugging
+    console.log('Formatting check-out time:', {
+      rawTime,
+      formatted: formatSafeTime(rawTime.toString()),
+    });
+
+    return formatSafeTime(rawTime.toString());
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);
 
   // Handle overtime periods safely
