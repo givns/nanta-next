@@ -353,6 +353,7 @@ export class AttendanceEnhancementService {
 
     // Handle early checkout case
     if (isActiveAttendance && isEarlyCheckout && !isVeryEarlyCheckout) {
+      const shiftEnd = parseISO(window.current.end);
       const minutesUntilEnd = differenceInMinutes(shiftEnd, now);
 
       return {

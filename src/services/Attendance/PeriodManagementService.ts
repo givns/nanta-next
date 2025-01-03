@@ -77,8 +77,8 @@ export class PeriodManagementService {
       // Check for transition conditions if shift is valid
       const transitionWindow = isValidShift
         ? {
-            start: subMinutes(parseISO(timeWindow.end), 15),
-            end: parseISO(timeWindow.end),
+            start: subMinutes(parseISO(timeWindow.end), 5),
+            end: addMinutes(parseISO(timeWindow.end), 15), // Added 15 minutes after
           }
         : null;
 

@@ -221,6 +221,9 @@ export const ATTENDANCE_CONSTANTS = {
   LATE_CHECK_IN_THRESHOLD: 5, // 5 minutes
   LATE_CHECK_OUT_THRESHOLD: 15, // 15 minutes
   EARLY_CHECK_OUT_THRESHOLD: 5, // 5 minutes
+  TRANSITION_EARLY_BUFFER: 5, // 5 minutes before shift end
+  TRANSITION_LATE_BUFFER: 15, // 15 minutes after shift end
+  EARLY_CHECKOUT_BUFFER: 5,
   VERY_LATE_THRESHOLD: 30, // 30 minutes
   AUTO_CHECKOUT_WINDOW: 60, // 60 minutes
 } as const;
