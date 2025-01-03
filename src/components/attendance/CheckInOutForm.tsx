@@ -30,6 +30,7 @@ interface CheckInOutFormProps {
 interface AttendanceSubmitParams {
   isOvertime: boolean;
   overtimeId?: string;
+  isTransition: boolean;
   reason?: string;
 }
 
@@ -192,6 +193,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     try {
+      // Handle emergency leave case
       if (stateValidation.flags.isEmergencyLeave && !isConfirmedEarlyCheckout) {
         const confirmed = window.confirm(
           'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
@@ -206,38 +208,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           now,
         );
         if (!leaveCreated) return;
-      }
-
-      // Handle overtime transition prompt
-      if (stateValidation.flags.hasPendingTransition) {
-        const confirmed = window.confirm(
-          'คุณต้องการเข้างานล่วงเวลาต่อหรือไม่?',
-        );
-
-        if (confirmed && stateValidation.metadata?.nextTransitionTime) {
-          setStep('processing');
-          // First check out from regular shift
-          await handleAttendanceSubmit();
-
-          // Then set a timer to prompt for overtime check-in
-          const transitionTime = parseISO(
-            stateValidation.metadata.nextTransitionTime,
-          );
-          const timeUntilTransition = differenceInMilliseconds(
-            transitionTime,
-            now,
-          );
-
-          if (timeUntilTransition > 0) {
-            setTimeout(() => {
-              handleAttendanceSubmit({
-                isOvertime: true,
-                overtimeId: context.nextPeriod?.overtimeInfo?.id,
-              });
-            }, timeUntilTransition);
-          }
-          return;
-        }
       }
 
       setStep('processing');
@@ -259,22 +229,36 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   ]);
 
   const handlePeriodTransition = useCallback(async () => {
-    if (
-      periodState?.type === PeriodType.REGULAR &&
-      context.nextPeriod?.overtimeInfo
-    ) {
-      try {
-        setStep('processing');
-        await handleAttendanceSubmit({
-          isOvertime: true,
-          overtimeId: context.nextPeriod.overtimeInfo.id,
-        });
-      } catch (error) {
-        console.error('Period transition error:', error);
-        setStep('info');
-      }
+    try {
+      setStep('processing');
+      setProcessingState({
+        status: 'loading',
+        message: 'กำลังเริ่มทำงานล่วงเวลา...',
+      });
+
+      // Single API call to handle both checkout and overtime check-in
+      await handleAttendanceSubmit({
+        isOvertime: true,
+        overtimeId: context.nextPeriod?.overtimeInfo?.id,
+        isTransition: true, // New flag to indicate this is a transition
+      });
+
+      setProcessingState({
+        status: 'success',
+        message: 'เริ่มทำงานล่วงเวลาเรียบร้อย',
+      });
+
+      // Refresh status after transition
+      await refreshAttendanceStatus();
+    } catch (error) {
+      console.error('Period transition error:', error);
+      setProcessingState({
+        status: 'error',
+        message: 'เกิดข้อผิดพลาดในการเริ่มทำงานล่วงเวลา',
+      });
+      setStep('info');
     }
-  }, [periodState, context.nextPeriod, handleAttendanceSubmit]);
+  }, [context.nextPeriod, handleAttendanceSubmit, refreshAttendanceStatus]);
 
   const getConfirmationMessage = (
     state: UnifiedPeriodState,
@@ -515,6 +499,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           await handleAttendanceSubmit({
             reason,
             isOvertime: false,
+            isTransition: false,
           });
         }}
       />
