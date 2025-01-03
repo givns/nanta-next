@@ -346,7 +346,7 @@ export class AttendanceEnhancementService {
     if (isActiveAttendance && isVeryEarlyCheckout && !isEarlyCheckout) {
       return {
         allowed: true,
-        reason: 'Early checkout will be recorded as sick leave',
+        reason: 'หากต้องการออกงานฉุกเฉิน ระบบจะขออนุมัติลาป่วยให้',
         flags,
       };
     }
@@ -354,32 +354,6 @@ export class AttendanceEnhancementService {
     // Handle early checkout case
     if (isActiveAttendance && isEarlyCheckout && !isVeryEarlyCheckout) {
       const minutesUntilEnd = differenceInMinutes(shiftEnd, now);
-
-      // Allow early checkout if approaching overtime
-      if (hasPendingTransition) {
-        return {
-          allowed: true,
-          reason: 'Overtime period starting soon. Would you like to continue?',
-          flags: {
-            ...flags,
-            isPendingOvertime: true,
-            hasPendingTransition: true,
-            requiresTransition: true,
-          },
-          metadata: {
-            nextTransitionTime: shiftEnd.toISOString(),
-            requiredAction: 'Overtime transition available',
-            additionalInfo: {
-              overtimeInfo: window.overtimeInfo,
-              transitionWindow: {
-                start: format(transitionWindow.start, 'HH:mm'),
-                end: format(transitionWindow.end, 'HH:mm'),
-                type: 'OVERTIME',
-              },
-            },
-          },
-        };
-      }
 
       return {
         allowed: false,
