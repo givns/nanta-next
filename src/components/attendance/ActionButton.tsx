@@ -111,8 +111,32 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     </>
   );
 
+  const renderButtonContent = (
+    type: 'regular' | 'overtime',
+    isCheckIn: boolean,
+  ) => {
+    if (type === 'overtime') {
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-white text-sm">
+            {isCheckIn ? 'เข้า' : 'ออก'}
+          </span>
+          <span className="text-white text-xl font-semibold -mt-1">OT</span>
+        </div>
+      );
+    }
+    return (
+      <span className="text-white text-2xl font-semibold">
+        {isCheckIn ? 'เข้า' : 'ออก'}
+      </span>
+    );
+  };
+
   // Main button rendering
   const renderButtons = () => {
+    const isCheckingIn =
+      attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
+
     if (isTransitionPeriod) {
       return (
         <div className="flex flex-col items-center gap-2">
@@ -131,7 +155,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
               }`}
               aria-label="Regular checkout"
             >
-              <span className="text-2xl font-semibold">OUT</span>
+              {renderButtonContent('regular', false)}
             </button>
 
             {/* Overtime button */}
@@ -145,7 +169,7 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
               }`}
               aria-label="Start overtime"
             >
-              <span className="text-2xl font-semibold">OT</span>
+              {renderButtonContent('overtime', true)}
             </button>
           </div>
 
@@ -168,15 +192,12 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
                 periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
               )
         }`}
-        aria-label={`Attendance action: ${
-          attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN ? 'IN' : 'OUT'
-        }`}
+        aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
       >
-        <span className="text-2xl font-semibold">
-          {attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN
-            ? 'IN'
-            : 'OUT'}
-        </span>
+        {renderButtonContent(
+          periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
+          isCheckingIn,
+        )}
       </button>
     );
   };

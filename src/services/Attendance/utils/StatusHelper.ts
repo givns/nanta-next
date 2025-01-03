@@ -206,11 +206,11 @@ export class StatusHelpers {
 
     switch (status.checkStatus) {
       case CheckStatus.CHECKED_IN:
-        return 'checked-in';
+        return 'ลงเวลาเข้างานแล้ว';
       case CheckStatus.CHECKED_OUT:
-        return 'checked-out';
+        return 'ลงเวลาออกงานแล้ว';
       default:
-        return 'pending';
+        return 'ยังไม่ลงเวลา';
     }
   }
 }

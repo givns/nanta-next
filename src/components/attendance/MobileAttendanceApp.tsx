@@ -1,12 +1,6 @@
 // components/attendance/MobileAttendanceApp.tsx
 import React, { useMemo } from 'react';
-import {
-  addHours,
-  addMinutes,
-  differenceInMinutes,
-  format,
-  parseISO,
-} from 'date-fns';
+import { differenceInMinutes, format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
