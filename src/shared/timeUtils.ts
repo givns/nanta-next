@@ -1,7 +1,5 @@
 // utils/timeUtils.ts
-import { addHours, format, parseISO } from 'date-fns';
-
-const TIMEZONE = 'Asia/Bangkok';
+import { format, parseISO } from 'date-fns';
 
 export const ensureDate = (
   time: Date | string | null | undefined,
@@ -43,14 +41,6 @@ export const formatTimeDisplay = (
   } catch (error) {
     console.error('Error formatting time:', error);
     return '--:--';
-  }
-};
-
-const isISOString = (str: string): boolean => {
-  try {
-    return str.includes('T') && !isNaN(Date.parse(str));
-  } catch {
-    return false;
   }
 };
 
