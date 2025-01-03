@@ -16,6 +16,16 @@ import {
   endOfDay,
 } from 'date-fns';
 
+interface TransitionWindowConfig {
+  EARLY_BUFFER: number; // minutes before shift end
+  LATE_BUFFER: number; // minutes after shift end
+}
+
+const TRANSITION_CONFIG: TransitionWindowConfig = {
+  EARLY_BUFFER: 5, // 5 minutes before shift end
+  LATE_BUFFER: 15, // 15 minutes after shift end
+};
+
 export class PeriodManagementService {
   resolveCurrentPeriod(
     attendance: AttendanceRecord | null,
@@ -193,9 +203,11 @@ export class PeriodManagementService {
       const shiftEnd = parseISO(
         `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
       );
+
+      // Updated transition window calculation
       const transitionWindow = {
-        start: subMinutes(shiftEnd, 15),
-        end: shiftEnd,
+        start: subMinutes(shiftEnd, TRANSITION_CONFIG.EARLY_BUFFER),
+        end: addMinutes(shiftEnd, TRANSITION_CONFIG.LATE_BUFFER),
       };
 
       const isInTransitionWindow = isWithinInterval(now, transitionWindow);

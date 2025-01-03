@@ -158,7 +158,7 @@ const SliderUnlock: React.FC<SliderUnlockProps> = ({
             role="presentation"
             aria-hidden="true"
             className={`absolute top-1 bottom-1 left-1 w-12
-              ${isEnabled ? 'bg-red-600' : 'bg-gray-300'}
+              ${isEnabled ? 'bg-purple-600' : 'bg-gray-300'}
               rounded-full shadow-lg flex items-center justify-center
               ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
               touch-none select-none`}

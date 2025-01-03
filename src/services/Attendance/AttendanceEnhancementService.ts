@@ -493,20 +493,44 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): boolean {
-    const endTime = parseISO(window.current.end);
-    const earlyCheckoutTime = subMinutes(
-      endTime,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
-    );
+    try {
+      // First determine if we're in overtime period
+      const isInOvertimePeriod =
+        window.overtimeInfo &&
+        isWithinInterval(now, {
+          start: parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+          ),
+          end: parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
+          ),
+        });
 
-    console.log('Early checkout check:', {
-      currentTime: format(now, 'HH:mm'),
-      shiftEnd: format(endTime, 'HH:mm'),
-      earlyCheckoutThreshold: format(earlyCheckoutTime, 'HH:mm'),
-      isEarly: isBefore(now, earlyCheckoutTime),
-    });
+      // Choose appropriate end time based on period
+      const endTime = isInOvertimePeriod
+        ? parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo!.endTime}`,
+          )
+        : parseISO(`${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`);
 
-    return isBefore(now, earlyCheckoutTime);
+      const earlyCheckoutTime = subMinutes(
+        endTime,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+      );
+
+      console.log('Early checkout check:', {
+        currentTime: format(now, 'HH:mm'),
+        isOvertime: isInOvertimePeriod,
+        shiftEnd: format(endTime, 'HH:mm'),
+        earlyCheckoutThreshold: format(earlyCheckoutTime, 'HH:mm'),
+        isEarly: isBefore(now, earlyCheckoutTime),
+      });
+
+      return isBefore(now, earlyCheckoutTime);
+    } catch (error) {
+      console.error('Error checking early checkout:', error);
+      return false;
+    }
   }
 
   private checkIfRequiresAutoCompletion(
