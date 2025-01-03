@@ -11,6 +11,7 @@ export function useEnhancedLocation() {
     inPremises: false,
     address: '',
     confidence: 'low',
+    accuracy: 0,
     error: null,
   });
 
@@ -56,6 +57,7 @@ export function useEnhancedLocation() {
         inPremises: result.inPremises,
         address: result.address || '',
         confidence: result.confidence || 'low',
+        accuracy: result.accuracy || 0,
         coordinates: result.coordinates,
         error: null,
       };
@@ -81,6 +83,7 @@ export function useEnhancedLocation() {
         inPremises: false,
         address: '',
         confidence: 'low',
+        accuracy: 0,
         error: error instanceof Error ? error.message : 'Location error',
       };
       setLocationState(errorState);

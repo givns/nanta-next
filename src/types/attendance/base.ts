@@ -56,6 +56,7 @@ export interface LocationState {
   inPremises: boolean;
   address: string;
   confidence: 'high' | 'medium' | 'low' | 'manual';
+  accuracy: number;
   coordinates?: {
     lat: number;
     lng: number;

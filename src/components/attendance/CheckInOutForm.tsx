@@ -31,11 +31,12 @@ interface CheckInOutFormProps {
 
 interface AttendanceSubmitParams {
   isCheckIn?: boolean;
-  isOvertime: boolean;
+  isOvertime?: boolean;
   overtimeId?: string;
-  isTransition: boolean;
   reason?: string;
   periodType?: PeriodType;
+  isTransition?: boolean;
+  overtimeMissed?: boolean;
 }
 
 export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
@@ -94,48 +95,66 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         const isCheckingIn = !periodState?.activity.checkIn;
 
+        // Structure data according to CheckInOutData interface and schema
         const requestData: CheckInOutData = {
           // Required fields
-          employeeId: userData.employeeId,
-          lineUserId: userData.lineUserId || null,
-          checkTime: now.toISOString(),
           isCheckIn: params?.isCheckIn ?? isCheckingIn,
-          address: locationState.address || '',
-          inPremises: locationState.inPremises || false,
-          confidence: locationState.confidence || 'low',
+          checkTime: now.toISOString(),
           periodType:
             params?.periodType || periodState?.type || PeriodType.REGULAR,
 
-          // Optional fields
-          isOvertime: params?.isOvertime || false,
-          isManualEntry: false,
-          overtimeId: params?.overtimeId,
-          isTransition: params?.isTransition,
-          reason: params?.reason,
-          isLate: stateValidation?.flags?.isLateCheckIn,
+          // Optional identification (at least one required)
+          employeeId: userData.employeeId,
+          lineUserId: userData.lineUserId || undefined,
 
-          // Location data
+          // Required activity object
+          activity: {
+            isCheckIn: params?.isCheckIn ?? isCheckingIn,
+            isOvertime: params?.isOvertime || false,
+            isManualEntry: false,
+            requireConfirmation: false,
+            overtimeMissed: params?.overtimeMissed || false,
+          },
+
+          // Optional location data
           ...(locationState.coordinates && {
             location: {
               coordinates: {
                 lat: locationState.coordinates.lat,
                 lng: locationState.coordinates.lng,
+                accuracy: locationState.accuracy,
               },
-              address: locationState.address || '',
+              address: locationState.address,
+              inPremises: locationState.inPremises,
             },
           }),
 
-          // Metadata
+          // Optional transition data for period transitions
+          ...(params?.isTransition &&
+            context.transition && {
+              transition: {
+                from: {
+                  type: context.transition.from.type,
+                  endTime: context.transition.from.end,
+                },
+                to: {
+                  type: context.transition.to.type,
+                  startTime: context.transition.to.start || '',
+                },
+              },
+            }),
+
+          // Optional metadata
           metadata: {
-            source: 'system' as const,
-            ...(stateValidation?.flags?.isEmergencyLeave && {
-              earlyCheckoutType: 'emergency' as const,
-            }),
-            ...(stateValidation?.flags?.isLateCheckIn && {
-              isLate: true,
-            }),
+            source: 'system',
             ...(params?.overtimeId && { overtimeId: params.overtimeId }),
             ...(params?.reason && { reason: params.reason }),
+            ...(stateValidation?.flags?.isLateCheckIn && {
+              reason: params?.reason || 'Late check-in',
+            }),
+            ...(stateValidation?.flags?.isEmergencyLeave && {
+              reason: 'Emergency leave',
+            }),
           },
         };
 
@@ -167,6 +186,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       userData.lineUserId,
       periodState,
       locationState,
+      context.transition,
       stateValidation?.flags,
       now,
       checkInOut,
@@ -267,46 +287,57 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         message: 'กำลังเริ่มทำงานล่วงเวลา...',
       });
 
-      // Important: We need to check out first from regular shift
       const requestData: CheckInOutData = {
         // Required fields
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId || null,
+        isCheckIn: false, // Checking out from regular shift
         checkTime: now.toISOString(),
-        isCheckIn: false, // Important: We're checking OUT first
-        address: locationState.address || '',
-        inPremises: locationState.inPremises || false,
-        confidence: locationState.confidence || 'low',
-        periodType: PeriodType.REGULAR, // Regular period for checkout
+        periodType: PeriodType.REGULAR,
 
-        // Transition specific fields
-        isOvertime: false, // Not overtime yet
-        isTransition: true,
-        overtimeMissed: true, // This will trigger the auto-completion process
+        // Optional identification (at least one required by schema)
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId || undefined, // null not accepted by schema
 
-        // Add overtime info for the auto-completion process
-        overtimeId: context.nextPeriod.overtimeInfo.id,
+        // Required activity object
+        activity: {
+          isCheckIn: false, // Match the root isCheckIn
+          isOvertime: false,
+          isManualEntry: false,
+          requireConfirmation: false,
+          overtimeMissed: true, // Trigger auto-completion
+        },
 
-        // Location data
-        ...(locationState.coordinates && {
-          location: {
-            coordinates: {
-              lat: locationState.coordinates.lat,
-              lng: locationState.coordinates.lng,
-            },
-            address: locationState.address || '',
+        // Optional location data
+        location: locationState.coordinates
+          ? {
+              coordinates: {
+                lat: locationState.coordinates.lat,
+                lng: locationState.coordinates.lng,
+                accuracy: locationState.accuracy,
+              },
+              address: locationState.address,
+              inPremises: locationState.inPremises,
+            }
+          : undefined,
+
+        // Optional transition data
+        transition: {
+          from: {
+            type: context.transition.from.type,
+            endTime: context.transition.from.end,
           },
-        }),
+          to: {
+            type: context.transition.to.type,
+            startTime: context.transition.to.start || '',
+          },
+        },
 
-        // Metadata
+        // Optional metadata
         metadata: {
           source: 'system',
-          isTransition: true,
-          nextPeriod: {
-            type: PeriodType.OVERTIME,
-            startTime: context.nextPeriod.overtimeInfo.startTime,
-            overtimeId: context.nextPeriod.overtimeInfo.id,
-          },
+          overtimeId: context.nextPeriod.overtimeInfo.id,
+          ...(stateValidation?.flags?.isLateCheckIn && {
+            reason: 'Late check-in',
+          }),
         },
       };
 

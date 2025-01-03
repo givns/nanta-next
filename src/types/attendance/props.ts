@@ -70,41 +70,58 @@ export interface UseSimpleAttendanceProps {
 }
 
 export interface CheckInOutData {
-  // Required fields
-  employeeId: string;
-  lineUserId: string | null;
-  checkTime: string;
+  // Required fields (as per schema)
   isCheckIn: boolean;
-  address: string;
-  inPremises: boolean;
-  confidence: 'high' | 'medium' | 'low' | 'manual';
+  checkTime: string;
   periodType: PeriodType;
 
-  // Optional fields
-  photo?: string;
-  reason?: string;
-  isOvertime?: boolean;
-  isManualEntry?: boolean;
-  overtimeId?: string;
-  isTransition?: boolean;
-  isLate?: boolean;
-  overtimeMissed?: boolean;
+  // Optional base fields
+  employeeId?: string;
+  lineUserId?: string;
 
-  // Location data
-  location?: {
-    coordinates: {
-      lat: number;
-      lng: number;
-    };
-    address: string;
+  // Activity object (required in schema)
+  activity: {
+    isCheckIn: boolean;
+    isOvertime?: boolean;
+    isManualEntry?: boolean;
+    requireConfirmation?: boolean;
+    overtimeMissed?: boolean;
   };
 
-  // Metadata
+  // Location data (optional)
+  location?: {
+    coordinates?: {
+      lat: number;
+      lng: number;
+      accuracy?: number;
+      longitude?: number;
+      latitude?: number;
+      timestamp?: string;
+      provider?: string;
+    };
+    address?: string;
+    inPremises?: boolean;
+  };
+
+  // Transition data (optional)
+  transition?: {
+    from?: {
+      type: PeriodType;
+      endTime: string;
+    };
+    to?: {
+      type: PeriodType;
+      startTime: string;
+    };
+  };
+
+  // Metadata (optional)
   metadata?: {
-    source: 'system' | 'manual' | 'auto';
-    earlyCheckoutType?: 'planned' | 'emergency';
-    isLate?: boolean;
-    [key: string]: unknown;
+    overtimeId?: string;
+    reason?: string;
+    photo?: string;
+    source?: 'manual' | 'system' | 'auto';
+    updatedBy?: string;
   };
 }
 
