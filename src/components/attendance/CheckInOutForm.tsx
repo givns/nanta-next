@@ -29,10 +29,12 @@ interface CheckInOutFormProps {
 }
 
 interface AttendanceSubmitParams {
+  isCheckIn?: boolean;
   isOvertime: boolean;
   overtimeId?: string;
   isTransition: boolean;
   reason?: string;
+  periodType?: PeriodType;
 }
 
 export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
@@ -96,11 +98,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           employeeId: userData.employeeId,
           lineUserId: userData.lineUserId || null,
           checkTime: now.toISOString(),
-          isCheckIn: isCheckingIn,
+          isCheckIn: params?.isCheckIn ?? isCheckingIn,
           address: locationState.address,
           inPremises: locationState.inPremises,
           confidence: locationState.confidence,
-          periodType: periodState?.type || PeriodType.REGULAR,
+          periodType:
+            params?.periodType || periodState?.type || PeriodType.REGULAR,
 
           // Optional fields
           reason: params?.reason,
@@ -108,6 +111,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             params?.isOvertime || periodState?.type === PeriodType.OVERTIME,
           overtimeId: params?.overtimeId || periodState?.activity.overtimeId,
           isManualEntry: false,
+          isTransition: params?.isTransition,
+          isLate: stateValidation?.flags?.isLateCheckIn,
 
           // Location data
           ...(locationState.coordinates && {
@@ -250,8 +255,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       // Single API call to handle both checkout and overtime check-in
       await handleAttendanceSubmit({
+        isCheckIn: true,
         isOvertime: true,
         overtimeId: context.nextPeriod?.overtimeInfo?.id,
+        periodType: PeriodType.OVERTIME,
         isTransition: true, // New flag to indicate this is a transition
       });
 
