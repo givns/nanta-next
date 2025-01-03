@@ -63,18 +63,24 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
       return timeStr;
     }
 
-    // For ISO strings with timezone info
-    const date = parseISO(timeStr);
+    // For ISO strings, extract hours and minutes directly
+    if (timeStr.includes('T')) {
+      // Extract time part after T: "2024-12-17T09:00:24.138Z" -> "09:00:24.138Z"
+      const timePart = timeStr.split('T')[1];
+      // Extract hours and minutes: "09:00:24.138Z" -> "09:00"
+      const [hours, minutes] = timePart.split(':');
 
-    // Just take the hours and minutes directly without conversion
-    const formatted = format(date, 'HH:mm');
+      console.log('formatSafeTime processing:', {
+        input: timeStr,
+        timePart,
+        hours,
+        minutes,
+      });
 
-    console.log('formatSafeTime processing:', {
-      input: timeStr,
-      formattedTime: formatted,
-    });
+      return `${hours}:${minutes}`;
+    }
 
-    return formatted;
+    return '--:--';
   } catch (error) {
     console.error('Time format error:', error);
     return '--:--';
