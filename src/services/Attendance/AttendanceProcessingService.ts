@@ -69,17 +69,6 @@ export class AttendanceProcessingService {
           });
         }
 
-        // Handle transition case
-        if (options.activity.isTransition && options.activity.isOvertime) {
-          return this.handleOvertimeTransition(
-            tx,
-            currentRecord,
-            window,
-            options,
-            now,
-          );
-        }
-
         // 2. Handle auto-completion if needed
         if (options.activity.overtimeMissed) {
           return this.handleAutoCompletion(
@@ -268,82 +257,144 @@ export class AttendanceProcessingService {
     options: ProcessingOptions,
     now: Date,
   ): Promise<ProcessingResult> {
-    if (currentRecord) {
-      const currentStatus = {
-        state: currentRecord.state,
-        checkStatus: currentRecord.checkStatus,
-        isOvertime: currentRecord.isOvertime,
-        overtimeState: currentRecord.overtimeState,
-      };
-
-      // Check if record can be completed
-      if (StatusHelpers.isComplete(currentStatus)) {
-        throw new AppError({
-          code: ErrorCode.PROCESSING_ERROR,
-          message: 'Record already completed',
-        });
-      }
+    // Validate current state
+    if (!currentRecord?.CheckInTime || currentRecord?.CheckOutTime) {
+      throw new AppError({
+        code: ErrorCode.PROCESSING_ERROR,
+        message: 'Invalid state for auto-completion',
+      });
     }
 
-    // 1. Complete the attendance record first
-    const completedAttendance = await this.processAttendanceRecord(
-      tx,
-      currentRecord,
-      window,
-      {
-        ...options,
-        activity: {
-          ...options.activity,
-          isCheckIn: false,
+    try {
+      // 1. Process regular checkout first
+      const regularCheckout = await this.processAttendanceRecord(
+        tx,
+        currentRecord,
+        window,
+        {
+          ...options,
+          activity: {
+            isCheckIn: false,
+            isOvertime: false,
+            isManualEntry: false,
+          },
+          metadata: {
+            source: 'auto',
+          },
         },
-      },
-      now,
-    );
+        now,
+      );
 
-    // Create proper StatusUpdateResult for auto-completion
-    const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
-      options,
-      currentRecord,
-      now,
-    );
-
-    // Pass both statusUpdate and options
-    const timeEntries = await this.timeEntryService.processTimeEntries(
-      tx,
-      completedAttendance,
-      timeEntryStatusUpdate,
-      options,
-    );
-
-    // 3. Get current state
-    const currentState = this.periodManager.resolveCurrentPeriod(
-      completedAttendance,
-      window,
-      now,
-    );
-
-    // 4. Create validation
-    const stateValidation = await this.enhancementService.createStateValidation(
-      completedAttendance,
-      currentState,
-      window,
-      now,
-    );
-
-    return {
-      success: true,
-      timestamp: now.toISOString(),
-      data: {
-        state: {
-          current: currentState,
+      // 2. Create time entries for regular period
+      const regularTimeEntryUpdate = this.createStatusUpdateFromProcessing(
+        {
+          ...options,
+          activity: {
+            isCheckIn: false,
+            isOvertime: false,
+            isManualEntry: false,
+          },
         },
-        validation: stateValidation,
-      },
-      metadata: {
-        source: 'auto',
-        timeEntries,
-      },
-    };
+        currentRecord,
+        now,
+      );
+
+      const regularTimeEntries = await this.timeEntryService.processTimeEntries(
+        tx,
+        regularCheckout,
+        regularTimeEntryUpdate,
+        options,
+      );
+
+      // 3. Process overtime check-in
+      const overtimeCheckin = await this.processAttendanceRecord(
+        tx,
+        regularCheckout,
+        window,
+        {
+          ...options,
+          activity: {
+            isCheckIn: true,
+            isOvertime: true,
+            isManualEntry: false,
+          },
+          metadata: {
+            source: 'auto',
+          },
+        },
+        now,
+      );
+
+      // 4. Create time entries for overtime period
+      const overtimeTimeEntryUpdate = this.createStatusUpdateFromProcessing(
+        {
+          ...options,
+          activity: {
+            isCheckIn: true,
+            isOvertime: true,
+            isManualEntry: false,
+          },
+        },
+        regularCheckout,
+        now,
+      );
+
+      const overtimeTimeEntries =
+        await this.timeEntryService.processTimeEntries(
+          tx,
+          overtimeCheckin,
+          overtimeTimeEntryUpdate,
+          options,
+        );
+
+      // 5. Get final state
+      const currentState = this.periodManager.resolveCurrentPeriod(
+        overtimeCheckin,
+        window,
+        now,
+      );
+
+      const stateValidation =
+        await this.enhancementService.createStateValidation(
+          overtimeCheckin,
+          currentState,
+          window,
+          now,
+        );
+
+      // Combine time entries
+      const combinedTimeEntries = {
+        regular: regularTimeEntries.regular,
+        overtime: [
+          ...(regularTimeEntries.overtime || []),
+          ...(overtimeTimeEntries.overtime || []),
+        ],
+      };
+
+      return {
+        success: true,
+        timestamp: now.toISOString(),
+        data: {
+          state: {
+            current: currentState,
+            previous: this.periodManager.resolveCurrentPeriod(
+              currentRecord,
+              window,
+              now,
+            ),
+          },
+          validation: stateValidation,
+        },
+        metadata: {
+          source: 'auto',
+          timeEntries: combinedTimeEntries,
+          isTransition: true,
+        },
+      };
+    } catch (error) {
+      console.error('Auto-completion error:', error);
+      throw this.handleProcessingError(error);
+    }
   }
 
   private async processAttendanceRecord(

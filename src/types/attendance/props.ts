@@ -88,6 +88,7 @@ export interface CheckInOutData {
   overtimeId?: string;
   isTransition?: boolean;
   isLate?: boolean;
+  overtimeMissed?: boolean;
 
   // Location data
   location?: {

@@ -255,7 +255,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   ]);
 
   const handlePeriodTransition = useCallback(async () => {
-    if (!context.transition) {
+    if (!context.transition || !context.nextPeriod?.overtimeInfo) {
       console.error('Missing transition info');
       return;
     }
@@ -264,29 +264,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       setStep('processing');
       setProcessingState({
         status: 'loading',
-        message:
-          context.transition.to.type === PeriodType.OVERTIME
-            ? 'กำลังเริ่มทำงานล่วงเวลา...'
-            : 'กำลังเริ่มกะปกติ...',
+        message: 'กำลังเริ่มทำงานล่วงเวลา...',
       });
 
-      // First checkout from current period
-      const checkoutData: CheckInOutData = {
+      const requestData: CheckInOutData = {
         // Required fields
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId || null,
         checkTime: now.toISOString(),
-        isCheckIn: false, // Checking out
+        isCheckIn: true,
         address: locationState.address || '',
         inPremises: locationState.inPremises || false,
         confidence: locationState.confidence || 'low',
-        periodType: context.transition.from.type,
+        periodType: PeriodType.OVERTIME,
 
-        // Optional fields
-        isOvertime: context.transition.from.type === PeriodType.OVERTIME,
-        overtimeId: context.nextPeriod?.overtimeInfo?.id,
+        // Transition specific fields
+        isOvertime: true,
+        overtimeId: context.nextPeriod.overtimeInfo.id,
         isTransition: true,
-        isManualEntry: false,
+        overtimeMissed: true, // This triggers auto-completion
 
         // Location data
         ...(locationState.coordinates && {
@@ -301,65 +297,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         // Metadata
         metadata: {
-          source: 'system',
+          source: 'auto',
+          ...(stateValidation?.flags?.isLateCheckIn && {
+            isLate: true,
+          }),
         },
       };
 
-      console.log('Checkout request data:', checkoutData);
-      await checkInOut(checkoutData);
-
-      // Then check in to next period
-      const checkinData: CheckInOutData = {
-        // Required fields
-        employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId || null,
-        checkTime: now.toISOString(),
-        isCheckIn: true, // Checking in
-        address: locationState.address || '',
-        inPremises: locationState.inPremises || false,
-        confidence: locationState.confidence || 'low',
-        periodType: context.transition.to.type,
-
-        // Optional fields
-        isOvertime: context.transition.to.type === PeriodType.OVERTIME,
-        overtimeId: context.nextPeriod?.overtimeInfo?.id,
-        isTransition: true,
-        isManualEntry: false,
-
-        // Location data
-        ...(locationState.coordinates && {
-          location: {
-            coordinates: {
-              lat: locationState.coordinates.lat,
-              lng: locationState.coordinates.lng,
-            },
-            address: locationState.address || '',
-          },
-        }),
-
-        // Metadata
-        metadata: {
-          source: 'system',
-        },
-      };
-
-      console.log('Checkin request data:', checkinData);
-      await checkInOut(checkinData);
+      await checkInOut(requestData);
+      await refreshAttendanceStatus();
 
       setProcessingState({
         status: 'success',
-        message:
-          context.transition.to.type === PeriodType.OVERTIME
-            ? 'เริ่มทำงานล่วงเวลาเรียบร้อย'
-            : 'เริ่มกะปกติเรียบร้อย',
+        message: 'เริ่มทำงานล่วงเวลาเรียบร้อย',
       });
-
-      await refreshAttendanceStatus();
     } catch (error) {
       console.error('Period transition error:', error);
       setProcessingState({
         status: 'error',
-        message: 'เกิดข้อผิดพลาดในการเปลี่ยนกะ',
+        message: 'เกิดข้อผิดพลาดในการเริ่มทำงานล่วงเวลา',
       });
       setStep('info');
     }
@@ -369,6 +325,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     userData.employeeId,
     userData.lineUserId,
     locationState,
+    stateValidation?.flags,
     now,
     checkInOut,
     refreshAttendanceStatus,
