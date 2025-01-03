@@ -8,7 +8,8 @@ import {
   PeriodType,
 } from '@prisma/client';
 import { formatSafeTime } from '@/shared/timeUtils';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
+import { TransitionInfo } from '@/types/attendance';
 
 interface ActionButtonProps {
   attendanceStatus: {
@@ -33,10 +34,8 @@ interface ActionButtonProps {
     locationValid: boolean;
     error?: string;
   };
-  transition?: {
-    targetType: PeriodType;
-    availableAt: Date | null;
-  };
+  transition?: TransitionInfo; // Change from current type to TransitionInfo
+
   onActionTriggered: () => void;
   onTransitionRequested?: () => void;
 }
@@ -60,12 +59,21 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white'
       : 'bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 text-white';
 
+  const isTransitionToRegular = useMemo(() => {
+    return transition?.to.type === PeriodType.REGULAR;
+  }, [transition]);
+
+  const isTransitionToOvertime = useMemo(() => {
+    return transition?.to.type === PeriodType.OVERTIME;
+  }, [transition]);
+
   // Determine if we're in transition period
   const isTransitionPeriod = useMemo(() => {
     return (
       attendanceStatus.checkStatus === CheckStatus.CHECKED_IN &&
-      transition?.targetType === PeriodType.OVERTIME &&
-      transition.availableAt
+      transition?.isInTransition &&
+      transition.to.type === PeriodType.OVERTIME &&
+      transition.to.start
     );
   }, [attendanceStatus.checkStatus, transition]);
 
@@ -115,6 +123,17 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     type: 'regular' | 'overtime',
     isCheckIn: boolean,
   ) => {
+    // When transitioning to regular shift
+    if (type === 'overtime' && isTransitionToRegular) {
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-white text-sm">เข้ากะ</span>
+          <span className="text-white text-xl font-semibold -mt-1">ปกติ</span>
+        </div>
+      );
+    }
+
+    // Regular overtime transition or normal buttons
     if (type === 'overtime') {
       return (
         <div className="flex flex-col items-center leading-tight">
@@ -125,6 +144,8 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         </div>
       );
     }
+
+    // Regular button
     return (
       <span className="text-white text-2xl font-semibold">
         {isCheckIn ? 'เข้า' : 'ออก'}
@@ -134,9 +155,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
 
   // Main button rendering
   const renderButtons = () => {
-    const isCheckingIn =
-      attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
-
     if (isTransitionPeriod) {
       return (
         <div className="flex flex-col items-center gap-2">
@@ -174,13 +192,17 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
           </div>
 
           <div className="text-xs text-gray-500 text-center">
-            เลือก: ออกงานปกติ หรือ ทำงานล่วงเวลาต่อ
+            {isTransitionToOvertime
+              ? 'เลือก: ออกงานปกติ หรือ ทำงานล่วงเวลาต่อ'
+              : 'เลือก: ออกล่วงเวลา หรือ เข้ากะปกติ'}
           </div>
         </div>
       );
     }
 
     // Regular single button
+    const isCheckingIn =
+      attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
     return (
       <button
         onClick={handleRegularClick}
@@ -210,19 +232,19 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       {/* Period Transition Info */}
       {transition && !isTransitionPeriod && (
         <div className="mt-2 text-xs text-gray-500">
-          {transition.targetType === PeriodType.OVERTIME ? (
+          {transition.to.type === PeriodType.OVERTIME ? (
             <>
               เริ่มทำงานล่วงเวลาเวลา{' '}
-              {transition.availableAt
-                ? format(transition.availableAt, 'HH:mm')
+              {transition.to.start
+                ? format(parseISO(transition.to.start), 'HH:mm')
                 : '--:--'}{' '}
               น.
             </>
           ) : (
             <>
               เริ่มกะปกติเวลา{' '}
-              {transition.availableAt
-                ? format(transition.availableAt, 'HH:mm')
+              {transition.to.start
+                ? format(parseISO(transition.to.start), 'HH:mm')
                 : '--:--'}{' '}
               น.
             </>

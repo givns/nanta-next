@@ -3,6 +3,7 @@ import {
   ShiftWindowResponse,
   UnifiedPeriodState,
   AttendanceRecord,
+  OvertimeContext,
 } from '@/types/attendance';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
 import { PeriodType } from '@prisma/client';
@@ -25,6 +26,19 @@ const TRANSITION_CONFIG: TransitionWindowConfig = {
   EARLY_BUFFER: 5, // 5 minutes before shift end
   LATE_BUFFER: 15, // 15 minutes after shift end
 };
+
+interface TransitionDefinition {
+  from: {
+    type: PeriodType;
+    end: string;
+  };
+  to: {
+    type: PeriodType;
+    start: string;
+  };
+  isInTransition: boolean;
+  direction: 'to_overtime' | 'to_regular';
+}
 
 export class PeriodManagementService {
   resolveCurrentPeriod(
@@ -248,6 +262,75 @@ export class PeriodManagementService {
     }
 
     return [];
+  }
+
+  private determineTransitionContext(
+    now: Date,
+    periodState: ShiftWindowResponse,
+    overtimeInfo?: OvertimeContext | null,
+  ): TransitionDefinition | undefined {
+    if (!overtimeInfo) return undefined;
+
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
+    );
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+    );
+    const overtimeStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+    );
+    const overtimeEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
+    );
+
+    // Case 1: Regular to Overtime (post-shift)
+    if (overtimeStart >= shiftEnd) {
+      const transitionWindow = {
+        start: subMinutes(shiftEnd, 5),
+        end: addMinutes(shiftEnd, 15),
+      };
+
+      if (isWithinInterval(now, transitionWindow)) {
+        return {
+          from: {
+            type: PeriodType.REGULAR,
+            end: periodState.shift.endTime,
+          },
+          to: {
+            type: PeriodType.OVERTIME,
+            start: overtimeInfo.startTime,
+          },
+          isInTransition: true,
+          direction: 'to_overtime',
+        };
+      }
+    }
+
+    // Case 2: Overtime to Regular (pre-shift or post-overtime)
+    if (overtimeEnd <= shiftStart || overtimeEnd < now) {
+      const transitionWindow = {
+        start: subMinutes(shiftStart, 5),
+        end: addMinutes(shiftStart, 15),
+      };
+
+      if (isWithinInterval(now, transitionWindow)) {
+        return {
+          from: {
+            type: PeriodType.OVERTIME,
+            end: overtimeInfo.endTime,
+          },
+          to: {
+            type: PeriodType.REGULAR,
+            start: periodState.shift.startTime,
+          },
+          isInTransition: true,
+          direction: 'to_regular',
+        };
+      }
+    }
+
+    return undefined;
   }
 
   private checkIfEarly(now: Date, start: Date): boolean {

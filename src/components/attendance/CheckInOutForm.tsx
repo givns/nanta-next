@@ -246,38 +246,61 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   ]);
 
   const handlePeriodTransition = useCallback(async () => {
+    if (!context.transition) {
+      console.error('Missing transition info');
+      return;
+    }
+
     try {
       setStep('processing');
       setProcessingState({
         status: 'loading',
-        message: 'กำลังเริ่มทำงานล่วงเวลา...',
+        message:
+          context.transition.to.type === PeriodType.OVERTIME
+            ? 'กำลังเริ่มทำงานล่วงเวลา...'
+            : 'กำลังเริ่มกะปกติ...',
       });
 
-      // Single API call to handle both checkout and overtime check-in
+      // First checkout from current period
+      await handleAttendanceSubmit({
+        isCheckIn: false,
+        isOvertime: context.transition.from.type === PeriodType.OVERTIME,
+        periodType: context.transition.from.type,
+        isTransition: true,
+      });
+
+      // Then check in to next period
       await handleAttendanceSubmit({
         isCheckIn: true,
-        isOvertime: true,
+        isOvertime: context.transition.to.type === PeriodType.OVERTIME,
         overtimeId: context.nextPeriod?.overtimeInfo?.id,
-        periodType: PeriodType.OVERTIME,
-        isTransition: true, // New flag to indicate this is a transition
+        periodType: context.transition.to.type,
+        isTransition: true,
       });
 
       setProcessingState({
         status: 'success',
-        message: 'เริ่มทำงานล่วงเวลาเรียบร้อย',
+        message:
+          context.transition.to.type === PeriodType.OVERTIME
+            ? 'เริ่มทำงานล่วงเวลาเรียบร้อย'
+            : 'เริ่มกะปกติเรียบร้อย',
       });
 
-      // Refresh status after transition
       await refreshAttendanceStatus();
     } catch (error) {
       console.error('Period transition error:', error);
       setProcessingState({
         status: 'error',
-        message: 'เกิดข้อผิดพลาดในการเริ่มทำงานล่วงเวลา',
+        message: 'เกิดข้อผิดพลาดในการเปลี่ยนกะ',
       });
       setStep('info');
     }
-  }, [context.nextPeriod, handleAttendanceSubmit, refreshAttendanceStatus]);
+  }, [
+    context.transition,
+    context.nextPeriod,
+    handleAttendanceSubmit,
+    refreshAttendanceStatus,
+  ]);
 
   const getConfirmationMessage = (
     state: UnifiedPeriodState,
@@ -410,19 +433,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           locationValid: locationState.status === 'ready',
           error: locationState.error || undefined,
         }}
-        transition={
-          context?.transition?.to
-            ? {
-                targetType: context.transition.to.type,
-                // Parse the time string to a date if it's a string
-                availableAt: context.transition.to.start
-                  ? parseISO(
-                      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${context.transition.to.start}`,
-                    )
-                  : null,
-              }
-            : undefined
-        }
+        transition={context.transition} // Pass the TransitionInfo directly
         onActionTriggered={handleAction}
         onTransitionRequested={
           stateValidation.flags.hasPendingTransition
