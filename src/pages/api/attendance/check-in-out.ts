@@ -260,6 +260,7 @@ export default async function handler(
   }
 
   try {
+    console.log('Incoming request body:', JSON.stringify(req.body, null, 2));
     const validatedData = validateCheckInOutRequest(req.body);
 
     const result = await Promise.race<QueueResult>([

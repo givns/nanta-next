@@ -112,7 +112,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             isCheckIn: params?.isCheckIn ?? isCheckingIn,
             isOvertime: params?.isOvertime || false,
             isManualEntry: false,
-            requireConfirmation: false,
             overtimeMissed: params?.overtimeMissed || false,
           },
 
@@ -302,7 +301,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isCheckIn: false, // Match the root isCheckIn
           isOvertime: false,
           isManualEntry: false,
-          requireConfirmation: false,
           overtimeMissed: true, // Trigger auto-completion
         },
 
