@@ -267,22 +267,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         message: 'กำลังเริ่มทำงานล่วงเวลา...',
       });
 
+      // Important: We need to check out first from regular shift
       const requestData: CheckInOutData = {
         // Required fields
         employeeId: userData.employeeId,
         lineUserId: userData.lineUserId || null,
         checkTime: now.toISOString(),
-        isCheckIn: true,
+        isCheckIn: false, // Important: We're checking OUT first
         address: locationState.address || '',
         inPremises: locationState.inPremises || false,
         confidence: locationState.confidence || 'low',
-        periodType: PeriodType.OVERTIME,
+        periodType: PeriodType.REGULAR, // Regular period for checkout
 
         // Transition specific fields
-        isOvertime: true,
-        overtimeId: context.nextPeriod.overtimeInfo.id,
+        isOvertime: false, // Not overtime yet
         isTransition: true,
-        overtimeMissed: true, // This triggers auto-completion
+        overtimeMissed: true, // This will trigger the auto-completion process
+
+        // Add overtime info for the auto-completion process
+        overtimeId: context.nextPeriod.overtimeInfo.id,
 
         // Location data
         ...(locationState.coordinates && {
@@ -297,13 +300,17 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         // Metadata
         metadata: {
-          source: 'auto',
-          ...(stateValidation?.flags?.isLateCheckIn && {
-            isLate: true,
-          }),
+          source: 'system',
+          isTransition: true,
+          nextPeriod: {
+            type: PeriodType.OVERTIME,
+            startTime: context.nextPeriod.overtimeInfo.startTime,
+            overtimeId: context.nextPeriod.overtimeInfo.id,
+          },
         },
       };
 
+      console.log('Transition request data:', requestData);
       await checkInOut(requestData);
       await refreshAttendanceStatus();
 
@@ -397,6 +404,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       isCheckIn: periodState.activity.checkIn,
       periodType: periodState.type,
       isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+      isLateCheckIn: stateValidation.flags.isLateCheckIn,
       transition: context?.transition,
       nextPeriod: context?.nextPeriod,
       availableAt: context?.transition?.to?.start,
