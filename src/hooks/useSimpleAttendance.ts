@@ -10,7 +10,7 @@ import {
   StateValidation,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { format, addHours } from 'date-fns';
+import { addHours } from 'date-fns';
 
 export function useSimpleAttendance({
   employeeId,
@@ -103,26 +103,6 @@ export function useSimpleAttendance({
       },
     };
   }, [rawData?.base, initialAttendanceStatus]);
-
-  // Add this helper function at the top
-  const getValidTimeWindow = (timeWindow: any, rawTimeWindow: any) => {
-    // Debug log the time windows
-    console.log('Time window validation:', {
-      computed: timeWindow,
-      raw: rawTimeWindow,
-    });
-
-    // If we have valid raw time window, use it
-    if (rawTimeWindow?.start && rawTimeWindow?.end) {
-      return {
-        start: rawTimeWindow.start,
-        end: rawTimeWindow.end,
-      };
-    }
-
-    // Otherwise use computed window
-    return timeWindow;
-  };
 
   // Update the periodState memo
   const periodState = useMemo((): UnifiedPeriodState => {

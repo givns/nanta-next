@@ -395,7 +395,7 @@ export class AttendanceEnhancementService {
     if (isActiveAttendance && hasPendingTransition) {
       return {
         allowed: true,
-        reason: `Overtime period starting at ${window.shift.endTime}. Do you want to continue?`,
+        reason: ``,
         flags: {
           ...flags,
           isPendingOvertime: true,
@@ -404,7 +404,7 @@ export class AttendanceEnhancementService {
         },
         metadata: {
           nextTransitionTime: shiftEnd.toISOString(),
-          requiredAction: 'Overtime transition available',
+          requiredAction: 'Overtime Available',
           additionalInfo: {
             overtimeInfo: window.overtimeInfo,
             transitionWindow: {
@@ -412,11 +412,14 @@ export class AttendanceEnhancementService {
               end: format(transitionWindow.end, 'HH:mm'),
               type: 'OVERTIME',
             },
+            displayOptions: {
+              showSplitButton: true,
+              overtimeDuration: window.overtimeInfo?.durationMinutes || 0,
+            },
           },
         },
       };
     }
-
     // Handle normal validation
     return {
       allowed: currentState.validation.isWithinBounds,
@@ -441,6 +444,42 @@ export class AttendanceEnhancementService {
         },
       }),
     };
+  }
+
+  private validateTransition(
+    attendance: AttendanceRecord | null,
+    window: ShiftWindowResponse,
+    now: Date,
+  ): {
+    canTransition: boolean;
+    transitionType?: 'overtime' | 'regular';
+    message?: string;
+  } {
+    if (!attendance?.CheckInTime || attendance?.CheckOutTime) {
+      return { canTransition: false };
+    }
+
+    const shiftEnd = parseISO(window.current.end);
+    const transitionWindow = {
+      start: subMinutes(shiftEnd, 15),
+      end: shiftEnd,
+    };
+
+    const isInWindow = isWithinInterval(now, transitionWindow);
+    const hasUpcomingOvertime =
+      window.overtimeInfo?.startTime === window.shift.endTime;
+
+    if (isInWindow && hasUpcomingOvertime) {
+      return {
+        canTransition: true,
+        transitionType: 'overtime',
+        message: window.overtimeInfo
+          ? `OT ${window.overtimeInfo.durationMinutes} minutes`
+          : undefined,
+      };
+    }
+
+    return { canTransition: false };
   }
 
   private getRequiredAction(

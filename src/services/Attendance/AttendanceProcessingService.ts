@@ -69,6 +69,17 @@ export class AttendanceProcessingService {
           });
         }
 
+        // Handle transition case
+        if (options.activity.isTransition && options.activity.isOvertime) {
+          return this.handleOvertimeTransition(
+            tx,
+            currentRecord,
+            window,
+            options,
+            now,
+          );
+        }
+
         // 2. Handle auto-completion if needed
         if (options.activity.overtimeMissed) {
           return this.handleAutoCompletion(
@@ -144,6 +155,110 @@ export class AttendanceProcessingService {
         throw this.handleProcessingError(error);
       }
     });
+  }
+
+  private async handleOvertimeTransition(
+    tx: Prisma.TransactionClient,
+    currentRecord: AttendanceRecord | null,
+    window: ShiftWindowResponse,
+    options: ProcessingOptions,
+    now: Date,
+  ): Promise<ProcessingResult> {
+    // 1. Process regular checkout
+    const checkoutOptions = {
+      ...options,
+      activity: { ...options.activity, isCheckIn: false, isOvertime: false },
+    };
+
+    const checkoutRecord = await this.processAttendanceRecord(
+      tx,
+      currentRecord,
+      window,
+      checkoutOptions,
+      now,
+    );
+
+    // 2. Process overtime check-in
+    const overtimeOptions = {
+      ...options,
+      activity: { ...options.activity, isCheckIn: true, isOvertime: true },
+    };
+
+    const overtimeRecord = await this.processAttendanceRecord(
+      tx,
+      checkoutRecord,
+      window,
+      overtimeOptions,
+      now,
+    );
+
+    // 3. Process time entries for both records
+    const [checkoutTimeEntry, overtimeTimeEntry] = await Promise.all([
+      this.timeEntryService.processTimeEntries(
+        tx,
+        checkoutRecord,
+        this.createStatusUpdateFromProcessing(
+          checkoutOptions,
+          currentRecord,
+          now,
+        ),
+        checkoutOptions,
+      ),
+      this.timeEntryService.processTimeEntries(
+        tx,
+        overtimeRecord,
+        this.createStatusUpdateFromProcessing(
+          overtimeOptions,
+          checkoutRecord,
+          now,
+        ),
+        overtimeOptions,
+      ),
+    ]);
+
+    // 4. Get final state
+    const currentState = this.periodManager.resolveCurrentPeriod(
+      overtimeRecord,
+      window,
+      now,
+    );
+
+    const stateValidation = await this.enhancementService.createStateValidation(
+      overtimeRecord,
+      currentState,
+      window,
+      now,
+    );
+
+    // Combine time entries into a single array
+    const combinedTimeEntries = {
+      regular: checkoutTimeEntry.regular,
+      overtime: [
+        ...(checkoutTimeEntry.overtime || []),
+        ...(overtimeTimeEntry.overtime || []),
+      ],
+    };
+
+    return {
+      success: true,
+      timestamp: now.toISOString(),
+      data: {
+        state: {
+          current: currentState,
+          previous: this.periodManager.resolveCurrentPeriod(
+            currentRecord,
+            window,
+            now,
+          ),
+        },
+        validation: stateValidation,
+      },
+      metadata: {
+        source: 'system',
+        timeEntries: combinedTimeEntries,
+        isTransition: true,
+      },
+    };
   }
 
   private async handleAutoCompletion(

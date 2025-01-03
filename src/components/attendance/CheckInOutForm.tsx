@@ -16,6 +16,7 @@ import {
 import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
 import { differenceInMilliseconds, format, parseISO } from 'date-fns';
+import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -65,6 +66,17 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   } = useSimpleAttendance({
     employeeId: userData.employeeId,
     lineUserId: userData.lineUserId || '',
+  });
+
+  const {
+    isInTransitionWindow,
+    canTransition,
+    overtimeInfo,
+    getTransitionDisplay,
+  } = useAttendanceTransition({
+    currentPeriod: periodState,
+    nextPeriod: context.nextPeriod,
+    validation: stateValidation,
   });
 
   const now = getCurrentTime();

@@ -39,6 +39,7 @@ export interface ProcessingOptions {
   activity: {
     isCheckIn: boolean;
     isOvertime?: boolean;
+    isTransition?: boolean;
     isManualEntry?: boolean;
     requireConfirmation?: boolean;
     overtimeMissed?: boolean;
