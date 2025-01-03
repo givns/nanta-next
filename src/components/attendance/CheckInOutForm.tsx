@@ -16,7 +16,6 @@ import {
 } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
-import { differenceInMilliseconds, format, parseISO } from 'date-fns';
 import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 
 interface ProcessingState {
@@ -294,9 +293,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         // Optional identification (at least one required by schema)
         employeeId: userData.employeeId,
-        lineUserId: userData.lineUserId || undefined, // null not accepted by schema
+        lineUserId: userData.lineUserId || undefined,
 
-        // Required activity object
+        // Required activity object - restructured to match schema
         activity: {
           isCheckIn: false, // Match the root isCheckIn
           isOvertime: false,
