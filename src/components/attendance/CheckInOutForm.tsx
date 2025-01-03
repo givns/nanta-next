@@ -271,21 +271,80 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       });
 
       // First checkout from current period
-      await handleAttendanceSubmit({
-        isCheckIn: false,
-        isOvertime: context.transition.from.type === PeriodType.OVERTIME,
+      const checkoutData: CheckInOutData = {
+        // Required fields
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId || null,
+        checkTime: now.toISOString(),
+        isCheckIn: false, // Checking out
+        address: locationState.address || '',
+        inPremises: locationState.inPremises || false,
+        confidence: locationState.confidence || 'low',
         periodType: context.transition.from.type,
+
+        // Optional fields
+        isOvertime: context.transition.from.type === PeriodType.OVERTIME,
+        overtimeId: context.nextPeriod?.overtimeInfo?.id,
         isTransition: true,
-      });
+        isManualEntry: false,
+
+        // Location data
+        ...(locationState.coordinates && {
+          location: {
+            coordinates: {
+              lat: locationState.coordinates.lat,
+              lng: locationState.coordinates.lng,
+            },
+            address: locationState.address || '',
+          },
+        }),
+
+        // Metadata
+        metadata: {
+          source: 'system',
+        },
+      };
+
+      console.log('Checkout request data:', checkoutData);
+      await checkInOut(checkoutData);
 
       // Then check in to next period
-      await handleAttendanceSubmit({
-        isCheckIn: true,
+      const checkinData: CheckInOutData = {
+        // Required fields
+        employeeId: userData.employeeId,
+        lineUserId: userData.lineUserId || null,
+        checkTime: now.toISOString(),
+        isCheckIn: true, // Checking in
+        address: locationState.address || '',
+        inPremises: locationState.inPremises || false,
+        confidence: locationState.confidence || 'low',
+        periodType: context.transition.to.type,
+
+        // Optional fields
         isOvertime: context.transition.to.type === PeriodType.OVERTIME,
         overtimeId: context.nextPeriod?.overtimeInfo?.id,
-        periodType: context.transition.to.type,
         isTransition: true,
-      });
+        isManualEntry: false,
+
+        // Location data
+        ...(locationState.coordinates && {
+          location: {
+            coordinates: {
+              lat: locationState.coordinates.lat,
+              lng: locationState.coordinates.lng,
+            },
+            address: locationState.address || '',
+          },
+        }),
+
+        // Metadata
+        metadata: {
+          source: 'system',
+        },
+      };
+
+      console.log('Checkin request data:', checkinData);
+      await checkInOut(checkinData);
 
       setProcessingState({
         status: 'success',
@@ -307,7 +366,11 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   }, [
     context.transition,
     context.nextPeriod,
-    handleAttendanceSubmit,
+    userData.employeeId,
+    userData.lineUserId,
+    locationState,
+    now,
+    checkInOut,
     refreshAttendanceStatus,
   ]);
 
