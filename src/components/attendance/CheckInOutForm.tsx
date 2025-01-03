@@ -12,6 +12,7 @@ import {
   StateValidation,
   UnifiedPeriodState,
   OvertimeContext,
+  CheckInOutData,
 } from '@/types/attendance';
 import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
@@ -93,47 +94,54 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
         const isCheckingIn = !periodState?.activity.checkIn;
 
-        await checkInOut({
+        const requestData: CheckInOutData = {
           // Required fields
           employeeId: userData.employeeId,
           lineUserId: userData.lineUserId || null,
           checkTime: now.toISOString(),
           isCheckIn: params?.isCheckIn ?? isCheckingIn,
-          address: locationState.address,
-          inPremises: locationState.inPremises,
-          confidence: locationState.confidence,
+          address: locationState.address || '',
+          inPremises: locationState.inPremises || false,
+          confidence: locationState.confidence || 'low',
           periodType:
             params?.periodType || periodState?.type || PeriodType.REGULAR,
 
           // Optional fields
-          reason: params?.reason,
-          isOvertime:
-            params?.isOvertime || periodState?.type === PeriodType.OVERTIME,
-          overtimeId: params?.overtimeId || periodState?.activity.overtimeId,
+          isOvertime: params?.isOvertime || false,
           isManualEntry: false,
+          overtimeId: params?.overtimeId,
           isTransition: params?.isTransition,
+          reason: params?.reason,
           isLate: stateValidation?.flags?.isLateCheckIn,
 
           // Location data
           ...(locationState.coordinates && {
             location: {
-              coordinates: locationState.coordinates,
-              address: locationState.address,
+              coordinates: {
+                lat: locationState.coordinates.lat,
+                lng: locationState.coordinates.lng,
+              },
+              address: locationState.address || '',
             },
           }),
 
           // Metadata
           metadata: {
-            source: 'system',
+            source: 'system' as const,
             ...(stateValidation?.flags?.isEmergencyLeave && {
               earlyCheckoutType: 'emergency' as const,
             }),
             ...(stateValidation?.flags?.isLateCheckIn && {
               isLate: true,
             }),
+            ...(params?.overtimeId && { overtimeId: params.overtimeId }),
+            ...(params?.reason && { reason: params.reason }),
           },
-        });
+        };
 
+        console.log('Attendance request data:', requestData);
+
+        await checkInOut(requestData);
         await refreshAttendanceStatus();
 
         setProcessingState({
@@ -155,14 +163,15 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       }
     },
     [
+      userData.employeeId,
+      userData.lineUserId,
       periodState,
       locationState,
-      userData,
+      stateValidation?.flags,
       now,
       checkInOut,
       refreshAttendanceStatus,
       onComplete,
-      stateValidation?.flags,
     ],
   );
 
