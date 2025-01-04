@@ -128,10 +128,12 @@ export class AttendanceProcessingService {
               now,
             );
 
-             // After successful processing, set force refresh flag
-  await cacheService.set(`forceRefresh:${options.employeeId}`, 'true', 30);
-
-            
+          // After successful processing, set force refresh flag
+          await cacheService.set(
+            `forceRefresh:${options.employeeId}`,
+            'true',
+            30,
+          );
 
           return {
             success: true,

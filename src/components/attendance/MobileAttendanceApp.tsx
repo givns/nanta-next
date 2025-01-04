@@ -78,20 +78,20 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isMissed: true,
       };
     }
-  
+
     try {
       const now = getCurrentTime();
-      
+
       // Times are already local, just create Date objects
       const shiftStart = parseISO(currentPeriod.timeWindow.start);
       const shiftEnd = parseISO(currentPeriod.timeWindow.end);
-      const checkInTime = currentPeriod.activity.checkIn 
+      const checkInTime = currentPeriod.activity.checkIn
         ? parseISO(currentPeriod.activity.checkIn)
         : null;
-  
+
       // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-  
+
       if (!checkInTime) {
         return {
           lateMinutes: totalShiftMinutes,
@@ -102,7 +102,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           isMissed: true,
         };
       }
-  
+
       const earlyMinutes = Math.max(
         0,
         differenceInMinutes(shiftStart, checkInTime),
@@ -111,13 +111,13 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       const lateMinutes = !isEarly
         ? Math.max(0, differenceInMinutes(checkInTime, shiftStart))
         : 0;
-  
+
       const progressStartTime = isEarly ? shiftStart : checkInTime;
       const elapsedMinutes = Math.max(
         0,
         differenceInMinutes(now, progressStartTime),
       );
-  
+
       console.log('Progress calculation:', {
         now: format(now, 'HH:mm:ss'),
         shiftStart: format(shiftStart, 'HH:mm:ss'),
@@ -125,14 +125,14 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         checkInTime: format(checkInTime, 'HH:mm:ss'),
         progressStart: format(progressStartTime, 'HH:mm:ss'),
         elapsed: elapsedMinutes,
-        total: totalShiftMinutes
+        total: totalShiftMinutes,
       });
-  
+
       const progressPercent = Math.min(
         (elapsedMinutes / totalShiftMinutes) * 100,
         100,
       );
-  
+
       return {
         lateMinutes,
         earlyMinutes,
