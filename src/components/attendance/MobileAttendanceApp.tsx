@@ -256,68 +256,74 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         </div>
 
         {/* Status Card */}
-        <div className="m-4 bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex justify-between items-center mb-3">
-              <div className="flex items-center gap-2">
-                <Clock size={20} className="text-primary" />
-                <span className="font-medium">
-                  {StatusHelpers.getDisplayStatus(currentCompositeStatus)}
-                </span>
-              </div>
-              {relevantOvertimes && (
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                  OT
-                </span>
-              )}
+        <div className="m-4 bg-white rounded-xl shadow-sm overflow-hidden"></div>
+        <div className="p-4 border-b border-gray-100">
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <Clock size={20} className="text-primary" />
+              <span className="font-medium">
+                {StatusHelpers.getDisplayStatus(currentCompositeStatus)}
+              </span>
             </div>
-
-            {/* Schedule Information */}
-            {(status.isDayOff || status.isHoliday) && (
-              <div className="text-sm text-gray-500">
-                {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
-              </div>
-            )}
-
-            {shiftData &&
-              !status.isDayOff &&
-              !status.isHoliday &&
-              currentPeriod.type !== PeriodType.OVERTIME && (
-                <div className="text-sm text-gray-500">
-                  เวลางาน {shiftData.startTime} - {shiftData.endTime} น.
-                </div>
-              )}
-
-            {/* Overtime Information */}
             {relevantOvertimes && (
-              <div className="text-sm text-gray-500 mt-1">
-                {!attendanceStatus.latestAttendance?.CheckOutTime &&
-                !status.isDayOff
-                  ? 'มีการทำงานล่วงเวลาวันนี้: '
-                  : 'เวลาทำงานล่วงเวลา: '}
-                {relevantOvertimes.startTime} - {relevantOvertimes.endTime} น.
-                <span className="ml-2 text-xs">
-                  ({relevantOvertimes.durationMinutes} นาที)
-                </span>
-              </div>
+              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                OT
+              </span>
             )}
           </div>
 
-          {/* Progress and Times */}
-          <div className="p-4 bg-gray-50">
-            {shouldShowProgress &&
-              currentPeriod &&
-              (() => {
-                const metrics = calculateProgressMetrics();
+          {/* Schedule Information */}
+          {(status.isDayOff || status.isHoliday) && (
+            <div className="text-sm text-gray-500">
+              {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
+            </div>
+          )}
 
-                return (
-                  <div className="space-y-1">
-                    <div className="relative h-3 rounded-full overflow-hidden mb-4">
-                      {/* Base layer - full shift duration */}
+          {shiftData &&
+            !status.isDayOff &&
+            !status.isHoliday &&
+            currentPeriod.type !== PeriodType.OVERTIME && (
+              <div className="text-sm text-gray-500">
+                เวลางาน {shiftData.startTime} - {shiftData.endTime} น.
+              </div>
+            )}
+
+          {/* Overtime Information */}
+          {relevantOvertimes && (
+            <div className="text-sm text-gray-500 mt-1">
+              {!attendanceStatus.latestAttendance?.CheckOutTime &&
+              !status.isDayOff
+                ? 'มีการทำงานล่วงเวลาวันนี้: '
+                : 'เวลาทำงานล่วงเวลา: '}
+              {relevantOvertimes.startTime} - {relevantOvertimes.endTime} น.
+              <span className="ml-2 text-xs">
+                ({relevantOvertimes.durationMinutes} นาที)
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Progress and Times */}
+        <div className="p-4 bg-gray-50">
+          {shouldShowProgress &&
+            currentPeriod &&
+            (() => {
+              const metrics = calculateProgressMetrics();
+              const isOvertimePeriod =
+                currentPeriod.type === PeriodType.OVERTIME;
+
+              return (
+                <div className="space-y-4">
+                  {/* Regular Period Progress */}
+                  <div className={isOvertimePeriod ? 'opacity-50' : ''}>
+                    <div
+                      className={`relative ${isOvertimePeriod ? 'h-1.5' : 'h-3'} rounded-full overflow-hidden mb-2`}
+                    >
+                      {/* Base layer */}
                       <div className="absolute w-full h-full bg-gray-100" />
 
-                      {/* Missed time - subtle pattern or gradient */}
-                      {metrics.lateMinutes > 0 && (
+                      {/* Late check-in indicator */}
+                      {metrics.lateMinutes > 0 && !isOvertimePeriod && (
                         <div
                           className="absolute h-full bg-gradient-to-r from-blue-100 to-blue-300"
                           style={{
@@ -326,8 +332,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                         />
                       )}
 
-                      {/* Early arrival indicator */}
-                      {metrics.isEarly && (
+                      {/* Early check-in indicator */}
+                      {metrics.isEarly && !isOvertimePeriod && (
                         <div
                           className="absolute h-full bg-green-200"
                           style={{
@@ -337,45 +343,83 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                         />
                       )}
 
-                      {/* Work progress */}
+                      {/* Regular period progress */}
                       {!metrics.isMissed && (
                         <div
-                          className={`absolute h-full transition-all duration-300 ${
-                            currentPeriod.type === PeriodType.OVERTIME
-                              ? 'bg-yellow-500'
-                              : 'bg-blue-500'
-                          }`}
+                          className="absolute h-full bg-blue-500 transition-all duration-300"
                           style={{
-                            width: `${metrics.progressPercent}%`,
-                            left: metrics.isEarly
-                              ? `${(metrics.earlyMinutes / metrics.totalShiftMinutes) * 100}%`
-                              : `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
+                            width: isOvertimePeriod
+                              ? '100%'
+                              : `${metrics.progressPercent}%`,
+                            left:
+                              !isOvertimePeriod && metrics.isEarly
+                                ? `${(metrics.earlyMinutes / metrics.totalShiftMinutes) * 100}%`
+                                : !isOvertimePeriod && metrics.lateMinutes > 0
+                                  ? `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`
+                                  : '0%',
                           }}
                         />
                       )}
 
-                      {/* Missed entire shift */}
-                      {metrics.isMissed && (
+                      {/* Missed shift indicator */}
+                      {metrics.isMissed && !isOvertimePeriod && (
                         <div
                           className="absolute h-full bg-red-400"
-                          style={{
-                            width: '100%',
-                          }}
+                          style={{ width: '100%' }}
                         />
                       )}
                     </div>
 
-                    {/* Optional: Progress indicator text */}
+                    {/* Regular period times */}
                     <div className="text-xs text-gray-500 flex justify-between px-1">
                       <span>{formatSafeTime(shiftData?.startTime)}</span>
                       <span>{formatSafeTime(shiftData?.endTime)}</span>
                     </div>
                   </div>
-                );
-              })()}
 
-            {/* Regular Period Times */}
-            <div>
+                  {/* Overtime Period Progress */}
+                  {isOvertimePeriod && (
+                    <div>
+                      <div className="relative h-3 rounded-full overflow-hidden mb-2">
+                        {/* Base layer */}
+                        <div className="absolute w-full h-full bg-gray-100" />
+
+                        {/* Overtime progress */}
+                        <div
+                          className="absolute h-full bg-yellow-500 transition-all duration-300"
+                          style={{
+                            width: `${metrics.progressPercent}%`,
+                          }}
+                        />
+
+                        {/* Late overtime start indicator */}
+                        {metrics.lateMinutes > 0 && (
+                          <div
+                            className="absolute h-full bg-gradient-to-r from-yellow-100 to-yellow-300"
+                            style={{
+                              width: `${(metrics.lateMinutes / metrics.totalShiftMinutes) * 100}%`,
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Overtime period times */}
+                      <div className="text-xs text-gray-500 flex justify-between px-1">
+                        <span>{formatSafeTime(overtimeInfo?.startTime)}</span>
+                        <span>{formatSafeTime(overtimeInfo?.endTime)}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+          {/* Time Display Section */}
+          <div className="mt-4">
+            {/* Regular Period */}
+            <div
+              className={`${currentPeriod.type === PeriodType.OVERTIME ? 'opacity-50' : ''}`}
+            >
               <div className="text-sm font-medium mb-2">กะปกติ</div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -396,10 +440,30 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               </div>
             </div>
 
-            {/* Status Messages */}
+            {/* Overtime Period */}
             {currentPeriod.type === PeriodType.OVERTIME && (
-              <div className="mt-3 pt-3 border-t border-gray-200">
-                <div className="text-sm text-gray-700">
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="text-sm font-medium mb-2">
+                  ช่วงเวลาทำงานล่วงเวลา
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">เข้า OT</div>
+                    <div className="font-medium">
+                      {formatSafeTime(overtimeInfo?.startTime)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500 mb-1">ออก OT</div>
+                    <div className="font-medium">
+                      {currentPeriod.activity.checkOut
+                        ? formatSafeTime(currentPeriod.activity.checkOut)
+                        : '--:--'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 text-sm text-yellow-600">
                   {validation?.reason?.includes('ย้อนหลัง')
                     ? validation.reason
                     : currentPeriod.activity.isActive

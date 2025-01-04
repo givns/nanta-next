@@ -213,31 +213,26 @@ export class AttendanceProcessingService {
       });
 
       // 2. Regular time entry
-      const regularTimeEntry = await tx.timeEntry.create({
+      const regularTimeEntry = await tx.timeEntry.update({
+        where: {
+          id: currentRecord.timeEntries[0].id,
+          attendanceId: currentRecord.id,
+          status: 'STARTED',
+          entryType: PeriodType.REGULAR,
+        },
         data: {
-          employeeId: options.employeeId,
-          date: startOfDay(now),
-          startTime: currentRecord.CheckInTime,
           endTime: shiftEndDate,
           status: 'COMPLETED' as TimeEntryStatus,
-          entryType: PeriodType.REGULAR,
-          attendanceId: currentRecord.id,
           regularHours:
             differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
-          overtimeHours: 0,
           hours: {
             regular:
               differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
             overtime: 0,
           },
-          timing: {
-            actualMinutesLate: 0,
-            isHalfDayLate: false,
-          },
           metadata: {
             source: 'auto',
             version: 1,
-            createdAt: now.toISOString(),
             updatedAt: now.toISOString(),
           },
         },

@@ -10,7 +10,12 @@ import {
   OvertimeContext,
   TransitionInfo,
 } from '@/types/attendance';
-import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
 import {
   addMinutes,
   differenceInMinutes,
@@ -267,8 +272,17 @@ export class AttendanceEnhancementService {
     const requiresTransition = hasPendingTransition && isActiveAttendance;
 
     // Overtime status
-    const isOvertime =
-      attendance?.isOvertime || currentState.activity.isOvertime;
+    // Calculate overtime status
+    const isOvertime = Boolean(
+      attendance?.isOvertime ||
+        currentState.activity.isOvertime ||
+        currentState.type === PeriodType.OVERTIME,
+    );
+
+    const overtimeStarted = Boolean(
+      attendance?.overtimeState === OvertimeState.IN_PROGRESS ||
+        attendance?.overtimeState === OvertimeState.COMPLETED,
+    );
     const isDayOffOvertime = Boolean(
       currentState.activity.isDayOffOvertime ||
         window.overtimeInfo?.isDayOffOvertime ||
@@ -306,7 +320,7 @@ export class AttendanceEnhancementService {
     // Build validation flags
     const flags = {
       // Core Status
-      hasActivePeriod: isActiveAttendance,
+      hasActivePeriod: isActiveAttendance || overtimeStarted,
       isInsideShift: currentState.validation.isWithinBounds,
       isOutsideShift:
         isActiveAttendance && !currentState.validation.isWithinBounds,
@@ -318,10 +332,11 @@ export class AttendanceEnhancementService {
       isLateCheckOut: timingFlags.isLateCheckOut,
       isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
 
-      // Overtime
+      // Overtime flags
       isOvertime,
-      isPendingOvertime: hasUpcomingOvertime,
-      isDayOffOvertime,
+      isDayOffOvertime: Boolean(currentState.activity.isDayOffOvertime),
+      isPendingOvertime:
+        !isOvertime && Boolean(window.nextPeriod?.type === PeriodType.OVERTIME),
 
       // Auto-completion
       isAutoCheckIn: attendance?.metadata?.source === 'auto',
@@ -330,8 +345,10 @@ export class AttendanceEnhancementService {
       isEmergencyLeave: isVeryEarlyCheckout,
 
       // Transition
-      hasPendingTransition,
-      requiresTransition,
+      hasPendingTransition:
+        !isOvertime && Boolean(window.nextPeriod?.type === PeriodType.OVERTIME),
+      requiresTransition:
+        !isOvertime && Boolean(window.nextPeriod?.type === PeriodType.OVERTIME),
 
       // Schedule
       isAfternoonShift,
@@ -400,12 +417,15 @@ export class AttendanceEnhancementService {
       };
     }
 
-    const shouldAllowCheckIn =
-      currentState.validation.isWithinBounds ||
-      (isWithinEarlyWindow && !isActiveAttendance);
+    const canCheckIn = isOvertime
+      ? false
+      : currentState.validation.isWithinBounds ||
+        (isWithinEarlyWindow && !isActiveAttendance);
+    const canCheckOut = isOvertime && isActiveAttendance;
+
     // Handle normal validation
     return {
-      allowed: shouldAllowCheckIn,
+      allowed: canCheckIn || canCheckOut,
       reason: this.getValidationReason(currentState, window, attendance),
       flags,
       ...(hasPendingTransition && {
