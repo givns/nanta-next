@@ -203,10 +203,15 @@ export class AttendanceEnhancementService {
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
 
+    // For initial check-in state
+    const isWithinEarlyWindow =
+      currentState.validation.isEarly &&
+      this.periodManager.checkIfEarly(now, parseISO(window.current.start));
+
     // Get timing flags from attendance record
     const timingFlags = attendance?.checkTiming || {
-      isEarlyCheckIn: false,
-      isLateCheckIn: false,
+      isEarlyCheckIn: isWithinEarlyWindow,
+      isLateCheckIn: currentState.validation.isLate,
       isLateCheckOut: false,
       isVeryLateCheckOut: false,
       lateCheckOutMinutes: 0,

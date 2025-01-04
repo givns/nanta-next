@@ -264,35 +264,11 @@ export class PeriodManagementService {
     return [];
   }
 
-  private checkIfEarly(now: Date, start: Date): boolean {
+  public checkIfEarly(now: Date, start: Date): boolean {
     try {
-      // Convert both times to local without timezone offset
-      const localNow = new Date(
-        now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }),
-      );
-      const localStart = new Date(
-        start.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }),
-      );
-
-      // Calculate threshold window in local time
-      const thresholdStart = subMinutes(
-        localStart,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      );
-
-      console.debug('Early check calculation:', {
-        now: localNow.toLocaleTimeString(),
-        start: localStart.toLocaleTimeString(),
-        thresholdStart: thresholdStart.toLocaleTimeString(),
-        withinWindow: isWithinInterval(localNow, {
-          start: thresholdStart,
-          end: localStart,
-        }),
-      });
-
-      return isWithinInterval(localNow, {
-        start: thresholdStart,
-        end: localStart,
+      return isWithinInterval(now, {
+        start: subMinutes(start, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
+        end: start,
       });
     } catch (error) {
       console.error('Error checking early status:', error);
