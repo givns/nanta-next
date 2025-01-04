@@ -11,6 +11,28 @@ import { formatSafeTime } from '@/shared/timeUtils';
 import { format, parseISO } from 'date-fns';
 import { TransitionInfo } from '@/types/attendance';
 
+// Helper to safely format time for display
+const formatDisplayTime = (timeStr: string | null | undefined): string => {
+  if (!timeStr) return '--:--';
+
+  // If it's already in HH:mm format, return as is
+  if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+    return timeStr;
+  }
+
+  try {
+    // For ISO strings, extract time part
+    if (timeStr.includes('T')) {
+      const [_, time] = timeStr.split('T');
+      return time.slice(0, 5);
+    }
+    return timeStr;
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return '--:--';
+  }
+};
+
 interface ActionButtonProps {
   attendanceStatus: {
     state: AttendanceState;
@@ -234,20 +256,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
         <div className="mt-2 text-xs text-gray-500">
           {transition.to.type === PeriodType.OVERTIME ? (
             <>
-              เริ่มทำงานล่วงเวลาเวลา{' '}
-              {transition.to.start
-                ? format(parseISO(transition.to.start), 'HH:mm')
-                : '--:--'}{' '}
-              น.
+              เริ่มทำงานล่วงเวลาเวลา {formatDisplayTime(transition.to.start)} น.
             </>
           ) : (
-            <>
-              เริ่มกะปกติเวลา{' '}
-              {transition.to.start
-                ? format(parseISO(transition.to.start), 'HH:mm')
-                : '--:--'}{' '}
-              น.
-            </>
+            <>เริ่มกะปกติเวลา {formatDisplayTime(transition.to.start)} น.</>
           )}
         </div>
       )}
