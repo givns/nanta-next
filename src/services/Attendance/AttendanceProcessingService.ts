@@ -7,6 +7,7 @@ import {
   CheckStatus,
   OvertimeState,
   PeriodType,
+  TimeEntryStatus,
 } from '@prisma/client';
 import {
   ProcessingOptions,
@@ -27,6 +28,7 @@ import {
   isWithinInterval,
   subMinutes,
   addMinutes,
+  differenceInMinutes,
 } from 'date-fns';
 
 // Import services
@@ -145,8 +147,8 @@ export class AttendanceProcessingService {
           };
         },
         {
-          timeout: 10000, // Increase timeout to 10 seconds
-          maxWait: 15000, // Maximum time to wait for transaction to start
+          timeout: 15000, // Increase timeout to 15 seconds for auto-completion
+          maxWait: 20000, // Maximum time to wait for transaction to start
         },
       );
 
@@ -182,110 +184,152 @@ export class AttendanceProcessingService {
     }
 
     try {
-      // 1. Process regular checkout first
-      const regularCheckout = await this.processAttendanceRecord(
-        tx,
-        currentRecord,
-        window,
-        {
-          ...options,
-          activity: {
-            isCheckIn: false,
-            isOvertime: false,
-            isManualEntry: false,
+      // 1. Regular check-out
+      const regularCheckout = await tx.attendance.update({
+        where: { id: currentRecord.id },
+        data: {
+          CheckOutTime: window.shift.endTime,
+          state: AttendanceState.PRESENT,
+          checkStatus: CheckStatus.CHECKED_OUT,
+          metadata: {
+            update: {
+              source: 'auto',
+              updatedAt: now,
+            },
+          },
+        },
+        include: {
+          timeEntries: true,
+          overtimeEntries: true,
+          location: true,
+          metadata: true,
+          checkTiming: true,
+        },
+      });
+
+      // 2. Regular time entry
+      const regularTimeEntry = await tx.timeEntry.create({
+        data: {
+          employeeId: options.employeeId,
+          date: startOfDay(now),
+          startTime: currentRecord.CheckInTime,
+          endTime: new Date(window.shift.endTime),
+          status: 'COMPLETED' as TimeEntryStatus,
+          entryType: PeriodType.REGULAR,
+          attendanceId: currentRecord.id,
+          regularHours:
+            differenceInMinutes(
+              new Date(window.shift.endTime),
+              currentRecord.CheckInTime,
+            ) / 60,
+          overtimeHours: 0,
+          hours: {
+            regular:
+              differenceInMinutes(
+                new Date(window.shift.endTime),
+                currentRecord.CheckInTime,
+              ) / 60,
+            overtime: 0,
+          },
+          timing: {
+            actualMinutesLate: 0,
+            isHalfDayLate: false,
           },
           metadata: {
             source: 'auto',
+            version: 1,
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
           },
         },
-        now,
-      );
+      });
 
-      // 2. Create time entries for regular period
-      const regularTimeEntryUpdate = this.createStatusUpdateFromProcessing(
-        {
-          ...options,
-          activity: {
-            isCheckIn: false,
-            isOvertime: false,
-            isManualEntry: false,
+      // 3. Overtime check-in
+      const overtimeCheckin = await tx.attendance.create({
+        data: {
+          employeeId: options.employeeId,
+          date: startOfDay(now),
+          state: AttendanceState.INCOMPLETE,
+          checkStatus: CheckStatus.CHECKED_IN,
+          type: PeriodType.OVERTIME,
+          isOvertime: true,
+          overtimeState: OvertimeState.IN_PROGRESS,
+          CheckInTime: new Date(window.shift.endTime),
+          shiftStartTime: new Date(window.current.start),
+          shiftEndTime: new Date(window.current.end),
+          metadata: {
+            create: {
+              source: 'auto',
+              isManualEntry: false,
+              isDayOff: window.isDayOff,
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+          checkTiming: {
+            create: {
+              isEarlyCheckIn: false,
+              isLateCheckIn: false,
+              isLateCheckOut: false,
+              isVeryLateCheckOut: false,
+              lateCheckOutMinutes: 0,
+            },
           },
         },
-        currentRecord,
-        now,
-      );
+        include: {
+          timeEntries: true,
+          overtimeEntries: true,
+          location: true,
+          metadata: true,
+          checkTiming: true,
+        },
+      });
 
-      const regularTimeEntries = await this.timeEntryService.processTimeEntries(
-        tx,
-        regularCheckout,
-        regularTimeEntryUpdate,
-        options,
-      );
-
-      // 3. Process overtime check-in
-      const overtimeCheckin = await this.processAttendanceRecord(
-        tx,
-        regularCheckout,
-        window,
-        {
-          ...options,
-          activity: {
-            isCheckIn: true,
-            isOvertime: true,
-            isManualEntry: false,
+      // 4. Overtime time entry
+      const overtimeTimeEntry = await tx.timeEntry.create({
+        data: {
+          employeeId: options.employeeId,
+          date: startOfDay(now),
+          startTime: new Date(window.shift.endTime),
+          status: 'STARTED' as TimeEntryStatus,
+          entryType: PeriodType.OVERTIME,
+          attendanceId: overtimeCheckin.id,
+          regularHours: 0,
+          overtimeHours: 0,
+          hours: {
+            regular: 0,
+            overtime: 0,
           },
+          timing: {
+            actualMinutesLate: 0,
+            isHalfDayLate: false,
+          },
+          ...(options.metadata?.overtimeId && {
+            overtimeRequestId: options.metadata.overtimeId,
+          }),
           metadata: {
             source: 'auto',
+            version: 1,
+            createdAt: now.toISOString(),
+            updatedAt: now.toISOString(),
           },
         },
-        now,
-      );
-
-      // 4. Create time entries for overtime period
-      const overtimeTimeEntryUpdate = this.createStatusUpdateFromProcessing(
-        {
-          ...options,
-          activity: {
-            isCheckIn: true,
-            isOvertime: true,
-            isManualEntry: false,
-          },
-        },
-        regularCheckout,
-        now,
-      );
-
-      const overtimeTimeEntries =
-        await this.timeEntryService.processTimeEntries(
-          tx,
-          overtimeCheckin,
-          overtimeTimeEntryUpdate,
-          options,
-        );
+      });
 
       // 5. Get final state
       const currentState = this.periodManager.resolveCurrentPeriod(
-        overtimeCheckin,
+        AttendanceMappers.toAttendanceRecord(overtimeCheckin),
         window,
         now,
       );
 
       const stateValidation =
         await this.enhancementService.createStateValidation(
-          overtimeCheckin,
+          AttendanceMappers.toAttendanceRecord(overtimeCheckin),
           currentState,
           window,
           now,
         );
-
-      // Combine time entries
-      const combinedTimeEntries = {
-        regular: regularTimeEntries.regular,
-        overtime: [
-          ...(regularTimeEntries.overtime || []),
-          ...(overtimeTimeEntries.overtime || []),
-        ],
-      };
 
       return {
         success: true,
@@ -303,7 +347,10 @@ export class AttendanceProcessingService {
         },
         metadata: {
           source: 'auto',
-          timeEntries: combinedTimeEntries,
+          timeEntries: {
+            regular: regularTimeEntry,
+            overtime: [overtimeTimeEntry],
+          },
           isTransition: true,
         },
       };
