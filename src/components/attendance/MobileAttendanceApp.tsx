@@ -67,15 +67,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
-  // Helper to convert UTC to local time
-  const convertToLocalTime = (isoString: string): Date => {
-    const date = new Date(isoString);
-    if (isoString.includes('Z')) {
-      date.setHours(date.getHours() + 7);
-    }
-    return date;
-  };
-
   const calculateProgressMetrics = React.useCallback(() => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
@@ -87,28 +78,20 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isMissed: true,
       };
     }
-
+  
     try {
       const now = getCurrentTime();
-
-      // Extract just the time part for comparison
-      const getTimeFromISOString = (isoString: string): Date => {
-        const timePart = isoString.split('T')[1].split('.')[0]; // Get "HH:mm:ss"
-        const [hours, minutes] = timePart.split(':').map(Number);
-        const date = new Date();
-        date.setHours(hours, minutes, 0, 0);
-        return date;
-      };
-
-      const shiftStart = getTimeFromISOString(currentPeriod.timeWindow.start);
-      const shiftEnd = getTimeFromISOString(currentPeriod.timeWindow.end);
-      const checkInTime = currentPeriod.activity.checkIn
-        ? getTimeFromISOString(currentPeriod.activity.checkIn)
+      
+      // Times are already local, just create Date objects
+      const shiftStart = parseISO(currentPeriod.timeWindow.start);
+      const shiftEnd = parseISO(currentPeriod.timeWindow.end);
+      const checkInTime = currentPeriod.activity.checkIn 
+        ? parseISO(currentPeriod.activity.checkIn)
         : null;
-
+  
       // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-
+  
       if (!checkInTime) {
         return {
           lateMinutes: totalShiftMinutes,
@@ -119,7 +102,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           isMissed: true,
         };
       }
-
+  
       const earlyMinutes = Math.max(
         0,
         differenceInMinutes(shiftStart, checkInTime),
@@ -128,17 +111,28 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       const lateMinutes = !isEarly
         ? Math.max(0, differenceInMinutes(checkInTime, shiftStart))
         : 0;
-
+  
       const progressStartTime = isEarly ? shiftStart : checkInTime;
       const elapsedMinutes = Math.max(
         0,
         differenceInMinutes(now, progressStartTime),
       );
+  
+      console.log('Progress calculation:', {
+        now: format(now, 'HH:mm:ss'),
+        shiftStart: format(shiftStart, 'HH:mm:ss'),
+        shiftEnd: format(shiftEnd, 'HH:mm:ss'),
+        checkInTime: format(checkInTime, 'HH:mm:ss'),
+        progressStart: format(progressStartTime, 'HH:mm:ss'),
+        elapsed: elapsedMinutes,
+        total: totalShiftMinutes
+      });
+  
       const progressPercent = Math.min(
         (elapsedMinutes / totalShiftMinutes) * 100,
         100,
       );
-
+  
       return {
         lateMinutes,
         earlyMinutes,
