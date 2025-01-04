@@ -39,7 +39,6 @@ import { AttendanceEnhancementService } from './AttendanceEnhancementService';
 import { PeriodManagementService } from './PeriodManagementService';
 import { StatusHelpers } from './utils/StatusHelper';
 
-// services/Attendance/AttendanceProcessingService.ts
 export class AttendanceProcessingService {
   constructor(
     private readonly prisma: PrismaClient,
@@ -54,200 +53,105 @@ export class AttendanceProcessingService {
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
 
-    return this.prisma.$transaction(async (tx) => {
-      try {
-        // 1. Get current state
-        const [currentRecord, window] = await Promise.all([
-          this.getLatestAttendance(tx, options.employeeId),
-          this.shiftService.getCurrentWindow(options.employeeId, now),
-        ]);
+    return this.prisma.$transaction(
+      async (tx) => {
+        try {
+          // 1. Get current state
+          const [currentRecord, window] = await Promise.all([
+            this.getLatestAttendance(tx, options.employeeId),
+            this.shiftService.getCurrentWindow(options.employeeId, now),
+          ]);
 
-        if (!window) {
-          throw new AppError({
-            code: ErrorCode.SHIFT_DATA_ERROR,
-            message: 'Shift configuration not found',
-          });
-        }
+          if (!window) {
+            throw new AppError({
+              code: ErrorCode.SHIFT_DATA_ERROR,
+              message: 'Shift configuration not found',
+            });
+          }
 
-        // 2. Handle auto-completion if needed
-        if (options.activity.overtimeMissed) {
-          return this.handleAutoCompletion(
+          // 2. Handle auto-completion if needed
+          if (options.activity.overtimeMissed) {
+            return this.handleAutoCompletion(
+              tx,
+              currentRecord,
+              window,
+              options,
+              now,
+            );
+          }
+
+          // 3. Process regular attendance
+          const previousState = currentRecord
+            ? this.periodManager.resolveCurrentPeriod(
+                currentRecord,
+                window,
+                now,
+              )
+            : undefined;
+
+          // Process main attendance record
+          const processedAttendance = await this.processAttendanceRecord(
             tx,
             currentRecord,
             window,
             options,
             now,
           );
-        }
 
-        // 3. Process regular attendance
-        const previousState = currentRecord
-          ? this.periodManager.resolveCurrentPeriod(currentRecord, window, now)
-          : undefined;
+          // Create proper StatusUpdateResult for TimeEntryService
+          const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
+            options,
+            currentRecord,
+            now,
+          );
 
-        // Process main attendance record
-        const processedAttendance = await this.processAttendanceRecord(
-          tx,
-          currentRecord,
-          window,
-          options,
-          now,
-        );
-
-        // Create proper StatusUpdateResult for TimeEntryService
-        const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
-          options,
-          currentRecord,
-          now,
-        );
-
-        // Let TimeEntryService handle time entries with proper status update
-        const timeEntries = await this.timeEntryService.processTimeEntries(
-          tx,
-          processedAttendance,
-          timeEntryStatusUpdate,
-          options,
-        );
-
-        // Rest of the method remains the same...
-        const currentState = this.periodManager.resolveCurrentPeriod(
-          processedAttendance,
-          window,
-          now,
-        );
-
-        const stateValidation =
-          await this.enhancementService.createStateValidation(
+          // Process time entries with proper status update
+          const timeEntries = await this.timeEntryService.processTimeEntries(
+            tx,
             processedAttendance,
-            currentState,
+            timeEntryStatusUpdate,
+            options,
+          );
+
+          const currentState = this.periodManager.resolveCurrentPeriod(
+            processedAttendance,
             window,
             now,
           );
 
-        return {
-          success: true,
-          timestamp: now.toISOString(),
-          data: {
-            state: {
-              current: currentState,
-              previous: previousState,
+          const stateValidation =
+            await this.enhancementService.createStateValidation(
+              processedAttendance,
+              currentState,
+              window,
+              now,
+            );
+
+          return {
+            success: true,
+            timestamp: now.toISOString(),
+            data: {
+              state: {
+                current: currentState,
+                previous: previousState,
+              },
+              validation: stateValidation,
             },
-            validation: stateValidation,
-          },
-          metadata: {
-            source: options.activity.isManualEntry ? 'manual' : 'system',
-            timeEntries,
-          },
-        };
-      } catch (error) {
-        console.error('Attendance processing error:', error);
-        throw this.handleProcessingError(error);
-      }
-    });
-  }
-
-  private async handleOvertimeTransition(
-    tx: Prisma.TransactionClient,
-    currentRecord: AttendanceRecord | null,
-    window: ShiftWindowResponse,
-    options: ProcessingOptions,
-    now: Date,
-  ): Promise<ProcessingResult> {
-    // 1. Process regular checkout
-    const checkoutOptions = {
-      ...options,
-      activity: { ...options.activity, isCheckIn: false, isOvertime: false },
-    };
-
-    const checkoutRecord = await this.processAttendanceRecord(
-      tx,
-      currentRecord,
-      window,
-      checkoutOptions,
-      now,
-    );
-
-    // 2. Process overtime check-in
-    const overtimeOptions = {
-      ...options,
-      activity: { ...options.activity, isCheckIn: true, isOvertime: true },
-    };
-
-    const overtimeRecord = await this.processAttendanceRecord(
-      tx,
-      checkoutRecord,
-      window,
-      overtimeOptions,
-      now,
-    );
-
-    // 3. Process time entries for both records
-    const [checkoutTimeEntry, overtimeTimeEntry] = await Promise.all([
-      this.timeEntryService.processTimeEntries(
-        tx,
-        checkoutRecord,
-        this.createStatusUpdateFromProcessing(
-          checkoutOptions,
-          currentRecord,
-          now,
-        ),
-        checkoutOptions,
-      ),
-      this.timeEntryService.processTimeEntries(
-        tx,
-        overtimeRecord,
-        this.createStatusUpdateFromProcessing(
-          overtimeOptions,
-          checkoutRecord,
-          now,
-        ),
-        overtimeOptions,
-      ),
-    ]);
-
-    // 4. Get final state
-    const currentState = this.periodManager.resolveCurrentPeriod(
-      overtimeRecord,
-      window,
-      now,
-    );
-
-    const stateValidation = await this.enhancementService.createStateValidation(
-      overtimeRecord,
-      currentState,
-      window,
-      now,
-    );
-
-    // Combine time entries into a single array
-    const combinedTimeEntries = {
-      regular: checkoutTimeEntry.regular,
-      overtime: [
-        ...(checkoutTimeEntry.overtime || []),
-        ...(overtimeTimeEntry.overtime || []),
-      ],
-    };
-
-    return {
-      success: true,
-      timestamp: now.toISOString(),
-      data: {
-        state: {
-          current: currentState,
-          previous: this.periodManager.resolveCurrentPeriod(
-            currentRecord,
-            window,
-            now,
-          ),
-        },
-        validation: stateValidation,
+            metadata: {
+              source: options.activity.isManualEntry ? 'manual' : 'system',
+              timeEntries,
+            },
+          };
+        } catch (error) {
+          console.error('Attendance processing error:', error);
+          throw this.handleProcessingError(error);
+        }
       },
-      metadata: {
-        source: 'system',
-        timeEntries: combinedTimeEntries,
-        isTransition: true,
+      {
+        timeout: 10000, // Increase timeout to 10 seconds
+        maxWait: 15000, // Maximum time to wait for transaction to start
       },
-    };
+    );
   }
 
   private async handleAutoCompletion(
