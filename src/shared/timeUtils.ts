@@ -48,45 +48,49 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
   if (!timeStr) return '--:--';
 
   try {
-    // If it's already in HH:mm format, return as is
+    // Case 1: Already in HH:mm format
     if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
       return timeStr;
     }
 
-    // For ISO strings, extract hours and minutes directly
-    if (timeStr.includes('T')) {
-      // Extract time part after T: "2024-12-17T09:00:24.138Z" -> "09:00:24.138Z"
-      const timePart = timeStr.split('T')[1];
-      // Extract hours and minutes: "09:00:24.138Z" -> "09:00"
-      const [hours, minutes] = timePart.split(':');
-
-      console.log('formatSafeTime processing:', {
-        input: timeStr,
-        timePart,
-        hours,
-        minutes,
-      });
-
-      return `${hours}:${minutes}`;
+    // Case 2: ISO string with UTC marker (Z)
+    if (timeStr.includes('Z')) {
+      // Add 7 hours for Thailand timezone
+      const date = new Date(timeStr);
+      date.setHours(date.getHours() + 7);
+      return date.toTimeString().slice(0, 5);
     }
 
+    // Case 3: ISO string with T separator but no timezone
+    if (timeStr.includes('T')) {
+      return timeStr.split('T')[1].slice(0, 5);
+    }
+
+    // Case 4: Unknown format, try to extract time
+    console.warn('Unknown time format:', timeStr);
     return '--:--';
   } catch (error) {
-    console.error('Time format error:', error);
+    console.error('Time format error:', error, {
+      input: timeStr,
+    });
     return '--:--';
   }
 };
 
-// For normalized times
+// Helper to normalize ISO strings to local time
 export const normalizeTimeString = (timeStr: string): string => {
   if (!timeStr) return timeStr;
 
   try {
-    // Debug input
-    console.log('Normalizing time:', timeStr);
+    // If already has timezone marker, convert to local
+    if (timeStr.includes('Z')) {
+      const date = new Date(timeStr);
+      date.setHours(date.getHours() + 7);
+      return date.toISOString().slice(0, 19); // Remove milliseconds and Z
+    }
 
-    // Add +07:00 for local times
-    return `${timeStr}+07:00`;
+    // If no timezone marker, assume local time
+    return timeStr;
   } catch (error) {
     console.error('Normalization error:', error);
     return timeStr;
