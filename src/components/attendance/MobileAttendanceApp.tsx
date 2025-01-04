@@ -67,8 +67,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
-  // In MobileAttendanceApp.tsx
-
   const calculateProgressMetrics = React.useCallback((): ProgressMetrics => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
@@ -164,26 +162,36 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     }
   }, [currentPeriod]);
 
-  // Handle check-in/check-out times safely
+  // Handle check-in/check-out times safely by removing timezone info
   const checkInTime = useMemo(() => {
-    const rawTime = attendanceStatus.latestAttendance?.CheckInTime;
-    if (!rawTime) return '--:--';
-
-    // Debug the raw time
-    console.log('Processing check in time:', {
-      raw: rawTime,
-      toString: rawTime.toString(),
-      isUTC: rawTime.toString().includes('Z'),
-    });
-
-    return formatSafeTime(rawTime.toString());
+    if (!attendanceStatus.latestAttendance?.CheckInTime) return '--:--';
+    const rawTime = attendanceStatus.latestAttendance.CheckInTime;
+    try {
+      // Extract just HH:mm from the time string
+      const timeMatch = rawTime.toString().match(/(\d{2}):(\d{2})/);
+      if (timeMatch) {
+        return `${timeMatch[1]}:${timeMatch[2]}`;
+      }
+      return '--:--';
+    } catch (error) {
+      console.error('Error parsing check-in time:', error);
+      return '--:--';
+    }
   }, [attendanceStatus.latestAttendance?.CheckInTime]);
 
   const checkOutTime = useMemo(() => {
-    const rawTime = attendanceStatus.latestAttendance?.CheckOutTime;
-    if (!rawTime) return '--:--';
-
-    return formatSafeTime(rawTime.toString());
+    if (!attendanceStatus.latestAttendance?.CheckOutTime) return '--:--';
+    const rawTime = attendanceStatus.latestAttendance.CheckOutTime;
+    try {
+      const timeMatch = rawTime.toString().match(/(\d{2}):(\d{2})/);
+      if (timeMatch) {
+        return `${timeMatch[1]}:${timeMatch[2]}`;
+      }
+      return '--:--';
+    } catch (error) {
+      console.error('Error parsing check-out time:', error);
+      return '--:--';
+    }
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);
 
   // Handle overtime periods safely
