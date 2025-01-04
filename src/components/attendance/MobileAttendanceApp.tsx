@@ -67,7 +67,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
-  const calculateProgressMetrics = React.useCallback(() => {
+  const calculateProgressMetrics = React.useCallback((): ProgressMetrics => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
         lateMinutes: 0,
@@ -82,19 +82,27 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     try {
       const now = getCurrentTime();
 
-      // Extract just the time part for comparison
-      const getTimeFromISOString = (isoString: string): Date => {
-        const timePart = isoString.split('T')[1].split('.')[0]; // Get "HH:mm:ss"
-        const [hours, minutes] = timePart.split(':').map(Number);
-        const date = new Date();
-        date.setHours(hours, minutes, 0, 0);
-        return date;
-      };
+      // Normalize the times to +07:00
+      const normalizedStart = normalizeTimeString(
+        currentPeriod.timeWindow.start,
+      );
+      const normalizedEnd = normalizeTimeString(currentPeriod.timeWindow.end);
+      const normalizedCheckIn = currentPeriod.activity.checkIn
+        ? normalizeTimeString(currentPeriod.activity.checkIn)
+        : null;
 
-      const shiftStart = getTimeFromISOString(currentPeriod.timeWindow.start);
-      const shiftEnd = getTimeFromISOString(currentPeriod.timeWindow.end);
-      const checkInTime = currentPeriod.activity.checkIn
-        ? getTimeFromISOString(currentPeriod.activity.checkIn)
+      console.log('Using normalized times:', {
+        normalizedStart,
+        normalizedEnd,
+        normalizedCheckIn,
+        now: now.toISOString(),
+      });
+
+      // Direct parse of normalized times
+      const shiftStart = parseISO(normalizedStart);
+      const shiftEnd = parseISO(normalizedEnd);
+      const checkInTime = normalizedCheckIn
+        ? parseISO(normalizedCheckIn)
         : null;
 
       // Calculate total shift duration
@@ -158,12 +166,21 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const checkInTime = useMemo(() => {
     const rawTime = attendanceStatus.latestAttendance?.CheckInTime;
     if (!rawTime) return '--:--';
+
+    // Debug the raw time
+    console.log('Processing check in time:', {
+      raw: rawTime,
+      toString: rawTime.toString(),
+      isUTC: rawTime.toString().includes('Z'),
+    });
+
     return formatSafeTime(rawTime.toString());
   }, [attendanceStatus.latestAttendance?.CheckInTime]);
 
   const checkOutTime = useMemo(() => {
     const rawTime = attendanceStatus.latestAttendance?.CheckOutTime;
     if (!rawTime) return '--:--';
+
     return formatSafeTime(rawTime.toString());
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);
 

@@ -68,6 +68,8 @@ const createSafeAttendance = (props: any) => {
       getCurrentLocation: props.getCurrentLocation,
     };
 
+    console.log('Safe attendance created:', safeProps);
+
     return safeProps;
   } catch (error) {
     console.error('Error creating safe attendance:', error);
