@@ -44,11 +44,12 @@ export const formatTimeDisplay = (
   }
 };
 
+// Format display times consistently
 export const formatSafeTime = (timeStr: string | null | undefined): string => {
   if (!timeStr) return '--:--';
 
   try {
-    // Case 1: Already in HH:mm format
+    // Case 1: Simple HH:mm format
     if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
       return timeStr;
     }
@@ -61,12 +62,11 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
       return date.toTimeString().slice(0, 5);
     }
 
-    // Case 3: ISO string with T separator but no timezone
+    // Case 3: ISO string with T separator but no timezone (local time)
     if (timeStr.includes('T')) {
       return timeStr.split('T')[1].slice(0, 5);
     }
 
-    // Case 4: Unknown format, try to extract time
     console.warn('Unknown time format:', timeStr);
     return '--:--';
   } catch (error) {
@@ -77,7 +77,7 @@ export const formatSafeTime = (timeStr: string | null | undefined): string => {
   }
 };
 
-// Helper to normalize ISO strings to local time
+// Convert time to local for comparisons
 export const normalizeTimeString = (timeStr: string): string => {
   if (!timeStr) return timeStr;
 
@@ -86,7 +86,7 @@ export const normalizeTimeString = (timeStr: string): string => {
     if (timeStr.includes('Z')) {
       const date = new Date(timeStr);
       date.setHours(date.getHours() + 7);
-      return date.toISOString().slice(0, 19); // Remove milliseconds and Z
+      return date.toISOString().replace('Z', '');
     }
 
     // If no timezone marker, assume local time
@@ -94,5 +94,33 @@ export const normalizeTimeString = (timeStr: string): string => {
   } catch (error) {
     console.error('Normalization error:', error);
     return timeStr;
+  }
+};
+
+// Convert any time format to Date object in local time
+export const parseAnyTime = (timeStr: string): Date | null => {
+  try {
+    // Case 1: Simple HH:mm
+    if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      const date = new Date();
+      date.setHours(hours, minutes, 0, 0);
+      return date;
+    }
+
+    // Case 2: Full ISO string
+    if (timeStr.includes('T')) {
+      const date = new Date(timeStr);
+      // If UTC, convert to local
+      if (timeStr.includes('Z')) {
+        date.setHours(date.getHours() + 7);
+      }
+      return date;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Parse error:', error);
+    return null;
   }
 };
