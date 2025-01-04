@@ -115,6 +115,22 @@ export class PeriodManagementService {
         ? isWithinInterval(now, transitionWindow)
         : false;
 
+      // Calculate potential transitions
+      const transitions = this.calculatePeriodTransitions(
+        // You'd need to pass an initial state object here
+        {} as UnifiedPeriodState,
+        periodState,
+        now,
+      );
+
+      // Check if there's an active transition
+      const hasActiveTransition = transitions.length > 0;
+
+      // Determine period type based on transitions
+      const periodType = hasActiveTransition
+        ? PeriodType.OVERTIME
+        : PeriodType.REGULAR;
+
       // Debug logging
       console.log('Period resolution:', {
         currentTime: format(now, 'HH:mm'),
@@ -143,7 +159,7 @@ export class PeriodManagementService {
       });
 
       return {
-        type: PeriodType.REGULAR,
+        type: periodType,
         timeWindow,
         activity: {
           isActive: isCheckedIn && isInShiftTime,
@@ -159,7 +175,7 @@ export class PeriodManagementService {
                 "yyyy-MM-dd'T'HH:mm:ss.SSS",
               )
             : null,
-          isOvertime: false,
+          isOvertime: hasActiveTransition,
           isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
           isInsideShiftHours: isInShiftTime,
         },
@@ -174,8 +190,7 @@ export class PeriodManagementService {
           isOvernight: isValidShift
             ? parseISO(timeWindow.end) < parseISO(timeWindow.start)
             : false,
-          isConnected:
-            isValidShift && isInTransitionWindow && hasUpcomingOvertime,
+          isConnected: hasActiveTransition,
         },
       };
     } catch (error) {
