@@ -90,23 +90,20 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     try {
       const now = getCurrentTime();
 
-      // Extract just the time part for comparison
-      const getTimeFromISOString = (isoString: string): Date => {
-        // Handle UTC dates by converting to local time first
-        const localDate = convertToLocalTime(isoString);
-        const hours = localDate.getHours();
-        const minutes = localDate.getMinutes();
-
-        // Create a new date with just the time portion
-        const date = new Date();
-        date.setHours(hours, minutes, 0, 0);
-        return date;
+      // Convert UTC times to local for comparison
+      const toLocalTime = (timeStr: string) => {
+        if (timeStr.includes('Z')) {
+          const date = new Date(timeStr);
+          date.setHours(date.getHours() + 7); // Convert to Bangkok time
+          return date;
+        }
+        return new Date(timeStr);
       };
 
-      const shiftStart = getTimeFromISOString(currentPeriod.timeWindow.start);
-      const shiftEnd = getTimeFromISOString(currentPeriod.timeWindow.end);
+      const shiftStart = toLocalTime(currentPeriod.timeWindow.start);
+      const shiftEnd = toLocalTime(currentPeriod.timeWindow.end);
       const checkInTime = currentPeriod.activity.checkIn
-        ? getTimeFromISOString(currentPeriod.activity.checkIn)
+        ? toLocalTime(currentPeriod.activity.checkIn)
         : null;
 
       // Calculate total shift duration
@@ -137,6 +134,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         0,
         differenceInMinutes(now, progressStartTime),
       );
+
+      console.log('Progress calculation:', {
+        now: now.toLocaleTimeString(),
+        shiftStart: shiftStart.toLocaleTimeString(),
+        shiftEnd: shiftEnd.toLocaleTimeString(),
+        checkInTime: checkInTime.toLocaleTimeString(),
+        progressStart: progressStartTime.toLocaleTimeString(),
+        elapsed: elapsedMinutes,
+        total: totalShiftMinutes,
+      });
+
       const progressPercent = Math.min(
         (elapsedMinutes / totalShiftMinutes) * 100,
         100,
