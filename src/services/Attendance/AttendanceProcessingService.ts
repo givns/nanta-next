@@ -54,9 +54,9 @@ export class AttendanceProcessingService {
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
 
-    return this.prisma.$transaction(
-      async (tx) => {
-        try {
+    try {
+      const result = await this.prisma.$transaction(
+        async (tx) => {
           // 1. Get current state
           const [currentRecord, window] = await Promise.all([
             this.getLatestAttendance(tx, options.employeeId),
@@ -128,13 +128,6 @@ export class AttendanceProcessingService {
               now,
             );
 
-          // After successful processing, set force refresh flag
-          await cacheService.set(
-            `forceRefresh:${options.employeeId}`,
-            'true',
-            30,
-          );
-
           return {
             success: true,
             timestamp: now.toISOString(),
@@ -150,16 +143,27 @@ export class AttendanceProcessingService {
               timeEntries,
             },
           };
-        } catch (error) {
-          console.error('Attendance processing error:', error);
-          throw this.handleProcessingError(error);
-        }
-      },
-      {
-        timeout: 10000, // Increase timeout to 10 seconds
-        maxWait: 15000, // Maximum time to wait for transaction to start
-      },
-    );
+        },
+        {
+          timeout: 10000, // Increase timeout to 10 seconds
+          maxWait: 15000, // Maximum time to wait for transaction to start
+        },
+      );
+
+      // Only set force refresh after successful transaction
+      await cacheService.set(`forceRefresh:${options.employeeId}`, 'true', 30);
+
+      return {
+        ...result,
+        metadata: {
+          ...result.metadata,
+          source: 'auto',
+        },
+      };
+    } catch (error) {
+      console.error('Attendance processing error:', error);
+      throw this.handleProcessingError(error);
+    }
   }
 
   private async handleAutoCompletion(
