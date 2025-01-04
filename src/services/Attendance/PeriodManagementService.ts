@@ -264,80 +264,35 @@ export class PeriodManagementService {
     return [];
   }
 
-  private determineTransitionContext(
-    now: Date,
-    periodState: ShiftWindowResponse,
-    overtimeInfo?: OvertimeContext | null,
-  ): TransitionDefinition | undefined {
-    if (!overtimeInfo) return undefined;
-
-    const shiftStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
-    );
-    const shiftEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
-    );
-    const overtimeStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-    );
-    const overtimeEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
-    );
-
-    // Case 1: Regular to Overtime (post-shift)
-    if (overtimeStart >= shiftEnd) {
-      const transitionWindow = {
-        start: subMinutes(shiftEnd, 5),
-        end: addMinutes(shiftEnd, 15),
-      };
-
-      if (isWithinInterval(now, transitionWindow)) {
-        return {
-          from: {
-            type: PeriodType.REGULAR,
-            end: periodState.shift.endTime,
-          },
-          to: {
-            type: PeriodType.OVERTIME,
-            start: overtimeInfo.startTime,
-          },
-          isInTransition: true,
-          direction: 'to_overtime',
-        };
-      }
-    }
-
-    // Case 2: Overtime to Regular (pre-shift or post-overtime)
-    if (overtimeEnd <= shiftStart || overtimeEnd < now) {
-      const transitionWindow = {
-        start: subMinutes(shiftStart, 5),
-        end: addMinutes(shiftStart, 15),
-      };
-
-      if (isWithinInterval(now, transitionWindow)) {
-        return {
-          from: {
-            type: PeriodType.OVERTIME,
-            end: overtimeInfo.endTime,
-          },
-          to: {
-            type: PeriodType.REGULAR,
-            start: periodState.shift.startTime,
-          },
-          isInTransition: true,
-          direction: 'to_regular',
-        };
-      }
-    }
-
-    return undefined;
-  }
-
   private checkIfEarly(now: Date, start: Date): boolean {
     try {
-      return isWithinInterval(now, {
-        start: subMinutes(start, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD),
-        end: start,
+      // Convert both times to local without timezone offset
+      const localNow = new Date(
+        now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }),
+      );
+      const localStart = new Date(
+        start.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }),
+      );
+
+      // Calculate threshold window in local time
+      const thresholdStart = subMinutes(
+        localStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+
+      console.debug('Early check calculation:', {
+        now: localNow.toLocaleTimeString(),
+        start: localStart.toLocaleTimeString(),
+        thresholdStart: thresholdStart.toLocaleTimeString(),
+        withinWindow: isWithinInterval(localNow, {
+          start: thresholdStart,
+          end: localStart,
+        }),
+      });
+
+      return isWithinInterval(localNow, {
+        start: thresholdStart,
+        end: localStart,
       });
     } catch (error) {
       console.error('Error checking early status:', error);
