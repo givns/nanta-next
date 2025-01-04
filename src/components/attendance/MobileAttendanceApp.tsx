@@ -1,20 +1,19 @@
-// components/attendance/MobileAttendanceApp.tsx
 import React, { useMemo } from 'react';
 import { differenceInMinutes, format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
+import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { formatSafeTime } from '@/shared/timeUtils';
 import {
   ShiftData,
   UnifiedPeriodState,
-  OvertimeContext,
   AttendanceBaseResponse,
+  OvertimeContext,
   ValidationResponseWithMetadata,
-  UserData,
 } from '@/types/attendance';
-import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
-import { getCurrentTime } from '@/utils/dateUtils';
-import { formatSafeTime, normalizeTimeString } from '@/shared/timeUtils';
+import { UserData } from '@/types/user';
 
 interface MobileAttendanceAppProps {
   userData: UserData;
@@ -67,6 +66,15 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
+  // Helper to convert UTC to local time
+  const convertToLocalTime = (isoString: string): Date => {
+    const date = new Date(isoString);
+    if (isoString.includes('Z')) {
+      date.setHours(date.getHours() + 7);
+    }
+    return date;
+  };
+
   const calculateProgressMetrics = React.useCallback(() => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
@@ -82,11 +90,23 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     try {
       const now = getCurrentTime();
 
-      // Times are already local, just create Date objects
-      const shiftStart = parseISO(currentPeriod.timeWindow.start);
-      const shiftEnd = parseISO(currentPeriod.timeWindow.end);
+      // Extract just the time part for comparison
+      const getTimeFromISOString = (isoString: string): Date => {
+        // Handle UTC dates by converting to local time first
+        const localDate = convertToLocalTime(isoString);
+        const hours = localDate.getHours();
+        const minutes = localDate.getMinutes();
+
+        // Create a new date with just the time portion
+        const date = new Date();
+        date.setHours(hours, minutes, 0, 0);
+        return date;
+      };
+
+      const shiftStart = getTimeFromISOString(currentPeriod.timeWindow.start);
+      const shiftEnd = getTimeFromISOString(currentPeriod.timeWindow.end);
       const checkInTime = currentPeriod.activity.checkIn
-        ? parseISO(currentPeriod.activity.checkIn)
+        ? getTimeFromISOString(currentPeriod.activity.checkIn)
         : null;
 
       // Calculate total shift duration
@@ -117,17 +137,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         0,
         differenceInMinutes(now, progressStartTime),
       );
-
-      console.log('Progress calculation:', {
-        now: format(now, 'HH:mm:ss'),
-        shiftStart: format(shiftStart, 'HH:mm:ss'),
-        shiftEnd: format(shiftEnd, 'HH:mm:ss'),
-        checkInTime: format(checkInTime, 'HH:mm:ss'),
-        progressStart: format(progressStartTime, 'HH:mm:ss'),
-        elapsed: elapsedMinutes,
-        total: totalShiftMinutes,
-      });
-
       const progressPercent = Math.min(
         (elapsedMinutes / totalShiftMinutes) * 100,
         100,
@@ -161,13 +170,19 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   const checkInTime = useMemo(() => {
     const rawTime = attendanceStatus.latestAttendance?.CheckInTime;
     if (!rawTime) return '--:--';
-    return formatSafeTime(rawTime.toString());
+
+    // Extract just the time part HH:mm from the ISO string
+    const match = rawTime.toString().match(/(\d{2}):(\d{2})/);
+    return match ? `${match[1]}:${match[2]}` : '--:--';
   }, [attendanceStatus.latestAttendance?.CheckInTime]);
 
   const checkOutTime = useMemo(() => {
     const rawTime = attendanceStatus.latestAttendance?.CheckOutTime;
     if (!rawTime) return '--:--';
-    return formatSafeTime(rawTime.toString());
+
+    // Extract just the time part HH:mm from the ISO string
+    const match = rawTime.toString().match(/(\d{2}):(\d{2})/);
+    return match ? `${match[1]}:${match[2]}` : '--:--';
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);
 
   // Handle overtime periods safely
