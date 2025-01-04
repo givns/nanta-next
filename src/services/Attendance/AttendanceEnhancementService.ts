@@ -239,8 +239,8 @@ export class AttendanceEnhancementService {
 
     // Calculate transition window
     const transitionWindow = {
-      start: subMinutes(shiftEnd, 15),
-      end: shiftEnd,
+      start: subMinutes(shiftEnd, 5),
+      end: addMinutes(shiftEnd, 15),
     };
 
     // Debug time calculations
@@ -250,7 +250,6 @@ export class AttendanceEnhancementService {
       transitionStart: format(transitionWindow.start, 'HH:mm'),
       transitionEnd: format(transitionWindow.end, 'HH:mm'),
       hasUpcomingOvertime: Boolean(window.overtimeInfo),
-      overtimeStartTime: window.overtimeInfo?.startTime,
     });
 
     const isInTransitionWindow = isWithinInterval(now, transitionWindow);
