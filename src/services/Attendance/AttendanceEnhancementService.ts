@@ -399,9 +399,13 @@ export class AttendanceEnhancementService {
         },
       };
     }
+
+    const shouldAllowCheckIn =
+      currentState.validation.isWithinBounds ||
+      (isWithinEarlyWindow && !isActiveAttendance);
     // Handle normal validation
     return {
-      allowed: currentState.validation.isWithinBounds,
+      allowed: shouldAllowCheckIn,
       reason: this.getValidationReason(currentState, window, attendance),
       flags,
       ...(hasPendingTransition && {
