@@ -184,11 +184,16 @@ export class AttendanceProcessingService {
     }
 
     try {
+      // Convert shift end time to proper DateTime
+      const shiftEndDate = new Date(now);
+      const [hours, minutes] = window.shift.endTime.split(':').map(Number);
+      shiftEndDate.setHours(hours, minutes, 0, 0);
+
       // 1. Regular check-out
       const regularCheckout = await tx.attendance.update({
         where: { id: currentRecord.id },
         data: {
-          CheckOutTime: window.shift.endTime,
+          CheckOutTime: shiftEndDate,
           state: AttendanceState.PRESENT,
           checkStatus: CheckStatus.CHECKED_OUT,
           metadata: {
@@ -213,22 +218,16 @@ export class AttendanceProcessingService {
           employeeId: options.employeeId,
           date: startOfDay(now),
           startTime: currentRecord.CheckInTime,
-          endTime: new Date(window.shift.endTime),
+          endTime: shiftEndDate,
           status: 'COMPLETED' as TimeEntryStatus,
           entryType: PeriodType.REGULAR,
           attendanceId: currentRecord.id,
           regularHours:
-            differenceInMinutes(
-              new Date(window.shift.endTime),
-              currentRecord.CheckInTime,
-            ) / 60,
+            differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
           overtimeHours: 0,
           hours: {
             regular:
-              differenceInMinutes(
-                new Date(window.shift.endTime),
-                currentRecord.CheckInTime,
-              ) / 60,
+              differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
             overtime: 0,
           },
           timing: {
@@ -254,9 +253,12 @@ export class AttendanceProcessingService {
           type: PeriodType.OVERTIME,
           isOvertime: true,
           overtimeState: OvertimeState.IN_PROGRESS,
-          CheckInTime: new Date(window.shift.endTime),
+          CheckInTime: shiftEndDate,
           shiftStartTime: new Date(window.current.start),
           shiftEndTime: new Date(window.current.end),
+          ...(options.metadata?.overtimeId && {
+            overtimeId: options.metadata.overtimeId,
+          }),
           metadata: {
             create: {
               source: 'auto',
@@ -290,7 +292,7 @@ export class AttendanceProcessingService {
         data: {
           employeeId: options.employeeId,
           date: startOfDay(now),
-          startTime: new Date(window.shift.endTime),
+          startTime: shiftEndDate,
           status: 'STARTED' as TimeEntryStatus,
           entryType: PeriodType.OVERTIME,
           attendanceId: overtimeCheckin.id,
