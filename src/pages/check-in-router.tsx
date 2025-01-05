@@ -178,53 +178,60 @@ const CheckInRouter: React.FC = () => {
       const previousStep = currentStep;
       let nextStep: Step = 'auth';
 
-      if (authLoading) {
-        nextStep = 'auth';
-      } else if (!userData) {
+      // Modify the condition order
+      if (!userData) {
         nextStep = 'user';
-      } else if (!locationReady || !locationState?.status) {
+      } else if (!locationState || locationState.status !== 'ready') {
         nextStep = 'location';
+        console.log('Waiting for location:', locationState); // Add this log
+      } else if (authLoading) {
+        nextStep = 'auth';
       } else {
         nextStep = 'ready';
       }
 
-      console.log('Step transition:', {
-        from: previousStep,
-        to: nextStep,
-        authLoading,
-        hasUser: !!userData,
-        locationReady,
-        locationStatus: locationState?.status,
-      });
+      if (previousStep !== nextStep) {
+        console.log('Step transition:', {
+          from: previousStep,
+          to: nextStep,
+          authLoading,
+          hasUser: !!userData,
+          locationReady,
+          locationStatus: locationState?.status,
+          locationDetails: locationState, // Add this for more detail
+        });
+        setCurrentStep(nextStep);
+      }
     } catch (error) {
       console.error('Error updating step:', error);
       setError('Error initializing application');
     }
-  }, [authLoading, userData, locationReady, locationState?.status]);
+  }, [authLoading, userData, locationReady, locationState]);
+
+  useEffect(() => {
+    if (locationState.status === 'ready' && userData && !authLoading) {
+      console.log('All conditions met for ready state:', {
+        locationState,
+        hasUser: !!userData,
+        authLoading,
+        currentStep,
+      });
+    }
+  }, [locationState.status, userData, authLoading, currentStep]);
 
   // System ready state
   const isSystemReady = useMemo(() => {
-    const ready = Boolean(
-      currentStep === 'ready' &&
-        !attendanceLoading &&
-        locationState?.status === 'ready' &&
-        userData &&
-        safeAttendanceProps?.base?.state,
-    );
-
-    console.log('System ready detailed check:', {
-      step: currentStep,
-      loading: attendanceLoading,
-      locationStatus: locationState?.status,
+    const conditions = {
+      stepIsReady: currentStep === 'ready',
+      notLoading: !attendanceLoading,
+      locationReady: locationState?.status === 'ready',
       hasUser: !!userData,
-      hasAttendance: !!safeAttendanceProps?.base?.state,
-      attendanceState: safeAttendanceProps?.base?.state,
-      isReady: ready,
-      periodType: safeAttendanceProps?.periodState?.type,
-      timeWindow: safeAttendanceProps?.periodState?.timeWindow,
-    });
+      hasAttendanceState: !!safeAttendanceProps?.base?.state,
+    };
 
-    return ready;
+    console.log('System ready conditions:', conditions);
+
+    return Object.values(conditions).every(Boolean);
   }, [
     currentStep,
     attendanceLoading,
