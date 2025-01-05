@@ -18,6 +18,7 @@ import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
 import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 import ProcessingView from './ProcessingView';
+import { is } from 'date-fns/locale';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';

@@ -390,7 +390,7 @@ export class AttendanceEnhancementService {
       isAfterMidshift: now >= midShiftTime, // This needs fixing - should be false at 8:35
       isApprovedEarlyCheckout: false,
       isPlannedHalfDayLeave: false,
-      isEmergencyLeave: isVeryEarlyCheckout && !isEarlyCheckout,
+      isEmergencyLeave: isVeryEarlyCheckout,
       isHoliday: window.isHoliday,
       isDayOff: Boolean(window.isDayOff),
       isManualEntry: attendance?.metadata?.source === 'manual',
