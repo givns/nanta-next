@@ -77,6 +77,12 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   );
 
   const calculateProgressMetrics = React.useCallback(() => {
+    console.log('Starting progress metrics calculation:', {
+      timeWindow: currentPeriod?.timeWindow,
+      activity: currentPeriod?.activity,
+      currentTime: format(currentTime, 'HH:mm:ss')
+    });
+  
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
         lateMinutes: 0,
@@ -87,92 +93,91 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isMissed: true,
       };
     }
-
+  
     try {
       const now = getCurrentTime();
-
-      // Convert UTC times to local for comparison
-      const toLocalTime = (timeStr: string) => {
-        if (timeStr.includes('Z')) {
-          const date = new Date(timeStr);
-          date.setHours(date.getHours() + 7); // Convert to Bangkok time
-          return date;
-        }
-        return new Date(timeStr);
-      };
-
-      const shiftStart = toLocalTime(currentPeriod.timeWindow.start);
-      const shiftEnd = toLocalTime(currentPeriod.timeWindow.end);
-      const checkInTime = currentPeriod.activity.checkIn
-        ? toLocalTime(currentPeriod.activity.checkIn)
-        : null;
-
-      // Calculate total shift duration
-      const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-
+      const shiftStart = parseISO(currentPeriod.timeWindow.start);
+      const shiftEnd = parseISO(currentPeriod.timeWindow.end);
+  
       console.log('Time comparisons:', {
         currentTime: format(now, 'HH:mm:ss'),
         shiftStart: format(shiftStart, 'HH:mm:ss'),
         shiftEnd: format(shiftEnd, 'HH:mm:ss'),
-        checkIn: currentPeriod.activity.checkIn
+        checkIn: currentPeriod.activity.checkIn 
           ? format(parseISO(currentPeriod.activity.checkIn), 'HH:mm:ss')
-          : 'No check-in',
+          : 'No check-in'
       });
-
-      if (!checkInTime) {
+  
+      // Calculate total shift duration
+      const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
+  
+      // If current time is before shift start, no late minutes
+      if (now < shiftStart) {
         return {
-          lateMinutes: totalShiftMinutes,
+          lateMinutes: 0,
           earlyMinutes: 0,
           isEarly: false,
           progressPercent: 0,
           totalShiftMinutes,
-          isMissed: true,
+          isMissed: false,
         };
       }
-
-      const earlyMinutes = Math.max(
-        0,
-        differenceInMinutes(shiftStart, checkInTime),
-      );
-      const isEarly = earlyMinutes > 0;
-      const lateMinutes = !isEarly
-        ? Math.max(0, differenceInMinutes(checkInTime, shiftStart))
-        : 0;
-
-      const progressStartTime = isEarly ? shiftStart : checkInTime;
-      const elapsedMinutes = Math.max(
-        0,
-        differenceInMinutes(now, progressStartTime),
-      );
-
-      console.log('Progress calculation:', {
-        now: now.toLocaleTimeString(),
-        shiftStart: shiftStart.toLocaleTimeString(),
-        shiftEnd: shiftEnd.toLocaleTimeString(),
-        checkInTime: checkInTime.toLocaleTimeString(),
-        progressStart: progressStartTime.toLocaleTimeString(),
-        elapsed: elapsedMinutes,
-        total: totalShiftMinutes,
-      });
-
-      const progressPercent = Math.min(
-        (elapsedMinutes / totalShiftMinutes) * 100,
-        100,
-      );
-
+  
+      // If no check-in yet and we're after shift start
+      if (!currentPeriod.activity.checkIn && now > shiftStart) {
+        const lateMinutes = differenceInMinutes(now, shiftStart);
+        return {
+          lateMinutes,
+          earlyMinutes: 0,
+          isEarly: false,
+          progressPercent: 0,
+          totalShiftMinutes,
+          isMissed: false,
+        };
+      }
+  
+      // If checked in
+      if (currentPeriod.activity.checkIn) {
+        const checkInTime = parseISO(currentPeriod.activity.checkIn);
+        
+        // Calculate early/late minutes
+        const earlyMinutes = checkInTime < shiftStart 
+          ? differenceInMinutes(shiftStart, checkInTime)
+          : 0;
+        
+        const isEarly = earlyMinutes > 0;
+        
+        const lateMinutes = !isEarly && checkInTime > shiftStart
+          ? differenceInMinutes(checkInTime, shiftStart)
+          : 0;
+  
+        // Calculate progress
+        const progressStartTime = isEarly ? shiftStart : checkInTime;
+        const elapsedMinutes = differenceInMinutes(now, progressStartTime);
+        const progressPercent = Math.min((elapsedMinutes / totalShiftMinutes) * 100, 100);
+  
+        return {
+          lateMinutes,
+          earlyMinutes,
+          isEarly,
+          progressPercent,
+          totalShiftMinutes,
+          isMissed: false,
+        };
+      }
+  
+      // Default return for other cases
       return {
-        lateMinutes,
-        earlyMinutes,
-        isEarly,
-        progressPercent,
+        lateMinutes: 0,
+        earlyMinutes: 0,
+        isEarly: false,
+        progressPercent: 0,
         totalShiftMinutes,
         isMissed: false,
       };
+  
     } catch (error) {
-      console.error('Progress calculation error:', error, {
-        timeWindow: currentPeriod.timeWindow,
-        activity: currentPeriod.activity,
-      });
+      console.error('Progress calculation error:', error);
       return {
         lateMinutes: 0,
         earlyMinutes: 0,
@@ -182,7 +187,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isMissed: true,
       };
     }
-  }, [currentPeriod]);
+  }, [currentPeriod, currentTime]);
 
   // Handle check-in/check-out times safely
   const checkInTime = useMemo(() => {
