@@ -264,6 +264,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         setIsConfirmedEarlyCheckout(true);
       }
 
+      // Add check for late check-in here
+      if (stateValidation.flags.isLateCheckIn) {
+        console.log('Late check-in detected:', {
+          flags: stateValidation.flags,
+          isCheckingIn: !periodState.activity.checkIn,
+        });
+        setIsLateModalOpen(true);
+        return; // Stop here and wait for modal response
+      }
+
       if (stateValidation.flags.isEmergencyLeave && userData?.lineUserId) {
         const leaveCreated = await createSickLeaveRequest(
           userData.lineUserId,
