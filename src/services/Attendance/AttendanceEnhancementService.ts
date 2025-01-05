@@ -361,12 +361,15 @@ export class AttendanceEnhancementService {
       isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
 
       // Overtime flags
-      isOvertime,
+      isOvertime: Boolean(
+        attendance?.isOvertime || currentState.type === PeriodType.OVERTIME,
+      ),
       isPreShiftOvertime,
       isPostShiftOvertime,
       isDayOffOvertime: isDayOffOvertime,
       isPendingOvertime: Boolean(
-        window.nextPeriod?.type === PeriodType.OVERTIME &&
+        !attendance?.isOvertime && // Only pending if not already in overtime
+          window.nextPeriod?.type === PeriodType.OVERTIME &&
           !currentState.activity.isOvertime,
       ),
 
@@ -376,10 +379,12 @@ export class AttendanceEnhancementService {
       requiresAutoCompletion: false,
 
       // Transition flags
-      hasPendingTransition:
-        !isOvertime && Boolean(window.nextPeriod?.type === PeriodType.OVERTIME),
+      hasPendingTransition: Boolean(
+        !attendance?.isOvertime && // Only pending if not already in overtime
+          window.nextPeriod?.type === PeriodType.OVERTIME,
+      ),
       requiresTransition:
-        !isOvertime &&
+        !attendance?.isOvertime && // Only requires if not already in overtime
         Boolean(window.nextPeriod?.type === PeriodType.OVERTIME) &&
         isActiveAttendance, // Only require transition when checked in
 
@@ -449,6 +454,18 @@ export class AttendanceEnhancementService {
         },
       };
     }
+
+    console.log('Enhanced validation flags:', {
+      currentTime: format(now, 'HH:mm'),
+      isOvertimeRecord: attendance?.isOvertime,
+      overtimeType: currentState.type === PeriodType.OVERTIME,
+      flags: {
+        hasPending: flags.hasPendingTransition,
+        isOvertime: flags.isOvertime,
+        isPending: flags.isPendingOvertime,
+        requiresTransition: flags.requiresTransition,
+      },
+    });
 
     // Determine if check-in/out should be allowed
     const canCheckIn =

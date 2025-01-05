@@ -378,7 +378,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
                     {/* Overtime Times */}
                     <div>
-                      <div className="text-sm font-medium mb-2">
+                      <div className="text-sm text-yellow-600 font-medium mb-2">
                         ช่วงเวลาทำงานล่วงเวลา
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -400,12 +400,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                               : '--:--'}
                           </div>
                         </div>
-                      </div>
-
-                      <div className="mt-3 text-yellow-600 text-sm">
-                        {currentPeriod.activity.isActive
-                          ? 'อยู่ในช่วงเวลาทำงานล่วงเวลา'
-                          : 'หมดเวลาทำงานล่วงเวลา'}
                       </div>
                     </div>
                   </div>
@@ -434,7 +428,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                   {/* Regular Times */}
                   <div>
                     <div className="text-sm font-medium mb-2 flex items-center justify-between">
-                      <span>กะปกติ</span>
+                      <span>เวลางาน</span>
                       {metrics.lateMinutes > 0 && (
                         <span className="text-xs text-red-600">
                           สาย {metrics.lateMinutes} นาที
@@ -472,25 +466,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                           shiftStart,
                           ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
                         );
-
-                        if (currentPeriod.activity.isActive) {
-                          return 'อยู่ในช่วงเวลาทำงานปกติ';
-                        }
-
-                        // Check if within early check-in window
-                        if (now >= earlyThreshold && now < shiftStart) {
-                          return 'สามารถลงเวลาเข้างานได้';
-                        }
-
-                        // Check if within regular working hours
-                        if (
-                          isWithinInterval(now, {
-                            start: shiftStart,
-                            end: shiftEnd,
-                          })
-                        ) {
-                          return 'อยู่ในช่วงเวลาทำงานปกติ';
-                        }
 
                         // After shift end
                         if (now > shiftEnd) {
