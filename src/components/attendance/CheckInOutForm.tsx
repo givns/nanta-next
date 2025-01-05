@@ -85,18 +85,14 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const now = getCurrentTime();
 
-  // At the top of CheckInOutForm
-  console.log('CheckInOutForm render:', {
-    step,
-    error,
-    attendanceError,
-    processingState,
-    locationState: {
-      status: locationState.status,
-      error: locationState.error,
-    },
-    hasPeriodState: !!periodState,
-  });
+  useEffect(() => {
+    console.log('Form validation state:', {
+      flags: stateValidation?.flags,
+      isLateCheckIn: stateValidation?.flags?.isLateCheckIn,
+      currentStep: step,
+      checkingIn: !periodState?.activity?.checkIn,
+    });
+  }, [stateValidation, step, periodState]);
 
   // Add state transition logging
   useEffect(() => {
