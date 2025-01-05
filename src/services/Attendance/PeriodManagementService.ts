@@ -73,39 +73,42 @@ export class PeriodManagementService {
       end: format(endOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
     };
 
+    const isOvertimeActive = Boolean(attendance?.isOvertime);
+
     try {
       // Determine time window based on current period type
-      const timeWindow = isValidOvertime
-        ? {
-            start: format(
-              parseISO(
-                `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo?.startTime}`,
-              ),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            ),
-            end: format(
-              parseISO(
-                `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo?.endTime}`,
-              ),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            ),
-          }
-        : isValidShift
+      const timeWindow =
+        isOvertimeActive && isValidOvertime
           ? {
               start: format(
                 parseISO(
-                  `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
+                  `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo?.startTime}`,
                 ),
                 "yyyy-MM-dd'T'HH:mm:ss.SSS",
               ),
               end: format(
                 parseISO(
-                  `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+                  `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo?.endTime}`,
                 ),
                 "yyyy-MM-dd'T'HH:mm:ss.SSS",
               ),
             }
-          : defaultWindow;
+          : isValidShift
+            ? {
+                start: format(
+                  parseISO(
+                    `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
+                  ),
+                  "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                ),
+                end: format(
+                  parseISO(
+                    `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+                  ),
+                  "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                ),
+              }
+            : defaultWindow;
 
       // Core status checks
       const isCheckedIn = Boolean(
@@ -119,12 +122,14 @@ export class PeriodManagementService {
         : false;
 
       // Check for transition conditions if shift is valid
-      const transitionWindow = isValidShift
-        ? {
-            start: subMinutes(parseISO(timeWindow.end), 5),
-            end: addMinutes(parseISO(timeWindow.end), 15), // Added 15 minutes after
-          }
-        : null;
+      // Then calculate transition based on current period
+      const transitionWindow =
+        isValidShift && !isOvertimeActive
+          ? {
+              start: subMinutes(parseISO(timeWindow.end), 5),
+              end: addMinutes(parseISO(timeWindow.end), 15),
+            }
+          : null;
 
       const hasUpcomingOvertime = Boolean(
         isValidShift &&

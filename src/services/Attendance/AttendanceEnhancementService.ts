@@ -131,6 +131,18 @@ export class AttendanceEnhancementService {
       now,
     );
 
+    // Fix context building - don't include next period if already in overtime
+    const isOvertimeActive = Boolean(
+      attendance?.isOvertime || attendance?.type === PeriodType.OVERTIME,
+    );
+
+    console.log('Building context:', {
+      currentTime: format(now, 'HH:mm'),
+      isOvertimeActive,
+      currentType: attendance?.type,
+      transitions: transitions.length,
+    });
+
     // Map ShiftWindowResponse to our context interfaces
     const context: ShiftContext & TransitionContext = {
       shift: periodState.shift,
@@ -140,19 +152,23 @@ export class AttendanceEnhancementService {
         isAdjusted: periodState.isAdjusted,
         holidayInfo: periodState.holidayInfo,
       },
+      // Only include next period info if not already in overtime
       nextPeriod:
-        transitions.length > 0
+        !isOvertimeActive && transitions.length > 0
           ? {
               type: transitions[0].to.type,
               startTime: transitions[0].transitionTime,
               overtimeInfo: periodState.overtimeInfo,
             }
           : null,
-      transition: this.determineTransitionContext(
-        now,
-        periodState,
-        periodState.overtimeInfo,
-      ),
+      // Similarly, only include transition info if not already transitioned
+      transition: !isOvertimeActive
+        ? this.determineTransitionContext(
+            now,
+            periodState,
+            periodState.overtimeInfo,
+          )
+        : undefined,
     };
 
     // Create state validation
@@ -167,7 +183,7 @@ export class AttendanceEnhancementService {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
         currentState,
-        transitions,
+        transitions: isOvertimeActive ? [] : transitions, // Clear transitions if in overtime
       },
       base: {
         state: attendance?.state || AttendanceState.ABSENT,
@@ -281,10 +297,8 @@ export class AttendanceEnhancementService {
         }
       : null;
     // Calculate overtime status
-    const isOvertime = Boolean(
-      attendance?.isOvertime ||
-        currentState.activity.isOvertime ||
-        currentState.type === PeriodType.OVERTIME,
+    const isInOvertimePeriod = Boolean(
+      attendance?.isOvertime || currentState.type === PeriodType.OVERTIME,
     );
 
     const overtimeStarted = Boolean(
@@ -296,7 +310,7 @@ export class AttendanceEnhancementService {
     const isPreShiftOvertime = false;
 
     const isPostShiftOvertime = Boolean(
-      isOvertime &&
+      isInOvertimePeriod &&
         overtimeWindow?.start &&
         overtimeWindow.start >= window.shift.endTime,
     );
@@ -361,14 +375,12 @@ export class AttendanceEnhancementService {
       isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
 
       // Overtime flags
-      isOvertime: Boolean(
-        attendance?.isOvertime || currentState.type === PeriodType.OVERTIME,
-      ),
+      isOvertime: isInOvertimePeriod,
       isPreShiftOvertime,
       isPostShiftOvertime,
       isDayOffOvertime: isDayOffOvertime,
       isPendingOvertime: Boolean(
-        !attendance?.isOvertime && // Only pending if not already in overtime
+        !isInOvertimePeriod && // Only pending if not already in overtime
           window.nextPeriod?.type === PeriodType.OVERTIME &&
           !currentState.activity.isOvertime,
       ),
@@ -380,13 +392,11 @@ export class AttendanceEnhancementService {
 
       // Transition flags
       hasPendingTransition: Boolean(
-        !attendance?.isOvertime && // Only pending if not already in overtime
-          window.nextPeriod?.type === PeriodType.OVERTIME,
+        !isInOvertimePeriod && window.nextPeriod?.type === PeriodType.OVERTIME,
       ),
-      requiresTransition:
-        !attendance?.isOvertime && // Only requires if not already in overtime
-        Boolean(window.nextPeriod?.type === PeriodType.OVERTIME) &&
-        isActiveAttendance, // Only require transition when checked in
+      requiresTransition: Boolean(
+        !isInOvertimePeriod && hasUpcomingOvertime && isInTransitionWindow,
+      ),
 
       // Schedule flags
       isMorningShift: parseInt(window.shift.startTime.split(':')[0], 10) < 12,
@@ -457,10 +467,10 @@ export class AttendanceEnhancementService {
 
     // Determine if check-in/out should be allowed
     const canCheckIn =
-      !isOvertime &&
+      !isInOvertimePeriod &&
       (currentState.validation.isWithinBounds || flags.isEarlyCheckIn);
 
-    const canCheckOut = isOvertime
+    const canCheckOut = isInOvertimePeriod
       ? isActiveAttendance && isWithinOvertimePeriod
       : isActiveAttendance && currentState.validation.isWithinBounds;
 
