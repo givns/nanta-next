@@ -22,6 +22,12 @@ import {
 } from '@/types/attendance';
 import { UserData } from '@/types/user';
 
+interface OvertimeInfo extends OvertimeContext {
+  checkIn?: Date | null; // Changed from string to Date
+  checkOut?: Date | null;
+  isActive: boolean; // From periodState
+}
+
 interface MobileAttendanceAppProps {
   userData: UserData;
   shiftData: ShiftData | null;
@@ -31,7 +37,7 @@ interface MobileAttendanceAppProps {
     isDayOff: boolean;
   };
   attendanceStatus: AttendanceBaseResponse;
-  overtimeInfo?: OvertimeContext | null;
+  overtimeInfo?: OvertimeInfo;
   validation: ValidationResponseWithMetadata;
   locationState: {
     isReady: boolean;
@@ -47,6 +53,16 @@ interface ProgressMetrics {
   progressPercent: number;
   totalShiftMinutes: number;
   isMissed: boolean;
+}
+
+function formatTime(time: Date | string | null | undefined): string | null {
+  if (!time) return null;
+
+  // If it's a Date, convert to string
+  const timeString = time instanceof Date ? time.toLocaleTimeString() : time;
+
+  // Your existing formatting logic
+  return timeString;
 }
 
 const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
@@ -387,7 +403,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                             เข้า OT
                           </div>
                           <div className="font-medium">
-                            {formatSafeTime(overtimeInfo?.startTime)}
+                            {formatTime(overtimeInfo?.checkIn)}
                           </div>
                         </div>
                         <div>

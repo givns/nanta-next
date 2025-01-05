@@ -571,7 +571,27 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 isDayOff,
               }}
               attendanceStatus={attendanceBase}
-              overtimeInfo={context.nextPeriod?.overtimeInfo} // get overtime info from context
+              overtimeInfo={
+                context.nextPeriod?.overtimeInfo
+                  ? {
+                      checkIn: attendanceBase.latestAttendance?.CheckInTime,
+                      checkOut: attendanceBase.latestAttendance?.CheckOutTime,
+                      isActive: periodState.activity.isActive,
+                      id: context.nextPeriod.overtimeInfo.id,
+                      startTime: context.nextPeriod.overtimeInfo.startTime,
+                      endTime: context.nextPeriod.overtimeInfo.endTime,
+                      durationMinutes:
+                        context.nextPeriod.overtimeInfo.durationMinutes,
+                      isInsideShiftHours:
+                        context.nextPeriod.overtimeInfo.isInsideShiftHours,
+                      isDayOffOvertime:
+                        context.nextPeriod.overtimeInfo.isDayOffOvertime,
+                      reason: context.nextPeriod.overtimeInfo.reason,
+                      validationWindow:
+                        context.nextPeriod.overtimeInfo.validationWindow,
+                    }
+                  : undefined
+              }
               validation={{
                 allowed: stateValidation.allowed,
                 reason: stateValidation.reason,
