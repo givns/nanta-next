@@ -158,30 +158,37 @@ export class PeriodManagementService {
         ? PeriodType.OVERTIME
         : PeriodType.REGULAR;
 
-      // Debug logging
-      console.log('Period resolution:', {
+      // Early check calculation (only for regular period)
+      const isEarlyCheck =
+        !isInOvertimeTime &&
+        isValidShift &&
+        this.checkIfEarly(now, parseISO(timeWindow.start));
+
+      // Late check calculation (only for regular period)
+      const isLateCheck =
+        !isInOvertimeTime &&
+        isValidShift &&
+        this.checkIfLate(now, parseISO(timeWindow.start));
+
+      // Overnight calculation
+      const isOvernightShift =
+        isValidShift &&
+        parseISO(timeWindow.end).getDate() >
+          parseISO(timeWindow.start).getDate();
+
+      console.log('Period validation calculations:', {
         currentTime: format(now, 'HH:mm'),
-        shift: {
-          isValid: isValidShift,
-          startTime: periodState.shift?.startTime,
-          endTime: periodState.shift?.endTime,
+        periodType,
+        isOvertimePeriod: isInOvertimeTime,
+        regularValidation: {
+          isEarly: isEarlyCheck,
+          isLate: isLateCheck,
+          isWithinBounds: isInShiftTime || isEarlyCheck,
+          isOvernight: isOvernightShift,
         },
-        window: {
-          start: format(parseISO(timeWindow.start), 'HH:mm'),
-          end: format(parseISO(timeWindow.end), 'HH:mm'),
-        },
-        transition: transitionWindow
-          ? {
-              start: format(transitionWindow.start, 'HH:mm'),
-              end: format(transitionWindow.end, 'HH:mm'),
-              isInWindow: isInTransitionWindow,
-              hasOvertime: hasUpcomingOvertime,
-              overtimeInfo: periodState.overtimeInfo,
-            }
-          : null,
-        activity: {
-          isCheckedIn,
-          isInShiftTime,
+        overtimeValidation: {
+          isWithinBounds: isInOvertimeTime,
+          isOvernight: isOvernightShift,
         },
       });
 
@@ -204,15 +211,25 @@ export class PeriodManagementService {
             : null,
           isOvertime: isInOvertimeTime,
           isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
-          isInsideShiftHours: isInOvertimeTime,
+          isInsideShiftHours: isInShiftTime,
         },
-        validation: {
-          isWithinBounds: isInShiftTime,
-          isEarly: false, // Reset for overtime
-          isLate: false, // Reset for overtime
-          isOvernight: false, // Reset for overtime
-          isConnected: hasActiveTransition,
-        },
+        validation: isInOvertimeTime
+          ? {
+              // Overtime validation
+              isWithinBounds: isInOvertimeTime,
+              isEarly: false, // No early check for overtime
+              isLate: false, // No late check for overtime
+              isOvernight: isOvernightShift,
+              isConnected: hasActiveTransition,
+            }
+          : {
+              // Regular period validation
+              isWithinBounds: isInShiftTime || isEarlyCheck,
+              isEarly: isEarlyCheck,
+              isLate: isLateCheck,
+              isOvernight: isOvernightShift,
+              isConnected: hasActiveTransition,
+            },
       };
     } catch (error) {
       console.error('Error resolving period:', error);
