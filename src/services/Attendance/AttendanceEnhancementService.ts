@@ -455,6 +455,15 @@ export class AttendanceEnhancementService {
       };
     }
 
+    // Determine if check-in/out should be allowed
+    const canCheckIn =
+      !isOvertime &&
+      (currentState.validation.isWithinBounds || flags.isEarlyCheckIn);
+
+    const canCheckOut = isOvertime
+      ? isActiveAttendance && isWithinOvertimePeriod
+      : isActiveAttendance && currentState.validation.isWithinBounds;
+
     console.log('Enhanced validation flags:', {
       currentTime: format(now, 'HH:mm'),
       isOvertimeRecord: attendance?.isOvertime,
@@ -466,15 +475,6 @@ export class AttendanceEnhancementService {
         requiresTransition: flags.requiresTransition,
       },
     });
-
-    // Determine if check-in/out should be allowed
-    const canCheckIn =
-      !isOvertime &&
-      (currentState.validation.isWithinBounds || flags.isEarlyCheckIn);
-
-    const canCheckOut = isOvertime
-      ? isActiveAttendance && isWithinOvertimePeriod
-      : isActiveAttendance && currentState.validation.isWithinBounds;
 
     // Handle normal validation
     return {
