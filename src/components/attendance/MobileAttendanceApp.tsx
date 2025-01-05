@@ -1,5 +1,11 @@
 import React, { useMemo } from 'react';
-import { differenceInMinutes, format, parseISO } from 'date-fns';
+import {
+  differenceInMinutes,
+  format,
+  isWithinInterval,
+  parseISO,
+  subMinutes,
+} from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
@@ -12,6 +18,7 @@ import {
   AttendanceBaseResponse,
   OvertimeContext,
   ValidationResponseWithMetadata,
+  ATTENDANCE_CONSTANTS,
 } from '@/types/attendance';
 import { UserData } from '@/types/user';
 
@@ -80,9 +87,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     console.log('Starting progress metrics calculation:', {
       timeWindow: currentPeriod?.timeWindow,
       activity: currentPeriod?.activity,
-      currentTime: format(currentTime, 'HH:mm:ss')
+      currentTime: format(currentTime, 'HH:mm:ss'),
     });
-  
+
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
         lateMinutes: 0,
@@ -93,24 +100,24 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         isMissed: true,
       };
     }
-  
+
     try {
       const now = getCurrentTime();
       const shiftStart = parseISO(currentPeriod.timeWindow.start);
       const shiftEnd = parseISO(currentPeriod.timeWindow.end);
-  
+
       console.log('Time comparisons:', {
         currentTime: format(now, 'HH:mm:ss'),
         shiftStart: format(shiftStart, 'HH:mm:ss'),
         shiftEnd: format(shiftEnd, 'HH:mm:ss'),
-        checkIn: currentPeriod.activity.checkIn 
+        checkIn: currentPeriod.activity.checkIn
           ? format(parseISO(currentPeriod.activity.checkIn), 'HH:mm:ss')
-          : 'No check-in'
+          : 'No check-in',
       });
-  
+
       // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-  
+
       // If current time is before shift start, no late minutes
       if (now < shiftStart) {
         return {
@@ -122,7 +129,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           isMissed: false,
         };
       }
-  
+
       // If no check-in yet and we're after shift start
       if (!currentPeriod.activity.checkIn && now > shiftStart) {
         const lateMinutes = differenceInMinutes(now, shiftStart);
@@ -135,27 +142,32 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           isMissed: false,
         };
       }
-  
+
       // If checked in
       if (currentPeriod.activity.checkIn) {
         const checkInTime = parseISO(currentPeriod.activity.checkIn);
-        
+
         // Calculate early/late minutes
-        const earlyMinutes = checkInTime < shiftStart 
-          ? differenceInMinutes(shiftStart, checkInTime)
-          : 0;
-        
+        const earlyMinutes =
+          checkInTime < shiftStart
+            ? differenceInMinutes(shiftStart, checkInTime)
+            : 0;
+
         const isEarly = earlyMinutes > 0;
-        
-        const lateMinutes = !isEarly && checkInTime > shiftStart
-          ? differenceInMinutes(checkInTime, shiftStart)
-          : 0;
-  
+
+        const lateMinutes =
+          !isEarly && checkInTime > shiftStart
+            ? differenceInMinutes(checkInTime, shiftStart)
+            : 0;
+
         // Calculate progress
         const progressStartTime = isEarly ? shiftStart : checkInTime;
         const elapsedMinutes = differenceInMinutes(now, progressStartTime);
-        const progressPercent = Math.min((elapsedMinutes / totalShiftMinutes) * 100, 100);
-  
+        const progressPercent = Math.min(
+          (elapsedMinutes / totalShiftMinutes) * 100,
+          100,
+        );
+
         return {
           lateMinutes,
           earlyMinutes,
@@ -165,7 +177,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           isMissed: false,
         };
       }
-  
+
       // Default return for other cases
       return {
         lateMinutes: 0,
@@ -175,7 +187,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         totalShiftMinutes,
         isMissed: false,
       };
-  
     } catch (error) {
       console.error('Progress calculation error:', error);
       return {
@@ -451,9 +462,44 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                     </div>
 
                     <div className="mt-3 text-blue-600 text-sm">
-                      {currentPeriod.activity.isActive
-                        ? 'อยู่ในช่วงเวลาทำงานปกติ'
-                        : 'หมดเวลาทำงานปกติ'}
+                      {(() => {
+                        const now = getCurrentTime();
+                        const shiftStart = parseISO(
+                          currentPeriod.timeWindow.start,
+                        );
+                        const shiftEnd = parseISO(currentPeriod.timeWindow.end);
+                        const earlyThreshold = subMinutes(
+                          shiftStart,
+                          ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+                        );
+
+                        if (currentPeriod.activity.isActive) {
+                          return 'อยู่ในช่วงเวลาทำงานปกติ';
+                        }
+
+                        // Check if within early check-in window
+                        if (now >= earlyThreshold && now < shiftStart) {
+                          return 'สามารถลงเวลาเข้างานได้';
+                        }
+
+                        // Check if within regular working hours
+                        if (
+                          isWithinInterval(now, {
+                            start: shiftStart,
+                            end: shiftEnd,
+                          })
+                        ) {
+                          return 'อยู่ในช่วงเวลาทำงานปกติ';
+                        }
+
+                        // After shift end
+                        if (now > shiftEnd) {
+                          return 'หมดเวลาทำงานปกติ';
+                        }
+
+                        // Before early check-in window
+                        return 'ยังไม่ถึงเวลาทำงาน';
+                      })()}
                     </div>
                   </div>
                 </div>
