@@ -85,6 +85,27 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
   const now = getCurrentTime();
 
+  // At the top of CheckInOutForm
+  console.log('CheckInOutForm render:', {
+    step,
+    error,
+    attendanceError,
+    processingState,
+    locationState: {
+      status: locationState.status,
+      error: locationState.error,
+    },
+    hasPeriodState: !!periodState,
+  });
+
+  // Add state transition logging
+  useEffect(() => {
+    console.log('Step changed:', {
+      currentStep: step,
+      processingStatus: processingState.status,
+    });
+  }, [step, processingState.status]);
+
   const handleAttendanceSubmit = useCallback(
     async (params?: AttendanceSubmitParams) => {
       try {
@@ -515,11 +536,25 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     );
   }
 
+  {
+    /* Add logging before MobileAttendanceApp render */
+  }
+  {
+    console.log('About to render MobileAttendanceApp:', {
+      hasUserData: !!userData,
+      hasShift: !!shift,
+      currentPeriod: periodState,
+      attendanceBase: attendanceBase,
+      step,
+    });
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {step === 'info' && (
         <>
           <div className="flex-1 overflow-y-auto pb-32">
+            +
             <MobileAttendanceApp
               userData={userData}
               shiftData={shift} // use shift instead of effectiveShift

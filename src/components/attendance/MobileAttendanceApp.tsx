@@ -76,15 +76,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [attendanceStatus],
   );
 
-  // Helper to convert UTC to local time
-  const convertToLocalTime = (isoString: string): Date => {
-    const date = new Date(isoString);
-    if (isoString.includes('Z')) {
-      date.setHours(date.getHours() + 7);
-    }
-    return date;
-  };
-
   const calculateProgressMetrics = React.useCallback(() => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
