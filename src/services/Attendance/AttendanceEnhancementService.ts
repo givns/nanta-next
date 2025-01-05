@@ -27,6 +27,7 @@ import {
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { is } from 'date-fns/locale';
 
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
@@ -389,7 +390,7 @@ export class AttendanceEnhancementService {
       isAfterMidshift: now >= midShiftTime, // This needs fixing - should be false at 8:35
       isApprovedEarlyCheckout: false,
       isPlannedHalfDayLeave: false,
-      isEmergencyLeave: false,
+      isEmergencyLeave: isVeryEarlyCheckout && !isEarlyCheckout,
       isHoliday: window.isHoliday,
       isDayOff: Boolean(window.isDayOff),
       isManualEntry: attendance?.metadata?.source === 'manual',
