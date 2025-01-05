@@ -364,8 +364,10 @@ export class AttendanceEnhancementService {
       isPreShiftOvertime,
       isPostShiftOvertime,
       isDayOffOvertime: isDayOffOvertime,
-      isPendingOvertime:
-        !isOvertime && Boolean(window.nextPeriod?.type === PeriodType.OVERTIME),
+      isPendingOvertime: Boolean(
+        window.nextPeriod?.type === PeriodType.OVERTIME &&
+          !currentState.activity.isOvertime,
+      ),
 
       // Auto-completion flags
       isAutoCheckIn: attendance?.metadata?.source === 'auto',
@@ -381,9 +383,10 @@ export class AttendanceEnhancementService {
         isActiveAttendance, // Only require transition when checked in
 
       // Schedule flags
-      isAfternoonShift: false,
-      isMorningShift: true,
-      isAfterMidshift: true,
+      isMorningShift: parseInt(window.shift.startTime.split(':')[0], 10) < 12,
+      isAfternoonShift:
+        parseInt(window.shift.startTime.split(':')[0], 10) >= 12,
+      isAfterMidshift: now >= midShiftTime, // This needs fixing - should be false at 8:35
       isApprovedEarlyCheckout: false,
       isPlannedHalfDayLeave: false,
       isEmergencyLeave: false,

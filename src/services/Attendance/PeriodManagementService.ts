@@ -15,6 +15,7 @@ import {
   addMinutes,
   startOfDay,
   endOfDay,
+  differenceInMinutes,
 } from 'date-fns';
 
 interface TransitionWindowConfig {
@@ -331,10 +332,22 @@ export class PeriodManagementService {
 
   private checkIfLate(now: Date, start: Date): boolean {
     try {
-      return isWithinInterval(now, {
+      // Add debug logging
+      const lateThreshold = addMinutes(
         start,
-        end: addMinutes(start, ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD),
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+      );
+      const isLate = now > lateThreshold;
+
+      console.log('Late check calculation:', {
+        currentTime: format(now, 'HH:mm'),
+        shiftStart: format(start, 'HH:mm'),
+        lateThreshold: format(lateThreshold, 'HH:mm'),
+        isLate,
+        minutesLate: differenceInMinutes(now, start),
       });
+
+      return isLate;
     } catch (error) {
       console.error('Error checking late status:', error);
       return false;
