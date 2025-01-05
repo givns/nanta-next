@@ -86,6 +86,14 @@ const CheckInRouter: React.FC = () => {
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
+  useEffect(() => {
+    console.log('CheckInRouter initialized:', {
+      currentStep,
+      loadingPhase,
+      hasUser: !!userData,
+    });
+  }, []);
+
   // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
@@ -101,6 +109,10 @@ const CheckInRouter: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log('User data received:', {
+        hasUser: !!data?.user,
+        userId: data?.user?.employeeId,
+      });
       if (!data?.user) {
         throw new Error('No user data received');
       }
@@ -131,6 +143,20 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
+  useEffect(() => {
+    console.log('Location/Attendance state update:', {
+      locationReady,
+      locationStatus: locationState?.status,
+      attendanceLoading,
+      hasAttendanceProps: !!attendanceProps,
+    });
+  }, [
+    locationReady,
+    locationState?.status,
+    attendanceLoading,
+    attendanceProps,
+  ]);
+
   // Process attendance props
   const safeAttendanceProps = useMemo(() => {
     if (!attendanceProps) return null;
@@ -149,15 +175,27 @@ const CheckInRouter: React.FC = () => {
   // Step management
   useEffect(() => {
     try {
+      const previousStep = currentStep;
+      let nextStep: Step = 'auth';
+
       if (authLoading) {
-        setCurrentStep('auth');
+        nextStep = 'auth';
       } else if (!userData) {
-        setCurrentStep('user');
+        nextStep = 'user';
       } else if (!locationReady || !locationState?.status) {
-        setCurrentStep('location');
+        nextStep = 'location';
       } else {
-        setCurrentStep('ready');
+        nextStep = 'ready';
       }
+
+      console.log('Step transition:', {
+        from: previousStep,
+        to: nextStep,
+        authLoading,
+        hasUser: !!userData,
+        locationReady,
+        locationStatus: locationState?.status,
+      });
     } catch (error) {
       console.error('Error updating step:', error);
       setError('Error initializing application');
@@ -174,13 +212,16 @@ const CheckInRouter: React.FC = () => {
         safeAttendanceProps?.base?.state,
     );
 
-    console.log('System ready check:', {
+    console.log('System ready detailed check:', {
       step: currentStep,
       loading: attendanceLoading,
       locationStatus: locationState?.status,
       hasUser: !!userData,
       hasAttendance: !!safeAttendanceProps?.base?.state,
+      attendanceState: safeAttendanceProps?.base?.state,
       isReady: ready,
+      periodType: safeAttendanceProps?.periodState?.type,
+      timeWindow: safeAttendanceProps?.periodState?.timeWindow,
     });
 
     return ready;
@@ -196,18 +237,27 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
+    console.log('Loading phase check:', {
+      isSystemReady,
+      currentPhase: loadingPhase,
+      step: currentStep,
+    });
+
     if (isSystemReady) {
       if (loadingPhase === 'loading') {
         setLoadingPhase('fadeOut');
       } else if (loadingPhase === 'fadeOut') {
-        timer = setTimeout(() => setLoadingPhase('complete'), 500);
+        timer = setTimeout(() => {
+          console.log('Completing loading phase');
+          setLoadingPhase('complete');
+        }, 500);
       }
     }
 
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [isSystemReady, loadingPhase]);
+  }, [isSystemReady, loadingPhase, currentStep]);
 
   // Main content
   const mainContent = useMemo(() => {
