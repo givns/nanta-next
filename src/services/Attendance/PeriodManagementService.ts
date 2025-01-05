@@ -146,28 +146,51 @@ export class PeriodManagementService {
       // Check if there's an active transition
       const hasActiveTransition = transitions.length > 0;
 
-      // Determine if currently in overtime
-      const isInOvertimeTime = isValidOvertime
-        ? isWithinInterval(now, {
-            start: parseISO(timeWindow.start),
-            end: parseISO(timeWindow.end),
-          })
-        : false;
+      // Modified overtime determination to consider transition window and attendance state
+      const isOvertimePeriod = Boolean(
+        attendance?.isOvertime || // Existing overtime state
+          (isValidOvertime &&
+            // Within overtime window
+            (isWithinInterval(now, {
+              start: parseISO(timeWindow.start),
+              end: parseISO(timeWindow.end),
+            }) ||
+              // Or in transition window with upcoming overtime
+              (isInTransitionWindow && hasUpcomingOvertime))),
+      );
+
+      console.log('Overtime state determination:', {
+        currentTime: format(now, 'HH:mm'),
+        existingOvertime: attendance?.isOvertime,
+        inTransitionWindow: isInTransitionWindow,
+        hasUpcomingOvertime,
+        transitionWindow: transitionWindow
+          ? {
+              start: format(transitionWindow.start, 'HH:mm'),
+              end: format(transitionWindow.end, 'HH:mm'),
+            }
+          : null,
+        overtimeWindow: {
+          start: periodState.overtimeInfo?.startTime,
+          end: periodState.overtimeInfo?.endTime,
+        },
+        isOvertimePeriod,
+      });
 
       // Determine period type based on transitions
-      const periodType = isInOvertimeTime
+      const periodType = isOvertimePeriod
         ? PeriodType.OVERTIME
         : PeriodType.REGULAR;
 
       // Early check calculation (only for regular period)
       const isEarlyCheck =
-        !isInOvertimeTime &&
+        !isOvertimePeriod &&
         isValidShift &&
         this.checkIfEarly(now, parseISO(timeWindow.start));
 
       // Late check calculation (only for regular period)
       const isLateCheck =
-        !isInOvertimeTime &&
+        !isOvertimePeriod &&
         isValidShift &&
         this.checkIfLate(now, parseISO(timeWindow.start));
 
@@ -180,7 +203,7 @@ export class PeriodManagementService {
       console.log('Period validation calculations:', {
         currentTime: format(now, 'HH:mm'),
         periodType,
-        isOvertimePeriod: isInOvertimeTime,
+        isOvertimePeriod: isOvertimePeriod,
         regularValidation: {
           isEarly: isEarlyCheck,
           isLate: isLateCheck,
@@ -188,7 +211,7 @@ export class PeriodManagementService {
           isOvernight: isOvernightShift,
         },
         overtimeValidation: {
-          isWithinBounds: isInOvertimeTime,
+          isWithinBounds: isOvertimePeriod,
           isOvernight: isOvernightShift,
         },
       });
@@ -197,7 +220,7 @@ export class PeriodManagementService {
         type: periodType,
         timeWindow,
         activity: {
-          isActive: isCheckedIn && (isInOvertimeTime || hasActiveTransition),
+          isActive: isCheckedIn && (isOvertimePeriod || hasActiveTransition),
           checkIn: attendance?.CheckInTime
             ? format(
                 new Date(attendance.CheckInTime),
@@ -210,14 +233,14 @@ export class PeriodManagementService {
                 "yyyy-MM-dd'T'HH:mm:ss.SSS",
               )
             : null,
-          isOvertime: isInOvertimeTime,
+          isOvertime: isOvertimePeriod,
           isDayOffOvertime: Boolean(periodState.overtimeInfo?.isDayOffOvertime),
           isInsideShiftHours: isInShiftTime,
         },
-        validation: isInOvertimeTime
+        validation: isOvertimePeriod
           ? {
               // Overtime validation
-              isWithinBounds: isInOvertimeTime,
+              isWithinBounds: isOvertimePeriod,
               isEarly: false, // No early check for overtime
               isLate: false, // No late check for overtime
               isOvernight: isOvernightShift,
