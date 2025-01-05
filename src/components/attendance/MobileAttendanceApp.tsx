@@ -55,6 +55,16 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 }) => {
   const currentTime = getCurrentTime();
 
+  // Add this log
+  console.log('MobileAttendanceApp render:', {
+    currentPeriod,
+    shouldShowProgress:
+      status.isDayOff || status.isHoliday
+        ? currentPeriod.activity.isOvertime
+        : true,
+    currentTime: format(currentTime, 'HH:mm'),
+  });
+
   // Use StatusHelpers to get composite status
   const currentCompositeStatus = React.useMemo(
     () => ({
@@ -221,6 +231,16 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       ? currentPeriod.activity.isOvertime
       : true;
 
+  console.log('Progress display conditions:', {
+    shouldShowProgress,
+    hasTimeWindow: !!currentPeriod?.timeWindow,
+    currentPeriod: {
+      type: currentPeriod?.type,
+      timeWindow: currentPeriod?.timeWindow,
+      activity: currentPeriod?.activity,
+    },
+  });
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header with current time */}
@@ -308,6 +328,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           {shouldShowProgress &&
             currentPeriod &&
             (() => {
+              console.log('Calculating progress metrics...'); // Add this
               const metrics = calculateProgressMetrics();
               const isOvertimePeriod =
                 currentPeriod.type === PeriodType.OVERTIME;
