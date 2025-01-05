@@ -407,13 +407,32 @@ export class LeaveServiceServer
       : this.getRegularHoursForLeave(leaveRequest.leaveFormat as LeaveFormat);
 
     while (currentDate <= endDate) {
+      // First, find if there's any existing regular period record for this date
+      const existingAttendance = await tx.attendance.findFirst({
+        where: {
+          employeeId,
+          date: currentDate,
+          type: 'REGULAR',
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
       // Create/Update attendance record with proper nested relations
       const attendance = await tx.attendance.upsert({
         where: {
-          employee_date_attendance: {
-            employeeId,
-            date: currentDate,
-          },
+          // If we have an existing record, use its ID, otherwise use a compound key
+          ...(existingAttendance
+            ? { id: existingAttendance.id }
+            : {
+                employee_date_period_sequence: {
+                  employeeId,
+                  date: currentDate,
+                  type: 'REGULAR',
+                  periodSequence: 1, // Always 1 for regular period
+                },
+              }),
         },
         create: {
           employeeId,
@@ -421,6 +440,8 @@ export class LeaveServiceServer
           state: leaveType === 'ลาโดยไม่ได้รับค่าจ้าง' ? 'OFF' : 'INCOMPLETE',
           checkStatus: 'PENDING',
           type: 'REGULAR',
+          periodSequence: 1, // Always 1 for regular period
+          createdAt: new Date(), // Explicitly set creation time
           metadata: {
             create: {
               isManualEntry: true,
@@ -458,13 +479,12 @@ export class LeaveServiceServer
         },
       });
 
-      // Create/Update time entry for the leave day
+      // Modified time entry handling to be more specific about the period
       const timeEntryData: Prisma.TimeEntryUncheckedCreateInput = {
         employeeId: attendance.employeeId,
         date: attendance.date,
         startTime: attendance.date,
         endTime: attendance.date,
-        // Use hours object structure
         hours: {
           regular: regularHours,
           overtime: 0,
@@ -475,20 +495,21 @@ export class LeaveServiceServer
         },
         status: 'COMPLETED',
         attendanceId: attendance.id,
-        // Use correct PeriodType enum
-        entryType: 'REGULAR' as const, // Always REGULAR for leave
+        entryType: 'REGULAR' as const,
         metadata: {
           source: 'manual',
           version: 1,
         },
       };
 
-      // Check for existing time entry
+      // Check for existing time entry specifically for regular period
       const existingTimeEntry = await tx.timeEntry.findFirst({
         where: {
           AND: [
             { employeeId: attendance.employeeId },
             { date: attendance.date },
+            { entryType: 'REGULAR' },
+            { attendanceId: attendance.id }, // Ensure we're updating the correct period's entry
           ],
         },
       });

@@ -397,6 +397,20 @@ export class AttendanceProcessingService {
       ? this.prepareLocationData(options, isCheckIn)
       : undefined;
 
+    // Get current sequence for this period type
+    const latestRecord = await tx.attendance.findFirst({
+      where: {
+        employeeId: options.employeeId,
+        date: startOfDay(now),
+        type: options.periodType,
+      },
+      orderBy: {
+        periodSequence: 'desc',
+      },
+    });
+
+    const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
+
     // Prepare attendance data using correct schema structure
     const attendanceData: Prisma.AttendanceCreateInput = {
       user: { connect: { employeeId: options.employeeId } },
@@ -404,6 +418,7 @@ export class AttendanceProcessingService {
       state: AttendanceState.INCOMPLETE,
       checkStatus: CheckStatus.CHECKED_IN,
       type: options.periodType,
+      periodSequence: nextSequence,
       isOvertime: options.activity.isOvertime || false,
       shiftStartTime: parseISO(window.current.start),
       shiftEndTime: parseISO(window.current.end),
@@ -424,12 +439,14 @@ export class AttendanceProcessingService {
       },
     };
 
-    // Use schema-compliant update structure
+    // Use schema-compliant update structure with new unique constraint
     const attendance = await tx.attendance.upsert({
       where: {
-        employee_date_attendance: {
+        employee_date_period_sequence: {
           employeeId: options.employeeId,
           date: startOfDay(now),
+          type: options.periodType,
+          periodSequence: nextSequence,
         },
       },
       create: attendanceData,
@@ -493,6 +510,7 @@ export class AttendanceProcessingService {
   private async getLatestAttendance(
     tx: Prisma.TransactionClient,
     employeeId: string,
+    periodType?: PeriodType, // Add optional period type parameter
   ): Promise<AttendanceRecord | null> {
     const record = await tx.attendance.findFirst({
       where: {
@@ -501,17 +519,14 @@ export class AttendanceProcessingService {
           gte: startOfDay(getCurrentTime()),
           lt: endOfDay(getCurrentTime()),
         },
+        ...(periodType && { type: periodType }), // Only filter by type if specified
       },
+      orderBy: [{ metadata: { createdAt: 'desc' } }, { id: 'desc' }],
       include: {
         timeEntries: true,
         overtimeEntries: true,
         location: true,
         metadata: true,
-      },
-      orderBy: {
-        metadata: {
-          createdAt: 'desc',
-        },
       },
     });
 

@@ -11,6 +11,14 @@ import { CacheManager } from '../cache/CacheManager';
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService'; // Add this line
 import { AttendanceRecordService } from './AttendanceRecordService';
 import { cacheService } from '../cache/CacheService';
+import { format } from 'date-fns';
+import { PeriodType } from '@prisma/client';
+
+interface GetAttendanceStatusOptions {
+  inPremises: boolean;
+  address: string;
+  periodType?: PeriodType;
+}
 
 export class AttendanceStatusService {
   constructor(
@@ -22,13 +30,11 @@ export class AttendanceStatusService {
 
   async getAttendanceStatus(
     employeeId: string,
-    options: {
-      inPremises: boolean;
-      address: string;
-    },
+    options: GetAttendanceStatusOptions,
   ): Promise<AttendanceStatusResponse> {
     const now = getCurrentTime();
     const forceRefreshKey = `forceRefresh:${employeeId}`;
+    const cacheKey = `attendance:${employeeId}:${format(now, 'yyyy-MM-dd:HH:mm')}`;
     const forceRefresh = await cacheService.get(forceRefreshKey);
 
     // If force refresh flag exists, bypass cache
@@ -43,7 +49,9 @@ export class AttendanceStatusService {
 
     // Get base data
     const [attendance, periodState] = await Promise.all([
-      this.getLatestAttendanceRecord(employeeId),
+      this.attendanceRecordService.getLatestAttendanceRecord(employeeId, {
+        periodType: options.periodType,
+      }),
       this.shiftService.getCurrentPeriodState(employeeId, now),
     ]);
 

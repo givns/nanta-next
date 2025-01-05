@@ -191,6 +191,7 @@ async function processCheckInOut(
       attendanceService.getAttendanceStatus(task.employeeId!, {
         inPremises: true,
         address: task.location?.address || '',
+        periodType: task.periodType, // Add period type if available from task
       }),
     ]);
 

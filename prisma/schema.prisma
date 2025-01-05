@@ -253,44 +253,52 @@ model OvertimeMetadata {
 }
 
 model Attendance {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  employeeId   String   
-  user         User     @relation(fields: [employeeId], references: [employeeId])
-  date         DateTime
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId      String   
+  user            User     @relation(fields: [employeeId], references: [employeeId])
+  date            DateTime
 
   // Core status
-  state        AttendanceState @default(ABSENT)
-  checkStatus  CheckStatus     @default(PENDING)
-  type         PeriodType      @default(REGULAR)
+  state           AttendanceState @default(ABSENT)
+  checkStatus     CheckStatus     @default(PENDING)
+  type            PeriodType      @default(REGULAR)
   
   // Overtime information
-  isOvertime       Boolean      @default(false)
-  overtimeState    OvertimeState?
-  overtimeId       String?
-  overtimeDuration Int?         @default(0)
+  isOvertime      Boolean         @default(false)
+  overtimeState   OvertimeState?
+  overtimeId      String?
+  overtimeDuration Int?          @default(0)
 
   // Time fields
-  shiftStartTime   DateTime?
-  shiftEndTime     DateTime?
-  CheckInTime      DateTime?
-  CheckOutTime     DateTime?
+  shiftStartTime  DateTime?
+  shiftEndTime    DateTime?
+  CheckInTime     DateTime?
+  CheckOutTime    DateTime?
 
   // Status flags - Nested in schema via relation
-  checkTiming      CheckTiming?
+  checkTiming     CheckTiming?
   
   // Location data - Nested in schema via relation
-  location         AttendanceLocation?
+  location        AttendanceLocation?
 
   // Related entries
-  overtimeEntries  OvertimeEntry[]
-  timeEntries      TimeEntry[]
+  overtimeEntries OvertimeEntry[]
+  timeEntries     TimeEntry[]
 
   // Metadata - Nested in schema via relation
-  metadata         AttendanceMetadata?
+  metadata        AttendanceMetadata?
 
-  @@unique([employeeId, date], name: "employee_date_attendance")
+  // Track sequence for multiple records in a day
+  periodSequence  Int              @default(1)
+  
+  // Add createdAt directly to the model for indexing
+  createdAt       DateTime         @default(now())
+
+  // Modified indexes and constraints - removed redundant index
+  @@unique([employeeId, date, type, periodSequence], name: "employee_date_period_sequence")
   @@index([date, state])
   @@index([employeeId, state])
+  @@index([employeeId, date, createdAt])
 }
 
 // New models for nested structures
@@ -318,14 +326,16 @@ model AttendanceLocation {
 }
 
 model AttendanceMetadata {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  attendanceId  String     @unique @db.ObjectId
-  attendance    Attendance @relation(fields: [attendanceId], references: [id])
-  isManualEntry Boolean    @default(false)
-  isDayOff      Boolean    @default(false)
-  source        String     @default("system") // enum: "system" | "manual" | "auto"
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  attendance   Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  attendanceId String    @unique @db.ObjectId
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  source       String    @default("system")
+  isManualEntry Boolean  @default(false)
+  isDayOff     Boolean   @default(false)
+  version      Int       @default(1)
 }
 
 

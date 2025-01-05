@@ -1,5 +1,5 @@
 // services/Attendance/AttendanceService.ts
-import { Attendance, PrismaClient } from '@prisma/client';
+import { Attendance, PeriodType, PrismaClient } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { AttendanceStatusService } from './AttendanceStatusService';
 import {
@@ -15,7 +15,6 @@ import { AttendanceEnhancementService } from './AttendanceEnhancementService';
 import { PeriodManagementService } from './PeriodManagementService';
 import { CacheManager } from '../cache/CacheManager';
 import { TimeEntryService } from '../TimeEntryService';
-import { at } from 'lodash';
 import { AttendanceRecordService } from './AttendanceRecordService';
 
 export class AttendanceService {
@@ -59,20 +58,24 @@ export class AttendanceService {
 
   async getAttendanceStatus(
     employeeId: string,
-    options: { inPremises: boolean; address: string },
+    options: {
+      inPremises: boolean;
+      address: string;
+      periodType?: PeriodType;
+    },
   ): Promise<AttendanceStatusResponse> {
     return this.statusService.getAttendanceStatus(employeeId, options);
   }
 
   async validateCheckInOut(
     employeeId: string,
-    inPremises: boolean,
-    address: string,
+    options: {
+      inPremises: boolean;
+      address: string;
+      periodType?: PeriodType;
+    },
   ): Promise<StateValidation> {
-    const status = await this.getAttendanceStatus(employeeId, {
-      inPremises,
-      address,
-    });
+    const status = await this.getAttendanceStatus(employeeId, options);
 
     return status.validation;
   }

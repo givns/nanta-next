@@ -175,12 +175,30 @@ export default async function handler(
         }
       }
 
+      // First find existing record for this period type to get the sequence
+      const existingAttendance = await tx.attendance.findFirst({
+        where: {
+          employeeId,
+          date: targetDate,
+          type: periodType,
+        },
+        orderBy: {
+          periodSequence: 'desc',
+        },
+      });
+
+      const nextSequence = existingAttendance
+        ? existingAttendance.periodSequence + 1
+        : 1;
+
       // Create or update base attendance record with related records
       const attendance = await tx.attendance.upsert({
         where: {
-          employee_date_attendance: {
+          employee_date_period_sequence: {
             employeeId,
             date: targetDate,
+            type: periodType,
+            periodSequence: existingAttendance?.periodSequence || 1,
           },
         },
         create: {
@@ -194,6 +212,8 @@ export default async function handler(
                 ? CheckStatus.CHECKED_IN
                 : CheckStatus.PENDING,
           type: periodType,
+          periodSequence: nextSequence,
+          createdAt: new Date(),
           isOvertime: periodType === PeriodType.OVERTIME,
           overtimeState:
             periodType === PeriodType.OVERTIME
