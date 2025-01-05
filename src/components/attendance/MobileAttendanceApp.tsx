@@ -110,6 +110,15 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       // Calculate total shift duration
       const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
 
+      console.log('Time comparisons:', {
+        currentTime: format(now, 'HH:mm:ss'),
+        shiftStart: format(shiftStart, 'HH:mm:ss'),
+        shiftEnd: format(shiftEnd, 'HH:mm:ss'),
+        checkIn: currentPeriod.activity.checkIn
+          ? format(parseISO(currentPeriod.activity.checkIn), 'HH:mm:ss')
+          : 'No check-in',
+      });
+
       if (!checkInTime) {
         return {
           lateMinutes: totalShiftMinutes,
@@ -217,20 +226,23 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   }, [overtimeInfo, currentTime]);
 
   // Determine if we should show progress
-  const shouldShowProgress =
-    status.isDayOff || status.isHoliday
-      ? currentPeriod.activity.isOvertime
-      : true;
+  const metrics = calculateProgressMetrics();
+  console.log('Progress metrics calculated:', metrics);
 
-  console.log('Progress display conditions:', {
-    shouldShowProgress,
-    hasTimeWindow: !!currentPeriod?.timeWindow,
-    currentPeriod: {
-      type: currentPeriod?.type,
-      timeWindow: currentPeriod?.timeWindow,
-      activity: currentPeriod?.activity,
-    },
-  });
+  // Find where shouldShowProgress is determined
+  const shouldShowProgress = React.useMemo(() => {
+    const show =
+      status.isDayOff || status.isHoliday
+        ? currentPeriod.activity.isOvertime
+        : true;
+    console.log('Should show progress determination:', {
+      isDayOff: status.isDayOff,
+      isHoliday: status.isHoliday,
+      isOvertime: currentPeriod.activity.isOvertime,
+      shouldShow: show,
+    });
+    return show;
+  }, [status.isDayOff, status.isHoliday, currentPeriod.activity.isOvertime]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -319,8 +331,12 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           {shouldShowProgress &&
             currentPeriod &&
             (() => {
-              console.log('Calculating progress metrics...'); // Add this
               const metrics = calculateProgressMetrics();
+              console.log('Rendering progress section with metrics:', {
+                metrics,
+                currentPeriod,
+                timeWindow: currentPeriod.timeWindow,
+              });
               const isOvertimePeriod =
                 currentPeriod.type === PeriodType.OVERTIME;
 
