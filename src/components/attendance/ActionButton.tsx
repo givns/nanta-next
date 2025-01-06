@@ -1,5 +1,4 @@
-// ActionButton.tsx
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { AlertCircle, Clock } from 'lucide-react';
 import {
   AttendanceState,
@@ -8,30 +7,7 @@ import {
   PeriodType,
 } from '@prisma/client';
 import { formatSafeTime } from '@/shared/timeUtils';
-import { format, parseISO } from 'date-fns';
-import { TransitionInfo } from '@/types/attendance';
-
-// Helper to safely format time for display
-const formatDisplayTime = (timeStr: string | null | undefined): string => {
-  if (!timeStr) return '--:--';
-
-  // If it's already in HH:mm format, return as is
-  if (/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(timeStr)) {
-    return timeStr;
-  }
-
-  try {
-    // For ISO strings, extract time part
-    if (timeStr.includes('T')) {
-      const [_, time] = timeStr.split('T');
-      return time.slice(0, 5);
-    }
-    return timeStr;
-  } catch (error) {
-    console.error('Error formatting time:', error);
-    return '--:--';
-  }
-};
+import { getCurrentTime } from '@/utils/dateUtils';
 
 interface ActionButtonProps {
   attendanceStatus: {
@@ -56,13 +32,22 @@ interface ActionButtonProps {
     locationValid: boolean;
     error?: string;
   };
-  transition?: TransitionInfo; // Change from current type to TransitionInfo
-
+  transition?: {
+    from: {
+      type: PeriodType;
+      end: string;
+    };
+    to: {
+      type: PeriodType;
+      start: string;
+    };
+    isInTransition: boolean;
+  };
   onActionTriggered: () => void;
   onTransitionRequested?: () => void;
 }
 
-export const ActionButton: React.FC<ActionButtonProps> = ({
+const ActionButton: React.FC<ActionButtonProps> = ({
   attendanceStatus,
   periodType,
   periodWindow,
@@ -72,7 +57,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
   onActionTriggered,
   onTransitionRequested,
 }) => {
-  // Base button styling
   const baseButtonStyle =
     'rounded-full flex items-center justify-center transition-all duration-300 shadow-lg';
   const buttonDisabledStyle = 'bg-gray-200 cursor-not-allowed text-gray-600';
@@ -81,13 +65,27 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 text-white'
       : 'bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 text-white';
 
-  const isTransitionToRegular = useMemo(() => {
-    return transition?.to.type === PeriodType.REGULAR;
-  }, [transition]);
+  const isTransitionToRegular = transition?.to.type === PeriodType.REGULAR;
+  const isTransitionToOvertime = transition?.to.type === PeriodType.OVERTIME;
 
-  const isTransitionToOvertime = useMemo(() => {
-    return transition?.to.type === PeriodType.OVERTIME;
-  }, [transition]);
+  // Enhanced disable state calculation for overtime periods
+  const isDisabled = useMemo(() => {
+    // Special handling for overtime periods
+    if (
+      periodType === PeriodType.OVERTIME &&
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN
+    ) {
+      return !systemState.isReady;
+    }
+
+    // Default validation
+    return !validation.canProceed || !systemState.isReady;
+  }, [
+    periodType,
+    attendanceStatus.checkStatus,
+    validation.canProceed,
+    systemState.isReady,
+  ]);
 
   // Determine if we're in transition period
   const isTransitionPeriod = useMemo(() => {
@@ -99,12 +97,29 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     );
   }, [attendanceStatus.checkStatus, transition]);
 
-  // Determine if button should be disabled
-  const isDisabled = !validation.canProceed || !systemState.isReady;
-
-  // Handle regular button click
+  // Handle regular button click with overtime support
   const handleRegularClick = () => {
     if (isDisabled) return;
+
+    // Special handling for overtime period
+    if (
+      periodType === PeriodType.OVERTIME &&
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN
+    ) {
+      const now = getCurrentTime();
+      const isPastEndTime =
+        periodWindow?.end && now > new Date(periodWindow.end);
+
+      if (isPastEndTime) {
+        const confirmMessage =
+          'คุณกำลังจะลงเวลาออกจากช่วงทำงานล่วงเวลา ต้องการดำเนินการต่อหรือไม่?';
+        if (window.confirm(confirmMessage)) {
+          onActionTriggered();
+        }
+        return;
+      }
+    }
+
     onActionTriggered();
   };
 
@@ -114,7 +129,58 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     onTransitionRequested?.();
   };
 
-  // Status Messages Component
+  const renderButtonContent = (
+    type: 'regular' | 'overtime',
+    isCheckIn: boolean,
+  ) => {
+    // When transitioning to regular shift
+    if (type === 'overtime' && isTransitionToRegular) {
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-white text-sm">เข้ากะ</span>
+          <span className="text-white text-xl font-semibold -mt-1">ปกติ</span>
+        </div>
+      );
+    }
+
+    // Enhanced overtime button content
+    if (type === 'overtime') {
+      const now = getCurrentTime();
+      const isPastEndTime =
+        periodWindow?.end && now > new Date(periodWindow.end);
+      const isOvertimeCheckedIn =
+        attendanceStatus.checkStatus === CheckStatus.CHECKED_IN;
+
+      // Special display for overtime checkout after end time
+      if (isOvertimeCheckedIn && isPastEndTime) {
+        return (
+          <div className="flex flex-col items-center leading-tight">
+            <span className="text-white text-sm">ออกงาน</span>
+            <span className="text-white text-xl font-semibold -mt-1">
+              ล่วงเวลา
+            </span>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-white text-sm">
+            {isCheckIn ? 'เข้า' : 'ออก'}
+          </span>
+          <span className="text-white text-xl font-semibold -mt-1">OT</span>
+        </div>
+      );
+    }
+
+    // Regular button
+    return (
+      <span className="text-white text-2xl font-semibold">
+        {isCheckIn ? 'เข้า' : 'ออก'}
+      </span>
+    );
+  };
+
   const StatusMessages = () => (
     <>
       {(validation.message || systemState.error || periodWindow) && (
@@ -141,41 +207,6 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
     </>
   );
 
-  const renderButtonContent = (
-    type: 'regular' | 'overtime',
-    isCheckIn: boolean,
-  ) => {
-    // When transitioning to regular shift
-    if (type === 'overtime' && isTransitionToRegular) {
-      return (
-        <div className="flex flex-col items-center leading-tight">
-          <span className="text-white text-sm">เข้ากะ</span>
-          <span className="text-white text-xl font-semibold -mt-1">ปกติ</span>
-        </div>
-      );
-    }
-
-    // Regular overtime transition or normal buttons
-    if (type === 'overtime') {
-      return (
-        <div className="flex flex-col items-center leading-tight">
-          <span className="text-white text-sm">
-            {isCheckIn ? 'เข้า' : 'ออก'}
-          </span>
-          <span className="text-white text-xl font-semibold -mt-1">OT</span>
-        </div>
-      );
-    }
-
-    // Regular button
-    return (
-      <span className="text-white text-2xl font-semibold">
-        {isCheckIn ? 'เข้า' : 'ออก'}
-      </span>
-    );
-  };
-
-  // Main button rendering
   const renderButtons = () => {
     if (isTransitionPeriod) {
       return (
@@ -255,14 +286,14 @@ export const ActionButton: React.FC<ActionButtonProps> = ({
       {transition && !isTransitionPeriod && (
         <div className="mt-2 text-xs text-gray-500">
           {transition.to.type === PeriodType.OVERTIME ? (
-            <>
-              เริ่มทำงานล่วงเวลาเวลา {formatDisplayTime(transition.to.start)} น.
-            </>
+            <>เริ่มทำงานล่วงเวลาเวลา {formatSafeTime(transition.to.start)} น.</>
           ) : (
-            <>เริ่มกะปกติเวลา {formatDisplayTime(transition.to.start)} น.</>
+            <>เริ่มกะปกติเวลา {formatSafeTime(transition.to.start)} น.</>
           )}
         </div>
       )}
     </div>
   );
 };
+
+export default ActionButton;
