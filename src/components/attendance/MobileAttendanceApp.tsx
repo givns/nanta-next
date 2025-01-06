@@ -236,9 +236,15 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   }, [attendanceStatus.latestAttendance?.CheckOutTime]);
 
   // Handle overtime periods safely
+  // Get overtime information if available
   const relevantOvertimes = React.useMemo(() => {
     if (!overtimeInfo) return null;
     try {
+      // Always return overtime info if we're in an overtime period
+      if (currentPeriod.type === PeriodType.OVERTIME || overtimeInfo.isActive) {
+        return overtimeInfo;
+      }
+
       const currentTimeStr = format(currentTime, 'HH:mm');
 
       // Validate overtime times
@@ -255,7 +261,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       console.error('Error processing overtime info:', error);
     }
     return null;
-  }, [overtimeInfo, currentTime]);
+  }, [overtimeInfo, currentTime, currentPeriod]);
 
   // Determine if we should show progress
   const metrics = calculateProgressMetrics();
