@@ -4,7 +4,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { UserData } from '@/types/user';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { formatDate, getCurrentTime } from '@/utils/dateUtils';
-import { ActionButton } from './ActionButton';
+import ActionButton from './ActionButton';
 import LateReasonModal from './LateReasonModal';
 import { closeWindow } from '@/services/liff';
 import { PeriodType } from '@prisma/client';
@@ -18,7 +18,6 @@ import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
 import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 import ProcessingView from './ProcessingView';
-import { is } from 'date-fns/locale';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';

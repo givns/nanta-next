@@ -196,11 +196,11 @@ export class StatusHelpers {
     if (status.isOvertime) {
       switch (status.overtimeState) {
         case OvertimeState.IN_PROGRESS:
-          return 'overtime-active';
+          return 'กำลังทำ OT';
         case OvertimeState.COMPLETED:
-          return 'overtime-complete';
+          return 'ทำ OT เสร็จแล้ว';
         default:
-          return 'overtime-pending';
+          return 'ยังไม่ได้ลงเวลาเข้าทำ OT';
       }
     }
 

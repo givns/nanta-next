@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AlertCircle, Clock } from 'lucide-react';
 import {
   AttendanceState,
@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { formatSafeTime } from '@/shared/timeUtils';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { TransitionInfo } from '@/types/attendance';
 
 interface ActionButtonProps {
   attendanceStatus: {
@@ -32,17 +33,7 @@ interface ActionButtonProps {
     locationValid: boolean;
     error?: string;
   };
-  transition?: {
-    from: {
-      type: PeriodType;
-      end: string;
-    };
-    to: {
-      type: PeriodType;
-      start: string;
-    };
-    isInTransition: boolean;
-  };
+  transition?: TransitionInfo; // Change from current type to TransitionInfo
   onActionTriggered: () => void;
   onTransitionRequested?: () => void;
 }
