@@ -374,11 +374,16 @@ export class TimeEntryService {
 
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
-        attendanceId: attendance.id,
+        // Match by overtime request ID if available
+        overtimeRequestId: overtimeRequest.id,
+
         entryType: PeriodType.OVERTIME,
+
+        // Add employee ID for extra specificity
+        employeeId: attendance.employeeId,
       },
       orderBy: {
-        createdAt: 'desc', // Sort by the most recent entry
+        createdAt: 'desc',
       },
       include: { overtimeMetadata: true },
     });
