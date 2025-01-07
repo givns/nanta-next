@@ -199,16 +199,36 @@ export class PeriodManagementService {
         isValidShift &&
         this.checkIfLate(now, parseISO(timeWindow.start));
 
-      // Overnight calculation
       const isOvernightShift =
         isValidShift &&
-        parseISO(timeWindow.end).getDate() >
-          parseISO(timeWindow.start).getDate();
+        this.isOvernightPeriod(
+          periodState.shift.startTime,
+          periodState.shift.endTime,
+        );
+
+      // Safe overtime check
+      const isOvernightOvertime =
+        isValidOvertime && periodState.overtimeInfo
+          ? this.isOvernightPeriod(
+              periodState.overtimeInfo.startTime,
+              periodState.overtimeInfo.endTime,
+            )
+          : false;
 
       console.log('Period validation calculations:', {
         currentTime: format(now, 'HH:mm'),
         periodType,
         isOvertimePeriod: isOvertimePeriod,
+        shift: {
+          start: periodState.shift?.startTime,
+          end: periodState.shift?.endTime,
+          isOvernight: isOvernightShift,
+        },
+        overtime: {
+          start: periodState.overtimeInfo?.startTime,
+          end: periodState.overtimeInfo?.endTime,
+          isOvernight: isOvernightOvertime,
+        },
         regularValidation: {
           isEarly: isEarlyCheck,
           isLate: isLateCheck,
@@ -217,7 +237,7 @@ export class PeriodManagementService {
         },
         overtimeValidation: {
           isWithinBounds: isOvertimePeriod,
-          isOvernight: isOvernightShift,
+          isOvernight: isOvernightOvertime,
         },
       });
 
@@ -250,11 +270,13 @@ export class PeriodManagementService {
                   start: parseISO(timeWindow.start),
                   end: parseISO(timeWindow.end),
                 }) ||
-                  (isWithinCheckoutThreshold ?? false),
+                  (isWithinCheckoutThreshold ?? false) ||
+                  (isOvernightOvertime &&
+                    this.isWithinOvernightPeriod(now, timeWindow)),
               ),
               isEarly: false,
               isLate: false,
-              isOvernight: Boolean(isOvernightShift),
+              isOvernight: isOvernightOvertime,
               isConnected: Boolean(hasActiveTransition),
             }
           : {
@@ -352,6 +374,25 @@ export class PeriodManagementService {
     return [];
   }
 
+  private isOvernightPeriod(start: string, end: string): boolean {
+    try {
+      const startTime = start.split(':').map(Number);
+      const endTime = end.split(':').map(Number);
+
+      // If end time is less than start time, it's overnight
+      if (
+        endTime[0] < startTime[0] ||
+        (endTime[0] === startTime[0] && endTime[1] < startTime[1])
+      ) {
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking overnight period:', error);
+      return false;
+    }
+  }
+
   // Add this helper method to the class
   private isWithinOvertimeCheckout(now: Date, overtimeEnd: string): boolean {
     try {
@@ -362,6 +403,35 @@ export class PeriodManagementService {
       });
     } catch (error) {
       console.error('Error checking overtime checkout:', error);
+      return false;
+    }
+  }
+
+  private isWithinOvernightPeriod(
+    now: Date,
+    timeWindow: { start: string; end: string },
+  ): boolean {
+    try {
+      const dayStart = startOfDay(now);
+      const dayEnd = endOfDay(now);
+      const periodStart = parseISO(timeWindow.start);
+      const periodEnd = parseISO(timeWindow.end);
+
+      // For overnight periods, check if we're in either day's time range
+      if (periodEnd < periodStart) {
+        // Check if we're after start time today or before end time tomorrow
+        return (
+          (now >= periodStart && now <= dayEnd) ||
+          (now >= dayStart && now <= periodEnd)
+        );
+      }
+
+      return isWithinInterval(now, {
+        start: periodStart,
+        end: periodEnd,
+      });
+    } catch (error) {
+      console.error('Error checking overnight period:', error);
       return false;
     }
   }
