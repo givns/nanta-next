@@ -497,16 +497,55 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         periodType={periodState.type}
         periodWindow={periodState.timeWindow}
         validation={{
-          canProceed: stateValidation.allowed,
-          message: stateValidation.reason,
-          requireConfirmation:
-            stateValidation.flags.requiresAutoCompletion ||
-            stateValidation.flags.hasPendingTransition,
-          confirmationMessage: getConfirmationMessage(
-            periodState,
-            context.nextPeriod?.overtimeInfo || null,
-            stateValidation,
-          ),
+          allowed: stateValidation.allowed,
+          canProceed: stateValidation.allowed, // Map allowed to canProceed
+          reason: stateValidation.reason,
+          message: stateValidation.reason, // Map reason to message
+          flags: {
+            hasActivePeriod: periodState.activity.isActive,
+            isInsideShift: stateValidation.flags.isInsideShift,
+            isOutsideShift: stateValidation.flags.isOutsideShift,
+            isCheckingIn: !periodState.activity.checkIn,
+            isEarlyCheckIn: stateValidation.flags.isEarlyCheckIn,
+            isLateCheckIn: stateValidation.flags.isLateCheckIn,
+            isEarlyCheckOut: stateValidation.flags.isEarlyCheckOut,
+            isLateCheckOut: stateValidation.flags.isLateCheckOut,
+            isVeryLateCheckOut: stateValidation.flags.isVeryLateCheckOut,
+            isOvertime: stateValidation.flags.isOvertime,
+            isDayOffOvertime: stateValidation.flags.isDayOffOvertime,
+            isPendingOvertime: stateValidation.flags.isPendingOvertime,
+            isAutoCheckIn: stateValidation.flags.isAutoCheckIn,
+            isAutoCheckOut: stateValidation.flags.isAutoCheckOut,
+            requireConfirmation:
+              stateValidation.flags.requiresAutoCompletion ||
+              stateValidation.flags.hasPendingTransition,
+            requiresAutoCompletion:
+              stateValidation.flags.requiresAutoCompletion,
+            hasPendingTransition: stateValidation.flags.hasPendingTransition,
+            requiresTransition: stateValidation.flags.requiresTransition,
+            isMorningShift: stateValidation.flags.isMorningShift,
+            isAfternoonShift: stateValidation.flags.isAfternoonShift,
+            isAfterMidshift: stateValidation.flags.isAfterMidshift,
+            isApprovedEarlyCheckout:
+              stateValidation.flags.isApprovedEarlyCheckout,
+            isPlannedHalfDayLeave: stateValidation.flags.isPlannedHalfDayLeave,
+            isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+            isHoliday: stateValidation.flags.isHoliday,
+            isDayOff: stateValidation.flags.isDayOff,
+            isManualEntry: stateValidation.flags.isManualEntry,
+          },
+          metadata: {
+            ...stateValidation.metadata,
+            transitionWindow: context.transition
+              ? {
+                  start: context.transition.to.start || '',
+                  end: periodState.timeWindow.end,
+                  targetPeriod:
+                    context.transition.to.type || PeriodType.REGULAR,
+                }
+              : undefined,
+            missingEntries: [],
+          },
         }}
         systemState={{
           isReady: locationState.status === 'ready',
@@ -595,20 +634,39 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                 allowed: stateValidation.allowed,
                 reason: stateValidation.reason,
                 flags: {
+                  hasActivePeriod: periodState.activity.isActive,
+                  isInsideShift: stateValidation.flags.isInsideShift,
+                  isOutsideShift: stateValidation.flags.isOutsideShift,
                   isCheckingIn: !periodState.activity.checkIn,
+                  isEarlyCheckIn: stateValidation.flags.isEarlyCheckIn,
                   isLateCheckIn: stateValidation.flags.isLateCheckIn,
                   isEarlyCheckOut: stateValidation.flags.isEarlyCheckOut,
-                  isPlannedHalfDayLeave:
-                    stateValidation.flags.isPlannedHalfDayLeave,
-                  isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+                  isLateCheckOut: stateValidation.flags.isLateCheckOut,
+                  isVeryLateCheckOut: stateValidation.flags.isVeryLateCheckOut,
                   isOvertime: stateValidation.flags.isOvertime,
+                  isDayOffOvertime: stateValidation.flags.isDayOffOvertime,
+                  isPendingOvertime: stateValidation.flags.isPendingOvertime,
+                  isAutoCheckIn: stateValidation.flags.isAutoCheckIn,
+                  isAutoCheckOut: stateValidation.flags.isAutoCheckOut,
                   requireConfirmation:
                     stateValidation.flags.requiresAutoCompletion ||
                     stateValidation.flags.hasPendingTransition,
-                  isDayOffOvertime: stateValidation.flags.isDayOffOvertime,
-                  isInsideShift: stateValidation.flags.isInsideShift,
-                  isAutoCheckIn: stateValidation.flags.isAutoCheckIn,
-                  isAutoCheckOut: stateValidation.flags.isAutoCheckOut,
+                  requiresAutoCompletion:
+                    stateValidation.flags.requiresAutoCompletion,
+                  hasPendingTransition:
+                    stateValidation.flags.hasPendingTransition,
+                  requiresTransition: stateValidation.flags.requiresTransition,
+                  isMorningShift: stateValidation.flags.isMorningShift,
+                  isAfternoonShift: stateValidation.flags.isAfternoonShift,
+                  isAfterMidshift: stateValidation.flags.isAfterMidshift,
+                  isApprovedEarlyCheckout:
+                    stateValidation.flags.isApprovedEarlyCheckout,
+                  isPlannedHalfDayLeave:
+                    stateValidation.flags.isPlannedHalfDayLeave,
+                  isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+                  isHoliday: stateValidation.flags.isHoliday,
+                  isDayOff: stateValidation.flags.isDayOff,
+                  isManualEntry: stateValidation.flags.isManualEntry,
                 },
                 metadata: {
                   missingEntries: [],

@@ -331,12 +331,13 @@ export class AttendanceEnhancementService {
       window.overtimeInfo?.startTime === window.shift.endTime,
     );
 
+    const isInTransition =
+      isInTransitionWindow &&
+      hasUpcomingOvertime &&
+      periodStatusInfo.isActiveAttendance;
+
     return {
-      isInTransition:
-        isInTransitionWindow &&
-        hasUpcomingOvertime &&
-        periodStatusInfo.isActiveAttendance &&
-        !periodStatusInfo.isOvertimePeriod,
+      isInTransition,
       window: transitionWindow,
       targetPeriod: PeriodType.OVERTIME,
     };
@@ -364,6 +365,7 @@ export class AttendanceEnhancementService {
         hasActivePeriod: periodStatusInfo.isActiveAttendance,
         isInsideShift: window.overtimeInfo?.isInsideShiftHours || false,
         isOutsideShift: false,
+        isCheckingIn: !periodStatusInfo.isActiveAttendance,
         isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
         isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
         isEarlyCheckOut: false,
@@ -374,6 +376,7 @@ export class AttendanceEnhancementService {
         isPendingOvertime: false,
         isAutoCheckIn: false,
         isAutoCheckOut: overtimeStatus.shouldAutoComplete,
+        requireConfirmation: overtimeStatus.shouldAutoComplete,
         requiresAutoCompletion: overtimeStatus.shouldAutoComplete,
         hasPendingTransition: false,
         requiresTransition: false,
@@ -434,6 +437,7 @@ export class AttendanceEnhancementService {
           hasActivePeriod: true,
           isInsideShift: true,
           isOutsideShift: false,
+          isCheckingIn: !periodStatusInfo.isActiveAttendance,
           isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
           isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
           isEarlyCheckOut: false,
@@ -444,6 +448,7 @@ export class AttendanceEnhancementService {
           isPendingOvertime: false,
           isAutoCheckIn: false,
           isAutoCheckOut: false,
+          requireConfirmation: false,
           requiresAutoCompletion: false,
           hasPendingTransition: false,
           requiresTransition: false,
@@ -456,6 +461,9 @@ export class AttendanceEnhancementService {
           isHoliday: window.isHoliday,
           isDayOff: Boolean(window.isDayOff),
           isManualEntry: attendance?.metadata?.source === 'manual',
+        },
+        metadata: {
+          additionalInfo: {},
         },
       };
     }
@@ -470,6 +478,9 @@ export class AttendanceEnhancementService {
       periodStatusInfo.isActiveAttendance &&
       periodStatusInfo.shiftTiming.isAfterMidshift;
 
+    const hasPendingTransition =
+      window.nextPeriod?.type === PeriodType.OVERTIME;
+
     return {
       allowed: canCheckIn || canCheckOut,
       reason: this.getValidationReason({
@@ -481,6 +492,7 @@ export class AttendanceEnhancementService {
         hasActivePeriod: periodStatusInfo.isActiveAttendance,
         isInsideShift: true,
         isOutsideShift: false,
+        isCheckingIn: !periodStatusInfo.isActiveAttendance,
         isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
         isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
         isEarlyCheckOut: false,
@@ -491,8 +503,9 @@ export class AttendanceEnhancementService {
         isPendingOvertime: false,
         isAutoCheckIn: false,
         isAutoCheckOut: false,
+        requireConfirmation: false,
         requiresAutoCompletion: false,
-        hasPendingTransition: window.nextPeriod?.type === PeriodType.OVERTIME,
+        hasPendingTransition,
         requiresTransition: false,
         isMorningShift: periodStatusInfo.shiftTiming.isMorningShift,
         isAfternoonShift: periodStatusInfo.shiftTiming.isAfternoonShift,
@@ -503,6 +516,9 @@ export class AttendanceEnhancementService {
         isHoliday: window.isHoliday,
         isDayOff: Boolean(window.isDayOff),
         isManualEntry: attendance?.metadata?.source === 'manual',
+      },
+      metadata: {
+        additionalInfo: {},
       },
     };
   }
@@ -649,12 +665,14 @@ export class AttendanceEnhancementService {
       isPendingOvertime?: boolean;
       hasPendingTransition?: boolean;
       requiresTransition?: boolean;
+      requiresAutoComplete?: boolean;
     },
   ): ValidationFlags {
     return {
       hasActivePeriod: info.isActiveAttendance,
       isInsideShift: true,
       isOutsideShift: false,
+      isCheckingIn: !info.isActiveAttendance,
       isEarlyCheckIn: info.timingFlags.isEarlyCheckIn,
       isLateCheckIn: info.timingFlags.isLateCheckIn,
       isEarlyCheckOut: false,
@@ -665,7 +683,9 @@ export class AttendanceEnhancementService {
       isPendingOvertime: info.isPendingOvertime || false,
       isAutoCheckIn: false,
       isAutoCheckOut: false,
-      requiresAutoCompletion: false,
+      requireConfirmation:
+        info.requiresAutoComplete || info.hasPendingTransition || false,
+      requiresAutoCompletion: info.requiresAutoComplete || false,
       hasPendingTransition: info.hasPendingTransition || false,
       requiresTransition: info.requiresTransition || false,
       isMorningShift: info.shiftTiming.isMorningShift,

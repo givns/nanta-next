@@ -11,6 +11,7 @@ import {
   ShiftData,
   UnifiedPeriodState,
   AttendanceBaseResponse,
+  ValidationFlags,
 } from '@/types/attendance';
 
 interface ProgressMetrics {
@@ -37,20 +38,6 @@ interface ExtendedOvertimeInfo {
     earliestCheckIn: Date;
     latestCheckOut: Date;
   };
-}
-
-interface ValidationFlags {
-  isCheckingIn: boolean;
-  isLateCheckIn: boolean;
-  isEarlyCheckOut: boolean;
-  isPlannedHalfDayLeave: boolean;
-  isEmergencyLeave: boolean;
-  isOvertime: boolean;
-  requireConfirmation: boolean;
-  isDayOffOvertime: boolean;
-  isInsideShift: boolean;
-  isAutoCheckIn: boolean;
-  isAutoCheckOut: boolean;
 }
 
 interface ValidationMetadata {
@@ -262,6 +249,22 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     const totalMinutes =
       Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
+
+    const isInTransition = useMemo(() => {
+      const isTransition = Boolean(
+        validation.flags.requiresTransition &&
+          validation.flags.hasPendingTransition &&
+          currentPeriod.type === PeriodType.REGULAR,
+      );
+
+      console.log('Transition state check:', {
+        isTransition,
+        flags: validation.flags,
+        periodType: currentPeriod.type,
+      });
+
+      return isTransition;
+    }, [validation.flags, currentPeriod.type]);
 
     if (!checkIn) {
       if (now < periodStart)

@@ -16,6 +16,7 @@ import {
   TransitionContext,
   UnifiedPeriodState,
   UserData,
+  ValidationFlags,
 } from '../attendance';
 import { KeyedMutator } from 'swr';
 import { AttendanceBaseResponse, LocationState } from './base';
@@ -259,4 +260,48 @@ export interface OvertimeInfoUI {
 export interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
   message: string;
+}
+
+//for mobileAttendanceApp
+
+export interface ProgressMetrics {
+  lateMinutes: number;
+  earlyMinutes: number;
+  isEarly: boolean;
+  progressPercent: number;
+  totalShiftMinutes: number;
+  isMissed: boolean;
+}
+
+export interface ExtendedOvertimeInfo {
+  checkIn?: Date | null;
+  checkOut?: Date | null;
+  isActive: boolean;
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
+  validationWindow?: {
+    earliestCheckIn: Date;
+    latestCheckOut: Date;
+  };
+}
+
+export interface ValidationMetadata {
+  missingEntries: any[];
+  transitionWindow?: {
+    start: string;
+    end: string;
+    targetPeriod: PeriodType;
+  };
+}
+
+export interface ExtendedValidation {
+  allowed: boolean;
+  reason: string;
+  flags: ValidationFlags;
+  metadata: ValidationMetadata;
 }

@@ -8,7 +8,7 @@ import {
 } from '@prisma/client';
 import { formatSafeTime } from '@/shared/timeUtils';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { TransitionInfo } from '@/types/attendance';
+import { ExtendedValidation, TransitionInfo } from '@/types/attendance';
 
 interface ActionButtonProps {
   attendanceStatus: {
@@ -22,12 +22,12 @@ interface ActionButtonProps {
     start: string;
     end: string;
   };
-  validation: {
+  validation: ExtendedValidation & {
+    // Extend the validation type
+    message?: string; // Keep backward compatibility for message
     canProceed: boolean;
-    message?: string;
-    requireConfirmation?: boolean;
-    confirmationMessage?: string;
   };
+
   systemState: {
     isReady: boolean;
     locationValid: boolean;
@@ -59,22 +59,27 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   const isTransitionToRegular = transition?.to.type === PeriodType.REGULAR;
   const isTransitionToOvertime = transition?.to.type === PeriodType.OVERTIME;
 
-  // Enhanced disable state calculation for overtime periods
   const isDisabled = useMemo(() => {
     // Special handling for overtime periods
-    if (
-      periodType === PeriodType.OVERTIME &&
-      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN
-    ) {
-      return !systemState.isReady;
+    if (periodType === PeriodType.OVERTIME) {
+      const isOvertimeCheckedIn =
+        attendanceStatus.checkStatus === CheckStatus.CHECKED_IN;
+
+      // Allow overtime checkout even after end time if checked in
+      if (isOvertimeCheckedIn) {
+        return !systemState.isReady;
+      }
     }
 
-    // Default validation
-    return !validation.canProceed || !systemState.isReady;
+    // Default validation - support both old and new validation
+    return (
+      !(validation.canProceed ?? validation.allowed) || !systemState.isReady
+    );
   }, [
     periodType,
     attendanceStatus.checkStatus,
     validation.canProceed,
+    validation.allowed,
     systemState.isReady,
   ]);
 
@@ -87,6 +92,15 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       transition.to.start
     );
   }, [attendanceStatus.checkStatus, transition]);
+
+  // Add explicit transition state check
+  const isInTransitionState = useMemo(() => {
+    return (
+      validation.flags.requiresTransition &&
+      validation.flags.hasPendingTransition &&
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN
+    );
+  }, [validation.flags, attendanceStatus.checkStatus]);
 
   // Handle regular button click with overtime support
   const handleRegularClick = () => {
@@ -130,6 +144,61 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         <div className="flex flex-col items-center leading-tight">
           <span className="text-white text-sm">เข้ากะ</span>
           <span className="text-white text-xl font-semibold -mt-1">ปกติ</span>
+        </div>
+      );
+    }
+
+    if (isInTransitionState) {
+      return (
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-sm text-yellow-600 flex items-center gap-1">
+            <Clock size={16} />
+            <span>ช่วงเวลาทำงานล่วงเวลา</span>
+          </div>
+
+          <div className="flex gap-2">
+            {/* Regular checkout button */}
+            <button
+              onClick={handleRegularClick}
+              disabled={!systemState.isReady}
+              className={`h-20 w-20 rounded-l-full ${baseButtonStyle} ${
+                !systemState.isReady
+                  ? buttonDisabledStyle
+                  : buttonEnabledStyle('regular')
+              }`}
+              aria-label="Regular checkout"
+            >
+              <div className="flex flex-col items-center leading-tight">
+                <span className="text-white text-sm">ออกงาน</span>
+                <span className="text-white text-xl font-semibold -mt-1">
+                  ปกติ
+                </span>
+              </div>
+            </button>
+
+            {/* Overtime button */}
+            <button
+              onClick={handleOvertimeClick}
+              disabled={!systemState.isReady}
+              className={`h-20 w-20 rounded-r-full ${baseButtonStyle} ${
+                !systemState.isReady
+                  ? buttonDisabledStyle
+                  : buttonEnabledStyle('overtime')
+              }`}
+              aria-label="Start overtime"
+            >
+              <div className="flex flex-col items-center leading-tight">
+                <span className="text-white text-sm">เข้างาน</span>
+                <span className="text-white text-xl font-semibold -mt-1">
+                  OT
+                </span>
+              </div>
+            </button>
+          </div>
+
+          <div className="text-xs text-gray-500 text-center">
+            เลือก: ออกงานปกติ หรือ ทำงานล่วงเวลาต่อ
+          </div>
         </div>
       );
     }

@@ -62,19 +62,25 @@ export interface StateValidation {
 }
 
 export interface ValidationFlags {
-  hasActivePeriod: boolean;
-  isInsideShift: boolean;
-  isOutsideShift: boolean;
-  isEarlyCheckIn: boolean;
+  // Original fields
+  isCheckingIn: boolean;
   isLateCheckIn: boolean;
+  isEarlyCheckIn: boolean;
   isEarlyCheckOut: boolean;
-  isLateCheckOut: boolean;
-  isVeryLateCheckOut: boolean;
+  isPlannedHalfDayLeave: boolean;
+  isEmergencyLeave: boolean;
   isOvertime: boolean;
+  requireConfirmation: boolean;
   isDayOffOvertime: boolean;
-  isPendingOvertime: boolean;
+  isInsideShift: boolean;
   isAutoCheckIn: boolean;
   isAutoCheckOut: boolean;
+  // Additional required fields
+  hasActivePeriod: boolean;
+  isOutsideShift: boolean;
+  isLateCheckOut: boolean;
+  isVeryLateCheckOut: boolean;
+  isPendingOvertime: boolean;
   requiresAutoCompletion: boolean;
   hasPendingTransition: boolean;
   requiresTransition: boolean;
@@ -82,8 +88,6 @@ export interface ValidationFlags {
   isAfternoonShift: boolean;
   isAfterMidshift: boolean;
   isApprovedEarlyCheckout: boolean;
-  isPlannedHalfDayLeave: boolean;
-  isEmergencyLeave: boolean;
   isHoliday: boolean;
   isDayOff: boolean;
   isManualEntry: boolean;
