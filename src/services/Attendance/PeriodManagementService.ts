@@ -28,18 +28,11 @@ const TRANSITION_CONFIG: TransitionWindowConfig = {
   LATE_BUFFER: 15, // 15 minutes after shift end
 };
 
-interface TransitionDefinition {
-  from: {
-    type: PeriodType;
-    end: string;
-  };
-  to: {
-    type: PeriodType;
-    start: string;
-  };
-  isInTransition: boolean;
-  direction: 'to_overtime' | 'to_regular';
-}
+const VALIDATION_THRESHOLDS = {
+  OVERTIME_CHECKOUT: 15, // 15 minutes threshold for overtime checkout
+  EARLY_CHECKIN: 30, // 30 minutes before shift start
+  LATE_CHECKOUT: 15, // 15 minutes after shift end
+} as const;
 
 export class PeriodManagementService {
   resolveCurrentPeriod(
@@ -110,6 +103,11 @@ export class PeriodManagementService {
               }
             : defaultWindow;
 
+      const isWithinCheckoutThreshold = Boolean(
+        periodState.overtimeInfo?.endTime &&
+          this.isWithinOvertimeCheckout(now, periodState.overtimeInfo.endTime),
+      );
+
       // Core status checks
       const isCheckedIn = Boolean(
         attendance?.CheckInTime && !attendance?.CheckOutTime,
@@ -151,7 +149,6 @@ export class PeriodManagementService {
       // Check if there's an active transition
       const hasActiveTransition = transitions.length > 0;
 
-      // Modified overtime determination to consider transition window and attendance state
       const isOvertimePeriod = Boolean(
         attendance?.isOvertime || // Existing overtime state
           (isValidOvertime &&
@@ -161,7 +158,9 @@ export class PeriodManagementService {
               end: parseISO(timeWindow.end),
             }) ||
               // Or in transition window with upcoming overtime
-              (isInTransitionWindow && hasUpcomingOvertime))),
+              (isInTransitionWindow && hasUpcomingOvertime) ||
+              // Or within overtime checkout threshold
+              isWithinCheckoutThreshold)),
       );
 
       console.log('Overtime state determination:', {
@@ -245,19 +244,25 @@ export class PeriodManagementService {
         validation: isOvertimePeriod
           ? {
               // Overtime validation
-              isWithinBounds: isOvertimePeriod,
-              isEarly: false, // No early check for overtime
-              isLate: false, // No late check for overtime
-              isOvernight: isOvernightShift,
-              isConnected: hasActiveTransition,
+              isWithinBounds: Boolean(
+                isWithinInterval(now, {
+                  start: parseISO(timeWindow.start),
+                  end: parseISO(timeWindow.end),
+                }) ||
+                  (isWithinCheckoutThreshold ?? false),
+              ),
+              isEarly: false,
+              isLate: false,
+              isOvernight: Boolean(isOvernightShift),
+              isConnected: Boolean(hasActiveTransition),
             }
           : {
               // Regular period validation
-              isWithinBounds: isInShiftTime || isEarlyCheck,
-              isEarly: isEarlyCheck,
-              isLate: isLateCheck,
-              isOvernight: isOvernightShift,
-              isConnected: hasActiveTransition,
+              isWithinBounds: Boolean(isInShiftTime || isEarlyCheck),
+              isEarly: Boolean(isEarlyCheck),
+              isLate: Boolean(isLateCheck),
+              isOvernight: Boolean(isOvernightShift),
+              isConnected: Boolean(hasActiveTransition),
             },
       };
     } catch (error) {
@@ -344,6 +349,20 @@ export class PeriodManagementService {
     }
 
     return [];
+  }
+
+  // Add this helper method to the class
+  private isWithinOvertimeCheckout(now: Date, overtimeEnd: string): boolean {
+    try {
+      const end = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtimeEnd}`);
+      return isWithinInterval(now, {
+        start: end,
+        end: addMinutes(end, VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT),
+      });
+    } catch (error) {
+      console.error('Error checking overtime checkout:', error);
+      return false;
+    }
   }
 
   public checkIfEarly(now: Date, start: Date): boolean {
