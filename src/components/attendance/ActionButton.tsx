@@ -239,31 +239,36 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     );
   };
 
-  const StatusMessages = () => (
-    <>
-      {(validation.message || systemState.error || periodWindow) && (
-        <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
-          <div className="flex gap-2">
-            <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-yellow-800">
-              {systemState.error && <p>{systemState.error}</p>}
-              {validation.message && (
-                <p className="whitespace-pre-line">{validation.message}</p>
-              )}
-              {periodWindow && !validation.message && !systemState.error && (
-                <p>
-                  {periodType === PeriodType.OVERTIME
-                    ? 'ช่วงเวลาทำงานล่วงเวลา'
-                    : 'ช่วงเวลาทำงานปกติ'}
-                  {`: ${formatSafeTime(periodWindow.start)} - ${formatSafeTime(periodWindow.end)} น.`}
-                </p>
-              )}
+  const StatusMessages = () => {
+    // Only render messages when NOT in transition state
+    if (isInTransitionState) return null;
+
+    return (
+      <>
+        {(validation.message || systemState.error || periodWindow) && (
+          <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
+            <div className="flex gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-yellow-800">
+                {systemState.error && <p>{systemState.error}</p>}
+                {validation.message && (
+                  <p className="whitespace-pre-line">{validation.message}</p>
+                )}
+                {periodWindow && !validation.message && !systemState.error && (
+                  <p>
+                    {periodType === PeriodType.OVERTIME
+                      ? 'ช่วงเวลาทำงานล่วงเวลา'
+                      : 'ช่วงเวลาทำงานปกติ'}
+                    {`: ${formatSafeTime(periodWindow.start)} - ${formatSafeTime(periodWindow.end)} น.`}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </>
-  );
+        )}
+      </>
+    );
+  };
 
   const renderButtons = () => {
     // Prioritize transition state rendering
@@ -361,7 +366,8 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   return (
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
       <StatusMessages />
-      {renderButtons()} {/* Changed from renderSingleButton() */}
+      {renderButtons()}
+
       {/* Period Transition Info */}
       {transition && !isTransitionPeriod && (
         <div className="mt-2 text-xs text-gray-500">
