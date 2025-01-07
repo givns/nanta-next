@@ -380,6 +380,12 @@ export class TimeEntryService {
       include: { overtimeMetadata: true },
     });
 
+    console.log('Attendance ID:', attendance.id);
+    console.log('Existing Entry Query:', {
+      attendanceId: attendance.id,
+      entryType: PeriodType.OVERTIME,
+    });
+
     // Handle checkout
     if (!isCheckIn) {
       if (!existingEntry) {
