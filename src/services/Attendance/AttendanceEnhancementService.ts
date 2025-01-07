@@ -617,7 +617,7 @@ export class AttendanceEnhancementService {
           shouldAutoComplete: false,
           allowManualCheckout: true,
           checkoutTime: null,
-          reason: 'ยังสามารถลงเวลาออก OT ได้',
+          reason: 'ลงเวลาออก OT ก่อนเวลาเลย 15 นาที',
         };
       }
 

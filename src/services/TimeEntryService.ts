@@ -186,13 +186,31 @@ export class TimeEntryService {
     }
 
     // Existing logic for normal cases
-    if (options.activity.isOvertime && overtimeRequest) {
+    console.log('Processing entries with context:', {
+      periodType: options.periodType,
+      isOvertime: options.activity.isOvertime,
+      checkTime: options.checkTime,
+    });
+
+    // Verify period type matches activity
+    if (options.periodType === PeriodType.OVERTIME) {
+      // Force overtime true if period type is overtime
+      options.activity.isOvertime = true;
+
       const overtimeEntry = await this.handleOvertimeEntry(
         tx,
         attendance,
-        overtimeRequest,
+        context.overtimeRequest!,
         options.activity.isCheckIn,
       );
+
+      console.log('Created overtime entry:', {
+        id: overtimeEntry.id,
+        startTime: overtimeEntry.startTime,
+        endTime: overtimeEntry.endTime,
+        overtimeHours: overtimeEntry.overtimeHours,
+      });
+
       return { overtime: [overtimeEntry] };
     }
 
