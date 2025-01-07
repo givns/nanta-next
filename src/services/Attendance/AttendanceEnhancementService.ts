@@ -27,7 +27,19 @@ import {
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { is } from 'date-fns/locale';
+
+interface OvertimeCheckoutStatus {
+  shouldAutoComplete: boolean;
+  allowManualCheckout: boolean;
+  checkoutTime: Date | null;
+  reason: string;
+}
+
+const VALIDATION_THRESHOLDS = {
+  OVERTIME_CHECKOUT: 15, // 15 minutes threshold for overtime checkout
+  EARLY_CHECKIN: 30, // 30 minutes before shift start
+  LATE_CHECKOUT: 15, // 15 minutes after shift end
+} as const;
 
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
@@ -411,6 +423,18 @@ export class AttendanceEnhancementService {
       isManualEntry: attendance?.metadata?.source === 'manual',
     };
 
+    console.log('Enhanced validation flags:', {
+      currentTime: format(now, 'HH:mm'),
+      isOvertimeRecord: attendance?.isOvertime,
+      overtimeType: currentState.type === PeriodType.OVERTIME,
+      flags: {
+        hasPending: flags.hasPendingTransition,
+        isOvertime: flags.isOvertime,
+        isPending: flags.isPendingOvertime,
+        requiresTransition: flags.requiresTransition,
+      },
+    });
+
     // Handle emergency leave case
     if (isActiveAttendance && isVeryEarlyCheckout && !isEarlyCheckout) {
       return {
@@ -465,6 +489,59 @@ export class AttendanceEnhancementService {
       };
     }
 
+    if (isInOvertimePeriod) {
+      const overtimeStatus = this.determineOvertimeCheckoutStatus(
+        now,
+        window.overtimeInfo!.endTime,
+        isActiveAttendance,
+      );
+
+      if (!attendance?.CheckInTime) {
+        return {
+          allowed: false,
+          reason: 'ไม่พบการลงเวลาเข้างานล่วงเวลา',
+          flags: {
+            ...flags,
+            requiresAutoCompletion: true,
+            isAutoCheckOut: true,
+          },
+        };
+      }
+
+      if (overtimeStatus.shouldAutoComplete) {
+        return {
+          allowed: false,
+          reason: overtimeStatus.reason,
+          flags: {
+            ...flags,
+            requiresAutoCompletion: true,
+            isAutoCheckOut: true,
+          },
+          metadata: {
+            requiredAction: 'AUTO_COMPLETE_OVERTIME',
+            additionalInfo: {
+              autoCompleteTime: format(
+                overtimeStatus.checkoutTime!,
+                'HH:mm:ss',
+              ),
+              overtimeInfo: window.overtimeInfo,
+            },
+          },
+        };
+      }
+
+      // Within overtime or threshold period
+      return {
+        allowed: overtimeStatus.allowManualCheckout && isActiveAttendance,
+        reason: overtimeStatus.reason || '',
+        flags: {
+          ...flags,
+          isAutoCheckOut: false,
+          requiresAutoCompletion: false,
+        },
+      };
+    }
+
     // Determine if check-in/out should be allowed
     const canCheckIn =
       !isInOvertimePeriod &&
@@ -510,6 +587,79 @@ export class AttendanceEnhancementService {
         },
       }),
     };
+  }
+
+  private determineOvertimeCheckoutStatus(
+    now: Date,
+    overtimeEnd: string,
+    isActiveAttendance: boolean,
+  ): OvertimeCheckoutStatus {
+    try {
+      const endTime = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtimeEnd}`);
+      const lateThresholdEnd = addMinutes(
+        endTime,
+        VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
+      );
+
+      // If not after end time, normal checkout
+      if (now <= endTime) {
+        return {
+          shouldAutoComplete: false,
+          allowManualCheckout: true,
+          checkoutTime: null,
+          reason: '',
+        };
+      }
+
+      // If within late threshold
+      if (now <= lateThresholdEnd) {
+        return {
+          shouldAutoComplete: false,
+          allowManualCheckout: true,
+          checkoutTime: null,
+          reason: 'Allowing late overtime checkout within threshold',
+        };
+      }
+
+      // Past late threshold - should auto complete at exact overtime end
+      return {
+        shouldAutoComplete: true,
+        allowManualCheckout: false,
+        checkoutTime: endTime,
+        reason:
+          'Past overtime late threshold, auto-completing at overtime end time',
+      };
+    } catch (error) {
+      console.error('Error determining overtime checkout status:', error);
+      return {
+        shouldAutoComplete: false,
+        allowManualCheckout: false,
+        checkoutTime: null,
+        reason: 'Error processing overtime checkout',
+      };
+    }
+  }
+
+  private isWithinOvertimePeriodOrThreshold(
+    now: Date,
+    window: ShiftWindowResponse,
+  ): boolean {
+    if (!window.overtimeInfo?.endTime) return false;
+
+    const overtimeEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
+    );
+    const thresholdEnd = addMinutes(
+      overtimeEnd,
+      VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
+    );
+
+    return isWithinInterval(now, {
+      start: parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+      ),
+      end: thresholdEnd,
+    });
   }
 
   private getRequiredAction(
