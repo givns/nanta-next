@@ -147,9 +147,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         return (
           <div className="flex flex-col items-center leading-tight">
             <span className="text-white text-sm">ออกงาน</span>
-            <span className="text-white text-xl font-semibold -mt-1">
-              ล่วงเวลา
-            </span>
+            <span className="text-white text-xl font-semibold -mt-1">OT</span>
           </div>
         );
       }
