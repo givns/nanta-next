@@ -16,7 +16,6 @@ import {
   isSameDay,
   max,
   min,
-  startOfDay,
 } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
 import { NotificationService } from './NotificationService';
@@ -326,28 +325,9 @@ export class TimeEntryService {
 
     // Always ensure regularHours is set to 0 for overtime entries
     const entryData = {
-      date: startOfDay(attendance.date),
-      startTime: attendance.CheckInTime!, // Use actual check-in time
-      endTime: attendance.CheckOutTime!, // Use actual check-out time
-      regularHours: 0,
+      ...overtimeData,
+      regularHours: 0, // Explicitly set to 0 for overtime entries
       overtimeHours: overtimeData.overtimeHours,
-      status: overtimeData.status,
-      entryType: PeriodType.OVERTIME, // Use enum value directly
-      overtimeMetadata: {
-        create: {
-          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-        },
-      },
-      user: {
-        connect: { employeeId: attendance.employeeId },
-      },
-      attendance: {
-        connect: { id: attendance.id },
-      },
-      overtimeRequest: {
-        connect: { id: overtimeRequest.id },
-      },
     };
 
     const existingEntry = await tx.timeEntry.findFirst({
