@@ -299,6 +299,19 @@ export class TimeEntryService {
     overtimeRequest: ApprovedOvertimeInfo,
     isCheckIn: boolean,
   ): Promise<TimeEntry> {
+    const overtimeData = this.prepareOvertimeData(
+      attendance,
+      overtimeRequest,
+      isCheckIn,
+    );
+
+    // Always ensure regularHours is set to 0 for overtime entries
+    const entryData = {
+      ...overtimeData,
+      regularHours: 0, // Explicitly set to 0 for overtime entries
+      overtimeHours: overtimeData.overtimeHours,
+    };
+
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
         attendanceId: attendance.id,
@@ -307,22 +320,11 @@ export class TimeEntryService {
       include: { overtimeMetadata: true },
     });
 
-    const overtimeData = this.prepareOvertimeData(
-      attendance,
-      overtimeRequest,
-      isCheckIn,
-    );
-
     if (existingEntry) {
-      return this.updateOvertimeEntry(tx, existingEntry.id, overtimeData);
+      return this.updateOvertimeEntry(tx, existingEntry.id, entryData);
     }
 
-    return this.createOvertimeEntry(
-      tx,
-      attendance,
-      overtimeRequest,
-      overtimeData,
-    );
+    return this.createOvertimeEntry(tx, attendance, overtimeRequest, entryData);
   }
 
   private prepareOvertimeData(
@@ -581,14 +583,12 @@ export class TimeEntryService {
       return { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
     }
 
-    const breakStart = addHours(shiftStart, this.BREAK_START_OFFSET);
-    const breakEnd = addMinutes(breakStart, this.BREAK_DURATION_MINUTES);
-
-    const effectiveMinutes = this.calculateEffectiveMinutes(
-      checkInTime,
-      checkOutTime,
-      breakStart,
-      breakEnd,
+    // Check for leaves
+    const hasFullDayLeave = leaveRequests.some(
+      (leave) =>
+        leave.status === 'approved' &&
+        leave.leaveFormat === 'ลาเต็มวัน' &&
+        isSameDay(new Date(leave.startDate), checkInTime),
     );
 
     const hasHalfDayLeave = leaveRequests.some(
@@ -598,12 +598,41 @@ export class TimeEntryService {
         isSameDay(new Date(leave.startDate), checkInTime),
     );
 
-    const maxRegularHours = hasHalfDayLeave
-      ? this.REGULAR_HOURS_PER_SHIFT / 2
-      : this.REGULAR_HOURS_PER_SHIFT;
+    if (hasFullDayLeave) {
+      return {
+        regularHours: this.REGULAR_HOURS_PER_SHIFT,
+        overtimeHours: 0,
+        overtimeMetadata: null,
+      };
+    }
+
+    if (hasHalfDayLeave) {
+      return {
+        regularHours: this.REGULAR_HOURS_PER_SHIFT / 2,
+        overtimeHours: 0,
+        overtimeMetadata: null,
+      };
+    }
+
+    // For regular attendance, calculate based on actual time within shift bounds
+    const effectiveStart = max([checkInTime, shiftStart]);
+    const effectiveEnd = min([checkOutTime, shiftEnd]);
+
+    const breakStart = addHours(shiftStart, this.BREAK_START_OFFSET);
+    const breakEnd = addMinutes(breakStart, this.BREAK_DURATION_MINUTES);
+
+    const effectiveMinutes = this.calculateEffectiveMinutes(
+      effectiveStart,
+      effectiveEnd,
+      breakStart,
+      breakEnd,
+    );
 
     return {
-      regularHours: Math.min(effectiveMinutes / 60, maxRegularHours),
+      regularHours: Math.min(
+        effectiveMinutes / 60,
+        this.REGULAR_HOURS_PER_SHIFT,
+      ),
       overtimeHours: 0,
       overtimeMetadata: null,
     };
@@ -656,6 +685,7 @@ export class TimeEntryService {
       overtimeEnd = addDays(overtimeEnd, 1);
     }
 
+    // Ensure checkout is within overtime period
     const effectiveStart = max([checkInTime, overtimeStart]);
     const effectiveEnd = min([checkOutTime, overtimeEnd]);
 
@@ -670,21 +700,40 @@ export class TimeEntryService {
           )
         : differenceInMinutes(effectiveEnd, effectiveStart);
 
-    // Round to nearest increment
-    const roundedMinutes =
-      Math.floor(overtimeMinutes / this.OVERTIME_INCREMENT) *
-      this.OVERTIME_INCREMENT;
-    const overtimeHours = roundedMinutes / 60;
+    // Special handling: if less than minimum threshold, return 0
+    if (overtimeMinutes < this.OVERTIME_MINIMUM_MINUTES) {
+      return {
+        hours: 0,
+        metadata: null,
+      };
+    }
 
+    // Calculate based on planned overtime duration
+    const plannedOvertimeMinutes = overtimeRequest.durationMinutes;
+    const workedPercentage = (overtimeMinutes / plannedOvertimeMinutes) * 100;
+
+    // Must complete at least 90% of planned overtime to get full hours
+    if (workedPercentage < 90) {
+      // Round down to nearest 30 minutes
+      const roundedMinutes =
+        Math.floor(overtimeMinutes / this.OVERTIME_INCREMENT) *
+        this.OVERTIME_INCREMENT;
+      return {
+        hours: roundedMinutes / 60,
+        metadata: {
+          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+        },
+      };
+    }
+
+    // If completed 90% or more, give full overtime hours
     return {
-      hours: overtimeHours,
-      metadata:
-        overtimeHours > 0
-          ? {
-              isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-              isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-            }
-          : null,
+      hours: plannedOvertimeMinutes / 60,
+      metadata: {
+        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+        isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+      },
     };
   }
 

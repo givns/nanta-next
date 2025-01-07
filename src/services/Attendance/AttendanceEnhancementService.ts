@@ -617,7 +617,7 @@ export class AttendanceEnhancementService {
           shouldAutoComplete: false,
           allowManualCheckout: true,
           checkoutTime: null,
-          reason: 'Allowing late overtime checkout within threshold',
+          reason: 'ยังสามารถลงเวลาออก OT ได้',
         };
       }
 
@@ -626,8 +626,7 @@ export class AttendanceEnhancementService {
         shouldAutoComplete: true,
         allowManualCheckout: false,
         checkoutTime: endTime,
-        reason:
-          'Past overtime late threshold, auto-completing at overtime end time',
+        reason: 'เลยเวลาลงเวลาออก OT แล้ว ระบบจะทำการลงเวลาให้โดยอัตโนมัติ',
       };
     } catch (error) {
       console.error('Error determining overtime checkout status:', error);
