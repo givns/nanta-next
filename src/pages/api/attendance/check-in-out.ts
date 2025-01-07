@@ -289,8 +289,8 @@ export default async function handler(
                     ),
 
                     // Status and type
-                    status: 'COMPLETED' as TimeEntryStatus,
-                    entryType: 'REGULAR' as PeriodType,
+                    status: TimeEntryStatus.COMPLETED,
+                    entryType: PeriodType.REGULAR,
 
                     // Duration tracking with separated hours
                     hours: {
@@ -351,8 +351,8 @@ export default async function handler(
                     endTime,
 
                     // Status and type
-                    status: 'STARTED' as TimeEntryStatus,
-                    entryType: 'OVERTIME' as PeriodType,
+                    status: TimeEntryStatus.STARTED,
+                    entryType: PeriodType.OVERTIME,
 
                     // Duration tracking
                     hours: {
