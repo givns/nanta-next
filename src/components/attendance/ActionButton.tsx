@@ -265,32 +265,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     </>
   );
 
-  // Extract the single button rendering to a separate method
-  const renderSingleButton = () => {
-    // Regular single button
-    const isCheckingIn =
-      attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
-    return (
-      <button
-        onClick={handleRegularClick}
-        disabled={isDisabled}
-        className={`h-20 w-20 ${baseButtonStyle} ${
-          isDisabled
-            ? buttonDisabledStyle
-            : buttonEnabledStyle(
-                periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
-              )
-        }`}
-        aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
-      >
-        {renderButtonContent(
-          periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
-          isCheckingIn,
-        )}
-      </button>
-    );
-  };
-
   const renderButtons = () => {
     // Prioritize transition state rendering
     if (isInTransitionState) {
@@ -387,8 +361,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   return (
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
       <StatusMessages />
-      {renderSingleButton()}
-
+      {renderButtons()} {/* Changed from renderSingleButton() */}
       {/* Period Transition Info */}
       {transition && !isTransitionPeriod && (
         <div className="mt-2 text-xs text-gray-500">
