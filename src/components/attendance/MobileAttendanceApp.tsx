@@ -250,21 +250,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const totalMinutes =
       Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
 
-    const isInTransition = useMemo(() => {
-      const isTransition = Boolean(
-        validation.flags.requiresTransition &&
-          validation.flags.hasPendingTransition &&
-          currentPeriod.type === PeriodType.REGULAR,
-      );
+    const isTransition = Boolean(
+      validation.flags.requiresTransition &&
+        validation.flags.hasPendingTransition &&
+        currentPeriod.type === PeriodType.REGULAR,
+    );
 
-      console.log('Transition state check:', {
-        isTransition,
-        flags: validation.flags,
-        periodType: currentPeriod.type,
-      });
-
-      return isTransition;
-    }, [validation.flags, currentPeriod.type]);
+    console.log('Transition state check:', {
+      isTransition,
+      flags: validation.flags,
+      periodType: currentPeriod.type,
+    });
 
     if (!checkIn) {
       if (now < periodStart)
