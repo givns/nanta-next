@@ -155,6 +155,7 @@ export function useSimpleAttendance({
   }, [rawData?.daily?.currentState]);
 
   // Default state validation
+  // Default state validation
   const defaultStateValidation: StateValidation = {
     allowed: false,
     reason: '',
@@ -162,6 +163,7 @@ export function useSimpleAttendance({
       hasActivePeriod: false,
       isInsideShift: false,
       isOutsideShift: false,
+      isCheckingIn: true, // Added - default to true since no activity
       isEarlyCheckIn: false,
       isLateCheckIn: false,
       isEarlyCheckOut: false,
@@ -172,6 +174,7 @@ export function useSimpleAttendance({
       isDayOffOvertime: false,
       isAutoCheckIn: false,
       isAutoCheckOut: false,
+      requireConfirmation: false, // Added
       requiresAutoCompletion: false,
       hasPendingTransition: false,
       requiresTransition: false,
@@ -184,6 +187,10 @@ export function useSimpleAttendance({
       isHoliday: false,
       isDayOff: false,
       isManualEntry: false,
+    },
+    metadata: {
+      // Added
+      additionalInfo: {},
     },
   };
 

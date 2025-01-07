@@ -94,9 +94,18 @@ export interface ValidationFlags {
 }
 
 export interface ValidationMetadata {
+  // Core metadata
   nextTransitionTime?: string;
   requiredAction?: string;
   additionalInfo?: Record<string, unknown>;
+
+  // Transition specific metadata
+  missingEntries?: any[]; // Make optional since not always needed
+  transitionWindow?: {
+    start: string;
+    end: string;
+    targetPeriod: PeriodType;
+  };
 }
 
 // New: State Resolution Result

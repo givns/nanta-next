@@ -17,6 +17,7 @@ import {
   UnifiedPeriodState,
   UserData,
   ValidationFlags,
+  ValidationMetadata,
 } from '../attendance';
 import { KeyedMutator } from 'swr';
 import { AttendanceBaseResponse, LocationState } from './base';
@@ -287,15 +288,6 @@ export interface ExtendedOvertimeInfo {
   validationWindow?: {
     earliestCheckIn: Date;
     latestCheckOut: Date;
-  };
-}
-
-export interface ValidationMetadata {
-  missingEntries: any[];
-  transitionWindow?: {
-    start: string;
-    end: string;
-    targetPeriod: PeriodType;
   };
 }
 
