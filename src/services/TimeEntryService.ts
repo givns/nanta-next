@@ -377,6 +377,9 @@ export class TimeEntryService {
         attendanceId: attendance.id,
         entryType: PeriodType.OVERTIME,
       },
+      orderBy: {
+        createdAt: 'desc', // Sort by the most recent entry
+      },
       include: { overtimeMetadata: true },
     });
 
