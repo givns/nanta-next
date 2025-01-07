@@ -76,7 +76,7 @@ export class AttendanceEnhancementService {
     if (overtimeStart >= shiftEnd) {
       const transitionWindow = {
         start: subMinutes(shiftEnd, 15),
-        end: shiftEnd,
+        end: addMinutes(shiftEnd, 15), // 15 minutes after shift end
       };
 
       const isInTransitionWindow = isWithinInterval(now, transitionWindow);
