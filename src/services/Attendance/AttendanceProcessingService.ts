@@ -51,10 +51,30 @@ export class AttendanceProcessingService {
     private readonly enhancementService: AttendanceEnhancementService,
   ) {}
 
+  private validateAndNormalizeOptions(
+    options: ProcessingOptions,
+  ): ProcessingOptions {
+    // Ensure overtime status matches period type
+    const isOvertimePeriod = options.periodType === PeriodType.OVERTIME;
+
+    return {
+      ...options,
+      activity: {
+        ...options.activity,
+        isOvertime: isOvertimePeriod,
+      },
+    };
+  }
+
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
+    const normalizedOptions = this.validateAndNormalizeOptions(options);
+    console.log('Normalized options:', {
+      original: options,
+      normalized: normalizedOptions,
+    });
 
     try {
       const result = await this.prisma.$transaction(
@@ -73,12 +93,12 @@ export class AttendanceProcessingService {
           }
 
           // 2. Handle auto-completion if needed
-          if (options.activity.overtimeMissed) {
+          if (normalizedOptions.activity.overtimeMissed) {
             return this.handleAutoCompletion(
               tx,
               currentRecord,
               window,
-              options,
+              normalizedOptions,
               now,
             );
           }
@@ -103,7 +123,7 @@ export class AttendanceProcessingService {
 
           // Create proper StatusUpdateResult for TimeEntryService
           const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
-            options,
+            normalizedOptions,
             currentRecord,
             now,
           );
@@ -113,7 +133,7 @@ export class AttendanceProcessingService {
             tx,
             processedAttendance,
             timeEntryStatusUpdate,
-            options,
+            normalizedOptions,
           );
 
           const currentState = this.periodManager.resolveCurrentPeriod(
