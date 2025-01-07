@@ -385,38 +385,72 @@ export class AttendanceProcessingService {
     now: Date,
   ): Promise<AttendanceRecord> {
     const isCheckIn = options.activity.isCheckIn;
-
-    // Enhanced transition detection
-    const shiftEnd = parseISO(window.current.end);
-    const isInTransitionWindow = isWithinInterval(now, {
-      start: subMinutes(shiftEnd, 15),
-      end: addMinutes(shiftEnd, 15),
-    });
-    const hasUpcomingOvertime = Boolean(
-      window.nextPeriod?.type === PeriodType.OVERTIME,
-    );
-
-    // Status validation for overtime
-    if (options.activity.isOvertime && currentRecord) {
-      const currentStatus = {
-        state: currentRecord.state,
-        checkStatus: currentRecord.checkStatus,
-        isOvertime: currentRecord.isOvertime,
-        overtimeState: currentRecord.overtimeState,
-      };
-
-      if (!StatusHelpers.canTransitionToOvertime(currentStatus)) {
-        throw new AppError({
-          code: ErrorCode.PROCESSING_ERROR,
-          message: 'Cannot transition to overtime from current state',
-        });
-      }
-    }
-
     const locationData = options.location
       ? this.prepareLocationData(options, isCheckIn)
       : undefined;
 
+    // Handle checkout
+    if (!isCheckIn) {
+      if (!currentRecord) {
+        throw new AppError({
+          code: ErrorCode.PROCESSING_ERROR,
+          message: 'No existing attendance record found for checkout',
+        });
+      }
+
+      // Enhanced transition detection for overtime
+      const shiftEnd = parseISO(window.current.end);
+      const isInTransitionWindow = isWithinInterval(now, {
+        start: subMinutes(shiftEnd, 15),
+        end: addMinutes(shiftEnd, 15),
+      });
+      const hasUpcomingOvertime = Boolean(
+        window.nextPeriod?.type === PeriodType.OVERTIME,
+      );
+
+      // Update existing record for checkout
+      const updatedAttendance = await tx.attendance.update({
+        where: { id: currentRecord.id },
+        data: {
+          CheckOutTime: now,
+          state: AttendanceState.PRESENT,
+          checkStatus: CheckStatus.CHECKED_OUT,
+          ...(options.periodType === PeriodType.OVERTIME && {
+            overtimeState: OvertimeState.COMPLETED,
+          }),
+          ...(locationData && {
+            location: {
+              update: {
+                checkOutCoordinates: this.prepareLocationJson(
+                  options.location?.coordinates,
+                ),
+                checkOutAddress: options.location?.address,
+              },
+            },
+          }),
+          metadata: {
+            update: {
+              source:
+                hasUpcomingOvertime && isInTransitionWindow
+                  ? 'auto'
+                  : options.metadata?.source || 'system',
+              updatedAt: now,
+            },
+          },
+        },
+        include: {
+          timeEntries: true,
+          overtimeEntries: true,
+          location: true,
+          metadata: true,
+          checkTiming: true,
+        },
+      });
+
+      return AttendanceMappers.toAttendanceRecord(updatedAttendance)!;
+    }
+
+    // Handle check-in
     // Get current sequence for this period type
     const latestRecord = await tx.attendance.findFirst({
       where: {
@@ -431,7 +465,7 @@ export class AttendanceProcessingService {
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
 
-    // Prepare attendance data using correct schema structure
+    // Prepare attendance data for new check-in
     const attendanceData: Prisma.AttendanceCreateInput = {
       user: { connect: { employeeId: options.employeeId } },
       date: startOfDay(now),
@@ -442,8 +476,7 @@ export class AttendanceProcessingService {
       isOvertime: options.activity.isOvertime || false,
       shiftStartTime: parseISO(window.current.start),
       shiftEndTime: parseISO(window.current.end),
-      CheckInTime: isCheckIn ? now : undefined,
-      CheckOutTime: !isCheckIn ? now : undefined,
+      CheckInTime: now,
       ...(locationData && {
         location: { create: locationData },
       }),
@@ -451,52 +484,13 @@ export class AttendanceProcessingService {
         create: {
           isManualEntry: options.activity.isManualEntry || false,
           isDayOff: window.isDayOff,
-          source:
-            hasUpcomingOvertime && isInTransitionWindow
-              ? 'auto'
-              : options.metadata?.source || 'system',
+          source: options.metadata?.source || 'system',
         },
       },
     };
 
-    // Use schema-compliant update structure with new unique constraint
-    const attendance = await tx.attendance.upsert({
-      where: {
-        employee_date_period_sequence: {
-          employeeId: options.employeeId,
-          date: startOfDay(now),
-          type: options.periodType,
-          periodSequence: nextSequence,
-        },
-      },
-      create: attendanceData,
-      update: {
-        CheckOutTime: !isCheckIn ? now : undefined,
-        state: !isCheckIn ? AttendanceState.PRESENT : undefined,
-        checkStatus: !isCheckIn ? CheckStatus.CHECKED_OUT : undefined,
-        ...(locationData && {
-          location: {
-            update: {
-              checkOutCoordinates: !isCheckIn
-                ? this.prepareLocationJson(options.location?.coordinates)
-                : undefined,
-              checkOutAddress: !isCheckIn
-                ? options.location?.address
-                : undefined,
-            },
-          },
-        }),
-        // Update metadata using the correct schema fields
-        ...(hasUpcomingOvertime &&
-          isInTransitionWindow && {
-            metadata: {
-              update: {
-                source: 'auto',
-                updatedAt: now,
-              },
-            },
-          }),
-      },
+    const attendance = await tx.attendance.create({
+      data: attendanceData,
       include: {
         timeEntries: true,
         overtimeEntries: true,

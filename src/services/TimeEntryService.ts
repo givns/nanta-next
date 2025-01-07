@@ -6,6 +6,9 @@ import {
   LeaveRequest,
   PeriodType,
   TimeEntryStatus,
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
 } from '@prisma/client';
 import {
   addDays,
@@ -311,6 +314,49 @@ export class TimeEntryService {
     }
   }
 
+  private prepareOvertimeData(
+    attendance: AttendanceRecord,
+    overtimeRequest: ApprovedOvertimeInfo,
+    isCheckIn: boolean,
+  ) {
+    const baseData = {
+      date: attendance.date,
+      regularHours: 0,
+      entryType: PeriodType.OVERTIME,
+      overtimeMetadata: {
+        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+        isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+      },
+    };
+
+    if (isCheckIn) {
+      return {
+        ...baseData,
+        startTime: attendance.CheckInTime!,
+        endTime: null,
+        overtimeHours: 0,
+        status: TimeEntryStatus.STARTED,
+      };
+    }
+
+    // For checkout
+    const overtimeHours = this.calculateOvertimeHours(
+      attendance.CheckInTime!,
+      attendance.CheckOutTime!,
+      overtimeRequest,
+      null,
+      null,
+    ).hours;
+
+    return {
+      ...baseData,
+      startTime: attendance.CheckInTime!,
+      endTime: attendance.CheckOutTime!,
+      overtimeHours,
+      status: TimeEntryStatus.COMPLETED,
+    };
+  }
+
   private async handleOvertimeEntry(
     tx: Prisma.TransactionClient,
     attendance: AttendanceRecord,
@@ -318,18 +364,13 @@ export class TimeEntryService {
     isCheckIn: boolean,
     periodType = PeriodType,
   ): Promise<TimeEntry> {
-    const overtimeData = this.prepareOvertimeData(
-      attendance,
-      overtimeRequest,
+    console.log('Handle overtime entry:', {
       isCheckIn,
-    );
-
-    // Always ensure regularHours is set to 0 for overtime entries
-    const entryData = {
-      ...overtimeData,
-      regularHours: 0, // Explicitly set to 0 for overtime entries
-      overtimeHours: overtimeData.overtimeHours,
-    };
+      attendanceId: attendance.id,
+      checkInTime: attendance.CheckInTime,
+      checkOutTime: attendance.CheckOutTime,
+      overtimeId: overtimeRequest.id,
+    });
 
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
@@ -339,42 +380,36 @@ export class TimeEntryService {
       include: { overtimeMetadata: true },
     });
 
-    if (existingEntry) {
-      return this.updateOvertimeEntry(tx, existingEntry.id, entryData);
+    // Handle checkout
+    if (!isCheckIn) {
+      if (!existingEntry) {
+        throw new Error('No existing overtime entry found for checkout');
+      }
+
+      const overtimeData = this.prepareOvertimeData(
+        attendance,
+        overtimeRequest,
+        isCheckIn,
+      );
+      return await this.updateOvertimeEntry(tx, existingEntry.id, overtimeData);
     }
 
-    return this.createOvertimeEntry(tx, attendance, overtimeRequest, entryData);
-  }
+    // Handle check-in
+    if (existingEntry) {
+      throw new Error('Overtime entry already exists for this attendance');
+    }
 
-  private prepareOvertimeData(
-    attendance: AttendanceRecord,
-    overtimeRequest: ApprovedOvertimeInfo,
-    isCheckIn: boolean,
-  ) {
-    const overtimeHours =
-      !isCheckIn && attendance.CheckOutTime
-        ? this.calculateOvertimeHours(
-            attendance.CheckInTime!,
-            attendance.CheckOutTime,
-            overtimeRequest,
-            null,
-            null,
-          ).hours
-        : 0;
-
-    return {
-      date: attendance.date,
-      startTime: attendance.CheckInTime || attendance.date,
-      endTime: attendance.CheckOutTime || null,
-      regularHours: 0,
-      overtimeHours,
-      status: isCheckIn ? TimeEntryStatus.STARTED : TimeEntryStatus.COMPLETED,
-      entryType: PeriodType.OVERTIME,
-      overtimeMetadata: {
-        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-        isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-      },
-    };
+    const overtimeData = this.prepareOvertimeData(
+      attendance,
+      overtimeRequest,
+      isCheckIn,
+    );
+    return this.createOvertimeEntry(
+      tx,
+      attendance,
+      overtimeRequest,
+      overtimeData,
+    );
   }
 
   private getShiftTimes(shift: any, date: Date) {
@@ -792,10 +827,19 @@ export class TimeEntryService {
     id: string,
     data: any,
   ): Promise<TimeEntry> {
+    console.log('Updating overtime entry:', {
+      id,
+      endTime: data.endTime,
+      overtimeHours: data.overtimeHours,
+    });
+
     return tx.timeEntry.update({
       where: { id },
       data: {
-        ...data,
+        endTime: data.endTime,
+        overtimeHours: data.overtimeHours,
+        status: data.status,
+        regularHours: 0,
         overtimeMetadata: {
           update: data.overtimeMetadata,
         },
