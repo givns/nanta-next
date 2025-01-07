@@ -386,6 +386,36 @@ export class TimeEntryService {
       entryType: PeriodType.OVERTIME,
     });
 
+    // Add more comprehensive logging
+    const allOvertimeEntries = await tx.timeEntry.findMany({
+      where: {
+        entryType: PeriodType.OVERTIME,
+      },
+      select: {
+        id: true,
+        attendanceId: true,
+        employeeId: true,
+        startTime: true,
+        endTime: true,
+        entryType: true,
+      },
+    });
+
+    console.log(
+      'All Overtime Entries:',
+      JSON.stringify(allOvertimeEntries, null, 2),
+    );
+
+    // Check specific entry details
+    const specificEntry = allOvertimeEntries.find(
+      (entry) => entry.attendanceId === attendance.id,
+    );
+
+    console.log(
+      'Specific Overtime Entry for this Attendance:',
+      JSON.stringify(specificEntry, null, 2),
+    );
+
     // Handle checkout
     if (!isCheckIn) {
       if (!existingEntry) {
