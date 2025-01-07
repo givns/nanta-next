@@ -57,53 +57,42 @@ export interface UnifiedPeriodState {
 export interface StateValidation {
   allowed: boolean;
   reason: string;
-  flags: {
-    // Core Status Flags
-    hasActivePeriod: boolean;
-    isInsideShift: boolean;
-    isOutsideShift: boolean;
+  flags: ValidationFlags;
+  metadata?: ValidationMetadata;
+}
 
-    // Check-in Related
-    isEarlyCheckIn: boolean;
-    isLateCheckIn: boolean;
+export interface ValidationFlags {
+  hasActivePeriod: boolean;
+  isInsideShift: boolean;
+  isOutsideShift: boolean;
+  isEarlyCheckIn: boolean;
+  isLateCheckIn: boolean;
+  isEarlyCheckOut: boolean;
+  isLateCheckOut: boolean;
+  isVeryLateCheckOut: boolean;
+  isOvertime: boolean;
+  isDayOffOvertime: boolean;
+  isPendingOvertime: boolean;
+  isAutoCheckIn: boolean;
+  isAutoCheckOut: boolean;
+  requiresAutoCompletion: boolean;
+  hasPendingTransition: boolean;
+  requiresTransition: boolean;
+  isMorningShift: boolean;
+  isAfternoonShift: boolean;
+  isAfterMidshift: boolean;
+  isApprovedEarlyCheckout: boolean;
+  isPlannedHalfDayLeave: boolean;
+  isEmergencyLeave: boolean;
+  isHoliday: boolean;
+  isDayOff: boolean;
+  isManualEntry: boolean;
+}
 
-    // Check-out Related
-    isEarlyCheckOut: boolean;
-    isLateCheckOut: boolean;
-    isVeryLateCheckOut: boolean;
-
-    // Overtime Related
-    isOvertime: boolean;
-    isPendingOvertime: boolean;
-    isDayOffOvertime: boolean;
-
-    // Auto-completion
-    isAutoCheckIn: boolean;
-    isAutoCheckOut: boolean;
-    requiresAutoCompletion: boolean;
-
-    // Transition
-    hasPendingTransition: boolean;
-    requiresTransition: boolean;
-
-    // Schedule Related
-    isAfternoonShift: boolean;
-    isMorningShift: boolean;
-    isAfterMidshift: boolean;
-
-    // Special Cases
-    isApprovedEarlyCheckout: boolean;
-    isPlannedHalfDayLeave: boolean;
-    isEmergencyLeave: boolean;
-    isHoliday: boolean;
-    isDayOff: boolean;
-    isManualEntry: boolean;
-  };
-  metadata?: {
-    nextTransitionTime?: string; // ISO string
-    requiredAction?: string;
-    additionalInfo?: Record<string, unknown>;
-  };
+export interface ValidationMetadata {
+  nextTransitionTime?: string;
+  requiredAction?: string;
+  additionalInfo?: Record<string, unknown>;
 }
 
 // New: State Resolution Result

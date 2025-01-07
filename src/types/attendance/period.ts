@@ -42,6 +42,32 @@ export interface PeriodAttendance {
   checkStatus: CheckStatus;
 }
 
+export interface PeriodStatusInfo {
+  isActiveAttendance: boolean;
+  isOvertimePeriod: boolean;
+  timingFlags: {
+    isEarlyCheckIn: boolean;
+    isLateCheckIn: boolean;
+    isLateCheckOut: boolean;
+    isVeryLateCheckOut: boolean;
+    lateCheckOutMinutes: number;
+  };
+  shiftTiming: {
+    isMorningShift: boolean;
+    isAfternoonShift: boolean;
+    isAfterMidshift: boolean;
+  };
+}
+
+export interface TransitionStatusInfo {
+  isInTransition: boolean;
+  window: {
+    start: Date;
+    end: Date;
+  };
+  targetPeriod: PeriodType;
+}
+
 export interface OvertimePeriodInfo {
   id: string;
   startTime: string;

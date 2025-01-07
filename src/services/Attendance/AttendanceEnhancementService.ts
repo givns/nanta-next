@@ -9,13 +9,12 @@ import {
   ATTENDANCE_CONSTANTS,
   OvertimeContext,
   TransitionInfo,
+  PeriodStatus,
+  PeriodStatusInfo,
+  TransitionStatusInfo,
+  ValidationFlags,
 } from '@/types/attendance';
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  PeriodType,
-} from '@prisma/client';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   addMinutes,
   differenceInMinutes,
@@ -232,361 +231,291 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): StateValidation {
-    // Core attendance state
+    // First determine period status and timing
+    const periodStatusInfo = this.determinePeriodStatusInfo(
+      attendance,
+      currentState,
+      window,
+      now,
+    );
+
+    // Then determine transition state
+    const transitionStatus = this.determineTransitionStatusInfo(
+      periodStatusInfo,
+      window,
+      now,
+    );
+
+    // Handle transition state
+    if (transitionStatus.isInTransition) {
+      return {
+        allowed: true,
+        reason: '',
+        flags: this.getValidationFlags({
+          ...periodStatusInfo,
+          isPendingOvertime: true,
+          hasPendingTransition: true,
+          requiresTransition: true,
+        }),
+        metadata: {
+          nextTransitionTime: format(
+            transitionStatus.window.start,
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+          ),
+          requiredAction: 'TRANSITION_REQUIRED',
+          additionalInfo: {
+            transitionType: transitionStatus.targetPeriod,
+          },
+        },
+      };
+    }
+
+    // Handle overtime period
+    if (periodStatusInfo.isOvertimePeriod) {
+      return this.getOvertimeValidation(periodStatusInfo, window, now);
+    }
+
+    // Handle regular period
+    return this.getRegularValidation(periodStatusInfo, window, attendance);
+  }
+
+  private determinePeriodStatusInfo(
+    attendance: AttendanceRecord | null,
+    currentState: UnifiedPeriodState,
+    window: ShiftWindowResponse,
+    now: Date,
+  ): PeriodStatusInfo {
     const isActiveAttendance = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
 
-    // For initial check-in state
-    const isWithinEarlyWindow =
-      currentState.validation.isEarly &&
-      this.periodManager.checkIfEarly(now, parseISO(window.current.start));
+    const isOvertimePeriod = Boolean(
+      attendance?.isOvertime || currentState.type === PeriodType.OVERTIME,
+    );
 
-    // Get timing flags from attendance record
-    const timingFlags = attendance?.checkTiming || {
-      isEarlyCheckIn: isWithinEarlyWindow,
-      isLateCheckIn: currentState.validation.isLate,
-      isLateCheckOut: false,
-      isVeryLateCheckOut: false,
-      lateCheckOutMinutes: 0,
+    return {
+      isActiveAttendance,
+      isOvertimePeriod,
+      timingFlags: attendance?.checkTiming || {
+        isEarlyCheckIn: currentState.validation.isEarly,
+        isLateCheckIn: currentState.validation.isLate,
+        isLateCheckOut: false,
+        isVeryLateCheckOut: false,
+        lateCheckOutMinutes: 0,
+      },
+      shiftTiming: {
+        isMorningShift: parseInt(window.shift.startTime.split(':')[0], 10) < 12,
+        isAfternoonShift:
+          parseInt(window.shift.startTime.split(':')[0], 10) >= 12,
+        isAfterMidshift: this.isAfterMidshift(now, window),
+      },
     };
+  }
 
-    // Shift timing calculations - Use shift end time instead of window end
+  private determineTransitionStatusInfo(
+    periodStatusInfo: PeriodStatusInfo,
+    window: ShiftWindowResponse,
+    now: Date,
+  ): TransitionStatusInfo {
     const shiftEnd = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
     );
-    const shiftStartHour = parseInt(window.shift.startTime.split(':')[0], 10);
-    const isMorningShift = shiftStartHour >= 4 && shiftStartHour < 12;
-    const isAfternoonShift = !isMorningShift;
 
-    // Enhanced overtime detection
-    const hasApprovedOvertime = Boolean(
-      window.overtimeInfo || window.nextPeriod?.type === PeriodType.OVERTIME,
-    );
-    const overtimeStart =
-      window.overtimeInfo?.startTime || window.nextPeriod?.startTime;
-
-    // Calculate checkout validation windows
-    const midShiftTime = this.calculateMidShift(
-      parseISO(`${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`),
-      shiftEnd,
-    );
-    const isAfterMidshift = now > midShiftTime;
-    const isVeryEarlyCheckout = isActiveAttendance && !isAfterMidshift;
-    const isEarlyCheckout =
-      isActiveAttendance && this.checkIfEarlyCheckout(window, now);
-
-    // Calculate transition window
     const transitionWindow = {
       start: subMinutes(shiftEnd, 5),
       end: addMinutes(shiftEnd, 15),
     };
 
-    // Debug time calculations
-    console.log('Time calculations:', {
-      now: format(now, 'HH:mm'),
-      shiftEnd: format(shiftEnd, 'HH:mm'),
-      transitionStart: format(transitionWindow.start, 'HH:mm'),
-      transitionEnd: format(transitionWindow.end, 'HH:mm'),
-      hasUpcomingOvertime: Boolean(window.overtimeInfo),
-    });
-
     const isInTransitionWindow = isWithinInterval(now, transitionWindow);
     const hasUpcomingOvertime = Boolean(
-      overtimeStart === window.shift.endTime ||
-        window.overtimeInfo?.startTime === window.shift.endTime,
+      window.overtimeInfo?.startTime === window.shift.endTime,
     );
 
-    const hasPendingTransition = isInTransitionWindow && hasUpcomingOvertime;
-    const requiresTransition = hasPendingTransition && isActiveAttendance;
-
-    // Safely get overtime info
-    const overtimeInfo = window.overtimeInfo || window.nextPeriod?.overtimeInfo;
-    const overtimeWindow = overtimeInfo
-      ? {
-          start: overtimeInfo.startTime,
-          end: overtimeInfo.endTime,
-        }
-      : null;
-    // Calculate overtime status
-    const isInOvertimePeriod = Boolean(
-      attendance?.isOvertime || currentState.type === PeriodType.OVERTIME,
-    );
-
-    const overtimeStarted = Boolean(
-      attendance?.overtimeState === OvertimeState.IN_PROGRESS ||
-        attendance?.overtimeState === OvertimeState.COMPLETED,
-    );
-
-    // Determine overtime type if applicable
-    const isPreShiftOvertime = false;
-
-    const isPostShiftOvertime = Boolean(
-      isInOvertimePeriod &&
-        overtimeWindow?.start &&
-        overtimeWindow.start >= window.shift.endTime,
-    );
-
-    // Calculate if within overtime period
-    const isWithinOvertimePeriod = overtimeWindow
-      ? isWithinInterval(now, {
-          start: parseISO(
-            `${format(now, 'yyyy-MM-dd')}T${overtimeWindow.start}`,
-          ),
-          end: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtimeWindow.end}`),
-        })
-      : false;
-
-    const isDayOffOvertime = Boolean(
-      currentState.activity.isDayOffOvertime ||
-        window.overtimeInfo?.isDayOffOvertime ||
-        (attendance?.isOvertime && attendance?.metadata?.isDayOff),
-    );
-
-    console.log('Overtime validation:', {
-      now: format(now, 'HH:mm'),
-      shiftEnd: format(shiftEnd, 'HH:mm'),
-      hasApprovedOvertime,
-      overtimeStart,
-      isInTransitionWindow,
-      hasPendingTransition,
-    });
-
-    // Debug logging
-    console.log('Validation state:', {
-      timing: {
-        now: format(now, 'HH:mm'),
-        midshift: format(midShiftTime, 'HH:mm'),
-        shiftEnd: format(shiftEnd, 'HH:mm'),
-      },
-      checkouts: {
-        isVeryEarly: isVeryEarlyCheckout,
-        isEarly: isEarlyCheckout,
-        isAfterMidshift,
-      },
-      transitions: {
-        isInWindow: isInTransitionWindow,
-        hasOvertime: hasUpcomingOvertime,
-        requiresTransition,
-      },
-    });
-
-    // Build validation flags
-    const flags = {
-      // Active state flags
-      hasActivePeriod: isActiveAttendance || overtimeStarted,
-      isInsideShift: currentState.validation.isWithinBounds,
-      isOutsideShift:
-        isActiveAttendance && !currentState.validation.isWithinBounds,
-
-      // Check-in/out timing flags
-      isEarlyCheckIn: timingFlags.isEarlyCheckIn,
-      isLateCheckIn: timingFlags.isLateCheckIn,
-      isEarlyCheckOut: false,
-      isLateCheckOut: timingFlags.isLateCheckOut,
-      isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
-
-      // Overtime flags
-      isOvertime: isInOvertimePeriod,
-      isPreShiftOvertime,
-      isPostShiftOvertime,
-      isDayOffOvertime: isDayOffOvertime,
-      isPendingOvertime: Boolean(
-        !isInOvertimePeriod && // Only pending if not already in overtime
-          window.nextPeriod?.type === PeriodType.OVERTIME &&
-          !currentState.activity.isOvertime,
-      ),
-
-      // Auto-completion flags
-      isAutoCheckIn: attendance?.metadata?.source === 'auto',
-      isAutoCheckOut: attendance?.metadata?.source === 'auto',
-      requiresAutoCompletion: false,
-
-      // Transition flags
-      hasPendingTransition: Boolean(
-        !isInOvertimePeriod && window.nextPeriod?.type === PeriodType.OVERTIME,
-      ),
-      requiresTransition: Boolean(
-        !isInOvertimePeriod && hasUpcomingOvertime && isInTransitionWindow,
-      ),
-
-      // Schedule flags
-      isMorningShift: parseInt(window.shift.startTime.split(':')[0], 10) < 12,
-      isAfternoonShift:
-        parseInt(window.shift.startTime.split(':')[0], 10) >= 12,
-      isAfterMidshift: now >= midShiftTime, // This needs fixing - should be false at 8:35
-      isApprovedEarlyCheckout: false,
-      isPlannedHalfDayLeave: false,
-      isEmergencyLeave: isVeryEarlyCheckout,
-      isHoliday: window.isHoliday,
-      isDayOff: Boolean(window.isDayOff),
-      isManualEntry: attendance?.metadata?.source === 'manual',
+    return {
+      isInTransition:
+        isInTransitionWindow &&
+        hasUpcomingOvertime &&
+        periodStatusInfo.isActiveAttendance &&
+        !periodStatusInfo.isOvertimePeriod,
+      window: transitionWindow,
+      targetPeriod: PeriodType.OVERTIME,
     };
+  }
 
-    console.log('Enhanced validation flags:', {
-      currentTime: format(now, 'HH:mm'),
-      isOvertimeRecord: attendance?.isOvertime,
-      overtimeType: currentState.type === PeriodType.OVERTIME,
+  private getOvertimeValidation(
+    periodStatusInfo: PeriodStatusInfo,
+    window: ShiftWindowResponse,
+    now: Date,
+  ): StateValidation {
+    const overtimeEnd = window.overtimeInfo?.endTime
+      ? parseISO(`${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`)
+      : null;
+
+    const overtimeStatus = this.determineOvertimeCheckoutStatus(
+      now,
+      window.overtimeInfo!.endTime,
+      periodStatusInfo.isActiveAttendance,
+    );
+
+    return {
+      allowed: overtimeStatus.allowManualCheckout,
+      reason: overtimeStatus.reason,
       flags: {
-        hasPending: flags.hasPendingTransition,
-        isOvertime: flags.isOvertime,
-        isPending: flags.isPendingOvertime,
-        requiresTransition: flags.requiresTransition,
+        hasActivePeriod: periodStatusInfo.isActiveAttendance,
+        isInsideShift: window.overtimeInfo?.isInsideShiftHours || false,
+        isOutsideShift: false,
+        isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
+        isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
+        isEarlyCheckOut: false,
+        isLateCheckOut: periodStatusInfo.timingFlags.isLateCheckOut,
+        isVeryLateCheckOut: periodStatusInfo.timingFlags.isVeryLateCheckOut,
+        isOvertime: true,
+        isDayOffOvertime: window.overtimeInfo?.isDayOffOvertime || false,
+        isPendingOvertime: false,
+        isAutoCheckIn: false,
+        isAutoCheckOut: overtimeStatus.shouldAutoComplete,
+        requiresAutoCompletion: overtimeStatus.shouldAutoComplete,
+        hasPendingTransition: false,
+        requiresTransition: false,
+        isMorningShift: periodStatusInfo.shiftTiming.isMorningShift,
+        isAfternoonShift: periodStatusInfo.shiftTiming.isAfternoonShift,
+        isAfterMidshift: periodStatusInfo.shiftTiming.isAfterMidshift,
+        isApprovedEarlyCheckout: false,
+        isPlannedHalfDayLeave: false,
+        isEmergencyLeave: false,
+        isHoliday: window.isHoliday,
+        isDayOff: Boolean(window.isDayOff),
+        isManualEntry: false,
       },
-    });
-
-    // Handle emergency leave case
-    if (isActiveAttendance && isVeryEarlyCheckout && !isEarlyCheckout) {
-      return {
-        allowed: true,
-        reason: 'หากต้องการออกงานฉุกเฉิน ระบบจะขออนุมัติลาป่วยให้',
-        flags,
-      };
-    }
-
-    // Handle early checkout case
-    if (isActiveAttendance && isEarlyCheckout && !isVeryEarlyCheckout) {
-      const shiftEnd = parseISO(window.current.end);
-      const minutesUntilEnd = differenceInMinutes(shiftEnd, now);
-
-      return {
-        allowed: false,
-        reason: `ยังเหลือเวลางานอีก ${minutesUntilEnd} นาที กรุณาลงเวลาออกตอน ${format(
-          subMinutes(shiftEnd, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD),
-          'HH:mm',
-        )}`,
-        flags,
-      };
-    }
-
-    // Handle approaching overtime transition
-    if (isActiveAttendance && hasPendingTransition) {
-      return {
-        allowed: true,
-        reason: ``,
-        flags: {
-          ...flags,
-          isPendingOvertime: true,
-          hasPendingTransition: true,
-          requiresTransition: true,
-        },
-        metadata: {
-          nextTransitionTime: shiftEnd.toISOString(),
-          requiredAction: 'Overtime Available',
-          additionalInfo: {
-            overtimeInfo: window.overtimeInfo,
-            transitionWindow: {
-              start: format(transitionWindow.start, 'HH:mm'),
-              end: format(transitionWindow.end, 'HH:mm'),
-              type: 'OVERTIME',
-            },
-            displayOptions: {
-              showSplitButton: true,
-              overtimeDuration: window.overtimeInfo?.durationMinutes || 0,
-            },
-          },
-        },
-      };
-    }
-
-    if (isInOvertimePeriod) {
-      const overtimeStatus = this.determineOvertimeCheckoutStatus(
-        now,
-        window.overtimeInfo!.endTime,
-        isActiveAttendance,
-      );
-
-      if (!attendance?.CheckInTime) {
-        return {
-          allowed: false,
-          reason: 'ไม่พบการลงเวลาเข้างานล่วงเวลา',
-          flags: {
-            ...flags,
-            requiresAutoCompletion: true,
-            isAutoCheckOut: true,
-          },
-        };
-      }
-
-      if (overtimeStatus.shouldAutoComplete) {
-        return {
-          allowed: false,
-          reason: overtimeStatus.reason,
-          flags: {
-            ...flags,
-            requiresAutoCompletion: true,
-            isAutoCheckOut: true,
-          },
-          metadata: {
+      metadata: overtimeStatus.shouldAutoComplete
+        ? {
+            nextTransitionTime: overtimeStatus.checkoutTime?.toISOString(),
             requiredAction: 'AUTO_COMPLETE_OVERTIME',
             additionalInfo: {
-              autoCompleteTime: format(
-                overtimeStatus.checkoutTime!,
-                'HH:mm:ss',
-              ),
+              autoCompleteTime: overtimeStatus.checkoutTime
+                ? format(overtimeStatus.checkoutTime, 'HH:mm:ss')
+                : undefined,
+              overtimeInfo: window.overtimeInfo,
+            },
+          }
+        : {
+            additionalInfo: {
               overtimeInfo: window.overtimeInfo,
             },
           },
-        };
-      }
+    };
+  }
 
-      // Within overtime or threshold period
+  private getRegularValidation(
+    periodStatusInfo: PeriodStatusInfo,
+    window: ShiftWindowResponse,
+    attendance: AttendanceRecord | null,
+  ): StateValidation {
+    const shiftEnd = parseISO(
+      `${format(getCurrentTime(), 'yyyy-MM-dd')}T${window.shift.endTime}`,
+    );
+    const midShiftTime = this.calculateMidShift(
+      parseISO(
+        `${format(getCurrentTime(), 'yyyy-MM-dd')}T${window.shift.startTime}`,
+      ),
+      shiftEnd,
+    );
+
+    const isVeryEarlyCheckout =
+      periodStatusInfo.isActiveAttendance &&
+      !periodStatusInfo.shiftTiming.isAfterMidshift;
+
+    // Handle emergency leave case
+    if (isVeryEarlyCheckout) {
       return {
-        allowed: overtimeStatus.allowManualCheckout && isActiveAttendance,
-        reason: overtimeStatus.reason || '',
+        allowed: true,
+        reason: 'หากต้องการออกงานฉุกเฉิน ระบบจะขออนุมัติลาป่วยให้',
         flags: {
-          ...flags,
+          hasActivePeriod: true,
+          isInsideShift: true,
+          isOutsideShift: false,
+          isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
+          isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
+          isEarlyCheckOut: false,
+          isLateCheckOut: false,
+          isVeryLateCheckOut: false,
+          isOvertime: false,
+          isDayOffOvertime: false,
+          isPendingOvertime: false,
+          isAutoCheckIn: false,
           isAutoCheckOut: false,
           requiresAutoCompletion: false,
+          hasPendingTransition: false,
+          requiresTransition: false,
+          isMorningShift: periodStatusInfo.shiftTiming.isMorningShift,
+          isAfternoonShift: periodStatusInfo.shiftTiming.isAfternoonShift,
+          isAfterMidshift: periodStatusInfo.shiftTiming.isAfterMidshift,
+          isApprovedEarlyCheckout: false,
+          isPlannedHalfDayLeave: false,
+          isEmergencyLeave: true,
+          isHoliday: window.isHoliday,
+          isDayOff: Boolean(window.isDayOff),
+          isManualEntry: attendance?.metadata?.source === 'manual',
         },
       };
     }
 
-    // Determine if check-in/out should be allowed
+    // Normal regular period validation
     const canCheckIn =
-      !isInOvertimePeriod &&
-      (currentState.validation.isWithinBounds || flags.isEarlyCheckIn);
+      !periodStatusInfo.isOvertimePeriod &&
+      (!periodStatusInfo.isActiveAttendance ||
+        periodStatusInfo.timingFlags.isEarlyCheckIn);
 
-    const canCheckOut = isInOvertimePeriod
-      ? isActiveAttendance && isWithinOvertimePeriod
-      : isActiveAttendance && currentState.validation.isWithinBounds;
+    const canCheckOut =
+      periodStatusInfo.isActiveAttendance &&
+      periodStatusInfo.shiftTiming.isAfterMidshift;
 
-    console.log('Enhanced validation flags:', {
-      currentTime: format(now, 'HH:mm'),
-      isOvertimeRecord: attendance?.isOvertime,
-      overtimeType: currentState.type === PeriodType.OVERTIME,
-      flags: {
-        hasPending: flags.hasPendingTransition,
-        isOvertime: flags.isOvertime,
-        isPending: flags.isPendingOvertime,
-        requiresTransition: flags.requiresTransition,
-      },
-    });
-
-    // Handle normal validation
     return {
       allowed: canCheckIn || canCheckOut,
-      reason: this.getValidationReason(currentState, window, attendance),
-      flags,
-      ...(hasPendingTransition && {
-        metadata: {
-          nextTransitionTime: shiftEnd.toISOString(),
-          requiredAction: this.getRequiredAction(
-            currentState,
-            window,
-            attendance,
-          ),
-          additionalInfo: {
-            ...this.buildAdditionalInfo(attendance, window),
-            transitionWindow: {
-              start: format(transitionWindow.start, 'HH:mm'),
-              end: format(transitionWindow.end, 'HH:mm'),
-              type: 'OVERTIME',
-            },
-          },
-        },
+      reason: this.getValidationReason({
+        periodStatusInfo,
+        window,
+        attendance,
       }),
+      flags: {
+        hasActivePeriod: periodStatusInfo.isActiveAttendance,
+        isInsideShift: true,
+        isOutsideShift: false,
+        isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
+        isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
+        isEarlyCheckOut: false,
+        isLateCheckOut: periodStatusInfo.timingFlags.isLateCheckOut,
+        isVeryLateCheckOut: periodStatusInfo.timingFlags.isVeryLateCheckOut,
+        isOvertime: false,
+        isDayOffOvertime: false,
+        isPendingOvertime: false,
+        isAutoCheckIn: false,
+        isAutoCheckOut: false,
+        requiresAutoCompletion: false,
+        hasPendingTransition: window.nextPeriod?.type === PeriodType.OVERTIME,
+        requiresTransition: false,
+        isMorningShift: periodStatusInfo.shiftTiming.isMorningShift,
+        isAfternoonShift: periodStatusInfo.shiftTiming.isAfternoonShift,
+        isAfterMidshift: periodStatusInfo.shiftTiming.isAfterMidshift,
+        isApprovedEarlyCheckout: false,
+        isPlannedHalfDayLeave: false,
+        isEmergencyLeave: false,
+        isHoliday: window.isHoliday,
+        isDayOff: Boolean(window.isDayOff),
+        isManualEntry: attendance?.metadata?.source === 'manual',
+      },
     };
+  }
+
+  private isAfterMidshift(now: Date, window: ShiftWindowResponse): boolean {
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`,
+    );
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+    );
+    const midShiftTime = this.calculateMidShift(shiftStart, shiftEnd);
+    return now >= midShiftTime;
   }
 
   private determineOvertimeCheckoutStatus(
@@ -637,28 +566,6 @@ export class AttendanceEnhancementService {
         reason: 'Error processing overtime checkout',
       };
     }
-  }
-
-  private isWithinOvertimePeriodOrThreshold(
-    now: Date,
-    window: ShiftWindowResponse,
-  ): boolean {
-    if (!window.overtimeInfo?.endTime) return false;
-
-    const overtimeEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
-    );
-    const thresholdEnd = addMinutes(
-      overtimeEnd,
-      VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
-    );
-
-    return isWithinInterval(now, {
-      start: parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-      ),
-      end: thresholdEnd,
-    });
   }
 
   private getRequiredAction(
@@ -737,28 +644,50 @@ export class AttendanceEnhancementService {
     }
   }
 
-  private checkIfRequiresAutoCompletion(
-    attendance: AttendanceRecord | null,
-    window: ShiftWindowResponse,
-  ): boolean {
-    if (!attendance) return false;
-
-    // Check for incomplete regular period
-    if (attendance.CheckInTime && !attendance.CheckOutTime) {
-      return true;
-    }
-
-    // Check for incomplete overtime entries
-    return attendance.overtimeEntries.some(
-      (entry) => !entry.actualStartTime || !entry.actualEndTime,
-    );
+  private getValidationFlags(
+    info: PeriodStatusInfo & {
+      isPendingOvertime?: boolean;
+      hasPendingTransition?: boolean;
+      requiresTransition?: boolean;
+    },
+  ): ValidationFlags {
+    return {
+      hasActivePeriod: info.isActiveAttendance,
+      isInsideShift: true,
+      isOutsideShift: false,
+      isEarlyCheckIn: info.timingFlags.isEarlyCheckIn,
+      isLateCheckIn: info.timingFlags.isLateCheckIn,
+      isEarlyCheckOut: false,
+      isLateCheckOut: info.timingFlags.isLateCheckOut,
+      isVeryLateCheckOut: info.timingFlags.isVeryLateCheckOut,
+      isOvertime: info.isOvertimePeriod,
+      isDayOffOvertime: false,
+      isPendingOvertime: info.isPendingOvertime || false,
+      isAutoCheckIn: false,
+      isAutoCheckOut: false,
+      requiresAutoCompletion: false,
+      hasPendingTransition: info.hasPendingTransition || false,
+      requiresTransition: info.requiresTransition || false,
+      isMorningShift: info.shiftTiming.isMorningShift,
+      isAfternoonShift: info.shiftTiming.isAfternoonShift,
+      isAfterMidshift: info.shiftTiming.isAfterMidshift,
+      isApprovedEarlyCheckout: false,
+      isPlannedHalfDayLeave: false,
+      isEmergencyLeave: false,
+      isHoliday: false,
+      isDayOff: false,
+      isManualEntry: false,
+    };
   }
 
-  private getValidationReason(
-    state: UnifiedPeriodState,
-    window: ShiftWindowResponse,
-    attendance: AttendanceRecord | null,
-  ): string {
+  // getValidationReason needs to be updated to handle new format:
+  private getValidationReason(params: {
+    periodStatusInfo: PeriodStatusInfo;
+    window: ShiftWindowResponse;
+    attendance: AttendanceRecord | null;
+  }): string {
+    const { periodStatusInfo, window, attendance } = params;
+
     if (attendance?.checkTiming?.isEarlyCheckIn) {
       return 'Too early to check in';
     }
@@ -767,7 +696,7 @@ export class AttendanceEnhancementService {
     }
     if (
       window.nextPeriod?.type === PeriodType.OVERTIME &&
-      state.activity.isActive
+      periodStatusInfo.isActiveAttendance
     ) {
       return 'Please check out and transition to overtime period';
     }
@@ -784,41 +713,6 @@ export class AttendanceEnhancementService {
       return 'Holiday';
     }
     return '';
-  }
-
-  private buildAdditionalInfo(
-    attendance: AttendanceRecord | null,
-    window: ShiftWindowResponse,
-  ): Record<string, unknown> {
-    const additionalInfo: Record<string, unknown> = {
-      overtimeInfo: window.overtimeInfo,
-      holidayInfo: window.holidayInfo,
-      timeEntries: attendance?.timeEntries?.length ?? 0,
-      overtimeEntries: attendance?.overtimeEntries?.length ?? 0,
-    };
-
-    if (attendance?.checkTiming) {
-      additionalInfo.checkTiming = {
-        lateCheckOutMinutes: attendance.checkTiming.lateCheckOutMinutes,
-      };
-    }
-
-    if (attendance?.location) {
-      additionalInfo.location = {
-        checkIn: attendance.location.checkIn,
-        checkOut: attendance.location.checkOut,
-      };
-    }
-
-    if (attendance?.metadata) {
-      additionalInfo.recordMetadata = {
-        createdAt: attendance.metadata.createdAt,
-        updatedAt: attendance.metadata.updatedAt,
-        source: attendance.metadata.source,
-      };
-    }
-
-    return additionalInfo;
   }
 
   // 3. Add helper functions for state validation
