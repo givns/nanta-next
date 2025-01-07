@@ -11,8 +11,6 @@ import {
   ShiftData,
   UnifiedPeriodState,
   AttendanceBaseResponse,
-  OvertimeContext,
-  StateValidation,
 } from '@/types/attendance';
 
 interface ProgressMetrics {
@@ -24,9 +22,56 @@ interface ProgressMetrics {
   isMissed: boolean;
 }
 
+interface ExtendedOvertimeInfo {
+  checkIn?: Date | null;
+  checkOut?: Date | null;
+  isActive: boolean;
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string;
+  validationWindow?: {
+    earliestCheckIn: Date;
+    latestCheckOut: Date;
+  };
+}
+
+interface ValidationFlags {
+  isCheckingIn: boolean;
+  isLateCheckIn: boolean;
+  isEarlyCheckOut: boolean;
+  isPlannedHalfDayLeave: boolean;
+  isEmergencyLeave: boolean;
+  isOvertime: boolean;
+  requireConfirmation: boolean;
+  isDayOffOvertime: boolean;
+  isInsideShift: boolean;
+  isAutoCheckIn: boolean;
+  isAutoCheckOut: boolean;
+}
+
+interface ValidationMetadata {
+  missingEntries: any[];
+  transitionWindow?: {
+    start: string;
+    end: string;
+    targetPeriod: PeriodType;
+  };
+}
+
+interface ExtendedValidation {
+  allowed: boolean;
+  reason: string;
+  flags: ValidationFlags;
+  metadata: ValidationMetadata;
+}
+
 interface ProgressSectionProps {
   currentPeriod: UnifiedPeriodState;
-  overtimeInfo?: OvertimeContext;
+  overtimeInfo?: ExtendedOvertimeInfo;
   metrics: ProgressMetrics;
   shiftData: ShiftData | null;
   isOvertimePeriod: boolean;
@@ -166,12 +211,13 @@ interface MobileAttendanceAppProps {
     isDayOff: boolean;
   };
   attendanceStatus: AttendanceBaseResponse;
-  overtimeInfo?: OvertimeContext;
-  validation: StateValidation;
+  overtimeInfo?: ExtendedOvertimeInfo;
+  validation: ExtendedValidation;
   locationState: {
     isReady: boolean;
     error?: string;
   };
+  onAction: () => void;
 }
 
 const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
@@ -214,11 +260,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       ? parseISO(currentPeriod.activity.checkIn)
       : null;
 
-    // Calculate total period duration
     const totalMinutes =
       Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
 
-    // If no check-in yet, show progress to current time if after start
     if (!checkIn) {
       if (now < periodStart)
         return {
@@ -250,7 +294,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    // Calculate progress from check-in time
     const isEarly = checkIn < periodStart;
     const progressStart = isEarly ? periodStart : checkIn;
     const elapsedMinutes = Math.max(

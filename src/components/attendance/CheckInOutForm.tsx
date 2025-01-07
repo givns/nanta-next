@@ -563,7 +563,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             +
             <MobileAttendanceApp
               userData={userData}
-              shiftData={shift} // use shift instead of effectiveShift
+              shiftData={shift}
               currentPeriod={periodState}
               status={{
                 isHoliday,
