@@ -1,50 +1,19 @@
 import React, { useMemo } from 'react';
-import {
-  differenceInMinutes,
-  format,
-  isWithinInterval,
-  parseISO,
-  subMinutes,
-} from 'date-fns';
+import { format, isWithinInterval, parseISO, subMinutes } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
-import { PeriodType } from '@prisma/client';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { formatSafeTime } from '@/shared/timeUtils';
 import {
+  UserData,
   ShiftData,
   UnifiedPeriodState,
   AttendanceBaseResponse,
   OvertimeContext,
-  ValidationResponseWithMetadata,
-  ATTENDANCE_CONSTANTS,
+  StateValidation,
 } from '@/types/attendance';
-import { UserData } from '@/types/user';
-
-interface OvertimeInfo extends OvertimeContext {
-  checkIn?: Date | null; // Changed from string to Date
-  checkOut?: Date | null;
-  isActive: boolean; // From periodState
-}
-
-interface MobileAttendanceAppProps {
-  userData: UserData;
-  shiftData: ShiftData | null;
-  currentPeriod: UnifiedPeriodState;
-  status: {
-    isHoliday: boolean;
-    isDayOff: boolean;
-  };
-  attendanceStatus: AttendanceBaseResponse;
-  overtimeInfo?: OvertimeInfo;
-  validation: ValidationResponseWithMetadata;
-  locationState: {
-    isReady: boolean;
-    error?: string;
-  };
-  onAction: () => void;
-}
 
 interface ProgressMetrics {
   lateMinutes: number;
@@ -55,14 +24,154 @@ interface ProgressMetrics {
   isMissed: boolean;
 }
 
-function formatTime(time: Date | string | null | undefined): string | null {
-  if (!time) return null;
+interface ProgressSectionProps {
+  currentPeriod: UnifiedPeriodState;
+  overtimeInfo?: OvertimeContext;
+  metrics: ProgressMetrics;
+  shiftData: ShiftData | null;
+  isOvertimePeriod: boolean;
+}
 
-  // If it's a Date, convert to string
-  const timeString = time instanceof Date ? time.toLocaleTimeString() : time;
+const ProgressSection: React.FC<ProgressSectionProps> = ({
+  currentPeriod,
+  overtimeInfo,
+  metrics,
+  shiftData,
+  isOvertimePeriod,
+}) => {
+  const now = getCurrentTime();
 
-  // Your existing formatting logic
-  return timeString;
+  return (
+    <div className="space-y-4">
+      {/* Progress Bar */}
+      <div>
+        <div className="relative h-3 rounded-full overflow-hidden mb-2">
+          <div className="absolute w-full h-full bg-gray-100" />
+          <div
+            className={`absolute h-full transition-all duration-300 ${
+              isOvertimePeriod ? 'bg-yellow-500' : 'bg-blue-500'
+            }`}
+            style={{ width: `${Math.min(metrics.progressPercent, 100)}%` }}
+          />
+        </div>
+        <div className="text-xs text-gray-500 flex justify-between px-1">
+          <span>
+            {formatSafeTime(
+              isOvertimePeriod
+                ? currentPeriod.timeWindow.start
+                : shiftData?.startTime,
+            )}
+          </span>
+          <span>
+            {formatSafeTime(
+              isOvertimePeriod
+                ? currentPeriod.timeWindow.end
+                : shiftData?.endTime,
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* Time Information */}
+      <div>
+        <div className="text-sm font-medium mb-2 flex items-center justify-between">
+          <span>{isOvertimePeriod ? 'เวลาทำงานล่วงเวลา' : 'เวลาทำงาน'}</span>
+          {!isOvertimePeriod && (
+            <>
+              {metrics.lateMinutes > 0 && (
+                <span className="text-xs text-red-600">
+                  สาย {metrics.lateMinutes} นาที
+                </span>
+              )}
+              {metrics.earlyMinutes > 0 && (
+                <span className="text-xs text-green-600">
+                  เร็ว {metrics.earlyMinutes} นาที
+                </span>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <div className="text-sm text-gray-500 mb-1">
+              {isOvertimePeriod ? 'เข้า OT' : 'เข้างาน'}
+            </div>
+            <div className="font-medium">
+              {formatSafeTime(currentPeriod.activity.checkIn)}
+            </div>
+          </div>
+          <div>
+            <div className="text-sm text-gray-500 mb-1">
+              {isOvertimePeriod ? 'ออก OT' : 'ออกงาน'}
+            </div>
+            <div className="font-medium">
+              {formatSafeTime(currentPeriod.activity.checkOut) || '--:--'}
+            </div>
+          </div>
+        </div>
+
+        {/* Overtime Additional Info */}
+        {isOvertimePeriod && overtimeInfo && (
+          <div className="mt-3 text-sm text-gray-500">
+            <div>ระยะเวลา OT: {overtimeInfo.durationMinutes} นาที</div>
+            {overtimeInfo.reason && (
+              <div className="mt-1">เหตุผล: {overtimeInfo.reason}</div>
+            )}
+          </div>
+        )}
+
+        {/* Status Message */}
+        <div className="mt-3 text-blue-600 text-sm">
+          {(() => {
+            if (isOvertimePeriod) {
+              const isPastEndTime =
+                now > parseISO(currentPeriod.timeWindow.end);
+              return isPastEndTime
+                ? 'หมดเวลาทำงานล่วงเวลา'
+                : 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
+            }
+
+            const shiftStart = shiftData
+              ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
+              : null;
+            const shiftEnd = shiftData
+              ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`)
+              : null;
+
+            if (!shiftStart || !shiftEnd) return '';
+
+            const earlyWindow = {
+              start: subMinutes(shiftStart, 30),
+              end: shiftStart,
+            };
+
+            if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
+            if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
+            if (now < earlyWindow.start) return 'ยังไม่ถึงเวลาทำงาน';
+            return 'อยู่ในเวลาทำงานปกติ';
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface MobileAttendanceAppProps {
+  userData: UserData;
+  shiftData: ShiftData | null;
+  currentPeriod: UnifiedPeriodState;
+  status: {
+    isHoliday: boolean;
+    isDayOff: boolean;
+  };
+  attendanceStatus: AttendanceBaseResponse;
+  overtimeInfo?: OvertimeContext;
+  validation: StateValidation;
+  locationState: {
+    isReady: boolean;
+    error?: string;
+  };
 }
 
 const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
@@ -73,39 +182,20 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   attendanceStatus,
   overtimeInfo,
   validation,
-  onAction,
   locationState,
 }) => {
   const currentTime = getCurrentTime();
 
-  // Add this log
-  console.log('MobileAttendanceApp render:', {
-    currentPeriod,
-    shouldShowProgress:
+  const shouldShowProgress = useMemo(
+    () =>
       status.isDayOff || status.isHoliday
         ? currentPeriod.activity.isOvertime
         : true,
-    currentTime: format(currentTime, 'HH:mm'),
-  });
-
-  // Use StatusHelpers to get composite status
-  const currentCompositeStatus = React.useMemo(
-    () => ({
-      state: attendanceStatus.state,
-      checkStatus: attendanceStatus.checkStatus,
-      isOvertime: attendanceStatus.periodInfo.isOvertime,
-      overtimeState: attendanceStatus.periodInfo.overtimeState,
-    }),
-    [attendanceStatus],
+    [status.isDayOff, status.isHoliday, currentPeriod.activity.isOvertime],
   );
 
-  const calculateProgressMetrics = React.useCallback(() => {
-    console.log('Starting progress metrics calculation:', {
-      timeWindow: currentPeriod?.timeWindow,
-      activity: currentPeriod?.activity,
-      currentTime: format(currentTime, 'HH:mm:ss'),
-    });
-
+  // Calculate progress metrics
+  const metrics = useMemo((): ProgressMetrics => {
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
       return {
         lateMinutes: 0,
@@ -117,174 +207,77 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    try {
-      const now = getCurrentTime();
-      const shiftStart = parseISO(currentPeriod.timeWindow.start);
-      const shiftEnd = parseISO(currentPeriod.timeWindow.end);
+    const now = getCurrentTime();
+    const periodStart = parseISO(currentPeriod.timeWindow.start);
+    const periodEnd = parseISO(currentPeriod.timeWindow.end);
+    const checkIn = currentPeriod.activity.checkIn
+      ? parseISO(currentPeriod.activity.checkIn)
+      : null;
 
-      console.log('Time comparisons:', {
-        currentTime: format(now, 'HH:mm:ss'),
-        shiftStart: format(shiftStart, 'HH:mm:ss'),
-        shiftEnd: format(shiftEnd, 'HH:mm:ss'),
-        checkIn: currentPeriod.activity.checkIn
-          ? format(parseISO(currentPeriod.activity.checkIn), 'HH:mm:ss')
-          : 'No check-in',
-      });
+    // Calculate total period duration
+    const totalMinutes =
+      Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
 
-      // Calculate total shift duration
-      const totalShiftMinutes = differenceInMinutes(shiftEnd, shiftStart);
-
-      // If current time is before shift start, no late minutes
-      if (now < shiftStart) {
+    // If no check-in yet, show progress to current time if after start
+    if (!checkIn) {
+      if (now < periodStart)
         return {
           lateMinutes: 0,
           earlyMinutes: 0,
           isEarly: false,
           progressPercent: 0,
-          totalShiftMinutes,
+          totalShiftMinutes: totalMinutes,
           isMissed: false,
         };
-      }
 
-      // If no check-in yet and we're after shift start
-      if (!currentPeriod.activity.checkIn && now > shiftStart) {
-        const lateMinutes = differenceInMinutes(now, shiftStart);
-        return {
-          lateMinutes,
-          earlyMinutes: 0,
-          isEarly: false,
-          progressPercent: 0,
-          totalShiftMinutes,
-          isMissed: false,
-        };
-      }
-
-      // If checked in
-      if (currentPeriod.activity.checkIn) {
-        const checkInTime = parseISO(currentPeriod.activity.checkIn);
-
-        // Calculate early/late minutes
-        const earlyMinutes =
-          checkInTime < shiftStart
-            ? differenceInMinutes(shiftStart, checkInTime)
-            : 0;
-
-        const isEarly = earlyMinutes > 0;
-
-        const lateMinutes =
-          !isEarly && checkInTime > shiftStart
-            ? differenceInMinutes(checkInTime, shiftStart)
-            : 0;
-
-        // Calculate progress
-        const progressStartTime = isEarly ? shiftStart : checkInTime;
-        const elapsedMinutes = differenceInMinutes(now, progressStartTime);
-        const progressPercent = Math.min(
-          (elapsedMinutes / totalShiftMinutes) * 100,
+      const progress = Math.min(
+        ((now.getTime() - periodStart.getTime()) /
+          (periodEnd.getTime() - periodStart.getTime())) *
           100,
-        );
+        100,
+      );
 
-        return {
-          lateMinutes,
-          earlyMinutes,
-          isEarly,
-          progressPercent,
-          totalShiftMinutes,
-          isMissed: false,
-        };
-      }
-
-      // Default return for other cases
       return {
-        lateMinutes: 0,
+        lateMinutes: Math.max(
+          0,
+          (now.getTime() - periodStart.getTime()) / 60000,
+        ),
         earlyMinutes: 0,
         isEarly: false,
-        progressPercent: 0,
-        totalShiftMinutes,
+        progressPercent: progress,
+        totalShiftMinutes: totalMinutes,
         isMissed: false,
       };
-    } catch (error) {
-      console.error('Progress calculation error:', error);
-      return {
-        lateMinutes: 0,
-        earlyMinutes: 0,
-        isEarly: false,
-        progressPercent: 0,
-        totalShiftMinutes: 0,
-        isMissed: true,
-      };
     }
-  }, [currentPeriod, currentTime]);
 
-  // Handle check-in/check-out times safely
-  const checkInTime = useMemo(() => {
-    const rawTime = attendanceStatus.latestAttendance?.CheckInTime;
-    if (!rawTime) return '--:--';
+    // Calculate progress from check-in time
+    const isEarly = checkIn < periodStart;
+    const progressStart = isEarly ? periodStart : checkIn;
+    const elapsedMinutes = Math.max(
+      0,
+      (now.getTime() - progressStart.getTime()) / 60000,
+    );
+    const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
 
-    // Extract just the time part HH:mm from the ISO string
-    const match = rawTime.toString().match(/(\d{2}):(\d{2})/);
-    return match ? `${match[1]}:${match[2]}` : '--:--';
-  }, [attendanceStatus.latestAttendance?.CheckInTime]);
+    return {
+      lateMinutes: !isEarly
+        ? Math.max(0, (checkIn.getTime() - periodStart.getTime()) / 60000)
+        : 0,
+      earlyMinutes: isEarly
+        ? Math.max(0, (periodStart.getTime() - checkIn.getTime()) / 60000)
+        : 0,
+      isEarly,
+      progressPercent: progress,
+      totalShiftMinutes: totalMinutes,
+      isMissed: false,
+    };
+  }, [currentPeriod]);
 
-  const checkOutTime = useMemo(() => {
-    const rawTime = attendanceStatus.latestAttendance?.CheckOutTime;
-    if (!rawTime) return '--:--';
-
-    // Extract just the time part HH:mm from the ISO string
-    const match = rawTime.toString().match(/(\d{2}):(\d{2})/);
-    return match ? `${match[1]}:${match[2]}` : '--:--';
-  }, [attendanceStatus.latestAttendance?.CheckOutTime]);
-
-  // Handle overtime periods safely
-  // Get overtime information if available
-  const relevantOvertimes = React.useMemo(() => {
-    if (!overtimeInfo) return null;
-    try {
-      // Always return overtime info if we're in an overtime period
-      if (currentPeriod.type === PeriodType.OVERTIME || overtimeInfo.isActive) {
-        return overtimeInfo;
-      }
-
-      const currentTimeStr = format(currentTime, 'HH:mm');
-
-      // Validate overtime times
-      if (!overtimeInfo.startTime || !overtimeInfo.endTime) return null;
-
-      if (
-        overtimeInfo.startTime > currentTimeStr ||
-        (overtimeInfo.startTime <= currentTimeStr &&
-          overtimeInfo.endTime > currentTimeStr)
-      ) {
-        return overtimeInfo;
-      }
-    } catch (error) {
-      console.error('Error processing overtime info:', error);
-    }
-    return null;
-  }, [overtimeInfo, currentTime, currentPeriod]);
-
-  // Determine if we should show progress
-  const metrics = calculateProgressMetrics();
-  console.log('Progress metrics calculated:', metrics);
-
-  // Find where shouldShowProgress is determined
-  const shouldShowProgress = React.useMemo(() => {
-    const show =
-      status.isDayOff || status.isHoliday
-        ? currentPeriod.activity.isOvertime
-        : true;
-    console.log('Should show progress determination:', {
-      isDayOff: status.isDayOff,
-      isHoliday: status.isHoliday,
-      isOvertime: currentPeriod.activity.isOvertime,
-      shouldShow: show,
-    });
-    return show;
-  }, [status.isDayOff, status.isHoliday, currentPeriod.activity.isOvertime]);
+  const isOvertimePeriod = currentPeriod.type === PeriodType.OVERTIME;
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header with current time */}
+      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
           <div className="text-center text-4xl font-bold mb-1">
@@ -317,191 +310,74 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         </div>
 
         {/* Status Card */}
-        <div className="m-4 bg-white rounded-xl shadow-sm overflow-hidden"></div>
-        <div className="p-4 border-b border-gray-100">
-          <div className="flex justify-between items-center mb-3">
-            <div className="flex items-center gap-2">
-              <Clock size={20} className="text-primary" />
-              <span className="font-medium">
-                {StatusHelpers.getDisplayStatus(currentCompositeStatus)}
-              </span>
+        <div className="m-4 bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-100">
+            <div className="flex justify-between items-center mb-3">
+              <div className="flex items-center gap-2">
+                <Clock size={20} className="text-primary" />
+                <span className="font-medium">
+                  {StatusHelpers.getDisplayStatus({
+                    state: attendanceStatus.state,
+                    checkStatus: attendanceStatus.checkStatus,
+                    isOvertime: attendanceStatus.periodInfo.isOvertime,
+                    overtimeState: attendanceStatus.periodInfo.overtimeState,
+                  })}
+                </span>
+              </div>
+              {isOvertimePeriod && (
+                <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                  OT
+                </span>
+              )}
             </div>
-            {relevantOvertimes && (
-              <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                OT
-              </span>
-            )}
-          </div>
 
-          {/* Schedule Information */}
-          {(status.isDayOff || status.isHoliday) && (
-            <div className="text-sm text-gray-500">
-              {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
-            </div>
-          )}
-
-          {shiftData &&
-            !status.isDayOff &&
-            !status.isHoliday &&
-            currentPeriod.type !== PeriodType.OVERTIME && (
+            {/* Schedule Information */}
+            {(status.isDayOff || status.isHoliday) && (
               <div className="text-sm text-gray-500">
-                เวลางาน {shiftData.startTime} - {shiftData.endTime} น.
+                {status.isHoliday ? 'วันหยุดนักขัตฤกษ์' : 'วันหยุด'}
               </div>
             )}
 
-          {/* Overtime Information */}
-          {relevantOvertimes && (
-            <div className="text-sm text-gray-500 mt-1">
-              {!attendanceStatus.latestAttendance?.CheckOutTime &&
-              !status.isDayOff
-                ? 'มีการทำงานล่วงเวลาวันนี้: '
-                : 'เวลาทำงานล่วงเวลา: '}
-              {relevantOvertimes.startTime} - {relevantOvertimes.endTime} น.
-              <span className="ml-2 text-xs">
-                ({relevantOvertimes.durationMinutes} นาที)
-              </span>
+            {shiftData &&
+              !status.isDayOff &&
+              !status.isHoliday &&
+              currentPeriod.type !== PeriodType.OVERTIME && (
+                <div className="text-sm text-gray-500">
+                  เวลางาน {formatSafeTime(shiftData.startTime)} -{' '}
+                  {formatSafeTime(shiftData.endTime)} น.
+                </div>
+              )}
+
+            {/* Overtime Information */}
+            {overtimeInfo && (
+              <div className="text-sm text-gray-500 mt-1">
+                {!attendanceStatus.latestAttendance?.CheckOutTime &&
+                !status.isDayOff
+                  ? 'มีการทำงานล่วงเวลาวันนี้: '
+                  : 'เวลาทำงานล่วงเวลา: '}
+                {formatSafeTime(overtimeInfo.startTime)} -{' '}
+                {formatSafeTime(overtimeInfo.endTime)} น.
+                {overtimeInfo.durationMinutes && (
+                  <span className="ml-2">
+                    ({overtimeInfo.durationMinutes} นาที)
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Progress Section */}
+          {shouldShowProgress && (
+            <div className="p-4">
+              <ProgressSection
+                currentPeriod={currentPeriod}
+                overtimeInfo={overtimeInfo}
+                metrics={metrics}
+                shiftData={shiftData}
+                isOvertimePeriod={isOvertimePeriod}
+              />
             </div>
           )}
-        </div>
-
-        {/* Progress and Times */}
-        <div className="p-4 bg-gray-50">
-          {shouldShowProgress &&
-            currentPeriod &&
-            (() => {
-              const metrics = calculateProgressMetrics();
-              console.log('Rendering progress section with metrics:', {
-                metrics,
-                currentPeriod,
-                timeWindow: currentPeriod.timeWindow,
-              });
-              const isOvertimePeriod =
-                currentPeriod.type === PeriodType.OVERTIME;
-
-              if (isOvertimePeriod) {
-                return (
-                  <div className="space-y-4">
-                    {/* Overtime Progress */}
-                    <div>
-                      <div className="relative h-3 rounded-full overflow-hidden mb-2">
-                        <div className="absolute w-full h-full bg-gray-100" />
-                        <div
-                          className="absolute h-full bg-yellow-500 transition-all duration-300"
-                          style={{
-                            width: `${metrics.progressPercent}%`,
-                          }}
-                        />
-                      </div>
-                      <div className="text-xs text-gray-500 flex justify-between px-1">
-                        <span>{formatSafeTime(overtimeInfo?.startTime)}</span>
-                        <span>{formatSafeTime(overtimeInfo?.endTime)}</span>
-                      </div>
-                    </div>
-
-                    {/* Overtime Times */}
-                    <div>
-                      <div className="text-sm text-yellow-600 font-medium mb-2">
-                        ช่วงเวลาทำงานล่วงเวลา
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-sm text-gray-500 mb-1">
-                            เข้า OT
-                          </div>
-                          <div className="font-medium">
-                            {formatTime(overtimeInfo?.checkIn)}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-gray-500 mb-1">
-                            ออก OT
-                          </div>
-                          <div className="font-medium">
-                            {currentPeriod.activity.checkOut
-                              ? formatSafeTime(currentPeriod.activity.checkOut)
-                              : '--:--'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-4">
-                  {/* Regular Progress */}
-                  <div>
-                    <div className="relative h-3 rounded-full overflow-hidden mb-2">
-                      <div className="absolute w-full h-full bg-gray-100" />
-                      <div
-                        className="absolute h-full bg-blue-500 transition-all duration-300"
-                        style={{
-                          width: `${metrics.progressPercent}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="text-xs text-gray-500 flex justify-between px-1">
-                      <span>{formatSafeTime(shiftData?.startTime)}</span>
-                      <span>{formatSafeTime(shiftData?.endTime)}</span>
-                    </div>
-                  </div>
-
-                  {/* Regular Times */}
-                  <div>
-                    <div className="text-sm font-medium mb-2 flex items-center justify-between">
-                      <span>เวลางาน</span>
-                      {metrics.lateMinutes > 0 && (
-                        <span className="text-xs text-red-600">
-                          สาย {metrics.lateMinutes} นาที
-                        </span>
-                      )}
-                      {metrics.earlyMinutes > 0 && (
-                        <span className="text-xs text-green-600">
-                          เร็ว {metrics.earlyMinutes} นาที
-                        </span>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-sm text-gray-500 mb-1">
-                          เข้างาน
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="font-medium">{checkInTime}</div>
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                        <div className="font-medium">{checkOutTime}</div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 text-blue-600 text-sm">
-                      {(() => {
-                        const now = getCurrentTime();
-                        const shiftStart = parseISO(
-                          currentPeriod.timeWindow.start,
-                        );
-                        const shiftEnd = parseISO(currentPeriod.timeWindow.end);
-                        const earlyThreshold = subMinutes(
-                          shiftStart,
-                          ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-                        );
-
-                        // After shift end
-                        if (now > shiftEnd) {
-                          return 'หมดเวลาทำงานปกติ';
-                        }
-
-                        // Before early check-in window
-                        return 'ยังไม่ถึงเวลาทำงาน';
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
         </div>
 
         {/* Error Messages */}
