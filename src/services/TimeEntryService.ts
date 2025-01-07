@@ -316,6 +316,7 @@ export class TimeEntryService {
     attendance: AttendanceRecord,
     overtimeRequest: ApprovedOvertimeInfo,
     isCheckIn: boolean,
+    periodType = PeriodType,
   ): Promise<TimeEntry> {
     const overtimeData = this.prepareOvertimeData(
       attendance,
@@ -368,7 +369,7 @@ export class TimeEntryService {
       regularHours: 0,
       overtimeHours,
       status: isCheckIn ? TimeEntryStatus.STARTED : TimeEntryStatus.COMPLETED,
-      entryType: 'overtime' as const,
+      entryType: PeriodType.OVERTIME,
       overtimeMetadata: {
         isDayOffOvertime: overtimeRequest.isDayOffOvertime,
         isInsideShiftHours: overtimeRequest.isInsideShiftHours,
