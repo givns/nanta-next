@@ -179,6 +179,7 @@ export class PeriodManagementService {
           end: periodState.overtimeInfo?.endTime,
         },
         isOvertimePeriod,
+        isWithinCheckoutThreshold,
       });
 
       // Determine period type based on transitions
