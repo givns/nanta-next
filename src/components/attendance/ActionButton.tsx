@@ -265,47 +265,96 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     </>
   );
 
+  // Extract the single button rendering to a separate method
+  const renderSingleButton = () => {
+    // Regular single button
+    const isCheckingIn =
+      attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
+    return (
+      <button
+        onClick={handleRegularClick}
+        disabled={isDisabled}
+        className={`h-20 w-20 ${baseButtonStyle} ${
+          isDisabled
+            ? buttonDisabledStyle
+            : buttonEnabledStyle(
+                periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
+              )
+        }`}
+        aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
+      >
+        {renderButtonContent(
+          periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
+          isCheckingIn,
+        )}
+      </button>
+    );
+  };
+
   const renderButtons = () => {
-    if (isTransitionPeriod) {
+    // Prioritize transition state rendering
+    if (isInTransitionState) {
       return (
-        <div className="flex flex-col items-center gap-2">
-          <div className="text-sm text-yellow-600 flex items-center gap-1">
-            <Clock size={16} />
-            <span>ทำงานล่วงเวลา</span>
+        <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
+          {/* Status Messages specific to transition state */}
+          <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
+            <div className="flex gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-yellow-800">
+                กำลังเปลี่ยนช่วงเวลาทำงาน เลือกการดำเนินการ
+              </div>
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            {/* Regular checkout button */}
-            <button
-              onClick={handleRegularClick}
-              disabled={isDisabled}
-              className={`h-20 w-20 rounded-l-full ${baseButtonStyle} ${
-                isDisabled ? buttonDisabledStyle : buttonEnabledStyle('regular')
-              }`}
-              aria-label="Regular checkout"
-            >
-              {renderButtonContent('regular', false)}
-            </button>
+          <div className="flex flex-col items-center gap-2">
+            <div className="text-sm text-yellow-600 flex items-center gap-1">
+              <Clock size={16} />
+              <span>ช่วงเวลาทำงานล่วงเวลา</span>
+            </div>
 
-            {/* Overtime button */}
-            <button
-              onClick={handleOvertimeClick}
-              disabled={isDisabled}
-              className={`h-20 w-20 rounded-r-full ${baseButtonStyle} ${
-                isDisabled
-                  ? buttonDisabledStyle
-                  : buttonEnabledStyle('overtime')
-              }`}
-              aria-label="Start overtime"
-            >
-              {renderButtonContent('overtime', true)}
-            </button>
-          </div>
+            <div className="flex gap-2">
+              {/* Regular checkout button */}
+              <button
+                onClick={handleRegularClick}
+                disabled={!systemState.isReady}
+                className={`h-20 w-20 rounded-l-full ${baseButtonStyle} ${
+                  !systemState.isReady
+                    ? buttonDisabledStyle
+                    : buttonEnabledStyle('regular')
+                }`}
+                aria-label="Regular checkout"
+              >
+                <div className="flex flex-col items-center leading-tight">
+                  <span className="text-white text-sm">ออกงาน</span>
+                  <span className="text-white text-xl font-semibold -mt-1">
+                    ปกติ
+                  </span>
+                </div>
+              </button>
 
-          <div className="text-xs text-gray-500 text-center">
-            {isTransitionToOvertime
-              ? 'เลือก: ออกงานปกติ หรือ ทำงานล่วงเวลาต่อ'
-              : 'เลือก: ออกล่วงเวลา หรือ เข้ากะปกติ'}
+              {/* Overtime button */}
+              <button
+                onClick={handleOvertimeClick}
+                disabled={!systemState.isReady}
+                className={`h-20 w-20 rounded-r-full ${baseButtonStyle} ${
+                  !systemState.isReady
+                    ? buttonDisabledStyle
+                    : buttonEnabledStyle('overtime')
+                }`}
+                aria-label="Start overtime"
+              >
+                <div className="flex flex-col items-center leading-tight">
+                  <span className="text-white text-sm">เข้างาน</span>
+                  <span className="text-white text-xl font-semibold -mt-1">
+                    OT
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <div className="text-xs text-gray-500 text-center">
+              เลือก: ออกงานปกติ หรือ ทำงานล่วงเวลาต่อ
+            </div>
           </div>
         </div>
       );
@@ -338,7 +387,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   return (
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
       <StatusMessages />
-      {renderButtons()}
+      {renderSingleButton()}
 
       {/* Period Transition Info */}
       {transition && !isTransitionPeriod && (
