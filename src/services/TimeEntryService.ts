@@ -888,7 +888,6 @@ export class TimeEntryService {
           update: data.overtimeMetadata,
         },
       },
-      include: { overtimeMetadata: true },
     });
   }
 
