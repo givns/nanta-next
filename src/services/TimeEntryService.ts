@@ -372,57 +372,19 @@ export class TimeEntryService {
       overtimeId: overtimeRequest.id,
     });
 
+    // Find existing entry by overtime request ID and employee ID
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
-        // Match by overtime request ID if available
         overtimeRequestId: overtimeRequest.id,
-
-        entryType: PeriodType.OVERTIME,
-
-        // Add employee ID for extra specificity
         employeeId: attendance.employeeId,
+        date: attendance.date,
+        entryType: PeriodType.OVERTIME,
       },
       orderBy: {
         createdAt: 'desc',
       },
       include: { overtimeMetadata: true },
     });
-
-    console.log('Attendance ID:', attendance.id);
-    console.log('Existing Entry Query:', {
-      attendanceId: attendance.id,
-      entryType: PeriodType.OVERTIME,
-    });
-
-    // Add more comprehensive logging
-    const allOvertimeEntries = await tx.timeEntry.findMany({
-      where: {
-        entryType: PeriodType.OVERTIME,
-      },
-      select: {
-        id: true,
-        attendanceId: true,
-        employeeId: true,
-        startTime: true,
-        endTime: true,
-        entryType: true,
-      },
-    });
-
-    console.log(
-      'All Overtime Entries:',
-      JSON.stringify(allOvertimeEntries, null, 2),
-    );
-
-    // Check specific entry details
-    const specificEntry = allOvertimeEntries.find(
-      (entry) => entry.attendanceId === attendance.id,
-    );
-
-    console.log(
-      'Specific Overtime Entry for this Attendance:',
-      JSON.stringify(specificEntry, null, 2),
-    );
 
     // Handle checkout
     if (!isCheckIn) {
@@ -439,10 +401,17 @@ export class TimeEntryService {
     }
 
     // Handle check-in
-    if (existingEntry) {
-      throw new Error('Overtime entry already exists for this attendance');
+    if (existingEntry?.endTime === null) {
+      // Entry exists but isn't completed - can use it
+      const overtimeData = this.prepareOvertimeData(
+        attendance,
+        overtimeRequest,
+        isCheckIn,
+      );
+      return await this.updateOvertimeEntry(tx, existingEntry.id, overtimeData);
     }
 
+    // Create new entry
     const overtimeData = this.prepareOvertimeData(
       attendance,
       overtimeRequest,
@@ -877,17 +846,39 @@ export class TimeEntryService {
       overtimeHours: data.overtimeHours,
     });
 
+    // First check if metadata exists
+    const existingEntry = await tx.timeEntry.findUnique({
+      where: { id },
+      include: { overtimeMetadata: true },
+    });
+
+    if (!existingEntry) {
+      throw new Error(`No overtime entry found with id: ${id}`);
+    }
+
+    // Prepare update data
+    const updateData: Prisma.TimeEntryUpdateInput = {
+      endTime: data.endTime,
+      overtimeHours: data.overtimeHours,
+      status: data.status,
+      regularHours: 0,
+    };
+
+    // Handle metadata differently based on whether it exists
+    if (existingEntry.overtimeMetadata) {
+      updateData.overtimeMetadata = {
+        update: data.overtimeMetadata,
+      };
+    } else {
+      updateData.overtimeMetadata = {
+        create: data.overtimeMetadata,
+      };
+    }
+
     return tx.timeEntry.update({
       where: { id },
-      data: {
-        endTime: data.endTime,
-        overtimeHours: data.overtimeHours,
-        status: data.status,
-        regularHours: 0,
-        overtimeMetadata: {
-          update: data.overtimeMetadata,
-        },
-      },
+      data: updateData,
+      include: { overtimeMetadata: true },
     });
   }
 
