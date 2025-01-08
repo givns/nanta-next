@@ -408,36 +408,46 @@ export class AttendanceProcessingService {
         window.nextPeriod?.type === PeriodType.OVERTIME,
       );
 
-      // Update existing record for checkout
-      const updatedAttendance = await tx.attendance.update({
-        where: { id: currentRecord.id },
-        data: {
-          CheckOutTime: now,
-          state: AttendanceState.PRESENT,
-          checkStatus: CheckStatus.CHECKED_OUT,
-          ...(options.periodType === PeriodType.OVERTIME && {
-            overtimeState: OvertimeState.COMPLETED,
-          }),
-          ...(locationData && {
-            location: {
-              update: {
-                checkOutCoordinates: this.prepareLocationJson(
-                  options.location?.coordinates,
-                ),
-                checkOutAddress: options.location?.address,
-              },
-            },
-          }),
-          metadata: {
+      // Update attendance record for checkout
+      const updateData: Prisma.AttendanceUpdateInput = {
+        CheckOutTime: now,
+        state: AttendanceState.PRESENT,
+        checkStatus: CheckStatus.CHECKED_OUT,
+        // Add overtime state update when checking out from overtime
+        ...(options.periodType === PeriodType.OVERTIME && {
+          overtimeState: OvertimeState.COMPLETED,
+          isOvertime: true, // Ensure isOvertime flag is set
+        }),
+        ...(locationData && {
+          location: {
             update: {
-              source:
-                hasUpcomingOvertime && isInTransitionWindow
-                  ? 'auto'
-                  : options.metadata?.source || 'system',
-              updatedAt: now,
+              checkOutCoordinates: this.prepareLocationJson(
+                options.location?.coordinates,
+              ),
+              checkOutAddress: options.location?.address,
             },
           },
+        }),
+        metadata: {
+          update: {
+            source:
+              hasUpcomingOvertime && isInTransitionWindow
+                ? 'auto'
+                : options.metadata?.source || 'system',
+            updatedAt: now,
+          },
         },
+      };
+
+      console.log('Updating attendance record:', {
+        id: currentRecord.id,
+        isOvertime: options.periodType === PeriodType.OVERTIME,
+        updateData,
+      });
+
+      const updatedAttendance = await tx.attendance.update({
+        where: { id: currentRecord.id },
+        data: updateData,
         include: {
           timeEntries: true,
           overtimeEntries: true,
@@ -451,7 +461,7 @@ export class AttendanceProcessingService {
     }
 
     // Handle check-in
-    // Get current sequence for this period type
+    // Rest of the check-in logic remains the same...
     const latestRecord = await tx.attendance.findFirst({
       where: {
         employeeId: options.employeeId,
@@ -474,6 +484,10 @@ export class AttendanceProcessingService {
       type: options.periodType,
       periodSequence: nextSequence,
       isOvertime: options.activity.isOvertime || false,
+      overtimeState:
+        options.periodType === PeriodType.OVERTIME
+          ? OvertimeState.IN_PROGRESS
+          : undefined,
       shiftStartTime: parseISO(window.current.start),
       shiftEndTime: parseISO(window.current.end),
       CheckInTime: now,
