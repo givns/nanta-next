@@ -390,121 +390,61 @@ export class AttendanceProcessingService {
       ? this.prepareLocationData(options, isCheckIn)
       : undefined;
 
+    // Find active record with explicit location include
+    const activeRecord = !isCheckIn
+      ? await tx.attendance.findFirst({
+          where: {
+            employeeId: options.employeeId,
+            date: startOfDay(now),
+            state: AttendanceState.INCOMPLETE,
+            type: options.periodType,
+            isOvertime: options.periodType === PeriodType.OVERTIME,
+            overtimeState:
+              options.periodType === PeriodType.OVERTIME
+                ? OvertimeState.IN_PROGRESS
+                : undefined,
+            CheckInTime: { not: null },
+          },
+          orderBy: {
+            CheckInTime: 'desc',
+          },
+          include: {
+            timeEntries: true,
+            overtimeEntries: true,
+            location: true,
+            metadata: true,
+            checkTiming: true,
+          },
+        })
+      : null;
+
     console.log('Processing attendance record:', {
       isCheckIn,
       periodType: options.periodType,
       employeeId: options.employeeId,
       date: format(now, 'yyyy-MM-dd'),
-      currentRecordId: currentRecord?.id,
+      activeRecordId: activeRecord?.id,
+      hasLocation: !!activeRecord?.location,
     });
 
     // Handle checkout
     if (!isCheckIn) {
-      if (!currentRecord) {
+      if (!activeRecord) {
+        // Error handling for no active record...
         throw new AppError({
           code: ErrorCode.PROCESSING_ERROR,
-          message: 'No existing attendance record found for checkout',
+          message: `No active ${options.periodType} period found for checkout.`,
         });
       }
 
-      // Find the correct overtime record
-      const targetRecord = await tx.attendance.findFirst({
-        where: {
-          employeeId: options.employeeId,
-          date: startOfDay(now),
-          state: AttendanceState.INCOMPLETE,
-          type: options.periodType,
-          isOvertime: options.periodType === PeriodType.OVERTIME,
-          overtimeState:
-            options.periodType === PeriodType.OVERTIME
-              ? OvertimeState.IN_PROGRESS
-              : undefined,
-          CheckInTime: { not: null },
-        },
-        orderBy: {
-          CheckInTime: 'desc',
-        },
-        include: {
-          timeEntries: true,
-          overtimeEntries: true,
-          location: true,
-          metadata: true,
-          checkTiming: true,
-        },
-      });
-
-      // Log the current state for debugging
-      console.log('Query results:', {
-        targetRecordFound: !!targetRecord,
-        targetRecord: targetRecord
-          ? {
-              id: targetRecord.id,
-              type: targetRecord.type,
-              state: targetRecord.state,
-              checkStatus: targetRecord.checkStatus,
-              overtimeState: targetRecord.overtimeState,
-              checkIn: targetRecord.CheckInTime
-                ? format(targetRecord.CheckInTime, 'HH:mm:ss')
-                : null,
-              checkOut: targetRecord.CheckOutTime
-                ? format(targetRecord.CheckOutTime, 'HH:mm:ss')
-                : null,
-            }
-          : null,
-      });
-
-      // If no target record found, check all records for debugging
-      if (!targetRecord) {
-        const allRecordsToday = await tx.attendance.findMany({
-          where: {
-            employeeId: options.employeeId,
-            date: startOfDay(now),
-          },
-          orderBy: [{ type: 'asc' }, { CheckInTime: 'desc' }],
-        });
-
-        console.log(
-          'All records today:',
-          allRecordsToday.map((record) => ({
-            id: record.id,
-            type: record.type,
-            isOvertime: record.isOvertime,
-            state: record.state,
-            checkStatus: record.checkStatus,
-            overtimeState: record.overtimeState,
-            checkIn: record.CheckInTime
-              ? format(record.CheckInTime, 'HH:mm:ss')
-              : null,
-            checkOut: record.CheckOutTime
-              ? format(record.CheckOutTime, 'HH:mm:ss')
-              : null,
-          })),
-        );
-
-        throw new AppError({
-          code: ErrorCode.PROCESSING_ERROR,
-          message: `No active ${options.periodType} period found for checkout. Total records today: ${allRecordsToday.length}`,
-        });
-      }
-
-      // Update attendance record for checkout
-      const updateData: Prisma.AttendanceUpdateInput = {
+      // Prepare base update data
+      const baseUpdateData: Prisma.AttendanceUpdateInput = {
         CheckOutTime: now,
         state: AttendanceState.PRESENT,
         checkStatus: CheckStatus.CHECKED_OUT,
         ...(options.periodType === PeriodType.OVERTIME && {
           overtimeState: OvertimeState.COMPLETED,
           isOvertime: true,
-        }),
-        ...(options.location && {
-          location: {
-            update: {
-              checkOutCoordinates: this.prepareLocationJson(
-                options.location.coordinates,
-              ),
-              checkOutAddress: options.location.address,
-            },
-          },
         }),
         metadata: {
           update: {
@@ -514,18 +454,57 @@ export class AttendanceProcessingService {
         },
       };
 
+      // Handle location update separately
+      let locationUpdate = {};
+      if (options.location) {
+        const coordinates = this.prepareLocationJson(
+          options.location.coordinates,
+        );
+        const address = options.location.address;
+
+        if (activeRecord.location) {
+          console.log('Updating existing location record:', {
+            locationId: activeRecord.location.id,
+            attendanceId: activeRecord.id,
+          });
+
+          // Update existing location record
+          await tx.attendanceLocation.update({
+            where: { attendanceId: activeRecord.id },
+            data: {
+              checkOutCoordinates: coordinates,
+              checkOutAddress: address,
+            },
+          });
+        } else {
+          console.log('Creating new location record for:', {
+            attendanceId: activeRecord.id,
+          });
+
+          // Create new location record
+          await tx.attendanceLocation.create({
+            data: {
+              attendanceId: activeRecord.id,
+              checkOutCoordinates: coordinates,
+              checkOutAddress: address,
+            },
+          });
+        }
+      }
+
       console.log('Updating attendance record:', {
-        id: targetRecord.id,
+        id: activeRecord.id,
         isOvertime: options.periodType === PeriodType.OVERTIME,
         updateData: {
-          ...updateData,
+          ...baseUpdateData,
           CheckOutTime: format(now, 'HH:mm:ss'),
         },
       });
 
+      // Update attendance record
       const updatedAttendance = await tx.attendance.update({
-        where: { id: targetRecord.id },
-        data: updateData,
+        where: { id: activeRecord.id },
+        data: baseUpdateData,
         include: {
           timeEntries: true,
           overtimeEntries: true,
