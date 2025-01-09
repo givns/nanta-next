@@ -15,6 +15,50 @@ import { AttendanceRecord } from '@/types/attendance';
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
 
+interface MongoDate {
+  $date: string;
+}
+
+interface MongoId {
+  $oid: string;
+}
+
+interface MongoLong {
+  $numberLong: string;
+}
+
+interface TimeEntry {
+  _id: MongoId;
+  employeeId: string;
+  date: MongoDate;
+  startTime: MongoDate;
+  endTime?: MongoDate;
+  status: 'COMPLETED' | string;
+  entryType: PeriodType;
+  regularHours: number;
+  overtimeHours: number;
+  attendanceId: MongoId;
+  overtimeRequestId?: MongoId;
+  hours: {
+    regular: number;
+    overtime: number;
+  };
+  timing: {
+    actualMinutesLate: number;
+    isHalfDayLate: boolean;
+  };
+  metadata: {
+    source: string;
+    version: number;
+    createdAt?: string;
+    updatedAt: string;
+  };
+  actualMinutesLate: MongoLong;
+  isHalfDayLate: boolean;
+  createdAt: MongoDate;
+  updatedAt: MongoDate;
+}
+
 const createSafeAttendance = (props: any) => {
   if (!props) {
     console.warn('No attendance props provided');
@@ -161,71 +205,122 @@ const CheckInRouter: React.FC = () => {
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
 
-    console.log('Processing attendance records:', {
-      base: safeAttendanceProps.base,
-      periodState: safeAttendanceProps.periodState,
-    });
-
     const records: Array<{
       record: AttendanceRecord;
       periodSequence: number;
     }> = [];
 
-    // Extract records function
     const extractRecords = (): AttendanceRecord[] => {
       const extractedRecords: AttendanceRecord[] = [];
       const attendance = safeAttendanceProps.base.latestAttendance;
 
-      if (attendance) {
-        // Handle regular period
-        if (!attendance.isOvertime) {
-          extractedRecords.push({
-            ...attendance,
-            type: PeriodType.REGULAR,
-            periodSequence: 1,
-          });
-        }
+      if (!attendance?.timeEntries?.length) return extractedRecords;
 
-        // Handle overtime period
-        if (attendance.isOvertime || attendance.type === PeriodType.OVERTIME) {
-          extractedRecords.push({
-            ...attendance,
-            type: PeriodType.OVERTIME,
-            periodSequence: attendance.isOvertime ? 2 : 1,
-          });
-        }
+      // Get regular period
+      const regularEntry = attendance.timeEntries.find(
+        (entry: TimeEntry) =>
+          entry.entryType === PeriodType.REGULAR &&
+          entry.status === 'COMPLETED',
+      );
+
+      if (regularEntry) {
+        console.log('Processing regular entry:', regularEntry);
+        extractedRecords.push({
+          ...attendance,
+          id: regularEntry.attendanceId.$oid,
+          employeeId: regularEntry.employeeId,
+          type: PeriodType.REGULAR,
+          periodSequence: 1,
+          isOvertime: false,
+          // Use exact times from timeEntry
+          CheckInTime: new Date(regularEntry.startTime.$date),
+          CheckOutTime: regularEntry.endTime
+            ? new Date(regularEntry.endTime.$date)
+            : null,
+          // Shift times
+          shiftStartTime: new Date(regularEntry.startTime.$date),
+          shiftEndTime: regularEntry.endTime
+            ? new Date(regularEntry.endTime.$date)
+            : null,
+          // Other metadata
+          checkTiming: {
+            isEarlyCheckIn: false,
+            isLateCheckIn:
+              parseInt(regularEntry.actualMinutesLate.$numberLong) > 0,
+            isLateCheckOut: false,
+            isVeryLateCheckOut: false,
+            lateCheckInMinutes: parseInt(
+              regularEntry.actualMinutesLate.$numberLong,
+            ),
+            lateCheckOutMinutes: 0,
+          },
+        });
       }
 
-      console.log('Extracted records:', extractedRecords);
+      // Get overtime entries
+      const overtimeEntries = attendance.timeEntries.filter(
+        (entry: TimeEntry) =>
+          entry.entryType === PeriodType.OVERTIME &&
+          entry.status === 'COMPLETED',
+      );
+
+      overtimeEntries.forEach((entry: TimeEntry, index: number) => {
+        console.log('Processing overtime entry:', entry);
+        extractedRecords.push({
+          ...attendance,
+          id: entry.attendanceId.$oid,
+          employeeId: entry.employeeId,
+          type: PeriodType.OVERTIME,
+          periodSequence: index + 1,
+          isOvertime: true,
+          // Use exact times from timeEntry
+          CheckInTime: new Date(entry.startTime.$date),
+          CheckOutTime: entry.endTime ? new Date(entry.endTime.$date) : null,
+          // For overtime, use the same time for shift
+          shiftStartTime: new Date(entry.startTime.$date),
+          shiftEndTime: entry.endTime ? new Date(entry.endTime.$date) : null,
+          // Overtime specific fields
+          overtimeId: entry.overtimeRequestId?.$oid,
+          overtimeDuration: entry.overtimeHours,
+          checkTiming: {
+            isEarlyCheckIn: false,
+            isLateCheckIn: parseInt(entry.actualMinutesLate.$numberLong) > 0,
+            isLateCheckOut: false,
+            isVeryLateCheckOut: false,
+            lateCheckInMinutes: parseInt(entry.actualMinutesLate.$numberLong),
+            lateCheckOutMinutes: 0,
+          },
+        });
+      });
+
       return extractedRecords;
     };
 
-    // Get and sort all records
     const allRecords = extractRecords().sort((a, b) => {
-      // Sort by type first (REGULAR before OVERTIME)
       if (a.type !== b.type) {
         return a.type === PeriodType.REGULAR ? -1 : 1;
       }
-      // Then by sequence
       return (a.periodSequence || 0) - (b.periodSequence || 0);
     });
 
-    // Process records
     allRecords.forEach((record) => {
       records.push({
-        record: {
-          ...record,
-          metadata: record.metadata || {
-            isManualEntry: false,
-            isDayOff: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            source: 'system',
-          },
-        },
-        periodSequence: record.periodSequence || 1,
+        record,
+        periodSequence: record.periodSequence,
       });
     });
+
+    console.log(
+      'Final processed records:',
+      records.map((r) => ({
+        type: r.record.type,
+        sequence: r.periodSequence,
+        times: {
+          checkIn: r.record.CheckInTime,
+          checkOut: r.record.CheckOutTime,
+        },
+      })),
+    );
 
     return records;
   }, [safeAttendanceProps]);
