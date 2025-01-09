@@ -35,10 +35,10 @@ const AttendanceCard: React.FC<{
     type: periodType,
     raw: times,
     formatted: {
-      checkIn: formatForDisplay(times.checkIn),
-      checkOut: formatForDisplay(times.checkOut),
-      shiftStart: formatForDisplay(times.shiftStart),
-      shiftEnd: formatForDisplay(times.shiftEnd),
+      checkIn: times.checkIn,
+      checkOut: times.checkOut,
+      shiftStart: times.shiftStart,
+      shiftEnd: times.shiftEnd,
     },
   });
 
