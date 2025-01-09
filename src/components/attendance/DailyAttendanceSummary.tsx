@@ -12,10 +12,14 @@ interface DailyAttendanceSummaryProps {
   records: {
     type: PeriodType;
     isOvertime: boolean;
-    checkIn: string;
+    checkIn: string | null;
     checkOut: string | null;
     state: AttendanceState;
     checkStatus: CheckStatus;
+    periodWindow?: {
+      start: string;
+      end: string;
+    };
   }[];
   onClose?: () => void;
 }
@@ -26,6 +30,8 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
   onClose,
 }) => {
   const currentDate = new Date();
+
+  console.log('Rendering DailyAttendanceSummary with records:', records);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -74,43 +80,65 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
 
         {/* Attendance Records */}
         <div className="px-4 space-y-4">
-          {records.map((record, index) => (
-            <Card key={index} className="bg-white shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock size={20} className="text-primary" />
-                    <span>
-                      {record.type === PeriodType.REGULAR
-                        ? 'กะปกติ'
-                        : 'ช่วงทำงานล่วงเวลา'}
-                    </span>
-                  </div>
-                  {record.isOvertime && (
-                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
-                      OT
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-                    <div className="font-medium">
-                      {formatSafeTime(record.checkIn)}
+          {records.map((record, index) => {
+            // Log each record's time values before formatting
+            console.log(`Record ${index}:`, {
+              type: record.type,
+              checkIn: record.checkIn,
+              checkOut: record.checkOut,
+              periodWindow: record.periodWindow,
+              formattedCheckIn: formatSafeTime(record.checkIn),
+              formattedCheckOut: formatSafeTime(record.checkOut),
+            });
+
+            return (
+              <Card key={index} className="bg-white shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock size={20} className="text-primary" />
+                      <span>
+                        {record.type === PeriodType.REGULAR
+                          ? 'กะปกติ'
+                          : 'ช่วงทำงานล่วงเวลา'}
+                      </span>
+                    </div>
+                    {record.isOvertime && (
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
+                        OT
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
+                      <div className="font-medium">
+                        {formatSafeTime(record.checkIn)}
+                      </div>
+                      {record.periodWindow && (
+                        <div className="text-xs text-gray-400">
+                          ช่วงเวลา {formatSafeTime(record.periodWindow.start)}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
+                      <div className="font-medium">
+                        {formatSafeTime(record.checkOut)}
+                      </div>
+                      {record.periodWindow && (
+                        <div className="text-xs text-gray-400">
+                          ถึง {formatSafeTime(record.periodWindow.end)}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-                    <div className="font-medium">
-                      {formatSafeTime(record.checkOut)}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Close Button */}
