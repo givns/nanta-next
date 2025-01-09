@@ -9,10 +9,6 @@ import {
   ErrorCode,
   AttendanceStatusResponse,
   UseAttendanceDataProps,
-  ShiftContext,
-  TransitionContext,
-  StateValidation,
-  UnifiedPeriodState,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
@@ -24,7 +20,6 @@ const RETRY_CONFIG = {
   MAX_DELAY: 5000,
 };
 
-// Add retry utility
 const retryWithBackoff = async <T>(
   fn: () => Promise<T>,
   retries = RETRY_CONFIG.MAX_RETRIES,
@@ -34,16 +29,12 @@ const retryWithBackoff = async <T>(
     return await fn();
   } catch (error) {
     if (retries === 0) throw error;
-
-    // Calculate next delay with exponential backoff
     const nextDelay = Math.min(delay * 2, RETRY_CONFIG.MAX_DELAY);
-
     await new Promise((resolve) => setTimeout(resolve, delay));
     return retryWithBackoff(fn, retries - 1, nextDelay);
   }
 };
 
-// hooks/useAttendanceData.ts
 export function useAttendanceData({
   employeeId,
   lineUserId,
@@ -52,14 +43,25 @@ export function useAttendanceData({
   enabled = true,
 }: UseAttendanceDataProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastOperation, setLastOperation] = useState<string>('');
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
 
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
     enabled && employeeId && locationState.status === 'ready'
-      ? ['/api/attendance/status/[employeeId]', employeeId, locationState]
+      ? [
+          '/api/attendance/status/[employeeId]',
+          employeeId,
+          locationState,
+          lastOperation,
+        ]
       : null,
     async ([_, id]): Promise<AttendanceStatusResponse> => {
-      console.log('Fetching attendance data for:', id); // Debug log
+      console.log('Fetching attendance data for:', {
+        employeeId: id,
+        lastOperation,
+        timestamp: new Date().toISOString(),
+      });
+
       try {
         const response = await axios.get(`/api/attendance/status/${id}`, {
           params: {
@@ -67,6 +69,7 @@ export function useAttendanceData({
             address: locationState.address,
             confidence: locationState.confidence,
             coordinates: locationState.coordinates,
+            _t: new Date().getTime(),
           },
           timeout: REQUEST_TIMEOUT,
         });
@@ -80,7 +83,6 @@ export function useAttendanceData({
           });
         }
 
-        // Validate required fields
         if (!response.data.context?.shift?.id) {
           console.error('Missing shift data in response');
           throw new AppError({
@@ -89,18 +91,8 @@ export function useAttendanceData({
           });
         }
 
-        // Sanitize and validate the response
         const sanitized = sanitizeResponse(response.data);
         console.log('Sanitized response:', sanitized);
-
-        // Log the final data being returned
-        console.log('Returning attendance data:', {
-          hasData: true,
-          employeeId,
-          context: sanitized.context,
-          base: sanitized.base,
-          validation: sanitized.validation,
-        });
 
         return sanitized;
       } catch (error) {
@@ -116,14 +108,12 @@ export function useAttendanceData({
       onError: (error) => {
         console.error('SWR Error:', error);
       },
-      // Add these SWR options to help with data persistence
       revalidateOnMount: true,
       shouldRetryOnError: true,
       errorRetryCount: 3,
     },
   );
 
-  // Add effect to handle location state changes
   useEffect(() => {
     if (locationState.status === 'ready' && !data) {
       console.log('Location ready, triggering data refresh');
@@ -131,16 +121,14 @@ export function useAttendanceData({
     }
   }, [locationState.status, data, mutate]);
 
-  // Add effect to track data changes
   useEffect(() => {
-    console.log('useAttendanceData data changed:', {
+    console.log('Attendance data changed:', {
       hasData: !!data,
       employeeId,
-      context: data?.context,
-      base: data?.base,
-      validation: data?.validation,
+      lastOperation,
+      timestamp: new Date().toISOString(),
     });
-  }, [data, employeeId]);
+  }, [data, employeeId, lastOperation]);
 
   const refreshAttendanceStatus = useCallback(async () => {
     if (isRefreshing) return;
@@ -151,40 +139,31 @@ export function useAttendanceData({
         clearTimeout(refreshTimeoutRef.current);
       }
 
-      await mutate(undefined, { revalidate: true });
+      setLastOperation(new Date().toISOString());
+
+      await mutate(undefined, {
+        revalidate: true,
+        populateCache: true,
+      });
+
+      try {
+        await axios.post(`/api/attendance/clear-cache`, {
+          employeeId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.warn('Failed to clear server cache:', error);
+      }
     } catch (error) {
       console.error('Error refreshing attendance status:', error);
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, mutate]);
-
-  // Add validation for attendance response
-  const validateAttendanceResponse = (data: AttendanceStatusResponse) => {
-    if (!data.daily || !data.base || !data.context || !data.validation) {
-      throw new AppError({
-        code: ErrorCode.INVALID_RESPONSE,
-        message: 'Invalid response structure',
-      });
-    }
-
-    // Validate time window
-    const timeWindow = data.daily.currentState?.timeWindow;
-    if (timeWindow && (!timeWindow.start || !timeWindow.end)) {
-      console.warn('Invalid time window:', timeWindow);
-    }
-
-    // Validate shift times
-    const shift = data.context.shift;
-    if (shift && (!shift.startTime || !shift.endTime)) {
-      console.warn('Invalid shift times:', shift);
-    }
-  };
+  }, [isRefreshing, mutate, employeeId]);
 
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
       try {
-        // Validate state transition before making API call
         if (data?.base) {
           const currentStatus = {
             state: data.base.state,
@@ -232,7 +211,11 @@ export function useAttendanceData({
           });
         }
 
+        setLastOperation(
+          `${params.isCheckIn ? 'checkin' : 'checkout'}-${new Date().toISOString()}`,
+        );
         await mutate(undefined, { revalidate: true });
+
         return response.data;
       } catch (error) {
         if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
@@ -247,16 +230,13 @@ export function useAttendanceData({
     [employeeId, lineUserId, locationState, mutate, data],
   );
 
-  // Updated sanitizeResponse to handle new structure
   const sanitizeResponse = (data: any): AttendanceStatusResponse => {
-    // First, log what we received
     console.log('Sanitizing response data:', {
       hasBase: !!data.base,
       hasContext: !!data.context,
       hasDaily: !!data.daily,
     });
 
-    // Handle daily state
     const daily = {
       date: data.daily.date,
       currentState: data.daily.currentState,
@@ -265,7 +245,6 @@ export function useAttendanceData({
         : [],
     };
 
-    // Handle base response
     const base = {
       ...data.base,
       validation: {
@@ -281,7 +260,6 @@ export function useAttendanceData({
       },
     };
 
-    // Handle context
     const context = {
       shift: {
         id: data.context.shift.id,
@@ -303,7 +281,6 @@ export function useAttendanceData({
       transition: data.context.transition,
     };
 
-    // Handle validation
     const validation = {
       allowed: Boolean(data.validation.allowed),
       reason: data.validation.reason || '',
@@ -314,48 +291,11 @@ export function useAttendanceData({
       metadata: data.validation.metadata,
     };
 
-    // Log what we're returning
-    console.log('Sanitized result:', {
-      hasBase: true,
-      hasContext: true,
-      hasDaily: true,
-      transitions: daily.transitions.length,
-      shiftId: context.shift.id,
-    });
-
     return {
       daily,
       base,
       context,
       validation,
-    };
-  };
-
-  // Helper to sanitize period state
-  const sanitizePeriodState = (state: any): UnifiedPeriodState => {
-    if (!state) return {} as UnifiedPeriodState;
-
-    return {
-      type: state.type,
-      timeWindow: {
-        start: state.timeWindow?.start || '',
-        end: state.timeWindow?.end || '',
-      },
-      activity: {
-        isActive: Boolean(state.activity?.isActive),
-        checkIn: state.activity?.checkIn || null,
-        checkOut: state.activity?.checkOut || null,
-        isOvertime: Boolean(state.activity?.isOvertime),
-        isDayOffOvertime: Boolean(state.activity?.isDayOffOvertime),
-        isInsideShiftHours: Boolean(state.activity?.isInsideShiftHours),
-      },
-      validation: {
-        isWithinBounds: Boolean(state.validation?.isWithinBounds),
-        isEarly: Boolean(state.validation?.isEarly),
-        isLate: Boolean(state.validation?.isLate),
-        isOvernight: Boolean(state.validation?.isOvernight),
-        isConnected: Boolean(state.validation?.isConnected),
-      },
     };
   };
 
