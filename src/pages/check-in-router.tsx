@@ -161,18 +161,8 @@ const CheckInRouter: React.FC = () => {
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
 
-    console.log('Creating daily records from:', {
-      latestAttendance: {
-        checkIn: safeAttendanceProps.base.latestAttendance?.CheckInTime,
-        checkOut: safeAttendanceProps.base.latestAttendance?.CheckOutTime,
-        type: safeAttendanceProps.base.latestAttendance?.type,
-        isOvertime: safeAttendanceProps.base.latestAttendance?.isOvertime,
-      },
-      shiftTimes: {
-        start: safeAttendanceProps.shift?.startTime,
-        end: safeAttendanceProps.shift?.endTime,
-      },
-      periodInfo: safeAttendanceProps.base.periodInfo,
+    console.log('Processing attendance records:', {
+      base: safeAttendanceProps.base,
       periodState: safeAttendanceProps.periodState,
     });
 
@@ -185,42 +175,12 @@ const CheckInRouter: React.FC = () => {
     const extractRecords = (): AttendanceRecord[] => {
       const extractedRecords: AttendanceRecord[] = [];
 
-      // Add records from base
+      // Add records from base.latestAttendance
       if (safeAttendanceProps.base.latestAttendance) {
-        extractedRecords.push({
-          ...safeAttendanceProps.base.latestAttendance,
-          // Ensure all required fields are present
-          id: safeAttendanceProps.base.latestAttendance.id || '',
-          employeeId:
-            safeAttendanceProps.base.latestAttendance.employeeId || '',
-          date: safeAttendanceProps.base.latestAttendance.date || new Date(),
-          periodSequence:
-            safeAttendanceProps.base.latestAttendance.periodSequence || 1,
-          metadata: safeAttendanceProps.base.latestAttendance.metadata || {
-            isManualEntry: false,
-            isDayOff: false,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            source: 'system',
-          },
-          overtimeEntries:
-            safeAttendanceProps.base.latestAttendance.overtimeEntries || [],
-          timeEntries:
-            safeAttendanceProps.base.latestAttendance.timeEntries || [],
-          checkTiming: safeAttendanceProps.base.latestAttendance
-            .checkTiming || {
-            isEarlyCheckIn: false,
-            isLateCheckIn: false,
-            isLateCheckOut: false,
-            isVeryLateCheckOut: false,
-            lateCheckInMinutes: 0,
-            lateCheckOutMinutes: 0,
-          },
-          location: safeAttendanceProps.base.latestAttendance.location || {},
-        });
+        extractedRecords.push(safeAttendanceProps.base.latestAttendance);
       }
 
-      // Add records from other sources if available
+      // Add records from additionalRecords if available
       if (safeAttendanceProps.base.additionalRecords) {
         extractedRecords.push(...safeAttendanceProps.base.additionalRecords);
       }
@@ -231,39 +191,54 @@ const CheckInRouter: React.FC = () => {
     // Extract all possible records
     const allRecords = extractRecords();
 
-    // Sort records to ensure correct order
-    const sortedRecords = allRecords.sort(
-      (a, b) => (a.periodSequence || 0) - (b.periodSequence || 0),
-    );
+    // Sort records by period type (REGULAR first) then by sequence
+    const sortedRecords = allRecords.sort((a, b) => {
+      if (a.type === b.type) {
+        return (a.periodSequence || 0) - (b.periodSequence || 0);
+      }
+      return a.type === PeriodType.REGULAR ? -1 : 1;
+    });
 
-    // Process records
-    sortedRecords.forEach((record, index) => {
-      // Skip if record doesn't meet basic criteria
-      if (!record.CheckInTime || !record.CheckOutTime) return;
+    // Process records, including incomplete ones
+    sortedRecords.forEach((record) => {
+      // Skip completely empty records
+      if (!record.CheckInTime && !record.CheckOutTime) return;
+
+      // Ensure required fields are present
+      const processedRecord: AttendanceRecord = {
+        ...record,
+        id: record.id || '',
+        employeeId: record.employeeId || '',
+        date: record.date || new Date(),
+        periodSequence: record.periodSequence || 1,
+        metadata: record.metadata || {
+          isManualEntry: false,
+          isDayOff: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          source: 'system',
+        },
+        overtimeEntries: record.overtimeEntries || [],
+        timeEntries: record.timeEntries || [],
+        checkTiming: record.checkTiming || {
+          isEarlyCheckIn: false,
+          isLateCheckIn: false,
+          isLateCheckOut: false,
+          isVeryLateCheckOut: false,
+          lateCheckInMinutes: 0,
+          lateCheckOutMinutes: 0,
+        },
+        location: record.location || {},
+      };
 
       records.push({
-        record,
-        periodSequence: record.periodSequence || index + 1,
+        record: processedRecord,
+        periodSequence: record.periodSequence || 1,
       });
     });
 
-    // Error handling for unexpected scenarios
-    if (records.length === 0) {
-      console.warn('No valid attendance records found', {
-        baseAttendance: safeAttendanceProps.base,
-        periodState: safeAttendanceProps.periodState,
-      });
-    }
-
-    // Transform for UI consumption
-    const processedRecords = records.map(({ record, periodSequence }) => ({
-      record,
-      periodSequence,
-    }));
-
-    console.log('Processed Daily Records:', processedRecords);
-
-    return processedRecords;
+    console.log('Processed records:', records);
+    return records;
   }, [safeAttendanceProps]);
 
   // System ready state
