@@ -398,25 +398,50 @@ export class AttendanceProcessingService {
         });
       }
 
-      // Enhanced transition detection for overtime
-      const shiftEnd = parseISO(window.current.end);
-      const isInTransitionWindow = isWithinInterval(now, {
-        start: subMinutes(shiftEnd, 15),
-        end: addMinutes(shiftEnd, 15),
+      // Find the correct attendance record based on period type
+      const targetRecord = await tx.attendance.findFirst({
+        where: {
+          employeeId: options.employeeId,
+          date: startOfDay(now),
+          type: options.periodType,
+          CheckInTime: { not: null },
+          CheckOutTime: null,
+          isOvertime: options.periodType === PeriodType.OVERTIME,
+        },
+        orderBy: {
+          CheckInTime: 'desc',
+        },
+        include: {
+          timeEntries: true,
+          overtimeEntries: true,
+          location: true,
+          metadata: true,
+          checkTiming: true,
+        },
       });
-      const hasUpcomingOvertime = Boolean(
-        window.nextPeriod?.type === PeriodType.OVERTIME,
-      );
+
+      if (!targetRecord) {
+        throw new AppError({
+          code: ErrorCode.PROCESSING_ERROR,
+          message: `No active ${options.periodType} period found for checkout`,
+        });
+      }
+
+      console.log('Found target record for checkout:', {
+        id: targetRecord.id,
+        type: targetRecord.type,
+        isOvertime: targetRecord.isOvertime,
+        checkIn: targetRecord.CheckInTime,
+      });
 
       // Update attendance record for checkout
       const updateData: Prisma.AttendanceUpdateInput = {
         CheckOutTime: now,
         state: AttendanceState.PRESENT,
         checkStatus: CheckStatus.CHECKED_OUT,
-        // Add overtime state update when checking out from overtime
         ...(options.periodType === PeriodType.OVERTIME && {
           overtimeState: OvertimeState.COMPLETED,
-          isOvertime: true, // Ensure isOvertime flag is set
+          isOvertime: true,
         }),
         ...(locationData && {
           location: {
@@ -430,23 +455,20 @@ export class AttendanceProcessingService {
         }),
         metadata: {
           update: {
-            source:
-              hasUpcomingOvertime && isInTransitionWindow
-                ? 'auto'
-                : options.metadata?.source || 'system',
+            source: options.metadata?.source || 'system',
             updatedAt: now,
           },
         },
       };
 
       console.log('Updating attendance record:', {
-        id: currentRecord.id,
+        id: targetRecord.id,
         isOvertime: options.periodType === PeriodType.OVERTIME,
         updateData,
       });
 
       const updatedAttendance = await tx.attendance.update({
-        where: { id: currentRecord.id },
+        where: { id: targetRecord.id },
         data: updateData,
         include: {
           timeEntries: true,
@@ -461,7 +483,7 @@ export class AttendanceProcessingService {
     }
 
     // Handle check-in
-    // Rest of the check-in logic remains the same...
+    // Get latest sequence for this specific period type
     const latestRecord = await tx.attendance.findFirst({
       where: {
         employeeId: options.employeeId,
@@ -483,7 +505,7 @@ export class AttendanceProcessingService {
       checkStatus: CheckStatus.CHECKED_IN,
       type: options.periodType,
       periodSequence: nextSequence,
-      isOvertime: options.activity.isOvertime || false,
+      isOvertime: options.periodType === PeriodType.OVERTIME,
       overtimeState:
         options.periodType === PeriodType.OVERTIME
           ? OvertimeState.IN_PROGRESS
@@ -491,6 +513,9 @@ export class AttendanceProcessingService {
       shiftStartTime: parseISO(window.current.start),
       shiftEndTime: parseISO(window.current.end),
       CheckInTime: now,
+      ...(options.metadata?.overtimeId && {
+        overtimeId: options.metadata.overtimeId,
+      }),
       ...(locationData && {
         location: { create: locationData },
       }),
@@ -502,6 +527,12 @@ export class AttendanceProcessingService {
         },
       },
     };
+
+    console.log('Creating new attendance record:', {
+      type: options.periodType,
+      isOvertime: options.periodType === PeriodType.OVERTIME,
+      nextSequence,
+    });
 
     const attendance = await tx.attendance.create({
       data: attendanceData,
