@@ -407,12 +407,15 @@ export class AttendanceProcessingService {
         });
       }
 
-      // First, find all active records for today
+      // Find active records with improved query
       const allActiveRecords = await tx.attendance.findMany({
         where: {
           employeeId: options.employeeId,
           date: startOfDay(now),
-          CheckInTime: { not: null },
+          state: AttendanceState.INCOMPLETE,
+          checkStatus: CheckStatus.CHECKED_IN,
+          type: options.periodType,
+          isOvertime: options.periodType === PeriodType.OVERTIME,
           CheckOutTime: null,
         },
         orderBy: {
@@ -433,33 +436,50 @@ export class AttendanceProcessingService {
           id: record.id,
           type: record.type,
           isOvertime: record.isOvertime,
-          checkIn: record.CheckInTime,
           state: record.state,
+          checkStatus: record.checkStatus,
+          checkIn: record.CheckInTime
+            ? format(record.CheckInTime, 'HH:mm:ss')
+            : null,
+          overtimeState: record.overtimeState,
         })),
       );
 
-      // Find the correct active period
-      const targetRecord = allActiveRecords.find(
-        (record) =>
-          record.type === options.periodType &&
-          record.isOvertime === (options.periodType === PeriodType.OVERTIME),
-      );
-
-      if (!targetRecord) {
-        // Log more details about what we were looking for
-        console.log('Failed to find target record. Search criteria:', {
-          employeeId: options.employeeId,
-          date: format(startOfDay(now), 'yyyy-MM-dd'),
-          type: options.periodType,
-          isOvertime: options.periodType === PeriodType.OVERTIME,
-          activeRecordsCount: allActiveRecords.length,
+      if (allActiveRecords.length === 0) {
+        // Perform a broader search to debug
+        const allRecordsToday = await tx.attendance.findMany({
+          where: {
+            employeeId: options.employeeId,
+            date: startOfDay(now),
+          },
+          orderBy: {
+            CheckInTime: 'desc',
+          },
         });
+
+        console.log(
+          'All records today:',
+          allRecordsToday.map((record) => ({
+            id: record.id,
+            type: record.type,
+            isOvertime: record.isOvertime,
+            state: record.state,
+            checkStatus: record.checkStatus,
+            checkIn: record.CheckInTime
+              ? format(record.CheckInTime, 'HH:mm:ss')
+              : null,
+            CheckOutTime: format(now, 'HH:mm:ss'), // Using now instead of updateData.CheckOutTime          overtimeState: record.overtimeState
+          })),
+        );
 
         throw new AppError({
           code: ErrorCode.PROCESSING_ERROR,
-          message: `No active ${options.periodType} period found for checkout. Available records: ${allActiveRecords.length}`,
+          message: `No active ${options.periodType} period found for checkout. Total records today: ${allRecordsToday.length}`,
         });
       }
+
+      // Use the most recent active record
+      const targetRecord = allActiveRecords[0];
 
       console.log('Found target record for checkout:', {
         id: targetRecord.id,
@@ -467,8 +487,10 @@ export class AttendanceProcessingService {
         isOvertime: targetRecord.isOvertime,
         checkIn: targetRecord.CheckInTime
           ? format(targetRecord.CheckInTime, 'HH:mm:ss')
-          : 'N/A',
+          : null,
         state: targetRecord.state,
+        checkStatus: targetRecord.checkStatus,
+        overtimeState: targetRecord.overtimeState,
       });
 
       // Update attendance record for checkout
