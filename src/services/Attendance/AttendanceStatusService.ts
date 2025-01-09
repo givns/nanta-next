@@ -39,7 +39,6 @@ export class AttendanceStatusService {
 
     // If force refresh flag exists, bypass cache
     if (!forceRefresh) {
-      // Try cache first
       const cachedStatus =
         await this.cacheManager.getAttendanceState(employeeId);
       if (cachedStatus) {
@@ -47,9 +46,9 @@ export class AttendanceStatusService {
       }
     }
 
-    // Get base data
-    const [attendance, periodState] = await Promise.all([
-      this.attendanceRecordService.getLatestAttendanceRecord(employeeId, {
+    // Get all records for the day
+    const [allRecords, periodState] = await Promise.all([
+      this.attendanceRecordService.getAllAttendanceRecords(employeeId, {
         periodType: options.periodType,
       }),
       this.shiftService.getCurrentPeriodState(employeeId, now),
@@ -62,13 +61,20 @@ export class AttendanceStatusService {
       });
     }
 
+    // Get latest record for current state
+    const latestRecord =
+      allRecords.length > 0 ? allRecords[allRecords.length - 1] : null;
+
     // Build response through enhancement service
     const enhancedStatus =
       await this.enhancementService.enhanceAttendanceStatus(
-        attendance,
+        latestRecord,
         periodState,
         now,
       );
+
+    // Add all records to base
+    enhancedStatus.base.additionalRecords = allRecords;
 
     // Cache the result
     await cacheService.del(forceRefreshKey);

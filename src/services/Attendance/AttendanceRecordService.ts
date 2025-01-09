@@ -49,4 +49,40 @@ export class AttendanceRecordService {
 
     return record ? AttendanceMappers.toAttendanceRecord(record) : null;
   }
+
+  // AttendanceRecordService.ts
+  async getAllAttendanceRecords(
+    employeeId: string,
+    options?: GetAttendanceRecordOptions,
+  ): Promise<AttendanceRecord[]> {
+    const now = getCurrentTime();
+
+    const records = await this.prisma.attendance.findMany({
+      where: {
+        employeeId,
+        date: {
+          gte: startOfDay(now),
+          lt: endOfDay(now),
+        },
+        ...(options?.periodType && { type: options.periodType }),
+      },
+      include: {
+        timeEntries: {
+          include: {
+            overtimeMetadata: true,
+          },
+        },
+        overtimeEntries: true,
+        checkTiming: true,
+        location: true,
+        metadata: true,
+      },
+      orderBy: [{ type: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    // Filter out null values after mapping
+    return records
+      .map((record) => AttendanceMappers.toAttendanceRecord(record))
+      .filter((record): record is AttendanceRecord => record !== null);
+  }
 }

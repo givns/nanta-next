@@ -15,32 +15,6 @@ import { AttendanceRecord } from '@/types/attendance';
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
 
-interface TimeEntry {
-  employeeId: string;
-  startTime: string;
-  endTime?: string;
-  status: 'COMPLETED' | string;
-  entryType: PeriodType;
-  regularHours: number;
-  overtimeHours: number;
-  hours: {
-    regular: number;
-    overtime: number;
-  };
-  timing: {
-    actualMinutesLate: number;
-    isHalfDayLate: boolean;
-  };
-  metadata: {
-    source: string;
-    version: number;
-    createdAt?: string;
-    updatedAt: string;
-  };
-  actualMinutesLate: number;
-  isHalfDayLate: boolean;
-}
-
 const createSafeAttendance = (props: any) => {
   if (!props) {
     console.warn('No attendance props provided');
@@ -195,85 +169,83 @@ const CheckInRouter: React.FC = () => {
     const extractRecords = (): AttendanceRecord[] => {
       const extractedRecords: AttendanceRecord[] = [];
       const attendance = safeAttendanceProps.base.latestAttendance;
+      const additionalRecords =
+        safeAttendanceProps.base.additionalRecords || [];
 
-      if (!attendance?.timeEntries?.length) return extractedRecords;
+      console.log('Processing all records:', {
+        latest: attendance,
+        additional: additionalRecords,
+      });
 
-      // Get regular period
-      const regularEntry = attendance.timeEntries.find(
-        (entry: { entryType: string; status: string }) =>
-          entry.entryType === PeriodType.REGULAR &&
-          entry.status === 'COMPLETED',
+      // Process all attendance records
+      const allRecords = [...additionalRecords];
+      if (
+        attendance &&
+        !additionalRecords.find((r: AttendanceRecord) => r.id === attendance.id)
+      ) {
+        allRecords.push(attendance);
+      }
+
+      // Group by type and sort
+      const recordsByType = allRecords.reduce(
+        (
+          acc: {
+            regular?: AttendanceRecord;
+            overtime?: AttendanceRecord[];
+          },
+          record: AttendanceRecord,
+        ) => {
+          if (record.type === PeriodType.REGULAR) {
+            acc.regular = record;
+          } else if (record.type === PeriodType.OVERTIME) {
+            acc.overtime = acc.overtime || [];
+            acc.overtime.push(record);
+          }
+          return acc;
+        },
+        {},
       );
 
-      if (regularEntry) {
+      // Add regular period first
+      if (recordsByType.regular) {
         extractedRecords.push({
-          ...attendance,
-          id: regularEntry.id,
-          employeeId: regularEntry.employeeId,
-          type: PeriodType.REGULAR,
+          ...recordsByType.regular,
           periodSequence: 1,
-          isOvertime: false,
-          // Keep ISO strings, don't convert to Date
-          CheckInTime: regularEntry.startTime,
-          CheckOutTime: regularEntry.endTime,
-          shiftStartTime: regularEntry.startTime,
-          shiftEndTime: regularEntry.endTime,
-          checkTiming: {
-            isEarlyCheckIn: false,
-            isLateCheckIn: regularEntry.timing?.actualMinutesLate > 0,
-            isLateCheckOut: false,
-            isVeryLateCheckOut: false,
-            lateCheckInMinutes: regularEntry.timing?.actualMinutesLate || 0,
-            lateCheckOutMinutes: 0,
-          },
         });
       }
 
-      // Get overtime entries
-      const overtimeEntries = attendance.timeEntries.filter(
-        (entry: { entryType: string; status: string }) =>
-          entry.entryType === PeriodType.OVERTIME &&
-          entry.status === 'COMPLETED',
-      );
-
-      overtimeEntries.forEach(
-        (
-          entry: {
-            id: any;
-            employeeId: any;
-            startTime: any;
-            endTime: any;
-            overtimeRequestId: any;
-            overtimeHours: any;
-            timing: { actualMinutesLate: number };
-          },
-          index: number,
-        ) => {
-          console.log('Processing overtime entry:', entry);
-          extractedRecords.push({
-            ...attendance,
-            id: entry.id,
-            employeeId: entry.employeeId,
-            type: PeriodType.OVERTIME,
-            periodSequence: index + 1,
-            isOvertime: true,
-            // Keep ISO strings
-            CheckInTime: entry.startTime,
-            CheckOutTime: entry.endTime,
-            shiftStartTime: entry.startTime,
-            shiftEndTime: entry.endTime,
-            overtimeId: entry.overtimeRequestId,
-            overtimeDuration: entry.overtimeHours,
-            checkTiming: {
-              isEarlyCheckIn: false,
-              isLateCheckIn: entry.timing?.actualMinutesLate > 0,
-              isLateCheckOut: false,
-              isVeryLateCheckOut: false,
-              lateCheckInMinutes: entry.timing?.actualMinutesLate || 0,
-              lateCheckOutMinutes: 0,
-            },
+      // Add overtime periods in chronological order
+      if (recordsByType.overtime?.length) {
+        recordsByType.overtime
+          .sort((a: AttendanceRecord, b: AttendanceRecord) => {
+            const timeA =
+              typeof a.CheckInTime === 'string'
+                ? new Date(a.CheckInTime).getTime()
+                : (a.CheckInTime?.getTime() ?? 0);
+            const timeB =
+              typeof b.CheckInTime === 'string'
+                ? new Date(b.CheckInTime).getTime()
+                : (b.CheckInTime?.getTime() ?? 0);
+            return timeA - timeB;
+          })
+          .forEach((record: AttendanceRecord, index: number) => {
+            extractedRecords.push({
+              ...record,
+              periodSequence: index + 1,
+            });
           });
-        },
+      }
+
+      console.log(
+        'Extracted records:',
+        extractedRecords.map((r: AttendanceRecord) => ({
+          type: r.type,
+          sequence: r.periodSequence,
+          times: {
+            checkIn: r.CheckInTime,
+            checkOut: r.CheckOutTime,
+          },
+        })),
       );
 
       return extractedRecords;

@@ -79,6 +79,7 @@ export interface AttendanceBaseResponse {
 
   // Current attendance record
   latestAttendance: AttendanceRecord | null; // Using our updated AttendanceRecord type
+  additionalRecords?: AttendanceRecord[]; // Add this field
 
   // Basic period info
   periodInfo: {
