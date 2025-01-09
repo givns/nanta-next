@@ -407,16 +407,19 @@ export class AttendanceProcessingService {
         });
       }
 
-      // Find active records with improved query
-      const allActiveRecords = await tx.attendance.findMany({
+      // Find the correct overtime record
+      const targetRecord = await tx.attendance.findFirst({
         where: {
           employeeId: options.employeeId,
           date: startOfDay(now),
           state: AttendanceState.INCOMPLETE,
-          checkStatus: CheckStatus.CHECKED_IN,
           type: options.periodType,
           isOvertime: options.periodType === PeriodType.OVERTIME,
-          CheckOutTime: null,
+          overtimeState:
+            options.periodType === PeriodType.OVERTIME
+              ? OvertimeState.IN_PROGRESS
+              : undefined,
+          CheckInTime: { not: null },
         },
         orderBy: {
           CheckInTime: 'desc',
@@ -430,31 +433,34 @@ export class AttendanceProcessingService {
         },
       });
 
-      console.log(
-        'Found active records:',
-        allActiveRecords.map((record) => ({
-          id: record.id,
-          type: record.type,
-          isOvertime: record.isOvertime,
-          state: record.state,
-          checkStatus: record.checkStatus,
-          checkIn: record.CheckInTime
-            ? format(record.CheckInTime, 'HH:mm:ss')
-            : null,
-          overtimeState: record.overtimeState,
-        })),
-      );
+      // Log the current state for debugging
+      console.log('Query results:', {
+        targetRecordFound: !!targetRecord,
+        targetRecord: targetRecord
+          ? {
+              id: targetRecord.id,
+              type: targetRecord.type,
+              state: targetRecord.state,
+              checkStatus: targetRecord.checkStatus,
+              overtimeState: targetRecord.overtimeState,
+              checkIn: targetRecord.CheckInTime
+                ? format(targetRecord.CheckInTime, 'HH:mm:ss')
+                : null,
+              checkOut: targetRecord.CheckOutTime
+                ? format(targetRecord.CheckOutTime, 'HH:mm:ss')
+                : null,
+            }
+          : null,
+      });
 
-      if (allActiveRecords.length === 0) {
-        // Perform a broader search to debug
+      // If no target record found, check all records for debugging
+      if (!targetRecord) {
         const allRecordsToday = await tx.attendance.findMany({
           where: {
             employeeId: options.employeeId,
             date: startOfDay(now),
           },
-          orderBy: {
-            CheckInTime: 'desc',
-          },
+          orderBy: [{ type: 'asc' }, { CheckInTime: 'desc' }],
         });
 
         console.log(
@@ -465,10 +471,13 @@ export class AttendanceProcessingService {
             isOvertime: record.isOvertime,
             state: record.state,
             checkStatus: record.checkStatus,
+            overtimeState: record.overtimeState,
             checkIn: record.CheckInTime
               ? format(record.CheckInTime, 'HH:mm:ss')
               : null,
-            CheckOutTime: format(now, 'HH:mm:ss'), // Using now instead of updateData.CheckOutTime          overtimeState: record.overtimeState
+            checkOut: record.CheckOutTime
+              ? format(record.CheckOutTime, 'HH:mm:ss')
+              : null,
           })),
         );
 
@@ -477,21 +486,6 @@ export class AttendanceProcessingService {
           message: `No active ${options.periodType} period found for checkout. Total records today: ${allRecordsToday.length}`,
         });
       }
-
-      // Use the most recent active record
-      const targetRecord = allActiveRecords[0];
-
-      console.log('Found target record for checkout:', {
-        id: targetRecord.id,
-        type: targetRecord.type,
-        isOvertime: targetRecord.isOvertime,
-        checkIn: targetRecord.CheckInTime
-          ? format(targetRecord.CheckInTime, 'HH:mm:ss')
-          : null,
-        state: targetRecord.state,
-        checkStatus: targetRecord.checkStatus,
-        overtimeState: targetRecord.overtimeState,
-      });
 
       // Update attendance record for checkout
       const updateData: Prisma.AttendanceUpdateInput = {
@@ -525,7 +519,7 @@ export class AttendanceProcessingService {
         isOvertime: options.periodType === PeriodType.OVERTIME,
         updateData: {
           ...updateData,
-          CheckOutTime: format(updateData.CheckOutTime as Date, 'HH:mm:ss'),
+          CheckOutTime: format(now, 'HH:mm:ss'),
         },
       });
 
