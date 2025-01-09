@@ -29,6 +29,7 @@ import {
   subMinutes,
   addMinutes,
   differenceInMinutes,
+  format,
 } from 'date-fns';
 
 // Import services
@@ -389,6 +390,14 @@ export class AttendanceProcessingService {
       ? this.prepareLocationData(options, isCheckIn)
       : undefined;
 
+    console.log('Processing attendance record:', {
+      isCheckIn,
+      periodType: options.periodType,
+      employeeId: options.employeeId,
+      date: format(now, 'yyyy-MM-dd'),
+      currentRecordId: currentRecord?.id,
+    });
+
     // Handle checkout
     if (!isCheckIn) {
       if (!currentRecord) {
@@ -398,15 +407,13 @@ export class AttendanceProcessingService {
         });
       }
 
-      // Find the correct attendance record based on period type
-      const targetRecord = await tx.attendance.findFirst({
+      // First, find all active records for today
+      const allActiveRecords = await tx.attendance.findMany({
         where: {
           employeeId: options.employeeId,
           date: startOfDay(now),
-          type: options.periodType,
           CheckInTime: { not: null },
           CheckOutTime: null,
-          isOvertime: options.periodType === PeriodType.OVERTIME,
         },
         orderBy: {
           CheckInTime: 'desc',
@@ -420,10 +427,37 @@ export class AttendanceProcessingService {
         },
       });
 
+      console.log(
+        'Found active records:',
+        allActiveRecords.map((record) => ({
+          id: record.id,
+          type: record.type,
+          isOvertime: record.isOvertime,
+          checkIn: record.CheckInTime,
+          state: record.state,
+        })),
+      );
+
+      // Find the correct active period
+      const targetRecord = allActiveRecords.find(
+        (record) =>
+          record.type === options.periodType &&
+          record.isOvertime === (options.periodType === PeriodType.OVERTIME),
+      );
+
       if (!targetRecord) {
+        // Log more details about what we were looking for
+        console.log('Failed to find target record. Search criteria:', {
+          employeeId: options.employeeId,
+          date: format(startOfDay(now), 'yyyy-MM-dd'),
+          type: options.periodType,
+          isOvertime: options.periodType === PeriodType.OVERTIME,
+          activeRecordsCount: allActiveRecords.length,
+        });
+
         throw new AppError({
           code: ErrorCode.PROCESSING_ERROR,
-          message: `No active ${options.periodType} period found for checkout`,
+          message: `No active ${options.periodType} period found for checkout. Available records: ${allActiveRecords.length}`,
         });
       }
 
@@ -431,7 +465,10 @@ export class AttendanceProcessingService {
         id: targetRecord.id,
         type: targetRecord.type,
         isOvertime: targetRecord.isOvertime,
-        checkIn: targetRecord.CheckInTime,
+        checkIn: targetRecord.CheckInTime
+          ? format(targetRecord.CheckInTime, 'HH:mm:ss')
+          : 'N/A',
+        state: targetRecord.state,
       });
 
       // Update attendance record for checkout
@@ -443,13 +480,13 @@ export class AttendanceProcessingService {
           overtimeState: OvertimeState.COMPLETED,
           isOvertime: true,
         }),
-        ...(locationData && {
+        ...(options.location && {
           location: {
             update: {
               checkOutCoordinates: this.prepareLocationJson(
-                options.location?.coordinates,
+                options.location.coordinates,
               ),
-              checkOutAddress: options.location?.address,
+              checkOutAddress: options.location.address,
             },
           },
         }),
@@ -464,7 +501,10 @@ export class AttendanceProcessingService {
       console.log('Updating attendance record:', {
         id: targetRecord.id,
         isOvertime: options.periodType === PeriodType.OVERTIME,
-        updateData,
+        updateData: {
+          ...updateData,
+          CheckOutTime: format(updateData.CheckOutTime as Date, 'HH:mm:ss'),
+        },
       });
 
       const updatedAttendance = await tx.attendance.update({
