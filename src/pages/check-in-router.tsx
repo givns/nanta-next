@@ -158,78 +158,80 @@ const CheckInRouter: React.FC = () => {
   }, [safeAttendanceProps]);
 
   // Get daily records for summary
-  // Inside CheckInRouter
   const dailyRecords = useMemo(() => {
-    if (!safeAttendanceProps?.base?.latestAttendance) return [];
+    if (!safeAttendanceProps?.base) return [];
 
+    const records = [];
+
+    // Log the input data for debugging
     console.log('Creating daily records from:', {
       latestAttendance: {
-        checkIn: safeAttendanceProps.base.latestAttendance.CheckInTime,
-        checkOut: safeAttendanceProps.base.latestAttendance.CheckOutTime,
-        type: safeAttendanceProps.base.latestAttendance.type,
-        isOvertime: safeAttendanceProps.base.latestAttendance.isOvertime,
+        checkIn: safeAttendanceProps.base.latestAttendance?.CheckInTime,
+        checkOut: safeAttendanceProps.base.latestAttendance?.CheckOutTime,
+        type: safeAttendanceProps.base.latestAttendance?.type,
+        isOvertime: safeAttendanceProps.base.latestAttendance?.isOvertime,
       },
       shiftTimes: {
         start: safeAttendanceProps.shift?.startTime,
         end: safeAttendanceProps.shift?.endTime,
       },
-      overtimePeriod: safeAttendanceProps.periodState?.activity
-        ? {
-            checkIn: safeAttendanceProps.periodState.activity.checkIn,
-            checkOut: safeAttendanceProps.periodState.activity.checkOut,
-          }
-        : null,
+      periodInfo: safeAttendanceProps.base.periodInfo,
+      periodState: safeAttendanceProps.periodState,
     });
 
-    const records = [];
+    // Determine the number of periods
+    const totalPeriods = safeAttendanceProps.base.periodInfo.isOvertime ? 2 : 1;
 
-    // Add regular period - use shift times as period window
-    if (
-      safeAttendanceProps.base.latestAttendance &&
-      safeAttendanceProps.shift
-    ) {
-      const regularRecord = {
-        type: PeriodType.REGULAR,
-        isOvertime: false,
-        // Use actual check times, not shift times
-        checkIn: safeAttendanceProps.base.latestAttendance.CheckInTime,
-        checkOut: safeAttendanceProps.base.latestAttendance.CheckOutTime,
-        state: safeAttendanceProps.base.latestAttendance.state,
-        checkStatus: safeAttendanceProps.base.latestAttendance.checkStatus,
-        // Add period window for reference
-        periodWindow: {
-          start: safeAttendanceProps.shift.startTime,
-          end: safeAttendanceProps.shift.endTime,
-        },
-      };
+    // Iterate through periods
+    for (let sequence = 1; sequence <= totalPeriods; sequence++) {
+      // First, check for regular period
+      if (
+        sequence === 1 &&
+        safeAttendanceProps.base.latestAttendance &&
+        safeAttendanceProps.shift
+      ) {
+        const regularRecord = {
+          type: PeriodType.REGULAR,
+          isOvertime: false,
+          checkIn: safeAttendanceProps.base.latestAttendance.CheckInTime,
+          checkOut: safeAttendanceProps.base.latestAttendance.CheckOutTime,
+          state: safeAttendanceProps.base.latestAttendance.state,
+          checkStatus: safeAttendanceProps.base.latestAttendance.checkStatus,
+          periodWindow: {
+            start: safeAttendanceProps.shift.startTime,
+            end: safeAttendanceProps.shift.endTime,
+          },
+          periodSequence: sequence,
+        };
 
-      console.log('Adding regular record:', regularRecord);
-      records.push(regularRecord);
-    }
+        console.log('Adding regular record:', regularRecord);
+        records.push(regularRecord);
+      }
 
-    // Add overtime period if exists
-    if (
-      safeAttendanceProps.base.periodInfo.isOvertime &&
-      safeAttendanceProps.periodState?.activity
-    ) {
-      const overtimeRecord = {
-        type: PeriodType.OVERTIME,
-        isOvertime: true,
-        checkIn: safeAttendanceProps.periodState.activity.checkIn,
-        checkOut: safeAttendanceProps.periodState.activity.checkOut,
-        state: safeAttendanceProps.base.state,
-        checkStatus: safeAttendanceProps.base.checkStatus,
-        // Add period window for overtime
-        periodWindow: safeAttendanceProps.periodState.timeWindow
-          ? {
-              start: safeAttendanceProps.periodState.timeWindow.start,
-              end: safeAttendanceProps.periodState.timeWindow.end,
-            }
-          : undefined,
-      };
+      // Then, check for overtime period
+      if (
+        safeAttendanceProps.base.periodInfo.isOvertime &&
+        safeAttendanceProps.periodState?.activity
+      ) {
+        const overtimeRecord = {
+          type: PeriodType.OVERTIME,
+          isOvertime: true,
+          checkIn: safeAttendanceProps.periodState.activity.checkIn,
+          checkOut: safeAttendanceProps.periodState.activity.checkOut,
+          state: safeAttendanceProps.base.state,
+          checkStatus: safeAttendanceProps.base.checkStatus,
+          periodWindow: safeAttendanceProps.periodState.timeWindow
+            ? {
+                start: safeAttendanceProps.periodState.timeWindow.start,
+                end: safeAttendanceProps.periodState.timeWindow.end,
+              }
+            : undefined,
+          periodSequence: sequence,
+        };
 
-      console.log('Adding overtime record:', overtimeRecord);
-      records.push(overtimeRecord);
+        console.log('Adding overtime record:', overtimeRecord);
+        records.push(overtimeRecord);
+      }
     }
 
     return records;
