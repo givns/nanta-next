@@ -171,73 +171,62 @@ const CheckInRouter: React.FC = () => {
       periodSequence: number;
     }> = [];
 
-    // Function to safely extract records from base and period state
+    // Extract records function
     const extractRecords = (): AttendanceRecord[] => {
       const extractedRecords: AttendanceRecord[] = [];
+      const attendance = safeAttendanceProps.base.latestAttendance;
 
-      // Add records from base.latestAttendance
-      if (safeAttendanceProps.base.latestAttendance) {
-        extractedRecords.push(safeAttendanceProps.base.latestAttendance);
+      if (attendance) {
+        // Handle regular period
+        if (!attendance.isOvertime) {
+          extractedRecords.push({
+            ...attendance,
+            type: PeriodType.REGULAR,
+            periodSequence: 1,
+          });
+        }
+
+        // Handle overtime period
+        if (attendance.isOvertime || attendance.type === PeriodType.OVERTIME) {
+          extractedRecords.push({
+            ...attendance,
+            type: PeriodType.OVERTIME,
+            periodSequence: attendance.isOvertime ? 2 : 1,
+          });
+        }
       }
 
-      // Add records from additionalRecords if available
-      if (safeAttendanceProps.base.additionalRecords) {
-        extractedRecords.push(...safeAttendanceProps.base.additionalRecords);
-      }
-
+      console.log('Extracted records:', extractedRecords);
       return extractedRecords;
     };
 
-    // Extract all possible records
-    const allRecords = extractRecords();
-
-    // Sort records by period type (REGULAR first) then by sequence
-    const sortedRecords = allRecords.sort((a, b) => {
-      if (a.type === b.type) {
-        return (a.periodSequence || 0) - (b.periodSequence || 0);
+    // Get and sort all records
+    const allRecords = extractRecords().sort((a, b) => {
+      // Sort by type first (REGULAR before OVERTIME)
+      if (a.type !== b.type) {
+        return a.type === PeriodType.REGULAR ? -1 : 1;
       }
-      return a.type === PeriodType.REGULAR ? -1 : 1;
+      // Then by sequence
+      return (a.periodSequence || 0) - (b.periodSequence || 0);
     });
 
-    // Process records, including incomplete ones
-    sortedRecords.forEach((record) => {
-      // Skip completely empty records
-      if (!record.CheckInTime && !record.CheckOutTime) return;
-
-      // Ensure required fields are present
-      const processedRecord: AttendanceRecord = {
-        ...record,
-        id: record.id || '',
-        employeeId: record.employeeId || '',
-        date: record.date || new Date(),
-        periodSequence: record.periodSequence || 1,
-        metadata: record.metadata || {
-          isManualEntry: false,
-          isDayOff: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          source: 'system',
-        },
-        overtimeEntries: record.overtimeEntries || [],
-        timeEntries: record.timeEntries || [],
-        checkTiming: record.checkTiming || {
-          isEarlyCheckIn: false,
-          isLateCheckIn: false,
-          isLateCheckOut: false,
-          isVeryLateCheckOut: false,
-          lateCheckInMinutes: 0,
-          lateCheckOutMinutes: 0,
-        },
-        location: record.location || {},
-      };
-
+    // Process records
+    allRecords.forEach((record) => {
       records.push({
-        record: processedRecord,
+        record: {
+          ...record,
+          metadata: record.metadata || {
+            isManualEntry: false,
+            isDayOff: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            source: 'system',
+          },
+        },
         periodSequence: record.periodSequence || 1,
       });
     });
 
-    console.log('Processed records:', records);
     return records;
   }, [safeAttendanceProps]);
 
