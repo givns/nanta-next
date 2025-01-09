@@ -34,60 +34,69 @@ export interface DailyAttendanceRecord {
 }
 
 export interface AttendanceRecord {
-  // Core identifiers - Keep
+  // Core identifiers
   id: string;
   employeeId: string;
   date: Date;
+  periodSequence: number; // Add explicit periodSequence
 
-  // Core status - Keep and consolidate
+  // Core status
   state: AttendanceState;
   checkStatus: CheckStatus;
   type: PeriodType;
 
-  // Overtime information - Consolidate
+  // Overtime information
   isOvertime: boolean;
   overtimeState?: OvertimeState;
   overtimeId?: string;
   overtimeDuration?: number;
 
-  // Time fields - Keep
+  // Time fields
   shiftStartTime: Date | null;
   shiftEndTime: Date | null;
   CheckInTime: Date | null;
   CheckOutTime: Date | null;
 
-  // Status flags - Group and simplify
+  // Status flags
   checkTiming: {
     isEarlyCheckIn: boolean;
     isLateCheckIn: boolean;
     isLateCheckOut: boolean;
     isVeryLateCheckOut: boolean;
+    lateCheckInMinutes: number; // Consider renaming from minutes to be more explicit
     lateCheckOutMinutes: number;
   };
 
-  // Location data - Group
+  // Location data
   location: {
     checkIn?: {
       coordinates: GeoLocation | null;
       address: string | null;
+      timestamp?: Date; // Optional timestamp for check-in
     };
     checkOut?: {
       coordinates: GeoLocation | null;
       address: string | null;
+      timestamp?: Date; // Optional timestamp for check-out
     };
   };
 
-  // Related entries - Keep
+  // Related entries
   overtimeEntries: OvertimeEntry[];
   timeEntries: TimeEntry[];
 
-  // Metadata - Keep and extend
+  // Metadata
   metadata: {
     isManualEntry: boolean;
     isDayOff: boolean;
     createdAt: Date;
     updatedAt: Date;
     source: 'system' | 'manual' | 'auto';
+    deviceInfo?: {
+      platform?: string;
+      osVersion?: string;
+      appVersion?: string;
+    };
   };
 }
 

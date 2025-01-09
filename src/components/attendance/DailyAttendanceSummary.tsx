@@ -5,22 +5,16 @@ import { User, Building2, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { formatSafeTime } from '@/shared/timeUtils';
 import { UserData } from '@/types/user';
-import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
+import { PeriodType } from '@prisma/client';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { AttendanceRecord } from '@/types/attendance';
 
 interface DailyAttendanceSummaryProps {
   userData: UserData;
-  records: {
-    type: PeriodType;
-    isOvertime: boolean;
-    checkIn: string | null;
-    checkOut: string | null;
-    state: AttendanceState;
-    checkStatus: CheckStatus;
-    periodWindow?: {
-      start: string;
-      end: string;
-    };
-  }[];
+  records: Array<{
+    record: AttendanceRecord;
+    periodSequence: number;
+  }>;
   onClose?: () => void;
 }
 
@@ -29,7 +23,7 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
   records,
   onClose,
 }) => {
-  const currentDate = new Date();
+  const currentTime = getCurrentTime();
 
   console.log('Rendering DailyAttendanceSummary with records:', records);
 
@@ -39,10 +33,10 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
           <div className="text-center text-4xl font-bold mb-1">
-            {format(currentDate, 'HH:mm')}
+            {format(currentTime, 'HH:mm')}
           </div>
           <div className="text-center text-sm text-gray-500">
-            {format(currentDate, 'EEEE d MMMM yyyy', { locale: th })}
+            {format(currentTime, 'EEEE d MMMM yyyy', { locale: th })}
           </div>
         </div>
       </header>
@@ -80,19 +74,39 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
 
         {/* Attendance Records */}
         <div className="px-4 space-y-4">
-          {records.map((record, index) => {
+          {records.map(({ record, periodSequence }, index) => {
+            // Convert Date to ISO string, handling null cases
+            const checkInTime = record.CheckInTime
+              ? record.CheckInTime.toISOString()
+              : null;
+            const checkOutTime = record.CheckOutTime
+              ? record.CheckOutTime.toISOString()
+              : null;
+            const shiftStartTime = record.shiftStartTime
+              ? record.shiftStartTime.toISOString()
+              : null;
+            const shiftEndTime = record.shiftEndTime
+              ? record.shiftEndTime.toISOString()
+              : null;
+
             // Log each record's time values before formatting
             console.log(`Record ${index}:`, {
               type: record.type,
-              checkIn: record.checkIn,
-              checkOut: record.checkOut,
-              periodWindow: record.periodWindow,
-              formattedCheckIn: formatSafeTime(record.checkIn),
-              formattedCheckOut: formatSafeTime(record.checkOut),
+              checkIn: checkInTime,
+              checkOut: checkOutTime,
+              periodWindow: {
+                start: shiftStartTime,
+                end: shiftEndTime,
+              },
+              formattedCheckIn: formatSafeTime(checkInTime),
+              formattedCheckOut: formatSafeTime(checkOutTime),
             });
 
             return (
-              <Card key={index} className="bg-white shadow-sm">
+              <Card
+                key={`${record.id}-${periodSequence}`}
+                className="bg-white shadow-sm"
+              >
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -115,26 +129,44 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
                     <div>
                       <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
                       <div className="font-medium">
-                        {formatSafeTime(record.checkIn)}
+                        {formatSafeTime(checkInTime)}
                       </div>
-                      {record.periodWindow && (
+                      {shiftStartTime && (
                         <div className="text-xs text-gray-400">
-                          ช่วงเวลา {formatSafeTime(record.periodWindow.start)}
+                          ช่วงเวลา {formatSafeTime(shiftStartTime)}
                         </div>
                       )}
                     </div>
                     <div>
                       <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
                       <div className="font-medium">
-                        {formatSafeTime(record.checkOut)}
+                        {formatSafeTime(checkOutTime)}
                       </div>
-                      {record.periodWindow && (
+                      {shiftEndTime && (
                         <div className="text-xs text-gray-400">
-                          ถึง {formatSafeTime(record.periodWindow.end)}
+                          ถึง {formatSafeTime(shiftEndTime)}
                         </div>
                       )}
                     </div>
                   </div>
+
+                  {/* Additional Details */}
+                  {record.checkTiming && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      {record.checkTiming.isLateCheckIn && (
+                        <div>
+                          เข้างานช้า {record.checkTiming.lateCheckInMinutes}{' '}
+                          นาที
+                        </div>
+                      )}
+                      {record.checkTiming.isLateCheckOut && (
+                        <div>
+                          ออกงานช้า {record.checkTiming.lateCheckOutMinutes}{' '}
+                          นาที
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

@@ -48,6 +48,7 @@ export class AttendanceMappers {
       id: dbAttendance.id,
       employeeId: dbAttendance.employeeId,
       date: new Date(dbAttendance.date),
+      periodSequence: dbAttendance.periodSequence || 0, // Add explicit periodSequence
 
       // Core status
       state: dbAttendance.state,
@@ -81,6 +82,7 @@ export class AttendanceMappers {
         isLateCheckOut: dbAttendance.checkTiming?.isLateCheckOut || false,
         isVeryLateCheckOut:
           dbAttendance.checkTiming?.isVeryLateCheckOut || false,
+        lateCheckInMinutes: dbAttendance.checkTiming?.lateCheckInMinutes || 0,
         lateCheckOutMinutes: dbAttendance.checkTiming?.lateCheckOutMinutes || 0,
       },
 

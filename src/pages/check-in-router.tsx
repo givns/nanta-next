@@ -10,6 +10,7 @@ import CheckInOutForm from '@/components/attendance/CheckInOutForm';
 import DailyAttendanceSummary from '@/components/attendance/DailyAttendanceSummary';
 import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
+import { AttendanceRecord } from '@/types/attendance';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -157,13 +158,9 @@ const CheckInRouter: React.FC = () => {
     );
   }, [safeAttendanceProps]);
 
-  // Get daily records for summary
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
 
-    const records = [];
-
-    // Log the input data for debugging
     console.log('Creating daily records from:', {
       latestAttendance: {
         checkIn: safeAttendanceProps.base.latestAttendance?.CheckInTime,
@@ -179,62 +176,94 @@ const CheckInRouter: React.FC = () => {
       periodState: safeAttendanceProps.periodState,
     });
 
-    // Determine the number of periods
-    const totalPeriods = safeAttendanceProps.base.periodInfo.isOvertime ? 2 : 1;
+    const records: Array<{
+      record: AttendanceRecord;
+      periodSequence: number;
+    }> = [];
 
-    // Iterate through periods
-    for (let sequence = 1; sequence <= totalPeriods; sequence++) {
-      // First, check for regular period
-      if (
-        sequence === 1 &&
-        safeAttendanceProps.base.latestAttendance &&
-        safeAttendanceProps.shift
-      ) {
-        const regularRecord = {
-          type: PeriodType.REGULAR,
-          isOvertime: false,
-          checkIn: safeAttendanceProps.base.latestAttendance.CheckInTime,
-          checkOut: safeAttendanceProps.base.latestAttendance.CheckOutTime,
-          state: safeAttendanceProps.base.latestAttendance.state,
-          checkStatus: safeAttendanceProps.base.latestAttendance.checkStatus,
-          periodWindow: {
-            start: safeAttendanceProps.shift.startTime,
-            end: safeAttendanceProps.shift.endTime,
+    // Function to safely extract records from base and period state
+    const extractRecords = (): AttendanceRecord[] => {
+      const extractedRecords: AttendanceRecord[] = [];
+
+      // Add records from base
+      if (safeAttendanceProps.base.latestAttendance) {
+        extractedRecords.push({
+          ...safeAttendanceProps.base.latestAttendance,
+          // Ensure all required fields are present
+          id: safeAttendanceProps.base.latestAttendance.id || '',
+          employeeId:
+            safeAttendanceProps.base.latestAttendance.employeeId || '',
+          date: safeAttendanceProps.base.latestAttendance.date || new Date(),
+          periodSequence:
+            safeAttendanceProps.base.latestAttendance.periodSequence || 1,
+          metadata: safeAttendanceProps.base.latestAttendance.metadata || {
+            isManualEntry: false,
+            isDayOff: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            source: 'system',
           },
-          periodSequence: sequence,
-        };
-
-        console.log('Adding regular record:', regularRecord);
-        records.push(regularRecord);
+          overtimeEntries:
+            safeAttendanceProps.base.latestAttendance.overtimeEntries || [],
+          timeEntries:
+            safeAttendanceProps.base.latestAttendance.timeEntries || [],
+          checkTiming: safeAttendanceProps.base.latestAttendance
+            .checkTiming || {
+            isEarlyCheckIn: false,
+            isLateCheckIn: false,
+            isLateCheckOut: false,
+            isVeryLateCheckOut: false,
+            lateCheckInMinutes: 0,
+            lateCheckOutMinutes: 0,
+          },
+          location: safeAttendanceProps.base.latestAttendance.location || {},
+        });
       }
 
-      // Then, check for overtime period
-      if (
-        safeAttendanceProps.base.periodInfo.isOvertime &&
-        safeAttendanceProps.periodState?.activity
-      ) {
-        const overtimeRecord = {
-          type: PeriodType.OVERTIME,
-          isOvertime: true,
-          checkIn: safeAttendanceProps.periodState.activity.checkIn,
-          checkOut: safeAttendanceProps.periodState.activity.checkOut,
-          state: safeAttendanceProps.base.state,
-          checkStatus: safeAttendanceProps.base.checkStatus,
-          periodWindow: safeAttendanceProps.periodState.timeWindow
-            ? {
-                start: safeAttendanceProps.periodState.timeWindow.start,
-                end: safeAttendanceProps.periodState.timeWindow.end,
-              }
-            : undefined,
-          periodSequence: sequence,
-        };
-
-        console.log('Adding overtime record:', overtimeRecord);
-        records.push(overtimeRecord);
+      // Add records from other sources if available
+      if (safeAttendanceProps.base.additionalRecords) {
+        extractedRecords.push(...safeAttendanceProps.base.additionalRecords);
       }
+
+      return extractedRecords;
+    };
+
+    // Extract all possible records
+    const allRecords = extractRecords();
+
+    // Sort records to ensure correct order
+    const sortedRecords = allRecords.sort(
+      (a, b) => (a.periodSequence || 0) - (b.periodSequence || 0),
+    );
+
+    // Process records
+    sortedRecords.forEach((record, index) => {
+      // Skip if record doesn't meet basic criteria
+      if (!record.CheckInTime || !record.CheckOutTime) return;
+
+      records.push({
+        record,
+        periodSequence: record.periodSequence || index + 1,
+      });
+    });
+
+    // Error handling for unexpected scenarios
+    if (records.length === 0) {
+      console.warn('No valid attendance records found', {
+        baseAttendance: safeAttendanceProps.base,
+        periodState: safeAttendanceProps.periodState,
+      });
     }
 
-    return records;
+    // Transform for UI consumption
+    const processedRecords = records.map(({ record, periodSequence }) => ({
+      record,
+      periodSequence,
+    }));
+
+    console.log('Processed Daily Records:', processedRecords);
+
+    return processedRecords;
   }, [safeAttendanceProps]);
 
   // System ready state
