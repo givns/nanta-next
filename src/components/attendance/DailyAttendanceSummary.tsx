@@ -75,18 +75,26 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
         {/* Attendance Records */}
         <div className="px-4 space-y-4">
           {records.map(({ record, periodSequence }, index) => {
-            // Convert Date to ISO string, handling null cases
+            // Convert Date to string, handling null cases
             const checkInTime = record.CheckInTime
-              ? record.CheckInTime.toISOString()
+              ? record.CheckInTime instanceof Date
+                ? record.CheckInTime.toLocaleString()
+                : record.CheckInTime
               : null;
             const checkOutTime = record.CheckOutTime
-              ? record.CheckOutTime.toISOString()
+              ? record.CheckOutTime instanceof Date
+                ? record.CheckOutTime.toLocaleString()
+                : record.CheckOutTime
               : null;
             const shiftStartTime = record.shiftStartTime
-              ? record.shiftStartTime.toISOString()
+              ? record.shiftStartTime instanceof Date
+                ? record.shiftStartTime.toLocaleString()
+                : record.shiftStartTime
               : null;
             const shiftEndTime = record.shiftEndTime
-              ? record.shiftEndTime.toISOString()
+              ? record.shiftEndTime instanceof Date
+                ? record.shiftEndTime.toLocaleString()
+                : record.shiftEndTime
               : null;
 
             // Log each record's time values before formatting
