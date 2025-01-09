@@ -200,36 +200,30 @@ const CheckInRouter: React.FC = () => {
 
       // Get regular period
       const regularEntry = attendance.timeEntries.find(
-        (entry: TimeEntry) =>
+        (entry: { entryType: string; status: string }) =>
           entry.entryType === PeriodType.REGULAR &&
           entry.status === 'COMPLETED',
       );
 
       if (regularEntry) {
-        console.log('Processing regular entry:', regularEntry);
         extractedRecords.push({
           ...attendance,
+          id: regularEntry.id,
           employeeId: regularEntry.employeeId,
           type: PeriodType.REGULAR,
           periodSequence: 1,
           isOvertime: false,
-          // Use exact times from timeEntry
-          CheckInTime: new Date(regularEntry.startTime),
-          CheckOutTime: regularEntry.endTime
-            ? new Date(regularEntry.endTime)
-            : null,
-          // Shift times
-          shiftStartTime: new Date(regularEntry.startTime),
-          shiftEndTime: regularEntry.endTime
-            ? new Date(regularEntry.endTime)
-            : null,
-          // Other metadata
+          // Keep ISO strings, don't convert to Date
+          CheckInTime: regularEntry.startTime,
+          CheckOutTime: regularEntry.endTime,
+          shiftStartTime: regularEntry.startTime,
+          shiftEndTime: regularEntry.endTime,
           checkTiming: {
             isEarlyCheckIn: false,
-            isLateCheckIn: parseInt(regularEntry.actualMinutesLate) > 0,
+            isLateCheckIn: regularEntry.timing?.actualMinutesLate > 0,
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
-            lateCheckInMinutes: parseInt(regularEntry.actualMinutesLate),
+            lateCheckInMinutes: regularEntry.timing?.actualMinutesLate || 0,
             lateCheckOutMinutes: 0,
           },
         });
@@ -237,37 +231,50 @@ const CheckInRouter: React.FC = () => {
 
       // Get overtime entries
       const overtimeEntries = attendance.timeEntries.filter(
-        (entry: TimeEntry) =>
+        (entry: { entryType: string; status: string }) =>
           entry.entryType === PeriodType.OVERTIME &&
           entry.status === 'COMPLETED',
       );
 
-      overtimeEntries.forEach((entry: TimeEntry, index: number) => {
-        console.log('Processing overtime entry:', entry);
-        extractedRecords.push({
-          ...attendance,
-          employeeId: entry.employeeId,
-          type: PeriodType.OVERTIME,
-          periodSequence: index + 1,
-          isOvertime: true,
-          // Use exact times from timeEntry
-          CheckInTime: new Date(entry.startTime),
-          CheckOutTime: entry.endTime ? new Date(entry.endTime) : null,
-          // For overtime, use the same time for shift
-          shiftStartTime: new Date(entry.startTime),
-          shiftEndTime: entry.endTime ? new Date(entry.endTime) : null,
-          // Overtime specific fields
-          overtimeDuration: entry.overtimeHours,
-          checkTiming: {
-            isEarlyCheckIn: false,
-            isLateCheckIn: entry.actualMinutesLate > 0,
-            isLateCheckOut: false,
-            isVeryLateCheckOut: false,
-            lateCheckInMinutes: entry.actualMinutesLate,
-            lateCheckOutMinutes: 0,
+      overtimeEntries.forEach(
+        (
+          entry: {
+            id: any;
+            employeeId: any;
+            startTime: any;
+            endTime: any;
+            overtimeRequestId: any;
+            overtimeHours: any;
+            timing: { actualMinutesLate: number };
           },
-        });
-      });
+          index: number,
+        ) => {
+          console.log('Processing overtime entry:', entry);
+          extractedRecords.push({
+            ...attendance,
+            id: entry.id,
+            employeeId: entry.employeeId,
+            type: PeriodType.OVERTIME,
+            periodSequence: index + 1,
+            isOvertime: true,
+            // Keep ISO strings
+            CheckInTime: entry.startTime,
+            CheckOutTime: entry.endTime,
+            shiftStartTime: entry.startTime,
+            shiftEndTime: entry.endTime,
+            overtimeId: entry.overtimeRequestId,
+            overtimeDuration: entry.overtimeHours,
+            checkTiming: {
+              isEarlyCheckIn: false,
+              isLateCheckIn: entry.timing?.actualMinutesLate > 0,
+              isLateCheckOut: false,
+              isVeryLateCheckOut: false,
+              lateCheckInMinutes: entry.timing?.actualMinutesLate || 0,
+              lateCheckOutMinutes: 0,
+            },
+          });
+        },
+      );
 
       return extractedRecords;
     };
