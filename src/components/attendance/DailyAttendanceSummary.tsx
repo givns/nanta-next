@@ -8,45 +8,32 @@ import { getCurrentTime } from '@/utils/dateUtils';
 import { formatSafeTime } from '@/shared/timeUtils';
 import { UserData, AttendanceRecord } from '@/types/attendance';
 
-interface DailyAttendanceSummaryProps {
-  userData: UserData;
-  records: Array<{
-    record: AttendanceRecord;
-    periodSequence: number;
-  }>;
-  onClose?: () => void;
+interface TimeDisplay {
+  checkIn: Date | null;
+  checkOut: Date | null;
+  shiftStart: Date | null;
+  shiftEnd: Date | null;
 }
 
-interface AttendanceCardProps {
+const AttendanceCard: React.FC<{
   record: AttendanceRecord;
   periodType: PeriodType;
-}
+}> = ({ record, periodType }) => {
+  const times: TimeDisplay = {
+    checkIn: record.CheckInTime,
+    checkOut: record.CheckOutTime,
+    shiftStart: record.shiftStartTime,
+    shiftEnd: record.shiftEndTime,
+  };
 
-type RecordGroups = {
-  [key in PeriodType]: Array<{
-    record: AttendanceRecord;
-    periodSequence: number;
-  }>;
-};
-
-// Helper to safely convert Date to string
-const toISOString = (date: Date | null | undefined): string | null => {
-  if (!date) return null;
-  return date instanceof Date ? date.toISOString() : date;
-};
-
-const AttendanceCard: React.FC<AttendanceCardProps> = ({
-  record,
-  periodType,
-}) => {
-  // Debug logging
-  console.log('Rendering attendance card:', {
+  console.log('Rendering card with times:', {
     type: periodType,
-    times: {
-      checkIn: record.CheckInTime,
-      checkOut: record.CheckOutTime,
-      shiftStart: record.shiftStartTime,
-      shiftEnd: record.shiftEndTime,
+    raw: times,
+    formatted: {
+      checkIn: times.checkIn?.toISOString(),
+      checkOut: times.checkOut?.toISOString(),
+      shiftStart: times.shiftStart?.toISOString(),
+      shiftEnd: times.shiftEnd?.toISOString(),
     },
   });
 
@@ -74,22 +61,22 @@ const AttendanceCard: React.FC<AttendanceCardProps> = ({
           <div>
             <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
             <div className="font-medium">
-              {formatSafeTime(toISOString(record.CheckInTime))}
+              {formatSafeTime(times.checkIn?.toISOString())}
             </div>
-            {record.shiftStartTime && (
+            {times.shiftStart && (
               <div className="text-xs text-gray-400">
-                ช่วงเวลา {formatSafeTime(toISOString(record.shiftStartTime))}
+                ช่วงเวลา {formatSafeTime(times.shiftStart.toISOString())}
               </div>
             )}
           </div>
           <div>
             <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
             <div className="font-medium">
-              {formatSafeTime(toISOString(record.CheckOutTime))}
+              {formatSafeTime(times.checkOut?.toISOString())}
             </div>
-            {record.shiftEndTime && (
+            {times.shiftEnd && (
               <div className="text-xs text-gray-400">
-                ถึง {formatSafeTime(toISOString(record.shiftEndTime))}
+                ถึง {formatSafeTime(times.shiftEnd.toISOString())}
               </div>
             )}
           </div>
@@ -110,6 +97,15 @@ const AttendanceCard: React.FC<AttendanceCardProps> = ({
   );
 };
 
+interface DailyAttendanceSummaryProps {
+  userData: UserData;
+  records: Array<{
+    record: AttendanceRecord;
+    periodSequence: number;
+  }>;
+  onClose?: () => void;
+}
+
 const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
   userData,
   records,
@@ -117,32 +113,32 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
 }) => {
   const currentTime = getCurrentTime();
 
-  // Helper to process and group records
-  const processedRecords = React.useMemo(() => {
-    const groups: RecordGroups = {
+  const sortedRecords = React.useMemo(() => {
+    const recordsByType: Record<
+      PeriodType,
+      Array<{
+        record: AttendanceRecord;
+        periodSequence: number;
+      }>
+    > = {
       [PeriodType.REGULAR]: [],
       [PeriodType.OVERTIME]: [],
     };
 
     records.forEach((item) => {
-      const type = item.record.type || PeriodType.REGULAR;
-      if (type === PeriodType.REGULAR || type === PeriodType.OVERTIME) {
-        groups[type].push(item);
-      }
+      recordsByType[item.record.type].push(item);
     });
 
-    // Sort each group by sequence
-    Object.values(groups).forEach((group) => {
-      group.sort((a, b) => (a.periodSequence || 0) - (b.periodSequence || 0));
+    // Sort each type's records by sequence
+    Object.values(recordsByType).forEach((typeRecords) => {
+      typeRecords.sort((a, b) => a.periodSequence - b.periodSequence);
     });
 
-    console.log('Processed record groups:', groups);
-    return groups;
+    return recordsByType;
   }, [records]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
           <div className="text-center text-4xl font-bold mb-1">
@@ -187,27 +183,21 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
 
         {/* Attendance Records */}
         <div className="px-4 space-y-4">
-          {/* Regular Period Records */}
-          {processedRecords[PeriodType.REGULAR].map(
-            ({ record, periodSequence }) => (
-              <AttendanceCard
-                key={`regular-${record.id}-${periodSequence}`}
-                record={record}
-                periodType={PeriodType.REGULAR}
-              />
-            ),
-          )}
+          {sortedRecords[PeriodType.REGULAR].map(({ record }) => (
+            <AttendanceCard
+              key={`regular-${record.id}`}
+              record={record}
+              periodType={PeriodType.REGULAR}
+            />
+          ))}
 
-          {/* Overtime Period Records */}
-          {processedRecords[PeriodType.OVERTIME].map(
-            ({ record, periodSequence }) => (
-              <AttendanceCard
-                key={`overtime-${record.id}-${periodSequence}`}
-                record={record}
-                periodType={PeriodType.OVERTIME}
-              />
-            ),
-          )}
+          {sortedRecords[PeriodType.OVERTIME].map(({ record }) => (
+            <AttendanceCard
+              key={`overtime-${record.id}`}
+              record={record}
+              periodType={PeriodType.OVERTIME}
+            />
+          ))}
         </div>
 
         {/* Close Button */}
