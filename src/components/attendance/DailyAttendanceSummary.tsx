@@ -15,6 +15,11 @@ interface TimeDisplay {
   shiftEnd: Date | null;
 }
 
+const formatForDisplay = (date: Date | null): string | null => {
+  if (!date) return null;
+  return date.toISOString();
+};
+
 const AttendanceCard: React.FC<{
   record: AttendanceRecord;
   periodType: PeriodType;
@@ -30,10 +35,10 @@ const AttendanceCard: React.FC<{
     type: periodType,
     raw: times,
     formatted: {
-      checkIn: times.checkIn?.toISOString(),
-      checkOut: times.checkOut?.toISOString(),
-      shiftStart: times.shiftStart?.toISOString(),
-      shiftEnd: times.shiftEnd?.toISOString(),
+      checkIn: formatForDisplay(times.checkIn),
+      checkOut: formatForDisplay(times.checkOut),
+      shiftStart: formatForDisplay(times.shiftStart),
+      shiftEnd: formatForDisplay(times.shiftEnd),
     },
   });
 
@@ -61,22 +66,22 @@ const AttendanceCard: React.FC<{
           <div>
             <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
             <div className="font-medium">
-              {formatSafeTime(times.checkIn?.toISOString())}
+              {formatSafeTime(formatForDisplay(times.checkIn))}
             </div>
             {times.shiftStart && (
               <div className="text-xs text-gray-400">
-                ช่วงเวลา {formatSafeTime(times.shiftStart.toISOString())}
+                ช่วงเวลา {formatSafeTime(formatForDisplay(times.shiftStart))}
               </div>
             )}
           </div>
           <div>
             <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
             <div className="font-medium">
-              {formatSafeTime(times.checkOut?.toISOString())}
+              {formatSafeTime(formatForDisplay(times.checkOut))}
             </div>
             {times.shiftEnd && (
               <div className="text-xs text-gray-400">
-                ถึง {formatSafeTime(times.shiftEnd.toISOString())}
+                ถึง {formatSafeTime(formatForDisplay(times.shiftEnd))}
               </div>
             )}
           </div>
