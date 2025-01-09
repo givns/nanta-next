@@ -43,6 +43,44 @@ const VALIDATION_THRESHOLDS = {
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
 
+  private determineCurrentPeriod(
+    attendance: AttendanceRecord | null,
+    window: ShiftWindowResponse,
+    now: Date,
+  ): { type: PeriodType; isActive: boolean } {
+    // If attendance record exists and is not checked out
+    if (attendance && !attendance.CheckOutTime) {
+      return {
+        type: attendance.type,
+        isActive: true,
+      };
+    }
+
+    // If there's active overtime period
+    if (
+      window.overtimeInfo &&
+      isWithinInterval(now, {
+        start: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+        ),
+        end: parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
+        ),
+      })
+    ) {
+      return {
+        type: PeriodType.OVERTIME,
+        isActive: false,
+      };
+    }
+
+    // Default to regular period
+    return {
+      type: PeriodType.REGULAR,
+      isActive: false,
+    };
+  }
+
   private determineTransitionContext(
     now: Date,
     periodState: ShiftWindowResponse,
@@ -128,6 +166,12 @@ export class AttendanceEnhancementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): Promise<AttendanceStateResponse> {
+    const currentPeriod = this.determineCurrentPeriod(
+      attendance,
+      periodState,
+      now,
+    );
+
     // Calculate current period state
     const currentState = this.periodManager.resolveCurrentPeriod(
       attendance,
@@ -154,7 +198,7 @@ export class AttendanceEnhancementService {
       transitions: transitions.length,
     });
 
-    // Map ShiftWindowResponse to our context interfaces
+    // Build context with proper checks
     const context: ShiftContext & TransitionContext = {
       shift: periodState.shift,
       schedule: {
@@ -163,17 +207,15 @@ export class AttendanceEnhancementService {
         isAdjusted: periodState.isAdjusted,
         holidayInfo: periodState.holidayInfo,
       },
-      // Only include next period info if not already in overtime
       nextPeriod:
-        !isOvertimeActive && transitions.length > 0
+        !currentPeriod.isActive && transitions.length > 0
           ? {
               type: transitions[0].to.type,
               startTime: transitions[0].transitionTime,
               overtimeInfo: periodState.overtimeInfo,
             }
           : null,
-      // Similarly, only include transition info if not already transitioned
-      transition: !isOvertimeActive
+      transition: !currentPeriod.isActive
         ? this.determineTransitionContext(
             now,
             periodState,
@@ -348,13 +390,53 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): StateValidation {
-    const overtimeEnd = window.overtimeInfo?.endTime
+    // Defensive check for overtime info
+    if (!window.overtimeInfo) {
+      return {
+        allowed: false,
+        reason: 'No overtime period available',
+        flags: {
+          hasActivePeriod: periodStatusInfo.isActiveAttendance,
+          isInsideShift: false,
+          isOutsideShift: true,
+          isCheckingIn: false,
+          isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
+          isLateCheckIn: periodStatusInfo.timingFlags.isLateCheckIn,
+          isEarlyCheckOut: false,
+          isLateCheckOut: periodStatusInfo.timingFlags.isLateCheckOut,
+          isVeryLateCheckOut: periodStatusInfo.timingFlags.isVeryLateCheckOut,
+          isOvertime: true,
+          isDayOffOvertime: false,
+          isPendingOvertime: false,
+          isAutoCheckIn: false,
+          isAutoCheckOut: false,
+          requireConfirmation: false,
+          requiresAutoCompletion: false,
+          hasPendingTransition: false,
+          requiresTransition: false,
+          isMorningShift: periodStatusInfo.shiftTiming.isMorningShift,
+          isAfternoonShift: periodStatusInfo.shiftTiming.isAfternoonShift,
+          isAfterMidshift: periodStatusInfo.shiftTiming.isAfterMidshift,
+          isApprovedEarlyCheckout: false,
+          isPlannedHalfDayLeave: false,
+          isEmergencyLeave: false,
+          isHoliday: window.isHoliday,
+          isDayOff: Boolean(window.isDayOff),
+          isManualEntry: false,
+        },
+        metadata: {
+          additionalInfo: {},
+        },
+      };
+    }
+
+    const overtimeEnd = window.overtimeInfo.endTime
       ? parseISO(`${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`)
       : null;
 
     const overtimeStatus = this.determineOvertimeCheckoutStatus(
       now,
-      window.overtimeInfo!.endTime,
+      window.overtimeInfo.endTime,
       periodStatusInfo.isActiveAttendance,
     );
 
@@ -363,7 +445,7 @@ export class AttendanceEnhancementService {
       reason: overtimeStatus.reason,
       flags: {
         hasActivePeriod: periodStatusInfo.isActiveAttendance,
-        isInsideShift: window.overtimeInfo?.isInsideShiftHours || false,
+        isInsideShift: window.overtimeInfo.isInsideShiftHours || false,
         isOutsideShift: false,
         isCheckingIn: !periodStatusInfo.isActiveAttendance,
         isEarlyCheckIn: periodStatusInfo.timingFlags.isEarlyCheckIn,
@@ -372,7 +454,7 @@ export class AttendanceEnhancementService {
         isLateCheckOut: periodStatusInfo.timingFlags.isLateCheckOut,
         isVeryLateCheckOut: periodStatusInfo.timingFlags.isVeryLateCheckOut,
         isOvertime: true,
-        isDayOffOvertime: window.overtimeInfo?.isDayOffOvertime || false,
+        isDayOffOvertime: window.overtimeInfo.isDayOffOvertime || false,
         isPendingOvertime: false,
         isAutoCheckIn: false,
         isAutoCheckOut: overtimeStatus.shouldAutoComplete,
