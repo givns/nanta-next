@@ -15,30 +15,14 @@ import { AttendanceRecord } from '@/types/attendance';
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
 
-interface MongoDate {
-  $date: string;
-}
-
-interface MongoId {
-  $oid: string;
-}
-
-interface MongoLong {
-  $numberLong: string;
-}
-
 interface TimeEntry {
-  _id: MongoId;
   employeeId: string;
-  date: MongoDate;
-  startTime: MongoDate;
-  endTime?: MongoDate;
+  startTime: string;
+  endTime?: string;
   status: 'COMPLETED' | string;
   entryType: PeriodType;
   regularHours: number;
   overtimeHours: number;
-  attendanceId: MongoId;
-  overtimeRequestId?: MongoId;
   hours: {
     regular: number;
     overtime: number;
@@ -53,10 +37,8 @@ interface TimeEntry {
     createdAt?: string;
     updatedAt: string;
   };
-  actualMinutesLate: MongoLong;
+  actualMinutesLate: number;
   isHalfDayLate: boolean;
-  createdAt: MongoDate;
-  updatedAt: MongoDate;
 }
 
 const createSafeAttendance = (props: any) => {
@@ -227,31 +209,27 @@ const CheckInRouter: React.FC = () => {
         console.log('Processing regular entry:', regularEntry);
         extractedRecords.push({
           ...attendance,
-          id: regularEntry.attendanceId.$oid,
           employeeId: regularEntry.employeeId,
           type: PeriodType.REGULAR,
           periodSequence: 1,
           isOvertime: false,
           // Use exact times from timeEntry
-          CheckInTime: new Date(regularEntry.startTime.$date),
+          CheckInTime: new Date(regularEntry.startTime),
           CheckOutTime: regularEntry.endTime
-            ? new Date(regularEntry.endTime.$date)
+            ? new Date(regularEntry.endTime)
             : null,
           // Shift times
-          shiftStartTime: new Date(regularEntry.startTime.$date),
+          shiftStartTime: new Date(regularEntry.startTime),
           shiftEndTime: regularEntry.endTime
-            ? new Date(regularEntry.endTime.$date)
+            ? new Date(regularEntry.endTime)
             : null,
           // Other metadata
           checkTiming: {
             isEarlyCheckIn: false,
-            isLateCheckIn:
-              parseInt(regularEntry.actualMinutesLate.$numberLong) > 0,
+            isLateCheckIn: parseInt(regularEntry.actualMinutesLate) > 0,
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
-            lateCheckInMinutes: parseInt(
-              regularEntry.actualMinutesLate.$numberLong,
-            ),
+            lateCheckInMinutes: parseInt(regularEntry.actualMinutesLate),
             lateCheckOutMinutes: 0,
           },
         });
@@ -268,26 +246,24 @@ const CheckInRouter: React.FC = () => {
         console.log('Processing overtime entry:', entry);
         extractedRecords.push({
           ...attendance,
-          id: entry.attendanceId.$oid,
           employeeId: entry.employeeId,
           type: PeriodType.OVERTIME,
           periodSequence: index + 1,
           isOvertime: true,
           // Use exact times from timeEntry
-          CheckInTime: new Date(entry.startTime.$date),
-          CheckOutTime: entry.endTime ? new Date(entry.endTime.$date) : null,
+          CheckInTime: new Date(entry.startTime),
+          CheckOutTime: entry.endTime ? new Date(entry.endTime) : null,
           // For overtime, use the same time for shift
-          shiftStartTime: new Date(entry.startTime.$date),
-          shiftEndTime: entry.endTime ? new Date(entry.endTime.$date) : null,
+          shiftStartTime: new Date(entry.startTime),
+          shiftEndTime: entry.endTime ? new Date(entry.endTime) : null,
           // Overtime specific fields
-          overtimeId: entry.overtimeRequestId?.$oid,
           overtimeDuration: entry.overtimeHours,
           checkTiming: {
             isEarlyCheckIn: false,
-            isLateCheckIn: parseInt(entry.actualMinutesLate.$numberLong) > 0,
+            isLateCheckIn: entry.actualMinutesLate > 0,
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
-            lateCheckInMinutes: parseInt(entry.actualMinutesLate.$numberLong),
+            lateCheckInMinutes: entry.actualMinutesLate,
             lateCheckOutMinutes: 0,
           },
         });
