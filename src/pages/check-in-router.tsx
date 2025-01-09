@@ -5,7 +5,9 @@ import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { UserData } from '@/types/user';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
+import DailyAttendanceSummary from '@/components/attendance/DailyAttendanceSummary';
 import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 
@@ -33,43 +35,29 @@ const createSafeAttendance = (props: any) => {
 
     // Create a copy of props without modification
     const safeProps = {
-      // Base props
       state: props.state,
       checkStatus: props.checkStatus,
       isCheckingIn: props.isCheckingIn,
       base: props.base,
-
-      // Period and validation states
       periodState: props.periodState,
       stateValidation: props.stateValidation,
-
-      // Context information
       context: props.context,
       transitions: props.transitions || [],
       hasPendingTransition: props.hasPendingTransition,
       nextTransition: props.nextTransition,
-
-      // Schedule info
       isDayOff: props.isDayOff,
       isHoliday: props.isHoliday,
       isAdjusted: props.isAdjusted,
       holidayInfo: props.holidayInfo,
-
-      // Transition info
       nextPeriod: props.nextPeriod,
       transition: props.transition,
-
-      // Shift info
       shift: props.shift,
-
-      // Functions and methods
       checkInOut: props.checkInOut,
       refreshAttendanceStatus: props.refreshAttendanceStatus,
       getCurrentLocation: props.getCurrentLocation,
     };
 
     console.log('Safe attendance created:', safeProps);
-
     return safeProps;
   } catch (error) {
     console.error('Error creating safe attendance:', error);
@@ -86,14 +74,6 @@ const CheckInRouter: React.FC = () => {
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
-  useEffect(() => {
-    console.log('CheckInRouter initialized:', {
-      currentStep,
-      loadingPhase,
-      hasUser: !!userData,
-    });
-  }, []);
-
   // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
@@ -104,18 +84,10 @@ const CheckInRouter: React.FC = () => {
         headers: { 'x-line-userid': lineUserId },
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data');
-      }
+      if (!response.ok) throw new Error('Failed to fetch user data');
 
       const data = await response.json();
-      console.log('User data received:', {
-        hasUser: !!data?.user,
-        userId: data?.user?.employeeId,
-      });
-      if (!data?.user) {
-        throw new Error('No user data received');
-      }
+      if (!data?.user) throw new Error('No user data received');
 
       setUserData(data.user);
     } catch (error) {
@@ -143,81 +115,80 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  useEffect(() => {
-    console.log('Location/Attendance state update:', {
-      locationReady,
-      locationStatus: locationState?.status,
-      attendanceLoading,
-      hasAttendanceProps: !!attendanceProps,
-    });
-  }, [
-    locationReady,
-    locationState?.status,
-    attendanceLoading,
-    attendanceProps,
-  ]);
-
   // Process attendance props
   const safeAttendanceProps = useMemo(() => {
     if (!attendanceProps) return null;
     return createSafeAttendance(attendanceProps);
   }, [attendanceProps]);
 
-  useEffect(() => {
-    if (safeAttendanceProps?.periodState) {
-      console.log('Safe attendance periodState:', {
-        type: safeAttendanceProps.periodState.type,
-        timeWindow: safeAttendanceProps.periodState.timeWindow,
-      });
-    }
+  // Check if all periods are completed
+  const isAllPeriodsCompleted = useMemo(() => {
+    if (!safeAttendanceProps?.base) return false;
+
+    const base = safeAttendanceProps.base;
+    const currentState = safeAttendanceProps.periodState;
+
+    // Check multiple conditions
+    const isRegularComplete =
+      base.checkStatus === CheckStatus.CHECKED_OUT &&
+      base.state === AttendanceState.PRESENT;
+
+    const isNoTransitionPending = !safeAttendanceProps.hasPendingTransition;
+
+    // For overtime periods
+    const isOvertimeComplete = base.periodInfo.isOvertime
+      ? base.periodInfo.overtimeState === 'COMPLETED'
+      : true;
+
+    const hasCompletedCurrentPeriod = Boolean(currentState?.activity.checkOut);
+
+    console.log('Completion check:', {
+      isRegularComplete,
+      isNoTransitionPending,
+      isOvertimeComplete,
+      hasCompletedCurrentPeriod,
+    });
+
+    return (
+      isRegularComplete &&
+      isNoTransitionPending &&
+      isOvertimeComplete &&
+      hasCompletedCurrentPeriod
+    );
   }, [safeAttendanceProps]);
 
-  // Step management
-  useEffect(() => {
-    try {
-      const previousStep = currentStep;
-      let nextStep: Step = 'auth';
+  // Get daily records for summary
+  const dailyRecords = useMemo(() => {
+    if (!safeAttendanceProps?.base?.latestAttendance) return [];
 
-      // Modify the condition order
-      if (!userData) {
-        nextStep = 'user';
-      } else if (!locationState || locationState.status !== 'ready') {
-        nextStep = 'location';
-        console.log('Waiting for location:', locationState); // Add this log
-      } else if (authLoading) {
-        nextStep = 'auth';
-      } else {
-        nextStep = 'ready';
-      }
+    const records = [];
 
-      if (previousStep !== nextStep) {
-        console.log('Step transition:', {
-          from: previousStep,
-          to: nextStep,
-          authLoading,
-          hasUser: !!userData,
-          locationReady,
-          locationStatus: locationState?.status,
-          locationDetails: locationState, // Add this for more detail
-        });
-        setCurrentStep(nextStep);
-      }
-    } catch (error) {
-      console.error('Error updating step:', error);
-      setError('Error initializing application');
-    }
-  }, [authLoading, userData, locationReady, locationState]);
-
-  useEffect(() => {
-    if (locationState.status === 'ready' && userData && !authLoading) {
-      console.log('All conditions met for ready state:', {
-        locationState,
-        hasUser: !!userData,
-        authLoading,
-        currentStep,
+    // Add regular period
+    if (safeAttendanceProps.base.latestAttendance) {
+      records.push({
+        type: PeriodType.REGULAR,
+        isOvertime: false,
+        checkIn: safeAttendanceProps.base.latestAttendance.CheckInTime,
+        checkOut: safeAttendanceProps.base.latestAttendance.CheckOutTime,
+        state: safeAttendanceProps.base.latestAttendance.state,
+        checkStatus: safeAttendanceProps.base.latestAttendance.checkStatus,
       });
     }
-  }, [locationState.status, userData, authLoading, currentStep]);
+
+    // Add overtime period if it exists
+    if (safeAttendanceProps.base.periodInfo.isOvertime) {
+      records.push({
+        type: PeriodType.OVERTIME,
+        isOvertime: true,
+        checkIn: safeAttendanceProps.periodState?.activity.checkIn || null,
+        checkOut: safeAttendanceProps.periodState?.activity.checkOut || null,
+        state: safeAttendanceProps.base.state,
+        checkStatus: safeAttendanceProps.base.checkStatus,
+      });
+    }
+
+    return records;
+  }, [safeAttendanceProps]);
 
   // System ready state
   const isSystemReady = useMemo(() => {
@@ -228,9 +199,6 @@ const CheckInRouter: React.FC = () => {
       hasUser: !!userData,
       hasAttendanceState: !!safeAttendanceProps?.base?.state,
     };
-
-    console.log('System ready conditions:', conditions);
-
     return Object.values(conditions).every(Boolean);
   }, [
     currentStep,
@@ -243,35 +211,58 @@ const CheckInRouter: React.FC = () => {
   // Loading phase management
   useEffect(() => {
     let timer: NodeJS.Timeout;
-
-    console.log('Loading phase check:', {
-      isSystemReady,
-      currentPhase: loadingPhase,
-      step: currentStep,
-    });
-
     if (isSystemReady) {
       if (loadingPhase === 'loading') {
         setLoadingPhase('fadeOut');
       } else if (loadingPhase === 'fadeOut') {
         timer = setTimeout(() => {
-          console.log('Completing loading phase');
           setLoadingPhase('complete');
         }, 500);
       }
     }
-
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [isSystemReady, loadingPhase, currentStep]);
+  }, [isSystemReady, loadingPhase]);
+
+  // Step management
+  useEffect(() => {
+    try {
+      let nextStep: Step = 'auth';
+      if (!userData) {
+        nextStep = 'user';
+      } else if (!locationState || locationState.status !== 'ready') {
+        nextStep = 'location';
+      } else if (authLoading) {
+        nextStep = 'auth';
+      } else {
+        nextStep = 'ready';
+      }
+      setCurrentStep(nextStep);
+    } catch (error) {
+      console.error('Error updating step:', error);
+      setError('Error initializing application');
+    }
+  }, [authLoading, userData, locationReady, locationState]);
 
   // Main content
   const mainContent = useMemo(() => {
-    if (!userData || !safeAttendanceProps?.base?.state) {
-      return null;
+    if (!userData || !safeAttendanceProps?.base?.state) return null;
+
+    // Show summary if all periods completed
+    if (isAllPeriodsCompleted) {
+      return (
+        <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
+          <DailyAttendanceSummary
+            userData={userData}
+            records={dailyRecords}
+            onClose={closeWindow}
+          />
+        </div>
+      );
     }
 
+    // Show check-in form
     return (
       <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
         <CheckInOutForm
@@ -281,7 +272,7 @@ const CheckInRouter: React.FC = () => {
         />
       </div>
     );
-  }, [userData, safeAttendanceProps]);
+  }, [userData, safeAttendanceProps, isAllPeriodsCompleted, dailyRecords]);
 
   // Error state
   if (error || attendanceError) {
