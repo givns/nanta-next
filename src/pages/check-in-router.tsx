@@ -347,6 +347,15 @@ const CheckInRouter: React.FC = () => {
   const mainContent = useMemo(() => {
     if (!userData || !safeAttendanceProps?.base?.state) return null;
 
+    console.log(
+      'Daily Records Raw:',
+      dailyRecords.map((r) => ({
+        dateType: typeof r.record.date,
+        checkInType: typeof r.record.CheckInTime,
+        shiftStartType: typeof r.record.shiftStartTime,
+      })),
+    );
+
     const serializeRecords = (
       records: Array<{
         record: AttendanceRecord;
