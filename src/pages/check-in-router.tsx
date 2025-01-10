@@ -135,9 +135,15 @@ const CheckInRouter: React.FC = () => {
 
     try {
       setIsLoadingNextDay(true);
+      console.log('Fetching next day info for:', userData.employeeId);
       const response = await fetch(
         `/api/attendance/next-day/${userData.employeeId}`,
       );
+      console.log('Next day API response:', {
+        ok: response.ok,
+        status: response.status,
+      });
+
       if (!response.ok) throw new Error('Failed to fetch next day info');
 
       const data = await response.json();
