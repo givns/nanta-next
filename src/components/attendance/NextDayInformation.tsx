@@ -16,12 +16,14 @@ const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo, onClose }) => {
   return (
     <Card className="bg-white mb-4">
       <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Calendar size={20} className="text-primary" />
-          <span>ตารางงานวันพรุ่งนี้</span>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar size={20} className="text-primary" />
+            <span>ตารางงานวันพรุ่งนี้</span>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 hover:text-gray-700 p-1"
           >
             ✕
           </button>
