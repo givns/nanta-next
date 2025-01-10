@@ -171,11 +171,24 @@ export class AttendanceMappers {
   static toSerializedAttendanceRecord(
     record: AttendanceRecord,
   ): SerializedAttendanceRecord {
+    // Safe date conversion function
+    const safeToISOString = (
+      date: Date | string | null | undefined,
+    ): string | null => {
+      if (date instanceof Date) {
+        return date.toISOString();
+      }
+      if (typeof date === 'string') {
+        return date;
+      }
+      return null;
+    };
+
     return {
       // Core identifiers
       id: record.id,
       employeeId: record.employeeId,
-      date: record.date?.toISOString() || '',
+      date: safeToISOString(record.date) || '',
       periodSequence: record.periodSequence,
 
       // Core status (remains the same)
@@ -190,10 +203,10 @@ export class AttendanceMappers {
       overtimeDuration: record.overtimeDuration,
 
       // Time fields (convert to ISO strings)
-      shiftStartTime: record.shiftStartTime?.toISOString() || null,
-      shiftEndTime: record.shiftEndTime?.toISOString() || null,
-      CheckInTime: record.CheckInTime?.toISOString() || null,
-      CheckOutTime: record.CheckOutTime?.toISOString() || null,
+      shiftStartTime: safeToISOString(record.shiftStartTime),
+      shiftEndTime: safeToISOString(record.shiftEndTime),
+      CheckInTime: safeToISOString(record.CheckInTime),
+      CheckOutTime: safeToISOString(record.CheckOutTime),
 
       // Status flags (direct copy)
       checkTiming: record.checkTiming,
@@ -215,18 +228,18 @@ export class AttendanceMappers {
           id: entry.id,
           attendanceId: entry.attendanceId,
           overtimeRequestId: entry.overtimeRequestId,
-          actualStartTime: entry.actualStartTime?.toISOString() || null,
-          actualEndTime: entry.actualEndTime?.toISOString() || null,
-          createdAt: entry.createdAt?.toISOString() || '',
-          updatedAt: entry.updatedAt?.toISOString() || '',
+          actualStartTime: safeToISOString(entry.actualStartTime),
+          actualEndTime: safeToISOString(entry.actualEndTime),
+          createdAt: safeToISOString(entry.createdAt) || '',
+          updatedAt: safeToISOString(entry.updatedAt) || '',
         })) || [],
 
       // Time entries (serialize dates)
       timeEntries:
         record.timeEntries?.map((entry) => ({
           id: entry.id,
-          startTime: entry.startTime?.toISOString() || '',
-          endTime: entry.endTime?.toISOString() || null,
+          startTime: safeToISOString(entry.startTime) || '',
+          endTime: safeToISOString(entry.endTime),
           type: entry.entryType,
           employeeId: entry.employeeId,
           status: entry.status,
@@ -237,16 +250,16 @@ export class AttendanceMappers {
           timing: entry.timing,
           metadata: {
             ...entry.metadata,
-            createdAt: entry.metadata?.createdAt?.toISOString() || '',
-            updatedAt: entry.metadata?.updatedAt?.toISOString() || '',
+            createdAt: safeToISOString(entry.metadata?.createdAt) || '',
+            updatedAt: safeToISOString(entry.metadata?.updatedAt) || '',
           },
         })) || [],
 
       // Metadata (serialize dates)
       metadata: {
         ...record.metadata,
-        createdAt: record.metadata?.createdAt?.toISOString() || '',
-        updatedAt: record.metadata?.updatedAt?.toISOString() || '',
+        createdAt: safeToISOString(record.metadata?.createdAt) || '',
+        updatedAt: safeToISOString(record.metadata?.updatedAt) || '',
       },
     };
   }
