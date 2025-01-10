@@ -656,6 +656,19 @@ export class ShiftManagementService {
           endOfDay(nextDay),
         );
 
+      // Log raw overtime data
+      console.log('Next day overtimes:', {
+        count: nextDayOvertimes?.length || 0,
+        overtimes: nextDayOvertimes?.map((ot) => ({
+          id: ot.id,
+          date: ot.date,
+          startTime: ot.startTime,
+          endTime: ot.endTime,
+          status: ot.status,
+          durationMinutes: ot.durationMinutes,
+        })),
+      });
+
       const nextDayOvertime = nextDayOvertimes?.[0];
 
       // Add null check and date parsing
@@ -677,6 +690,12 @@ export class ShiftManagementService {
 
         // Check if dates are valid before formatting
         if (isValid(startTime) && isValid(endTime)) {
+          console.log('Found next day overtime:', {
+            id: nextDayOvertime.id,
+            startTime: nextDayOvertime.startTime,
+            endTime: nextDayOvertime.endTime,
+            durationMinutes: nextDayOvertime.durationMinutes,
+          });
           return {
             ...baseWindow,
             overtimeInfo: {
