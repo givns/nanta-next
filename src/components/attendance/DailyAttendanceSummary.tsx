@@ -5,37 +5,42 @@ import { User, Building2, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PeriodType } from '@prisma/client';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { formatSafeTime } from '@/shared/timeUtils';
-import {
-  UserData,
-  AttendanceRecord,
-  SerializedAttendanceRecord,
-} from '@/types/attendance';
-
-interface TimeDisplay {
-  checkIn: string | null;
-  checkOut: string | null;
-  shiftStart: string | null;
-  shiftEnd: string | null;
-}
+import { UserData, SerializedAttendanceRecord } from '@/types/attendance';
 
 const AttendanceCard: React.FC<{
   record: SerializedAttendanceRecord;
   periodType: PeriodType;
 }> = ({ record, periodType }) => {
-  // Add time zone adjustment (+7 for Thailand)
-  const adjustTime = (timeStr: string | null) => {
-    if (!timeStr) return null;
-    const date = new Date(timeStr);
-    date.setHours(date.getHours() + 7); // Adjust for Thailand timezone
-    return format(date, 'HH:mm');
+  const formatTime = (timeStr: string | null): string => {
+    if (!timeStr) return '--:--';
+
+    try {
+      if (timeStr.includes('Z') || timeStr.includes('+')) {
+        return timeStr.split('T')[1].slice(0, 5);
+      }
+
+      if (timeStr.includes('T')) {
+        return timeStr.split('T')[1].slice(0, 5);
+      }
+
+      if (/^\d{2}:\d{2}(:\d{2})?$/.test(timeStr)) {
+        return timeStr.slice(0, 5);
+      }
+
+      return '--:--';
+    } catch (error) {
+      console.error('Time formatting error:', error);
+      return '--:--';
+    }
   };
 
   const times = {
-    checkIn: adjustTime(record.CheckInTime),
-    checkOut: adjustTime(record.CheckOutTime),
-    shiftStart: adjustTime(record.shiftStartTime),
-    shiftEnd: adjustTime(record.shiftEndTime),
+    checkIn: record.CheckInTime ? formatTime(record.CheckInTime) : null,
+    checkOut: record.CheckOutTime ? formatTime(record.CheckOutTime) : null,
+    shiftStart: record.shiftStartTime
+      ? formatTime(record.shiftStartTime)
+      : null,
+    shiftEnd: record.shiftEndTime ? formatTime(record.shiftEndTime) : null,
   };
 
   return (
@@ -50,7 +55,8 @@ const AttendanceCard: React.FC<{
                 : 'ช่วงทำงานล่วงเวลา'}
             </span>
           </div>
-          {record.isOvertime && (
+          {/* Only show OT badge for overtime period type */}
+          {periodType === PeriodType.OVERTIME && (
             <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-sm rounded-full">
               OT
             </span>
@@ -76,6 +82,17 @@ const AttendanceCard: React.FC<{
             )}
           </div>
         </div>
+
+        {record.checkTiming && (
+          <div className="mt-2 text-xs text-gray-500">
+            {record.checkTiming.isLateCheckIn && (
+              <div>เข้างานช้า {record.checkTiming.lateCheckInMinutes} นาที</div>
+            )}
+            {record.checkTiming.isLateCheckOut && (
+              <div>ออกงานช้า {record.checkTiming.lateCheckOutMinutes} นาที</div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
