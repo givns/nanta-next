@@ -617,6 +617,14 @@ export class ShiftManagementService {
   ): Promise<ShiftWindowResponse> {
     const nextDay = addDays(now, 1);
 
+    // Log the date range we're querying
+    console.log('Fetching next day overtimes for:', {
+      employeeId,
+      date: format(nextDay, 'yyyy-MM-dd'),
+      startOfDay: format(startOfDay(nextDay), 'yyyy-MM-dd HH:mm:ss'),
+      endOfDay: format(endOfDay(nextDay), 'yyyy-MM-dd HH:mm:ss'),
+    });
+
     // Get basic shift window for next day
     const baseWindow = await this.getCurrentWindow(employeeId, nextDay);
     if (!baseWindow) {
