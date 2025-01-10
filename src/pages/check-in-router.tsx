@@ -131,168 +131,101 @@ const CheckInRouter: React.FC = () => {
     return createSafeAttendance(attendanceProps);
   }, [attendanceProps]);
 
-  // Check if all periods are completed
-  const isAllPeriodsCompleted = useMemo(() => {
-    if (!safeAttendanceProps?.base) return false;
-
-    const base = safeAttendanceProps.base;
-    const currentState = safeAttendanceProps.periodState;
-
-    // Check multiple conditions
-    const isRegularComplete =
-      base.checkStatus === CheckStatus.CHECKED_OUT &&
-      base.state === AttendanceState.PRESENT;
-
-    const isNoTransitionPending = !safeAttendanceProps.hasPendingTransition;
-
-    // Check if overtime period is complete
-    const isOvertimeComplete = base.periodInfo.isOvertime
-      ? dailyRecords.some(
-          ({ record }) =>
-            record.type === PeriodType.OVERTIME &&
-            record.CheckOutTime != null &&
-            base.periodInfo.overtimeState === 'COMPLETED',
-        )
-      : true;
-
-    const hasCompletedCurrentPeriod = Boolean(currentState?.activity.checkOut);
-
-    console.log('Completion check:', {
-      isRegularComplete,
-      isNoTransitionPending,
-      isOvertimeComplete,
-      hasCompletedCurrentPeriod,
-    });
-
-    return (
-      isRegularComplete &&
-      isNoTransitionPending &&
-      isOvertimeComplete &&
-      hasCompletedCurrentPeriod
-    );
-  }, [safeAttendanceProps]);
-
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
 
-    const records: Array<{
-      record: AttendanceRecord;
-      periodSequence: number;
-    }> = [];
-
-    const extractRecords = (): AttendanceRecord[] => {
-      const extractedRecords: AttendanceRecord[] = [];
+    try {
+      // Get latest and additional records
       const attendance = safeAttendanceProps.base.latestAttendance;
       const additionalRecords =
         safeAttendanceProps.base.additionalRecords || [];
 
-      console.log('Processing all records:', {
-        latest: attendance,
-        additional: additionalRecords,
-      });
-
-      // Process all attendance records
+      // Combine all records
       const allRecords = [...additionalRecords];
       if (
         attendance &&
-        !additionalRecords.find((r: AttendanceRecord) => r.id === attendance.id)
+        !additionalRecords.find(
+          (record: AttendanceRecord) => record.id === attendance.id,
+        )
       ) {
         allRecords.push(attendance);
       }
 
-      // Group by type and sort
-      const recordsByType = allRecords.reduce(
-        (
-          acc: {
-            regular?: AttendanceRecord;
-            overtime?: AttendanceRecord[];
-          },
-          record: AttendanceRecord,
-        ) => {
-          if (record.type === PeriodType.REGULAR) {
-            acc.regular = record;
-          } else if (record.type === PeriodType.OVERTIME) {
-            acc.overtime = acc.overtime || [];
-            acc.overtime.push(record);
-          }
-          return acc;
-        },
-        {},
-      );
-
-      // Add regular period first
-      if (recordsByType.regular) {
-        extractedRecords.push({
-          ...recordsByType.regular,
-          periodSequence: 1,
-        });
-      }
-
-      // Add overtime periods in chronological order
-      if (recordsByType.overtime?.length) {
-        recordsByType.overtime
-          .sort((a: AttendanceRecord, b: AttendanceRecord) => {
-            const timeA =
-              typeof a.CheckInTime === 'string'
-                ? new Date(a.CheckInTime).getTime()
-                : (a.CheckInTime?.getTime() ?? 0);
-            const timeB =
-              typeof b.CheckInTime === 'string'
-                ? new Date(b.CheckInTime).getTime()
-                : (b.CheckInTime?.getTime() ?? 0);
-            return timeA - timeB;
-          })
-          .forEach((record: AttendanceRecord, index: number) => {
-            extractedRecords.push({
-              ...record,
-              periodSequence: index + 1,
-            });
-          });
-      }
-
-      console.log(
-        'Extracted records:',
-        extractedRecords.map((r: AttendanceRecord) => ({
-          type: r.type,
-          sequence: r.periodSequence,
-          times: {
-            checkIn: r.CheckInTime,
-            checkOut: r.CheckOutTime,
-          },
-        })),
-      );
-
-      return extractedRecords;
-    };
-
-    const allRecords = extractRecords().sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === PeriodType.REGULAR ? -1 : 1;
-      }
-      return (a.periodSequence || 0) - (b.periodSequence || 0);
-    });
-
-    allRecords.forEach((record) => {
-      records.push({
-        record,
-        periodSequence: record.periodSequence,
+      // Sort regular period first, then overtime by sequence
+      const sortedRecords = allRecords.sort((a, b) => {
+        if (a.type !== b.type) {
+          return a.type === PeriodType.REGULAR ? -1 : 1;
+        }
+        return (
+          new Date(a.CheckInTime || 0).getTime() -
+          new Date(b.CheckInTime || 0).getTime()
+        );
       });
-    });
 
-    console.log(
-      'Final processed records:',
-      records.map((r) => ({
-        type: r.record.type,
-        sequence: r.periodSequence,
-        times: {
-          checkIn: r.record.CheckInTime,
-          checkOut: r.record.CheckOutTime,
+      // Map to final format
+      return sortedRecords.map((record, index) => ({
+        record,
+        periodSequence: index + 1,
+      }));
+    } catch (error) {
+      console.error('Error processing daily records:', error);
+      return [];
+    }
+  }, [safeAttendanceProps?.base]);
+
+  const isAllPeriodsCompleted = useMemo(() => {
+    if (!safeAttendanceProps?.base) return false;
+
+    try {
+      const base = safeAttendanceProps.base;
+
+      // Find both regular and overtime records
+      const regularRecord = dailyRecords.find(
+        ({ record }) => record.type === PeriodType.REGULAR,
+      );
+      const overtimeRecord = dailyRecords.find(
+        ({ record }) => record.type === PeriodType.OVERTIME,
+      );
+
+      // Debug log
+      console.log('Period completion check:', {
+        regularRecord: {
+          exists: !!regularRecord,
+          hasCheckout: !!regularRecord?.record.CheckOutTime,
         },
-      })),
-    );
+        overtimeRecord: {
+          exists: !!overtimeRecord,
+          hasCheckout: !!overtimeRecord?.record.CheckOutTime,
+        },
+        baseState: {
+          checkStatus: base.checkStatus,
+          isOvertime: base.periodInfo.isOvertime,
+          overtimeState: base.periodInfo.overtimeState,
+        },
+      });
 
-    return records;
-  }, [safeAttendanceProps]);
+      // Regular period must be complete
+      const isRegularComplete =
+        regularRecord &&
+        regularRecord.record.CheckOutTime &&
+        base.checkStatus === CheckStatus.CHECKED_OUT &&
+        base.state === AttendanceState.PRESENT;
+
+      // Overtime completion check
+      const isOvertimeComplete =
+        !overtimeRecord ||
+        (overtimeRecord.record.CheckOutTime &&
+          base.periodInfo.overtimeState === 'COMPLETED');
+
+      // No pending transitions
+      const isNoTransitionPending = !base.periodInfo.isOvertime;
+
+      return isRegularComplete && isOvertimeComplete && isNoTransitionPending;
+    } catch (error) {
+      console.error('Error checking period completion:', error);
+      return false;
+    }
+  }, [safeAttendanceProps?.base, dailyRecords]);
 
   // System ready state
   const isSystemReady = useMemo(() => {
@@ -474,6 +407,7 @@ const CheckInRouter: React.FC = () => {
       </div>
     );
   }, [userData, safeAttendanceProps, dailyRecords, isAllPeriodsCompleted]);
+
   // Error state
   if (error || attendanceError) {
     return (
