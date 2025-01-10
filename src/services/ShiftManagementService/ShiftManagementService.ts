@@ -652,26 +652,22 @@ export class ShiftManagementService {
         overtimes: nextDayOvertimes,
       });
 
-      const nextDayOvertime = nextDayOvertimes?.[0];
-
-      if (nextDayOvertime) {
-        // Convert time strings directly without parsing as Date
+      if (nextDayOvertimes?.[0]) {
+        const overtime = nextDayOvertimes[0];
         return {
           ...baseWindow,
           overtimeInfo: {
-            id: nextDayOvertime.id,
-            // The times are already in HH:mm format
-            startTime: nextDayOvertime.startTime,
-            endTime: nextDayOvertime.endTime,
-            durationMinutes: nextDayOvertime.durationMinutes,
-            reason: nextDayOvertime.reason || '',
-            isInsideShiftHours: false,
-            isDayOffOvertime: baseWindow.isDayOff,
+            id: overtime.id,
+            startTime: overtime.startTime,
+            endTime: overtime.endTime,
+            durationMinutes: overtime.durationMinutes,
+            isInsideShiftHours: overtime.isInsideShiftHours,
+            isDayOffOvertime: overtime.isDayOffOvertime,
+            reason: overtime.reason ?? '',
           },
         };
       }
 
-      console.log('No overtime found for next day');
       return baseWindow;
     } catch (error) {
       console.error('Error getting next day overtimes:', error);

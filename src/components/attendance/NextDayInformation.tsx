@@ -93,7 +93,6 @@ const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
                     )}
                 </div>
               </div>
-
               {/* Overtime Info */}
               {nextDayInfo.overtime && nextDayInfo.overtime.length > 0 && (
                 <div className="mt-4 space-y-2">
