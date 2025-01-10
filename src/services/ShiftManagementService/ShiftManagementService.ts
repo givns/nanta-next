@@ -616,16 +616,6 @@ export class ShiftManagementService {
     now: Date,
   ): Promise<ShiftWindowResponse> {
     const nextDay = addDays(now, 1);
-
-    // Log the date range we're querying
-    console.log('Fetching next day overtimes for:', {
-      employeeId,
-      date: format(nextDay, 'yyyy-MM-dd'),
-      startOfDay: format(startOfDay(nextDay), 'yyyy-MM-dd HH:mm:ss'),
-      endOfDay: format(endOfDay(nextDay), 'yyyy-MM-dd HH:mm:ss'),
-    });
-
-    // Get basic shift window for next day
     const baseWindow = await this.getCurrentWindow(employeeId, nextDay);
     if (!baseWindow) {
       return {
@@ -659,59 +649,29 @@ export class ShiftManagementService {
       // Log raw overtime data
       console.log('Next day overtimes:', {
         count: nextDayOvertimes?.length || 0,
-        overtimes: nextDayOvertimes?.map((ot) => ({
-          id: ot.id,
-          date: ot.date,
-          startTime: ot.startTime,
-          endTime: ot.endTime,
-          status: ot.status,
-          durationMinutes: ot.durationMinutes,
-        })),
+        overtimes: nextDayOvertimes,
       });
 
       const nextDayOvertime = nextDayOvertimes?.[0];
 
-      // Add null check and date parsing
-      if (
-        nextDayOvertime &&
-        nextDayOvertime.startTime &&
-        nextDayOvertime.endTime
-      ) {
-        // Parse dates if they're strings
-        const startTime =
-          typeof nextDayOvertime.startTime === 'string'
-            ? new Date(nextDayOvertime.startTime)
-            : nextDayOvertime.startTime;
-
-        const endTime =
-          typeof nextDayOvertime.endTime === 'string'
-            ? new Date(nextDayOvertime.endTime)
-            : nextDayOvertime.endTime;
-
-        // Check if dates are valid before formatting
-        if (isValid(startTime) && isValid(endTime)) {
-          console.log('Found next day overtime:', {
+      if (nextDayOvertime) {
+        // Convert time strings directly without parsing as Date
+        return {
+          ...baseWindow,
+          overtimeInfo: {
             id: nextDayOvertime.id,
+            // The times are already in HH:mm format
             startTime: nextDayOvertime.startTime,
             endTime: nextDayOvertime.endTime,
             durationMinutes: nextDayOvertime.durationMinutes,
-          });
-          return {
-            ...baseWindow,
-            overtimeInfo: {
-              id: nextDayOvertime.id,
-              startTime: format(startTime, 'HH:mm'),
-              endTime: format(endTime, 'HH:mm'),
-              durationMinutes: nextDayOvertime.durationMinutes,
-              reason: nextDayOvertime.reason || '',
-              isInsideShiftHours: false,
-              isDayOffOvertime: baseWindow.isDayOff,
-            },
-          };
-        }
+            reason: nextDayOvertime.reason || '',
+            isInsideShiftHours: false,
+            isDayOffOvertime: baseWindow.isDayOff,
+          },
+        };
       }
 
-      // Return base window if overtime dates aren't valid
+      console.log('No overtime found for next day');
       return baseWindow;
     } catch (error) {
       console.error('Error getting next day overtimes:', error);
