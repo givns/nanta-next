@@ -11,6 +11,7 @@ import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
   AttendanceRecord,
+  NextDayInfoProps,
   NextDayScheduleInfo,
   SerializedAttendanceRecord,
 } from '@/types/attendance';
@@ -74,6 +75,7 @@ const createSafeAttendance = (props: any) => {
 };
 
 const CheckInRouter: React.FC = () => {
+  // States
   const [userData, setUserData] = useState<UserData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('auth');
@@ -83,8 +85,21 @@ const CheckInRouter: React.FC = () => {
   const [nextDayData, setNextDayData] = useState<NextDayScheduleInfo | null>(
     null,
   );
+
+  // Hooks
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
+  const {
+    locationReady,
+    locationState = { status: null },
+    isLoading: attendanceLoading,
+    error: attendanceError,
+    ...attendanceProps
+  } = useSimpleAttendance({
+    employeeId: userData?.employeeId,
+    lineUserId: lineUserId || '',
+    enabled: Boolean(userData?.employeeId && !authLoading),
+  });
 
   // Fetch user data
   const fetchUserData = useCallback(async () => {
@@ -114,18 +129,33 @@ const CheckInRouter: React.FC = () => {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Get attendance data
-  const {
-    locationReady,
-    locationState = { status: null },
-    isLoading: attendanceLoading,
-    error: attendanceError,
-    ...attendanceProps
-  } = useSimpleAttendance({
-    employeeId: userData?.employeeId,
-    lineUserId: lineUserId || '',
-    enabled: Boolean(userData?.employeeId && !authLoading),
-  });
+  // Function to fetch next day data
+  const fetchNextDayInfo = useCallback(async () => {
+    if (!userData?.employeeId) return;
+
+    try {
+      setIsLoadingNextDay(true);
+      const response = await fetch(
+        `/api/attendance/next-day/${userData.employeeId}`,
+      );
+      if (!response.ok) throw new Error('Failed to fetch next day info');
+
+      const data = await response.json();
+      console.log('Next day data received:', data);
+
+      setNextDayData(data);
+    } catch (error) {
+      console.error('Error fetching next day info:', error);
+    } finally {
+      setIsLoadingNextDay(false);
+    }
+  }, [userData?.employeeId]);
+
+  // Handle next day button click
+  const handleViewNextDay = useCallback(() => {
+    setShowNextDay(true);
+    fetchNextDayInfo();
+  }, [fetchNextDayInfo]);
 
   // Process attendance props
   const safeAttendanceProps = useMemo(() => {
@@ -174,32 +204,6 @@ const CheckInRouter: React.FC = () => {
       return [];
     }
   }, [safeAttendanceProps?.base]);
-
-  // Function to fetch next day data
-  const fetchNextDayInfo = useCallback(async () => {
-    if (!userData?.employeeId) return;
-
-    try {
-      setIsLoadingNextDay(true);
-      const response = await fetch(
-        `/api/attendance/next-day/${userData.employeeId}`,
-      );
-      if (!response.ok) throw new Error('Failed to fetch next day info');
-
-      const data = await response.json();
-      setNextDayData(data);
-    } catch (error) {
-      console.error('Error fetching next day info:', error);
-    } finally {
-      setIsLoadingNextDay(false);
-    }
-  }, [userData?.employeeId]);
-
-  // Handle next day button click
-  const handleViewNextDay = useCallback(() => {
-    setShowNextDay(true);
-    fetchNextDayInfo();
-  }, [fetchNextDayInfo]);
 
   const isAllPeriodsCompleted = useMemo(() => {
     if (!safeAttendanceProps?.base) return false;
@@ -314,13 +318,14 @@ const CheckInRouter: React.FC = () => {
     }
   }, [authLoading, userData, locationReady, locationState]);
 
-  // Only fetch next day info when needed
-  const { nextDayInfo } = useNextDayInfo(
-    userData?.employeeId,
-    Boolean(isAllPeriodsCompleted),
-  );
-
   const mainContent = useMemo(() => {
+    console.log('MainContent render:', {
+      isAllPeriodsCompleted,
+      showNextDay,
+      isLoadingNextDay,
+      hasNextDayData: !!nextDayData,
+    });
+
     if (!userData || !safeAttendanceProps?.base?.state) return null;
 
     console.log(
@@ -425,6 +430,10 @@ const CheckInRouter: React.FC = () => {
     if (isAllPeriodsCompleted) {
       if (showNextDay) {
         if (isLoadingNextDay || !nextDayData) {
+          console.log('Showing loading spinner because:', {
+            isLoadingNextDay,
+            hasNextDayData: !!nextDayData,
+          });
           return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
               <LoadingSpinner />
@@ -445,7 +454,7 @@ const CheckInRouter: React.FC = () => {
         <TodaySummary
           userData={userData}
           records={serializeRecords(dailyRecords)}
-          onViewNextDay={() => setShowNextDay(true)}
+          onViewNextDay={handleViewNextDay}
           onClose={closeWindow}
         />
       );
