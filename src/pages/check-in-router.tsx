@@ -145,9 +145,14 @@ const CheckInRouter: React.FC = () => {
 
     const isNoTransitionPending = !safeAttendanceProps.hasPendingTransition;
 
-    // For overtime periods
+    // Check if overtime period is complete
     const isOvertimeComplete = base.periodInfo.isOvertime
-      ? base.periodInfo.overtimeState === 'COMPLETED'
+      ? dailyRecords.some(
+          ({ record }) =>
+            record.type === PeriodType.OVERTIME &&
+            record.CheckOutTime != null &&
+            base.periodInfo.overtimeState === 'COMPLETED',
+        )
       : true;
 
     const hasCompletedCurrentPeriod = Boolean(currentState?.activity.checkOut);
@@ -445,17 +450,8 @@ const CheckInRouter: React.FC = () => {
       }));
     };
 
-    const checkAllPeriodsCompleted = (base: AttendanceBaseResponse) => {
-      const latestAttendance = base.latestAttendance;
-      return (
-        latestAttendance?.checkStatus === CheckStatus.CHECKED_OUT &&
-        !base.periodInfo.isOvertime &&
-        base.periodInfo.overtimeState !== OvertimeState.IN_PROGRESS
-      );
-    };
-
     // Show summary if all periods completed
-    if (checkAllPeriodsCompleted(safeAttendanceProps.base)) {
+    if (isAllPeriodsCompleted) {
       return (
         <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
           <DailyAttendanceSummary
@@ -477,7 +473,7 @@ const CheckInRouter: React.FC = () => {
         />
       </div>
     );
-  }, [userData, safeAttendanceProps, dailyRecords]);
+  }, [userData, safeAttendanceProps, dailyRecords, isAllPeriodsCompleted]);
   // Error state
   if (error || attendanceError) {
     return (

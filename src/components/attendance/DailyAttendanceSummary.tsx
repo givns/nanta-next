@@ -23,23 +23,20 @@ const AttendanceCard: React.FC<{
   record: SerializedAttendanceRecord;
   periodType: PeriodType;
 }> = ({ record, periodType }) => {
-  const times: TimeDisplay = {
-    checkIn: record.CheckInTime,
-    checkOut: record.CheckOutTime,
-    shiftStart: record.shiftStartTime,
-    shiftEnd: record.shiftEndTime,
+  // Add time zone adjustment (+7 for Thailand)
+  const adjustTime = (timeStr: string | null) => {
+    if (!timeStr) return null;
+    const date = new Date(timeStr);
+    date.setHours(date.getHours() + 7); // Adjust for Thailand timezone
+    return format(date, 'HH:mm');
   };
 
-  console.log('Rendering card with times:', {
-    type: periodType,
-    raw: times,
-    formatted: {
-      checkIn: times.checkIn,
-      checkOut: times.checkOut,
-      shiftStart: times.shiftStart,
-      shiftEnd: times.shiftEnd,
-    },
-  });
+  const times = {
+    checkIn: adjustTime(record.CheckInTime),
+    checkOut: adjustTime(record.CheckOutTime),
+    shiftStart: adjustTime(record.shiftStartTime),
+    shiftEnd: adjustTime(record.shiftEndTime),
+  };
 
   return (
     <Card className="bg-white shadow-sm">
@@ -64,34 +61,21 @@ const AttendanceCard: React.FC<{
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-            <div className="font-medium">{formatSafeTime(times.checkIn)}</div>
+            <div className="font-medium">{times.checkIn || '--:--'}</div>
             {times.shiftStart && (
               <div className="text-xs text-gray-400">
-                ช่วงเวลา {formatSafeTime(times.shiftStart)}
+                ช่วงเวลา {times.shiftStart}
               </div>
             )}
           </div>
           <div>
             <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-            <div className="font-medium">{formatSafeTime(times.checkOut)}</div>
+            <div className="font-medium">{times.checkOut || '--:--'}</div>
             {times.shiftEnd && (
-              <div className="text-xs text-gray-400">
-                ถึง {formatSafeTime(times.shiftEnd)}
-              </div>
+              <div className="text-xs text-gray-400">ถึง {times.shiftEnd}</div>
             )}
           </div>
         </div>
-
-        {record.checkTiming && (
-          <div className="mt-2 text-xs text-gray-500">
-            {record.checkTiming.isLateCheckIn && (
-              <div>เข้างานช้า {record.checkTiming.lateCheckInMinutes} นาที</div>
-            )}
-            {record.checkTiming.isLateCheckOut && (
-              <div>ออกงานช้า {record.checkTiming.lateCheckOutMinutes} นาที</div>
-            )}
-          </div>
-        )}
       </CardContent>
     </Card>
   );
