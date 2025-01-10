@@ -7,7 +7,6 @@ import { AlertCircle } from 'lucide-react';
 import { UserData } from '@/types/user';
 import { PeriodType } from '@prisma/client';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
-import DailyAttendanceSummary from '@/components/attendance/DailyAttendanceSummary';
 import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
@@ -16,6 +15,8 @@ import {
 } from '@/types/attendance';
 import { useNextDayInfo } from '@/hooks/useNextDayInfo';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
+import TodaySummary from '@/components/attendance/TodaySummary';
+import NextDayInfo from '@/components/attendance/NextDayInformation';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -76,7 +77,7 @@ const CheckInRouter: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('auth');
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('loading');
-
+  const [showNextDay, setShowNextDay] = useState(false);
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
@@ -391,20 +392,10 @@ const CheckInRouter: React.FC = () => {
 
     // Show summary if all periods completed
     if (isAllPeriodsCompleted) {
-      if (!nextDayInfo) {
-        // Show loading state or return early
+      if (showNextDay) {
+        // Show next day schedule
         return (
-          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-            <LoadingSpinner />
-          </div>
-        );
-      }
-
-      return (
-        <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
-          <DailyAttendanceSummary
-            userData={userData}
-            records={serializeRecords(dailyRecords)}
+          <NextDayInfo
             nextDayInfo={{
               isHoliday: safeAttendanceProps.context.schedule.isHoliday,
               holidayInfo: safeAttendanceProps.context.schedule.holidayInfo,
@@ -418,18 +409,27 @@ const CheckInRouter: React.FC = () => {
                 adjustedInfo:
                   safeAttendanceProps.context.schedule.adjustedShiftInfo,
               },
-              // Pass the overtimeInfo directly without wrapping in array
               overtime: safeAttendanceProps.context.overtimeInfo,
             }}
-            onClose={closeWindow}
+            onClose={() => setShowNextDay(false)}
           />
-        </div>
+        );
+      }
+
+      // Show today's summary
+      return (
+        <TodaySummary
+          userData={userData}
+          records={serializeRecords(dailyRecords)}
+          onViewNextDay={() => setShowNextDay(true)}
+          onClose={closeWindow}
+        />
       );
     }
 
     // Show check-in form
     return (
-      <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
+      <div className="min-h-screen flex flex-col bg-gray-50">
         <CheckInOutForm
           userData={userData}
           onComplete={closeWindow}
@@ -442,6 +442,7 @@ const CheckInRouter: React.FC = () => {
     safeAttendanceProps,
     dailyRecords,
     isAllPeriodsCompleted,
+    showNextDay,
     nextDayInfo,
   ]);
 

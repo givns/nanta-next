@@ -1,11 +1,7 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { formatSafeTime } from '@/shared/timeUtils';
-import { DailyAttendanceSummaryProps } from '@/types/attendance';
-
-interface NextDayInfoProps {
-  nextDayInfo: DailyAttendanceSummaryProps['nextDayInfo'];
-}
+import { NextDayInfoProps } from '@/types/attendance';
 
 const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
   return (

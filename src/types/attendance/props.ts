@@ -302,37 +302,48 @@ export interface ExtendedValidation {
   metadata: ValidationMetadata;
 }
 
-export interface DailyAttendanceSummaryProps {
+// in types/attendance/props.ts
+
+// For today's summary
+export interface TodaySummaryProps {
   userData: UserData;
   records: Array<{
     record: SerializedAttendanceRecord;
     periodSequence: number;
   }>;
-  nextDayInfo: {
-    isHoliday: boolean;
-    holidayInfo?: {
-      name: string;
-      date: string;
-    };
-    isDayOff: boolean;
-    leaveInfo?: {
-      type: string;
-      duration: string;
-      status: string;
-    } | null;
-    shift: {
-      id: string;
-      name: string;
-      startTime: string;
-      endTime: string;
-      isAdjusted: boolean;
-      adjustedInfo?: {
-        originalStart: string;
-        originalEnd: string;
-        reason: string;
-      };
-    };
-    overtime?: OvertimeContext;
+  onViewNextDay: () => void;
+  onClose?: () => void;
+}
+
+// For next day info
+export interface NextDayScheduleInfo {
+  isHoliday: boolean;
+  holidayInfo?: {
+    name: string;
+    date: string;
   };
+  isDayOff: boolean;
+  leaveInfo?: {
+    type: string;
+    duration: string;
+    status: string;
+  } | null;
+  shift: {
+    id: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    isAdjusted: boolean;
+    adjustedInfo?: {
+      originalStart: string;
+      originalEnd: string;
+      reason: string;
+    };
+  };
+  overtime?: OvertimeContext;
+}
+
+export interface NextDayInfoProps {
+  nextDayInfo: NextDayScheduleInfo;
   onClose?: () => void;
 }
