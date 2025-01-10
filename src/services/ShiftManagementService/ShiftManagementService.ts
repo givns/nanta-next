@@ -639,31 +639,25 @@ export class ShiftManagementService {
     }
 
     try {
-      const nextDayOvertimes =
-        await this.overtimeService?.getDetailedOvertimesInRange(
+      const overtimes =
+        (await this.overtimeService?.getDetailedOvertimesInRange(
           employeeId,
           startOfDay(nextDay),
           endOfDay(nextDay),
-        );
+        )) || [];
 
-      // Log raw overtime data
-      console.log('Next day overtimes:', {
-        count: nextDayOvertimes?.length || 0,
-        overtimes: nextDayOvertimes,
-      });
-
-      if (nextDayOvertimes?.[0]) {
-        const overtime = nextDayOvertimes[0];
+      if (overtimes.length > 0) {
+        // Map the first overtime to overtimeInfo in ShiftWindowResponse
         return {
           ...baseWindow,
           overtimeInfo: {
-            id: overtime.id,
-            startTime: overtime.startTime,
-            endTime: overtime.endTime,
-            durationMinutes: overtime.durationMinutes,
-            isInsideShiftHours: overtime.isInsideShiftHours,
-            isDayOffOvertime: overtime.isDayOffOvertime,
-            reason: overtime.reason ?? '',
+            id: overtimes[0].id,
+            startTime: overtimes[0].startTime,
+            endTime: overtimes[0].endTime,
+            durationMinutes: overtimes[0].durationMinutes,
+            isInsideShiftHours: overtimes[0].isInsideShiftHours,
+            isDayOffOvertime: overtimes[0].isDayOffOvertime,
+            reason: overtimes[0].reason || undefined,
           },
         };
       }

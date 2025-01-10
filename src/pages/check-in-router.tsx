@@ -409,7 +409,6 @@ const CheckInRouter: React.FC = () => {
               isHoliday: safeAttendanceProps.context.schedule.isHoliday,
               holidayInfo: safeAttendanceProps.context.schedule.holidayInfo,
               isDayOff: safeAttendanceProps.context.schedule.isDayOff,
-              leaveInfo: safeAttendanceProps.context.schedule.leaveInfo,
               shift: {
                 id: safeAttendanceProps.context.shift.id,
                 name: safeAttendanceProps.context.shift.name,
@@ -419,24 +418,8 @@ const CheckInRouter: React.FC = () => {
                 adjustedInfo:
                   safeAttendanceProps.context.schedule.adjustedShiftInfo,
               },
-              overtime: safeAttendanceProps.context.nextPeriod?.overtimeInfo
-                ? [
-                    {
-                      startTime:
-                        safeAttendanceProps.context.nextPeriod.overtimeInfo
-                          .startTime,
-                      endTime:
-                        safeAttendanceProps.context.nextPeriod.overtimeInfo
-                          .endTime,
-                      duration:
-                        safeAttendanceProps.context.nextPeriod.overtimeInfo
-                          .durationMinutes,
-                      reason:
-                        safeAttendanceProps.context.nextPeriod.overtimeInfo
-                          .reason,
-                    },
-                  ]
-                : undefined,
+              // Pass the overtimeInfo directly without wrapping in array
+              overtime: safeAttendanceProps.context.overtimeInfo,
             }}
             onClose={closeWindow}
           />

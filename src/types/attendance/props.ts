@@ -332,12 +332,7 @@ export interface DailyAttendanceSummaryProps {
         reason: string;
       };
     };
-    overtime?: {
-      startTime: string;
-      endTime: string;
-      duration: number;
-      reason: string;
-    }[];
+    overtime?: OvertimeContext;
   };
   onClose?: () => void;
 }
