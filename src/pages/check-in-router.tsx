@@ -181,46 +181,50 @@ const CheckInRouter: React.FC = () => {
 
       // Find both regular and overtime records
       const regularRecord = dailyRecords.find(
-        ({ record }) => record.type === PeriodType.REGULAR,
+        ({ record }) =>
+          record.type === PeriodType.REGULAR &&
+          record.overtimeState === 'COMPLETED',
       );
       const overtimeRecord = dailyRecords.find(
-        ({ record }) => record.type === PeriodType.OVERTIME,
+        ({ record }) =>
+          record.type === PeriodType.OVERTIME &&
+          record.overtimeState === 'COMPLETED',
       );
 
-      // Debug log
-      console.log('Period completion check:', {
+      // Debug logging
+      console.log('Completion check:', {
         regularRecord: {
           exists: !!regularRecord,
-          hasCheckout: !!regularRecord?.record.CheckOutTime,
+          checkOut: regularRecord?.record.CheckOutTime,
+          state: regularRecord?.record.state,
+          overtimeState: regularRecord?.record.overtimeState,
         },
         overtimeRecord: {
           exists: !!overtimeRecord,
-          hasCheckout: !!overtimeRecord?.record.CheckOutTime,
+          checkOut: overtimeRecord?.record.CheckOutTime,
+          state: overtimeRecord?.record.state,
+          overtimeState: overtimeRecord?.record.overtimeState,
         },
         baseState: {
           checkStatus: base.checkStatus,
-          isOvertime: base.periodInfo.isOvertime,
-          overtimeState: base.periodInfo.overtimeState,
+          state: base.state,
         },
       });
 
-      // Regular period must be complete
-      const isRegularComplete =
-        regularRecord &&
-        regularRecord.record.CheckOutTime &&
-        base.checkStatus === CheckStatus.CHECKED_OUT &&
-        base.state === AttendanceState.PRESENT;
+      // Both periods must be complete
+      const isComplete = Boolean(
+        // Regular period completed
+        regularRecord?.record.CheckOutTime &&
+          regularRecord.record.state === 'PRESENT' &&
+          regularRecord.record.overtimeState === 'COMPLETED' &&
+          // Overtime period completed (if exists)
+          (!overtimeRecord ||
+            (overtimeRecord.record.CheckOutTime &&
+              overtimeRecord.record.state === 'PRESENT' &&
+              overtimeRecord.record.overtimeState === 'COMPLETED')),
+      );
 
-      // Overtime completion check
-      const isOvertimeComplete =
-        !overtimeRecord ||
-        (overtimeRecord.record.CheckOutTime &&
-          base.periodInfo.overtimeState === 'COMPLETED');
-
-      // No pending transitions
-      const isNoTransitionPending = !base.periodInfo.isOvertime;
-
-      return isRegularComplete && isOvertimeComplete && isNoTransitionPending;
+      return isComplete;
     } catch (error) {
       console.error('Error checking period completion:', error);
       return false;
