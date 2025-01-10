@@ -4,7 +4,7 @@ import { formatSafeTime } from '@/shared/timeUtils';
 import { NextDayInfoProps } from '@/types/attendance';
 import { useEffect } from 'react';
 
-const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
+const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo, onClose }) => {
   useEffect(() => {
     console.log('NextDayInfo rendered with:', {
       hasOvertimes: Boolean(nextDayInfo.overtimes?.length),
@@ -14,11 +14,17 @@ const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
   }, [nextDayInfo]);
 
   return (
-    <Card className="bg-slate-400-100 mb-4">
+    <Card className="bg-white mb-4">
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Calendar size={20} className="text-primary" />
           <span>ตารางงานวันพรุ่งนี้</span>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            ✕
+          </button>
         </CardTitle>
       </CardHeader>
       <CardContent>
