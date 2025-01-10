@@ -13,6 +13,7 @@ import { AttendanceRecordService } from './AttendanceRecordService';
 import { cacheService } from '../cache/CacheService';
 import { format } from 'date-fns';
 import { PeriodType } from '@prisma/client';
+import { AttendanceMappers } from './utils/AttendanceMappers';
 
 interface GetAttendanceStatusOptions {
   inPremises: boolean;
@@ -61,20 +62,29 @@ export class AttendanceStatusService {
       });
     }
 
-    // Get latest record for current state
+    // Get latest record and serialize it
     const latestRecord =
       allRecords.length > 0 ? allRecords[allRecords.length - 1] : null;
+    const serializedLatest = latestRecord
+      ? AttendanceMappers.toSerializedAttendanceRecord(latestRecord)
+      : null;
 
-    // Build response through enhancement service
+    // Serialize all records
+    const serializedRecords = allRecords.map((record) =>
+      AttendanceMappers.toSerializedAttendanceRecord(record),
+    );
+
+    // Build response through enhancement service with serialized record
     const enhancedStatus =
       await this.enhancementService.enhanceAttendanceStatus(
-        latestRecord,
+        serializedLatest,
         periodState,
         now,
       );
 
     // Add all records to base
-    enhancedStatus.base.additionalRecords = allRecords;
+    enhancedStatus.base.latestAttendance = serializedLatest;
+    enhancedStatus.base.additionalRecords = serializedRecords;
 
     // Cache the result
     await cacheService.del(forceRefreshKey);

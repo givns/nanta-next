@@ -176,6 +176,7 @@ export class AttendanceMappers {
       id: record.id,
       employeeId: record.employeeId,
       date: record.date.toISOString(),
+      periodSequence: record.periodSequence,
 
       // Core status (remains the same)
       state: record.state,
@@ -209,12 +210,34 @@ export class AttendanceMappers {
         },
       },
 
+      overtimeEntries: record.overtimeEntries.map((entry) => ({
+        id: entry.id,
+        attendanceId: entry.attendanceId,
+        overtimeRequestId: entry.overtimeRequestId,
+        actualStartTime: entry.actualStartTime?.toISOString() || null,
+        actualEndTime: entry.actualEndTime?.toISOString() || null,
+        createdAt: entry.createdAt.toISOString(), // Add the missing property 'createdAt'
+        updatedAt: entry.updatedAt.toISOString(), // Add the missing property 'updatedAt'
+      })),
+
       // Time entries (serialize dates)
       timeEntries: record.timeEntries.map((entry) => ({
         id: entry.id,
         startTime: entry.startTime.toISOString(),
         endTime: entry.endTime?.toISOString() || null,
         type: entry.entryType,
+        employeeId: entry.employeeId,
+        status: entry.status,
+        entryType: entry.entryType,
+        hours: entry.hours,
+        attendanceId: entry.attendanceId, // Add the missing property 'attendanceId'
+        overtimeRequestId: entry.overtimeRequestId, // Add the missing property 'overtimeRequestId'
+        timing: entry.timing, // Add the missing property 'timing'
+        metadata: {
+          ...entry.metadata,
+          createdAt: entry.metadata.createdAt.toISOString(),
+          updatedAt: entry.metadata.updatedAt.toISOString(),
+        },
       })),
 
       // Metadata (serialize dates)

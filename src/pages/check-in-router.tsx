@@ -5,12 +5,21 @@ import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { UserData } from '@/types/user';
-import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
+import {
+  AttendanceState,
+  CheckStatus,
+  OvertimeState,
+  PeriodType,
+} from '@prisma/client';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
 import DailyAttendanceSummary from '@/components/attendance/DailyAttendanceSummary';
 import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
-import { AttendanceRecord } from '@/types/attendance';
+import {
+  AttendanceBaseResponse,
+  AttendanceRecord,
+  SerializedAttendanceRecord,
+} from '@/types/attendance';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -335,17 +344,114 @@ const CheckInRouter: React.FC = () => {
     }
   }, [authLoading, userData, locationReady, locationState]);
 
-  // Main content
   const mainContent = useMemo(() => {
     if (!userData || !safeAttendanceProps?.base?.state) return null;
 
+    const serializeRecords = (
+      records: Array<{
+        record: AttendanceRecord;
+        periodSequence: number;
+      }>,
+    ): Array<{
+      record: SerializedAttendanceRecord;
+      periodSequence: number;
+    }> => {
+      return records.map(({ record, periodSequence }) => ({
+        record: {
+          ...record,
+          date:
+            record.date instanceof Date
+              ? record.date.toISOString()
+              : record.date,
+          shiftStartTime:
+            record.shiftStartTime instanceof Date
+              ? record.shiftStartTime.toISOString()
+              : record.shiftStartTime,
+          shiftEndTime:
+            record.shiftEndTime instanceof Date
+              ? record.shiftEndTime.toISOString()
+              : record.shiftEndTime,
+          CheckInTime:
+            record.CheckInTime instanceof Date
+              ? record.CheckInTime.toISOString()
+              : record.CheckInTime,
+          CheckOutTime:
+            record.CheckOutTime instanceof Date
+              ? record.CheckOutTime.toISOString()
+              : record.CheckOutTime,
+          metadata: {
+            ...record.metadata,
+            createdAt:
+              record.metadata.createdAt instanceof Date
+                ? record.metadata.createdAt.toISOString()
+                : record.metadata.createdAt,
+            updatedAt:
+              record.metadata.updatedAt instanceof Date
+                ? record.metadata.updatedAt.toISOString()
+                : record.metadata.updatedAt,
+          },
+          overtimeEntries: record.overtimeEntries.map((entry) => ({
+            ...entry,
+            actualStartTime:
+              entry.actualStartTime instanceof Date
+                ? entry.actualStartTime.toISOString()
+                : entry.actualStartTime,
+            actualEndTime:
+              entry.actualEndTime instanceof Date
+                ? entry.actualEndTime.toISOString()
+                : entry.actualEndTime,
+            createdAt:
+              entry.createdAt instanceof Date
+                ? entry.createdAt.toISOString()
+                : entry.createdAt,
+            updatedAt:
+              entry.updatedAt instanceof Date
+                ? entry.updatedAt.toISOString()
+                : entry.updatedAt,
+          })),
+          timeEntries: record.timeEntries.map((entry) => ({
+            ...entry,
+            startTime:
+              entry.startTime instanceof Date
+                ? entry.startTime.toISOString()
+                : entry.startTime,
+            endTime:
+              entry.endTime instanceof Date
+                ? entry.endTime.toISOString()
+                : entry.endTime,
+            metadata: {
+              ...entry.metadata,
+              createdAt:
+                entry.metadata.createdAt instanceof Date
+                  ? entry.metadata.createdAt.toISOString()
+                  : entry.metadata.createdAt,
+              updatedAt:
+                entry.metadata.updatedAt instanceof Date
+                  ? entry.metadata.updatedAt.toISOString()
+                  : entry.metadata.updatedAt,
+            },
+          })),
+        },
+        periodSequence,
+      }));
+    };
+
+    const checkAllPeriodsCompleted = (base: AttendanceBaseResponse) => {
+      const latestAttendance = base.latestAttendance;
+      return (
+        latestAttendance?.checkStatus === CheckStatus.CHECKED_OUT &&
+        !base.periodInfo.isOvertime &&
+        base.periodInfo.overtimeState !== OvertimeState.IN_PROGRESS
+      );
+    };
+
     // Show summary if all periods completed
-    if (isAllPeriodsCompleted) {
+    if (checkAllPeriodsCompleted(safeAttendanceProps.base)) {
       return (
         <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
           <DailyAttendanceSummary
             userData={userData}
-            records={dailyRecords}
+            records={serializeRecords(dailyRecords)}
             onClose={closeWindow}
           />
         </div>
@@ -362,8 +468,7 @@ const CheckInRouter: React.FC = () => {
         />
       </div>
     );
-  }, [userData, safeAttendanceProps, isAllPeriodsCompleted, dailyRecords]);
-
+  }, [userData, safeAttendanceProps, dailyRecords]);
   // Error state
   if (error || attendanceError) {
     return (

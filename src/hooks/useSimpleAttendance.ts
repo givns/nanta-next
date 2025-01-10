@@ -155,7 +155,6 @@ export function useSimpleAttendance({
   }, [rawData?.daily?.currentState]);
 
   // Default state validation
-  // Default state validation
   const defaultStateValidation: StateValidation = {
     allowed: false,
     reason: '',

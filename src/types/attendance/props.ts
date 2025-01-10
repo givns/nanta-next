@@ -275,8 +275,8 @@ export interface ProgressMetrics {
 }
 
 export interface ExtendedOvertimeInfo {
-  checkIn?: Date | null;
-  checkOut?: Date | null;
+  checkIn: string | null | undefined;
+  checkOut: string | null | undefined;
   isActive: boolean;
   id: string;
   startTime: string;
@@ -286,8 +286,8 @@ export interface ExtendedOvertimeInfo {
   isDayOffOvertime: boolean;
   reason?: string;
   validationWindow?: {
-    earliestCheckIn: Date;
-    latestCheckOut: Date;
+    earliestCheckIn: string;
+    latestCheckOut: string;
   };
 }
 

@@ -612,8 +612,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               overtimeInfo={
                 context.nextPeriod?.overtimeInfo
                   ? {
-                      checkIn: attendanceBase.latestAttendance?.CheckInTime,
-                      checkOut: attendanceBase.latestAttendance?.CheckOutTime,
+                      checkIn:
+                        attendanceBase.latestAttendance?.CheckInTime ?? null,
+                      checkOut:
+                        attendanceBase.latestAttendance?.CheckOutTime ?? null,
                       isActive: periodState.activity.isActive,
                       id: context.nextPeriod.overtimeInfo.id,
                       startTime: context.nextPeriod.overtimeInfo.startTime,
@@ -625,8 +627,29 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
                       isDayOffOvertime:
                         context.nextPeriod.overtimeInfo.isDayOffOvertime,
                       reason: context.nextPeriod.overtimeInfo.reason,
-                      validationWindow:
-                        context.nextPeriod.overtimeInfo.validationWindow,
+                      validationWindow: context.nextPeriod.overtimeInfo
+                        .validationWindow
+                        ? {
+                            earliestCheckIn:
+                              typeof context.nextPeriod.overtimeInfo
+                                .validationWindow.earliestCheckIn === 'string'
+                                ? context.nextPeriod.overtimeInfo
+                                    .validationWindow.earliestCheckIn
+                                : String(
+                                    context.nextPeriod.overtimeInfo
+                                      .validationWindow.earliestCheckIn,
+                                  ),
+                            latestCheckOut:
+                              typeof context.nextPeriod.overtimeInfo
+                                .validationWindow.latestCheckOut === 'string'
+                                ? context.nextPeriod.overtimeInfo
+                                    .validationWindow.latestCheckOut
+                                : String(
+                                    context.nextPeriod.overtimeInfo
+                                      .validationWindow.latestCheckOut,
+                                  ),
+                          }
+                        : undefined,
                     }
                   : undefined
               }

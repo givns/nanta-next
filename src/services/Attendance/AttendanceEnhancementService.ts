@@ -13,6 +13,11 @@ import {
   PeriodStatusInfo,
   TransitionStatusInfo,
   ValidationFlags,
+  SerializedAttendanceRecord,
+  SerializedTimeEntry,
+  TimeEntry,
+  SerializedOvertimeEntry,
+  OvertimeEntry,
 } from '@/types/attendance';
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
@@ -161,32 +166,100 @@ export class AttendanceEnhancementService {
     return undefined;
   }
 
+  private deserializeTimeEntry(entry: SerializedTimeEntry): TimeEntry {
+    return {
+      id: entry.id,
+      employeeId: entry.employeeId,
+      date: new Date(), // Since not in serialized form, use attendance date
+      startTime: new Date(entry.startTime),
+      endTime: entry.endTime ? new Date(entry.endTime) : null,
+      status: entry.status,
+      entryType: entry.entryType,
+      hours: entry.hours,
+      attendanceId: entry.attendanceId,
+      overtimeRequestId: entry.overtimeRequestId,
+      timing: entry.timing,
+      metadata: {
+        createdAt: new Date(entry.metadata.createdAt),
+        updatedAt: new Date(entry.metadata.updatedAt),
+        source: entry.metadata.source,
+        version: entry.metadata.version,
+      },
+    };
+  }
+
+  private deserializeOvertimeEntry(
+    entry: SerializedOvertimeEntry,
+  ): OvertimeEntry {
+    return {
+      id: entry.id,
+      attendanceId: entry.attendanceId,
+      overtimeRequestId: entry.overtimeRequestId,
+      actualStartTime: entry.actualStartTime
+        ? new Date(entry.actualStartTime)
+        : null,
+      actualEndTime: entry.actualEndTime ? new Date(entry.actualEndTime) : null,
+      createdAt: new Date(entry.createdAt),
+      updatedAt: new Date(entry.updatedAt),
+    };
+  }
+
+  private deserializeAttendanceRecord(
+    record: SerializedAttendanceRecord | null,
+  ): AttendanceRecord | null {
+    if (!record) return null;
+
+    return {
+      ...record,
+      date: new Date(record.date),
+      CheckInTime: record.CheckInTime ? new Date(record.CheckInTime) : null,
+      CheckOutTime: record.CheckOutTime ? new Date(record.CheckOutTime) : null,
+      shiftStartTime: record.shiftStartTime
+        ? new Date(record.shiftStartTime)
+        : null,
+      shiftEndTime: record.shiftEndTime ? new Date(record.shiftEndTime) : null,
+      metadata: {
+        isManualEntry: record.metadata.isManualEntry,
+        isDayOff: record.metadata.isDayOff,
+        createdAt: new Date(record.metadata.createdAt),
+        updatedAt: new Date(record.metadata.updatedAt),
+        source: record.metadata.source,
+      },
+      timeEntries: record.timeEntries.map((entry) =>
+        this.deserializeTimeEntry(entry),
+      ),
+      overtimeEntries: record.overtimeEntries.map((entry) =>
+        this.deserializeOvertimeEntry(entry),
+      ),
+    };
+  }
+
   async enhanceAttendanceStatus(
-    attendance: AttendanceRecord | null,
+    serializedAttendance: SerializedAttendanceRecord | null,
     periodState: ShiftWindowResponse,
     now: Date,
   ): Promise<AttendanceStateResponse> {
+    // Deserialize for internal processing
+    const attendance = this.deserializeAttendanceRecord(serializedAttendance);
+
     const currentPeriod = this.determineCurrentPeriod(
       attendance,
       periodState,
       now,
     );
 
-    // Calculate current period state
     const currentState = this.periodManager.resolveCurrentPeriod(
       attendance,
       periodState,
       now,
     );
 
-    // Calculate transitions
     const transitions = this.periodManager.calculatePeriodTransitions(
       currentState,
       periodState,
       now,
     );
 
-    // Fix context building - don't include next period if already in overtime
     const isOvertimeActive = Boolean(
       attendance?.isOvertime || attendance?.type === PeriodType.OVERTIME,
     );
@@ -198,7 +271,6 @@ export class AttendanceEnhancementService {
       transitions: transitions.length,
     });
 
-    // Build context with proper checks
     const context: ShiftContext & TransitionContext = {
       shift: periodState.shift,
       schedule: {
@@ -224,7 +296,6 @@ export class AttendanceEnhancementService {
         : undefined,
     };
 
-    // Create state validation
     const stateValidation = this.createStateValidation(
       attendance,
       currentState,
@@ -232,18 +303,19 @@ export class AttendanceEnhancementService {
       now,
     );
 
+    // Keep serialized format in response
     return {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
         currentState,
-        transitions: isOvertimeActive ? [] : transitions, // Clear transitions if in overtime
+        transitions: isOvertimeActive ? [] : transitions,
       },
       base: {
         state: attendance?.state || AttendanceState.ABSENT,
         checkStatus: attendance?.checkStatus || CheckStatus.PENDING,
         isCheckingIn:
           !attendance?.CheckInTime || Boolean(attendance?.CheckOutTime),
-        latestAttendance: attendance,
+        latestAttendance: serializedAttendance, // Keep original serialized version
         periodInfo: {
           type: currentState.type,
           isOvertime: currentState.activity.isOvertime,

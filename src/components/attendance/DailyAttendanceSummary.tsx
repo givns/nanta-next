@@ -6,22 +6,21 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PeriodType } from '@prisma/client';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { formatSafeTime } from '@/shared/timeUtils';
-import { UserData, AttendanceRecord } from '@/types/attendance';
+import {
+  UserData,
+  AttendanceRecord,
+  SerializedAttendanceRecord,
+} from '@/types/attendance';
 
 interface TimeDisplay {
-  checkIn: Date | null;
-  checkOut: Date | null;
-  shiftStart: Date | null;
-  shiftEnd: Date | null;
+  checkIn: string | null;
+  checkOut: string | null;
+  shiftStart: string | null;
+  shiftEnd: string | null;
 }
 
-const formatForDisplay = (date: Date | null): string | null => {
-  if (!date) return null;
-  return date.toISOString();
-};
-
 const AttendanceCard: React.FC<{
-  record: AttendanceRecord;
+  record: SerializedAttendanceRecord;
   periodType: PeriodType;
 }> = ({ record, periodType }) => {
   const times: TimeDisplay = {
@@ -65,23 +64,19 @@ const AttendanceCard: React.FC<{
         <div className="grid grid-cols-2 gap-4">
           <div>
             <div className="text-sm text-gray-500 mb-1">เข้างาน</div>
-            <div className="font-medium">
-              {formatSafeTime(formatForDisplay(times.checkIn))}
-            </div>
+            <div className="font-medium">{formatSafeTime(times.checkIn)}</div>
             {times.shiftStart && (
               <div className="text-xs text-gray-400">
-                ช่วงเวลา {formatSafeTime(formatForDisplay(times.shiftStart))}
+                ช่วงเวลา {formatSafeTime(times.shiftStart)}
               </div>
             )}
           </div>
           <div>
             <div className="text-sm text-gray-500 mb-1">ออกงาน</div>
-            <div className="font-medium">
-              {formatSafeTime(formatForDisplay(times.checkOut))}
-            </div>
+            <div className="font-medium">{formatSafeTime(times.checkOut)}</div>
             {times.shiftEnd && (
               <div className="text-xs text-gray-400">
-                ถึง {formatSafeTime(formatForDisplay(times.shiftEnd))}
+                ถึง {formatSafeTime(times.shiftEnd)}
               </div>
             )}
           </div>
@@ -105,7 +100,7 @@ const AttendanceCard: React.FC<{
 interface DailyAttendanceSummaryProps {
   userData: UserData;
   records: Array<{
-    record: AttendanceRecord;
+    record: SerializedAttendanceRecord;
     periodSequence: number;
   }>;
   onClose?: () => void;
@@ -122,7 +117,7 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
     const recordsByType: Record<
       PeriodType,
       Array<{
-        record: AttendanceRecord;
+        record: SerializedAttendanceRecord;
         periodSequence: number;
       }>
     > = {

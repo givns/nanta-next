@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { format, isWithinInterval, parseISO, subMinutes } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
-import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
+import { PeriodType } from '@prisma/client';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { formatSafeTime } from '@/shared/timeUtils';
@@ -12,6 +12,7 @@ import {
   UnifiedPeriodState,
   AttendanceBaseResponse,
   ValidationFlags,
+  ExtendedOvertimeInfo,
 } from '@/types/attendance';
 
 interface ProgressMetrics {
@@ -21,23 +22,6 @@ interface ProgressMetrics {
   progressPercent: number;
   totalShiftMinutes: number;
   isMissed: boolean;
-}
-
-interface ExtendedOvertimeInfo {
-  checkIn?: Date | null;
-  checkOut?: Date | null;
-  isActive: boolean;
-  id: string;
-  startTime: string;
-  endTime: string;
-  durationMinutes: number;
-  isInsideShiftHours: boolean;
-  isDayOffOvertime: boolean;
-  reason?: string;
-  validationWindow?: {
-    earliestCheckIn: Date;
-    latestCheckOut: Date;
-  };
 }
 
 interface ValidationMetadata {

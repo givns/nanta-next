@@ -8,8 +8,9 @@ import {
   CheckStatus,
   OvertimeState,
   PeriodType,
+  TimeEntryStatus,
 } from '@prisma/client';
-import { AttendanceRecord } from './records';
+import { AttendanceRecord, OvertimeMetadata } from './records';
 
 // Core interfaces - Keep
 export interface BaseEntity {
@@ -78,8 +79,8 @@ export interface AttendanceBaseResponse {
   isCheckingIn: boolean;
 
   // Current attendance record
-  latestAttendance: AttendanceRecord | null; // Using our updated AttendanceRecord type
-  additionalRecords?: AttendanceRecord[]; // Add this field
+  latestAttendance: SerializedAttendanceRecord | null; // Using our updated AttendanceRecord type
+  additionalRecords?: SerializedAttendanceRecord[]; // Add this field
 
   // Basic period info
   periodInfo: {
@@ -122,6 +123,7 @@ export interface SerializedAttendanceRecord {
   id: string;
   employeeId: string;
   date: string; // ISO string
+  periodSequence: number; // Add explicit periodSequence
 
   // Core status
   state: AttendanceState;
@@ -147,6 +149,7 @@ export interface SerializedAttendanceRecord {
     isLateCheckOut: boolean;
     isVeryLateCheckOut: boolean;
     lateCheckOutMinutes: number;
+    lateCheckInMinutes: number;
   };
 
   // Location data
@@ -162,12 +165,9 @@ export interface SerializedAttendanceRecord {
   };
 
   // Serialized time entries
-  timeEntries: Array<{
-    id: string;
-    startTime: string;
-    endTime: string | null;
-    type: PeriodType;
-  }>;
+  overtimeEntries: SerializedOvertimeEntry[];
+
+  timeEntries: SerializedTimeEntry[];
 
   // Metadata (with serialized dates)
   metadata: {
@@ -176,6 +176,42 @@ export interface SerializedAttendanceRecord {
     createdAt: string;
     updatedAt: string;
     source: 'system' | 'manual' | 'auto';
+  };
+}
+
+export interface SerializedOvertimeEntry {
+  id: string;
+  attendanceId: string;
+  overtimeRequestId: string;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// First define the serialized version of TimeEntry
+export interface SerializedTimeEntry {
+  id: string;
+  employeeId: string;
+  startTime: string;
+  endTime: string | null;
+  status: TimeEntryStatus;
+  entryType: PeriodType;
+  hours: {
+    regular: number;
+    overtime: number;
+  };
+  attendanceId: string | null;
+  overtimeRequestId: string | null;
+  timing: {
+    actualMinutesLate: number;
+    isHalfDayLate: boolean;
+  };
+  metadata: {
+    createdAt: string;
+    updatedAt: string;
+    source: 'system' | 'manual' | 'auto';
+    version: number;
   };
 }
 
