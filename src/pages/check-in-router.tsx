@@ -11,12 +11,13 @@ import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
   AttendanceRecord,
+  NextDayScheduleInfo,
   SerializedAttendanceRecord,
 } from '@/types/attendance';
 import { useNextDayInfo } from '@/hooks/useNextDayInfo';
-import { LoadingSpinner } from '@/components/LoadingSpinnner';
 import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
+import { LoadingSpinner } from '@/components/LoadingSpinnner';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -78,6 +79,10 @@ const CheckInRouter: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<Step>('auth');
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('loading');
   const [showNextDay, setShowNextDay] = useState(false);
+  const [isLoadingNextDay, setIsLoadingNextDay] = useState(false);
+  const [nextDayData, setNextDayData] = useState<NextDayScheduleInfo | null>(
+    null,
+  );
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
 
@@ -169,6 +174,32 @@ const CheckInRouter: React.FC = () => {
       return [];
     }
   }, [safeAttendanceProps?.base]);
+
+  // Function to fetch next day data
+  const fetchNextDayInfo = useCallback(async () => {
+    if (!userData?.employeeId) return;
+
+    try {
+      setIsLoadingNextDay(true);
+      const response = await fetch(
+        `/api/attendance/next-day/${userData.employeeId}`,
+      );
+      if (!response.ok) throw new Error('Failed to fetch next day info');
+
+      const data = await response.json();
+      setNextDayData(data);
+    } catch (error) {
+      console.error('Error fetching next day info:', error);
+    } finally {
+      setIsLoadingNextDay(false);
+    }
+  }, [userData?.employeeId]);
+
+  // Handle next day button click
+  const handleViewNextDay = useCallback(() => {
+    setShowNextDay(true);
+    fetchNextDayInfo();
+  }, [fetchNextDayInfo]);
 
   const isAllPeriodsCompleted = useMemo(() => {
     if (!safeAttendanceProps?.base) return false;
@@ -393,27 +424,17 @@ const CheckInRouter: React.FC = () => {
     // Show summary if all periods completed
     if (isAllPeriodsCompleted) {
       if (showNextDay) {
-        console.log('Debug nextDayProps:', {
-          hasOvertimeInfo: Boolean(safeAttendanceProps?.context?.overtimeInfo),
-          overtimeInfo: safeAttendanceProps?.context?.overtimeInfo,
-        });
+        if (isLoadingNextDay || !nextDayData) {
+          return (
+            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+              <LoadingSpinner />
+            </div>
+          );
+        }
+
         return (
           <NextDayInfo
-            nextDayInfo={{
-              isHoliday: safeAttendanceProps.context.schedule.isHoliday,
-              holidayInfo: safeAttendanceProps.context.schedule.holidayInfo,
-              isDayOff: safeAttendanceProps.context.schedule.isDayOff,
-              shift: {
-                id: safeAttendanceProps.context.shift.id,
-                name: safeAttendanceProps.context.shift.name,
-                startTime: safeAttendanceProps.context.shift.startTime,
-                endTime: safeAttendanceProps.context.shift.endTime,
-                isAdjusted: safeAttendanceProps.context.schedule.isAdjusted,
-                adjustedInfo:
-                  safeAttendanceProps.context.schedule.adjustedShiftInfo,
-              },
-              overtime: safeAttendanceProps.context.overtimeInfo,
-            }}
+            nextDayInfo={nextDayData}
             onClose={() => setShowNextDay(false)}
           />
         );
@@ -446,7 +467,9 @@ const CheckInRouter: React.FC = () => {
     dailyRecords,
     isAllPeriodsCompleted,
     showNextDay,
-    nextDayInfo,
+    nextDayData,
+    isLoadingNextDay,
+    handleViewNextDay,
   ]);
 
   // Error state
