@@ -56,6 +56,61 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
   isOvertimePeriod,
 }) => {
   const now = getCurrentTime();
+  const isEarlyOvertimePeriod =
+    currentPeriod.timeWindow.start &&
+    parseISO(currentPeriod.timeWindow.start) <
+      parseISO(`${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`);
+
+  const getProgressBarColor = () => {
+    if (isOvertimePeriod) {
+      return isEarlyOvertimePeriod ? 'bg-orange-500' : 'bg-yellow-500';
+    }
+    return 'bg-blue-500';
+  };
+
+  const determineStatusMessage = () => {
+    if (isOvertimePeriod) {
+      const isPastEndTime = now > parseISO(currentPeriod.timeWindow.end);
+      if (isPastEndTime) return 'หมดเวลาทำงานล่วงเวลา';
+      if (isEarlyOvertimePeriod) return 'ช่วงเวลาทำงานล่วงเวลาก่อนกะปกติ';
+      return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
+    }
+
+    const shiftStart = shiftData
+      ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
+      : null;
+    const shiftEnd = shiftData
+      ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`)
+      : null;
+
+    if (!shiftStart || !shiftEnd) return '';
+
+    const earlyWindow = {
+      start: subMinutes(shiftStart, 30),
+      end: shiftStart,
+    };
+
+    // Check if we have upcoming overtime
+    const hasUpcomingOvertime = overtimeInfo && overtimeInfo.startTime;
+    if (hasUpcomingOvertime) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+      );
+      const approachingOvertime = isWithinInterval(now, {
+        start: subMinutes(overtimeStart, 30),
+        end: overtimeStart,
+      });
+
+      if (approachingOvertime) {
+        return `กำลังจะถึงเวลาทำงานล่วงเวลา (${formatSafeTime(overtimeInfo.startTime)} น.)`;
+      }
+    }
+
+    if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
+    if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
+    if (now < earlyWindow.start) return 'ยังไม่ถึงเวลาทำงาน';
+    return 'อยู่ในเวลาทำงานปกติ';
+  };
 
   return (
     <div className="space-y-4">
@@ -64,9 +119,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
         <div className="relative h-3 rounded-full overflow-hidden mb-2">
           <div className="absolute w-full h-full bg-gray-100" />
           <div
-            className={`absolute h-full transition-all duration-300 ${
-              isOvertimePeriod ? 'bg-yellow-500' : 'bg-blue-500'
-            }`}
+            className={`absolute h-full transition-all duration-300 ${getProgressBarColor()}`}
             style={{ width: `${Math.min(metrics.progressPercent, 100)}%` }}
           />
         </div>
@@ -91,7 +144,13 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
       {/* Time Information */}
       <div>
         <div className="text-sm font-medium mb-2 flex items-center justify-between">
-          <span>{isOvertimePeriod ? 'เวลาทำงานล่วงเวลา' : 'เวลาทำงาน'}</span>
+          <span>
+            {isOvertimePeriod
+              ? isEarlyOvertimePeriod
+                ? 'เวลาทำงานล่วงเวลาก่อนกะปกติ'
+                : 'เวลาทำงานล่วงเวลา'
+              : 'เวลาทำงาน'}
+          </span>
           {!isOvertimePeriod && (
             <>
               {metrics.lateMinutes > 0 && (

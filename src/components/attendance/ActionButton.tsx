@@ -9,6 +9,7 @@ import {
 import { formatSafeTime } from '@/shared/timeUtils';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { ExtendedValidation, TransitionInfo } from '@/types/attendance';
+import { parseISO, format, subMinutes } from 'date-fns';
 
 interface ActionButtonProps {
   attendanceStatus: {
@@ -58,6 +59,11 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 
   const isTransitionToRegular = transition?.to.type === PeriodType.REGULAR;
   const isTransitionToOvertime = transition?.to.type === PeriodType.OVERTIME;
+  const isEarlyOvertimePeriod =
+    periodWindow?.start &&
+    periodType === PeriodType.OVERTIME &&
+    parseISO(periodWindow.start) <
+      parseISO(`${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`);
 
   const isDisabled = useMemo(() => {
     // Special handling for overtime periods
@@ -148,57 +154,25 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       );
     }
 
-    if (isInTransitionState) {
+    // Handle transition to overtime
+    if (type === 'overtime' && isTransitionToOvertime) {
+      const isEarlyOvertimeTransition =
+        transition?.to.start &&
+        parseISO(
+          `${format(getCurrentTime(), 'yyyy-MM-dd')}T${transition.to.start}`,
+        ) <
+          parseISO(
+            `${format(getCurrentTime(), 'yyyy-MM-dd')}T${transition.from.end}`,
+          );
+
       return (
-        <div className="flex flex-col items-center gap-2">
-          <div className="text-sm text-yellow-600 flex items-center gap-1">
-            <Clock size={16} />
-            <span>ช่วงเวลาทำงานล่วงเวลา</span>
-          </div>
-
-          <div className="flex gap-2">
-            {/* Regular checkout button */}
-            <button
-              onClick={handleRegularClick}
-              disabled={!systemState.isReady}
-              className={`h-20 w-20 rounded-l-full ${baseButtonStyle} ${
-                !systemState.isReady
-                  ? buttonDisabledStyle
-                  : buttonEnabledStyle('regular')
-              }`}
-              aria-label="Regular checkout"
-            >
-              <div className="flex flex-col items-center leading-tight">
-                <span className="text-white text-sm">ออกงาน</span>
-                <span className="text-white text-xl font-semibold -mt-1">
-                  ปกติ
-                </span>
-              </div>
-            </button>
-
-            {/* Overtime button */}
-            <button
-              onClick={handleOvertimeClick}
-              disabled={!systemState.isReady}
-              className={`h-20 w-20 rounded-r-full ${baseButtonStyle} ${
-                !systemState.isReady
-                  ? buttonDisabledStyle
-                  : buttonEnabledStyle('overtime')
-              }`}
-              aria-label="Start overtime"
-            >
-              <div className="flex flex-col items-center leading-tight">
-                <span className="text-white text-sm">เข้างาน</span>
-                <span className="text-white text-xl font-semibold -mt-1">
-                  OT
-                </span>
-              </div>
-            </button>
-          </div>
-
-          <div className="text-xs text-gray-500 text-center">
-            เลือก: ออกงานปกติ หรือ ทำงานล่วงเวลาต่อ
-          </div>
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-white text-sm">
+            {isEarlyOvertimeTransition ? 'เริ่ม OT' : 'เข้า OT'}
+          </span>
+          <span className="text-white text-xl font-semibold -mt-1">
+            {formatSafeTime(transition.to.start)}
+          </span>
         </div>
       );
     }
@@ -210,6 +184,20 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         periodWindow?.end && now > new Date(periodWindow.end);
       const isOvertimeCheckedIn =
         attendanceStatus.checkStatus === CheckStatus.CHECKED_IN;
+
+      // Special display for early overtime period
+      if (isEarlyOvertimePeriod) {
+        return (
+          <div className="flex flex-col items-center leading-tight">
+            <span className="text-white text-sm">
+              {isCheckIn ? 'เริ่ม OT' : 'ออก OT'}
+            </span>
+            <span className="text-white text-xl font-semibold -mt-1">
+              {isCheckIn ? formatSafeTime(periodWindow.start) : 'OT'}
+            </span>
+          </div>
+        );
+      }
 
       // Special display for overtime checkout after end time
       if (isOvertimeCheckedIn && isPastEndTime) {
@@ -240,7 +228,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   };
 
   const StatusMessages = () => {
-    // Only render messages when NOT in transition state
     if (isInTransitionState) return null;
 
     return (
@@ -256,9 +243,11 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                 )}
                 {periodWindow && !validation.message && !systemState.error && (
                   <p>
-                    {periodType === PeriodType.OVERTIME
-                      ? 'ช่วงเวลาทำงานล่วงเวลา'
-                      : 'ช่วงเวลาทำงานปกติ'}
+                    {isEarlyOvertimePeriod
+                      ? 'ช่วงเวลาทำงานล่วงเวลาก่อนกะปกติ'
+                      : periodType === PeriodType.OVERTIME
+                        ? 'ช่วงเวลาทำงานล่วงเวลา'
+                        : 'ช่วงเวลาทำงานปกติ'}
                     {`: ${formatSafeTime(periodWindow.start)} - ${formatSafeTime(periodWindow.end)} น.`}
                   </p>
                 )}
@@ -270,7 +259,67 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     );
   };
 
+  // Add these new helper methods to check period timing
+  const isEarlyMorningTime = () => {
+    const now = getCurrentTime();
+    const earlyMorningEnd = parseISO(`${format(now, 'yyyy-MM-dd')}T05:00:00`);
+    return now < earlyMorningEnd;
+  };
+
+  const isApproachingOvertime = () => {
+    if (!transition?.to.start) return false;
+    const now = getCurrentTime();
+    const overtimeStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${transition.to.start}`,
+    );
+    const approachWindow = subMinutes(overtimeStart, 30);
+    return now >= approachWindow && now < overtimeStart;
+  };
+
+  // Update the renderButtons method to handle early morning cases
   const renderButtons = () => {
+    // Don't allow regular check-in during very early morning hours
+    if (
+      periodType === PeriodType.REGULAR &&
+      isEarlyMorningTime() &&
+      !attendanceStatus.isOvertime
+    ) {
+      return (
+        <button
+          disabled={true}
+          className={`h-20 w-20 ${baseButtonStyle} ${buttonDisabledStyle}`}
+          aria-label="Too early for check-in"
+        >
+          <div className="flex flex-col items-center leading-tight">
+            <span className="text-gray-600 text-sm">ยังไม่ถึง</span>
+            <span className="text-gray-600 text-xl font-semibold -mt-1">
+              เวลาทำงาน
+            </span>
+          </div>
+        </button>
+      );
+    }
+
+    // Handle approaching overtime period
+    if (isApproachingOvertime() && !isInTransitionState) {
+      return (
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-sm text-yellow-600 flex items-center gap-1">
+            <Clock size={16} />
+            <span>กำลังจะถึงเวลา OT</span>
+          </div>
+          <button
+            disabled={isDisabled}
+            className={`h-20 w-20 ${baseButtonStyle} ${
+              isDisabled ? buttonDisabledStyle : buttonEnabledStyle('overtime')
+            }`}
+            onClick={handleOvertimeClick}
+          >
+            {renderButtonContent('overtime', true)}
+          </button>
+        </div>
+      );
+    }
     // Prioritize transition state rendering
     if (isInTransitionState) {
       return (

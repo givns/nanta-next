@@ -45,6 +45,11 @@ const VALIDATION_THRESHOLDS = {
   LATE_CHECKOUT: 15, // 15 minutes after shift end
 } as const;
 
+const TRANSITION_CONFIG = {
+  EARLY_BUFFER: 15, // 15 minutes before period
+  LATE_BUFFER: 15, // 15 minutes after period
+} as const;
+
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
 
@@ -61,22 +66,45 @@ export class AttendanceEnhancementService {
       };
     }
 
-    // If there's active overtime period
-    if (
-      window.overtimeInfo &&
-      isWithinInterval(now, {
-        start: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-        ),
-        end: parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
-        ),
-      })
-    ) {
-      return {
-        type: PeriodType.OVERTIME,
-        isActive: false,
-      };
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`,
+    );
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+    );
+
+    // Check for overtime period (both current and upcoming)
+    if (window.overtimeInfo) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
+      );
+
+      // If overtime is before regular shift (early morning overtime)
+      if (overtimeStart < shiftStart) {
+        // Check if we're approaching overtime period (within early check-in window)
+        const overtimeEarlyThreshold = subMinutes(
+          overtimeStart,
+          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        );
+
+        if (now >= overtimeEarlyThreshold) {
+          return {
+            type: PeriodType.OVERTIME,
+            isActive: false,
+          };
+        }
+      }
+
+      // Check if currently in overtime period
+      if (isWithinInterval(now, { start: overtimeStart, end: overtimeEnd })) {
+        return {
+          type: PeriodType.OVERTIME,
+          isActive: false,
+        };
+      }
     }
 
     // Default to regular period
@@ -115,20 +143,23 @@ export class AttendanceEnhancementService {
       },
     });
 
-    // For post-shift overtime (most common case)
-    if (overtimeStart >= shiftEnd) {
-      const transitionWindow = {
-        start: subMinutes(shiftEnd, 15),
-        end: addMinutes(shiftEnd, 15), // 15 minutes after shift end
+    // Pre-shift overtime (early morning)
+    if (overtimeStart < shiftStart) {
+      const preShiftTransitionWindow = {
+        start: subMinutes(overtimeStart, TRANSITION_CONFIG.EARLY_BUFFER),
+        end: overtimeStart,
       };
 
-      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+      const isInPreShiftWindow = isWithinInterval(
+        now,
+        preShiftTransitionWindow,
+      );
 
-      if (isInTransitionWindow) {
+      if (isInPreShiftWindow) {
         return {
           from: {
             type: PeriodType.REGULAR,
-            end: periodState.shift.endTime,
+            end: format(overtimeStart, 'HH:mm'),
           },
           to: {
             type: PeriodType.OVERTIME,
@@ -139,24 +170,27 @@ export class AttendanceEnhancementService {
       }
     }
 
-    // For pre-shift overtime
-    if (overtimeStart < shiftStart) {
-      const transitionWindow = {
-        start: subMinutes(shiftStart, 15),
-        end: shiftStart,
+    // Post-shift overtime
+    if (overtimeStart >= shiftEnd) {
+      const postShiftTransitionWindow = {
+        start: subMinutes(shiftEnd, TRANSITION_CONFIG.EARLY_BUFFER),
+        end: addMinutes(shiftEnd, TRANSITION_CONFIG.LATE_BUFFER),
       };
 
-      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+      const isInPostShiftWindow = isWithinInterval(
+        now,
+        postShiftTransitionWindow,
+      );
 
-      if (isInTransitionWindow) {
+      if (isInPostShiftWindow) {
         return {
           from: {
-            type: PeriodType.OVERTIME,
-            end: overtimeInfo.endTime,
+            type: PeriodType.REGULAR,
+            end: periodState.shift.endTime,
           },
           to: {
-            type: PeriodType.REGULAR,
-            start: periodState.shift.startTime,
+            type: PeriodType.OVERTIME,
+            start: overtimeInfo.startTime,
           },
           isInTransition: true,
         };
