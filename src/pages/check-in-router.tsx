@@ -393,7 +393,10 @@ const CheckInRouter: React.FC = () => {
     // Show summary if all periods completed
     if (isAllPeriodsCompleted) {
       if (showNextDay) {
-        // Show next day schedule
+        console.log('Debug nextDayProps:', {
+          hasOvertimeInfo: Boolean(safeAttendanceProps?.context?.overtimeInfo),
+          overtimeInfo: safeAttendanceProps?.context?.overtimeInfo,
+        });
         return (
           <NextDayInfo
             nextDayInfo={{

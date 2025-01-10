@@ -646,9 +646,15 @@ export class ShiftManagementService {
           endOfDay(nextDay),
         )) || [];
 
-      if (overtimes.length > 0) {
-        // Map the first overtime to overtimeInfo in ShiftWindowResponse
-        return {
+      console.log('Debug overtimes:', {
+        hasOvertimes: Boolean(overtimes?.length),
+        overtimes,
+        baseWindow,
+      });
+
+      if (overtimes && overtimes.length > 0) {
+        // Log the transformed data
+        const transformedResponse = {
           ...baseWindow,
           overtimeInfo: {
             id: overtimes[0].id,
@@ -660,6 +666,8 @@ export class ShiftManagementService {
             reason: overtimes[0].reason || undefined,
           },
         };
+        console.log('Transformed response:', transformedResponse);
+        return transformedResponse;
       }
 
       return baseWindow;

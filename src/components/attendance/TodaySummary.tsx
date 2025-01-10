@@ -19,7 +19,7 @@ const TodaySummary: React.FC<TodaySummaryProps> = ({
   const currentTime = getCurrentTime();
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-30 bg-white border-b border-gray-100">
         <div className="px-4 py-3">
@@ -78,7 +78,7 @@ const TodaySummary: React.FC<TodaySummaryProps> = ({
         <div className="px-4 mt-6">
           <Button
             onClick={onViewNextDay}
-            className="w-full bg-primary text-white hover:bg-primary/90 flex items-center justify-center gap-2 py-6"
+            className="w-full bg-primary text-black hover:bg-primary/90 flex items-center justify-center gap-2 py-6"
           >
             <Calendar size={20} />
             ดูตารางงานวันพรุ่งนี้

@@ -4,6 +4,11 @@ import { formatSafeTime } from '@/shared/timeUtils';
 import { NextDayInfoProps } from '@/types/attendance';
 
 const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
+  console.log('Debug NextDayInfo:', {
+    hasOvertime: Boolean(nextDayInfo.overtime),
+    overtime: nextDayInfo.overtime,
+  });
+
   return (
     <Card className="bg-slate-400-100 mb-4">
       <CardHeader>
