@@ -377,16 +377,26 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
             {/* Overtime Information */}
             {overtimeInfo && (
               <div className="text-sm text-gray-500 mt-1">
-                {!attendanceStatus.latestAttendance?.CheckOutTime &&
-                !status.isDayOff
-                  ? 'มีการทำงานล่วงเวลาวันนี้: '
-                  : 'เวลาทำงานล่วงเวลา: '}
-                {formatSafeTime(overtimeInfo.startTime)} -{' '}
-                {formatSafeTime(overtimeInfo.endTime)} น.
-                {overtimeInfo.durationMinutes && (
-                  <span className="ml-2">
-                    ({overtimeInfo.durationMinutes} นาที)
-                  </span>
+                {/* Title and time */}
+                <div>
+                  {!attendanceStatus.latestAttendance?.CheckOutTime &&
+                  !status.isDayOff
+                    ? 'มีการทำงานล่วงเวลาวันนี้: '
+                    : 'เวลาทำงานล่วงเวลา: '}
+                  {formatSafeTime(overtimeInfo.startTime)} -{' '}
+                  {formatSafeTime(overtimeInfo.endTime)} น.
+                  {overtimeInfo.durationMinutes && (
+                    <span className="ml-2">
+                      ({overtimeInfo.durationMinutes} นาที)
+                    </span>
+                  )}
+                </div>
+                {/* Add reason */}
+                {overtimeInfo.reason && (
+                  <div className="mt-1 flex gap-2">
+                    <span className="text-gray-400">เหตุผล:</span>
+                    <span>{overtimeInfo.reason}</span>
+                  </div>
                 )}
               </div>
             )}

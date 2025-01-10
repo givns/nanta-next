@@ -5,21 +5,17 @@ import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
 import { UserData } from '@/types/user';
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  PeriodType,
-} from '@prisma/client';
+import { PeriodType } from '@prisma/client';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
 import DailyAttendanceSummary from '@/components/attendance/DailyAttendanceSummary';
 import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
-  AttendanceBaseResponse,
   AttendanceRecord,
   SerializedAttendanceRecord,
 } from '@/types/attendance';
+import { useNextDayInfo } from '@/hooks/useNextDayInfo';
+import { LoadingSpinner } from '@/components/LoadingSpinnner';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -286,6 +282,12 @@ const CheckInRouter: React.FC = () => {
     }
   }, [authLoading, userData, locationReady, locationState]);
 
+  // Only fetch next day info when needed
+  const { nextDayInfo } = useNextDayInfo(
+    userData?.employeeId,
+    Boolean(isAllPeriodsCompleted),
+  );
+
   const mainContent = useMemo(() => {
     if (!userData || !safeAttendanceProps?.base?.state) return null;
 
@@ -388,8 +390,16 @@ const CheckInRouter: React.FC = () => {
     };
 
     // Show summary if all periods completed
-    // Add this to the mainContent check
     if (isAllPeriodsCompleted) {
+      if (!nextDayInfo) {
+        // Show loading state or return early
+        return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+            <LoadingSpinner />
+          </div>
+        );
+      }
+
       return (
         <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
           <DailyAttendanceSummary
@@ -444,7 +454,13 @@ const CheckInRouter: React.FC = () => {
         />
       </div>
     );
-  }, [userData, safeAttendanceProps, dailyRecords, isAllPeriodsCompleted]);
+  }, [
+    userData,
+    safeAttendanceProps,
+    dailyRecords,
+    isAllPeriodsCompleted,
+    nextDayInfo,
+  ]);
 
   // Error state
   if (error || attendanceError) {

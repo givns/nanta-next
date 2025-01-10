@@ -610,6 +610,70 @@ export class ShiftManagementService {
     return null;
   }
 
+  // In ShiftManagementService.ts
+  async getNextDayPeriodState(
+    employeeId: string,
+    now: Date,
+  ): Promise<ShiftWindowResponse> {
+    const nextDay = addDays(now, 1);
+
+    // Get basic shift window for next day
+    const baseWindow = await this.getCurrentWindow(employeeId, nextDay);
+    if (!baseWindow) {
+      // Handle null case by returning default ShiftWindowResponse
+      return {
+        type: PeriodType.OVERTIME,
+        current: {
+          start: format(startOfDay(nextDay), "yyyy-MM-dd'T'HH:mm:ss"),
+          end: format(endOfDay(nextDay), "yyyy-MM-dd'T'HH:mm:ss"),
+        },
+        shift: {
+          id: '',
+          shiftCode: '',
+          name: '',
+          startTime: '',
+          endTime: '',
+          workDays: [],
+        },
+        isHoliday: false,
+        isDayOff: false,
+        isAdjusted: false,
+      };
+    }
+
+    try {
+      // Get overtime info for next day using getDetailedOvertimesInRange
+      const nextDayOvertimes =
+        await this.overtimeService?.getDetailedOvertimesInRange(
+          employeeId,
+          startOfDay(nextDay),
+          endOfDay(nextDay),
+        );
+
+      // Get the first approved overtime for next day
+      const nextDayOvertime = nextDayOvertimes?.[0];
+
+      return {
+        ...baseWindow,
+        overtimeInfo: nextDayOvertime
+          ? {
+              id: nextDayOvertime.id,
+              startTime: format(nextDayOvertime.startTime, 'HH:mm'),
+              endTime: format(nextDayOvertime.endTime, 'HH:mm'),
+              durationMinutes: nextDayOvertime.durationMinutes,
+              reason: nextDayOvertime.reason || '',
+              // Add required fields from OvertimeContext type
+              isInsideShiftHours: false, // Default value
+              isDayOffOvertime: baseWindow.isDayOff,
+            }
+          : undefined,
+      };
+    } catch (error) {
+      console.error('Error getting next day overtimes:', error);
+      return baseWindow;
+    }
+  }
+
   private mapOvertimeInfo(ot: ApprovedOvertimeInfo): OvertimeContext {
     return {
       id: ot.id,
