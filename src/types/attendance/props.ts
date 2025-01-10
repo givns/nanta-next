@@ -340,7 +340,7 @@ export interface NextDayScheduleInfo {
       reason: string;
     };
   };
-  overtime?: OvertimeContext;
+  overtime?: OvertimeContext[];
 }
 
 export interface NextDayInfoProps {

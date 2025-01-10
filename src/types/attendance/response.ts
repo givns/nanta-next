@@ -64,6 +64,29 @@ export interface ShiftWindowResponse {
   };
 }
 
+export interface NextDayScheduleResponse {
+  // Base info from ShiftWindowResponse
+  current: {
+    start: string;
+    end: string;
+  };
+  type: PeriodType;
+  shift: {
+    id: string;
+    shiftCode: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+    workDays: number[];
+  };
+  isHoliday: boolean;
+  isDayOff: boolean;
+  isAdjusted: boolean;
+  holidayInfo?: HolidayInfo;
+  // Add an array for all overtimes
+  overtimes: OvertimeContext[];
+}
+
 export interface ValidationResponseWithMetadata {
   allowed: boolean;
   reason: string;

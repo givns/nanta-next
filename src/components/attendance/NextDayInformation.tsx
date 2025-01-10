@@ -95,25 +95,27 @@ const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
                 </div>
               </div>
               {/* Overtime Info */}
-              {nextDayInfo.overtime && (
+              {nextDayInfo.overtime && nextDayInfo.overtime.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <div className="text-sm font-medium text-yellow-600">
                     งานล่วงเวลา
                   </div>
-                  <div className="ml-6 text-sm">
-                    <div className="text-gray-600">
-                      {formatSafeTime(nextDayInfo.overtime.startTime)} -{' '}
-                      {formatSafeTime(nextDayInfo.overtime.endTime)} น.
-                      <span className="text-gray-400 ml-2">
-                        ({nextDayInfo.overtime.durationMinutes} นาที)
-                      </span>
-                    </div>
-                    {nextDayInfo.overtime.reason && (
-                      <div className="text-xs text-gray-500">
-                        เหตุผล: {nextDayInfo.overtime.reason}
+                  {nextDayInfo.overtime.map((overtime, index) => (
+                    <div key={overtime.id} className="ml-6 text-sm">
+                      <div className="text-gray-600">
+                        {formatSafeTime(overtime.startTime)} -{' '}
+                        {formatSafeTime(overtime.endTime)} น.
+                        <span className="text-gray-400 ml-2">
+                          ({overtime.durationMinutes} นาที)
+                        </span>
                       </div>
-                    )}
-                  </div>
+                      {overtime.reason && (
+                        <div className="text-xs text-gray-500">
+                          เหตุผล: {overtime.reason}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

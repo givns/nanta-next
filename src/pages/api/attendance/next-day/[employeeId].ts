@@ -1,9 +1,15 @@
 // pages/api/attendance/next-day/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { AppError, ErrorCode, NextDayScheduleInfo } from '@/types/attendance';
+import {
+  AppError,
+  ErrorCode,
+  NextDayScheduleInfo,
+  NextDayScheduleResponse,
+} from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
+import { startOfDay, addDays, endOfDay } from 'date-fns';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -51,23 +57,31 @@ export default async function handler(
       getCurrentTime(),
     );
 
-    const response: NextDayScheduleInfo = {
+    const nextDayOvertimes =
+      (await services.overtimeService.getDetailedOvertimesInRange(
+        employeeId as string,
+        startOfDay(addDays(getCurrentTime(), 1)),
+        endOfDay(addDays(getCurrentTime(), 1)),
+      )) || [];
+
+    const response: NextDayScheduleResponse = {
+      current: nextDayState.current,
+      type: nextDayState.type,
+      shift: nextDayState.shift,
       isHoliday: nextDayState.isHoliday,
-      holidayInfo: nextDayState.holidayInfo
-        ? {
-            name: nextDayState.holidayInfo.localName || '',
-            date: nextDayState.holidayInfo.date,
-          }
-        : undefined,
       isDayOff: nextDayState.isDayOff,
-      shift: {
-        id: nextDayState.shift.id,
-        name: nextDayState.shift.name,
-        startTime: nextDayState.shift.startTime,
-        endTime: nextDayState.shift.endTime,
-        isAdjusted: nextDayState.isAdjusted,
-      },
-      overtime: nextDayState.overtimeInfo,
+      isAdjusted: nextDayState.isAdjusted,
+      holidayInfo: nextDayState.holidayInfo,
+
+      overtimes: nextDayOvertimes.map((ot) => ({
+        id: ot.id,
+        startTime: ot.startTime,
+        endTime: ot.endTime,
+        durationMinutes: ot.durationMinutes,
+        isInsideShiftHours: ot.isInsideShiftHours,
+        isDayOffOvertime: ot.isDayOffOvertime,
+        reason: ot.reason || undefined,
+      })),
     };
 
     return res.status(200).json(response);
