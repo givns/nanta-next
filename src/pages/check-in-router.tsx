@@ -447,6 +447,11 @@ const CheckInRouter: React.FC = () => {
           );
         }
 
+        console.log('Rendering NextDayInfo with:', {
+          hasOvertimes: Boolean(nextDayData.overtime?.length),
+          overtimes: nextDayData.overtime,
+        });
+
         return (
           <NextDayInfo
             nextDayInfo={nextDayData}

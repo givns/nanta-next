@@ -2,12 +2,16 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Calendar, Clock, AlertCircle } from 'lucide-react';
 import { formatSafeTime } from '@/shared/timeUtils';
 import { NextDayInfoProps } from '@/types/attendance';
+import { useEffect } from 'react';
 
 const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
-  console.log('Debug NextDayInfo:', {
-    hasOvertime: Boolean(nextDayInfo.overtime),
-    overtime: nextDayInfo.overtime,
-  });
+  useEffect(() => {
+    console.log('NextDayInfo rendered with:', {
+      hasOvertimes: Boolean(nextDayInfo.overtime?.length),
+      overtimesCount: nextDayInfo.overtime?.length,
+      overtimes: nextDayInfo.overtime,
+    });
+  }, [nextDayInfo]);
 
   return (
     <Card className="bg-slate-400-100 mb-4">
@@ -94,24 +98,24 @@ const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
                     )}
                 </div>
               </div>
-              {/* Overtime Info */}
+              {/* Overtime Section */}
               {nextDayInfo.overtime && nextDayInfo.overtime.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <div className="text-sm font-medium text-yellow-600">
                     งานล่วงเวลา
                   </div>
-                  {nextDayInfo.overtime.map((overtime, index) => (
-                    <div key={overtime.id} className="ml-6 text-sm">
+                  {nextDayInfo.overtime.map((ot, index) => (
+                    <div key={ot.id} className="ml-6 text-sm">
                       <div className="text-gray-600">
-                        {formatSafeTime(overtime.startTime)} -{' '}
-                        {formatSafeTime(overtime.endTime)} น.
+                        {formatSafeTime(ot.startTime)} -{' '}
+                        {formatSafeTime(ot.endTime)} น.
                         <span className="text-gray-400 ml-2">
-                          ({overtime.durationMinutes} นาที)
+                          ({ot.durationMinutes} นาที)
                         </span>
                       </div>
-                      {overtime.reason && (
+                      {ot.reason && (
                         <div className="text-xs text-gray-500">
-                          เหตุผล: {overtime.reason}
+                          เหตุผล: {ot.reason}
                         </div>
                       )}
                     </div>
