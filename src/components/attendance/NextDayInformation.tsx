@@ -9,7 +9,7 @@ interface NextDayInfoProps {
 
 const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
   return (
-    <Card className="bg-white mb-4">
+    <Card className="bg-slate-400-100 mb-4">
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Calendar size={20} className="text-primary" />

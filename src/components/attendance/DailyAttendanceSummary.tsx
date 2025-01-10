@@ -179,11 +179,6 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
           </div>
         </div>
 
-        {/* Next Day Information */}
-        <div className="px-4">
-          <NextDayInfo nextDayInfo={nextDayInfo} />
-        </div>
-
         {/* Attendance Records */}
         <div className="px-4 space-y-4">
           {sortedRecords[PeriodType.REGULAR].map(({ record }) => (
@@ -201,6 +196,11 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
               periodType={PeriodType.OVERTIME}
             />
           ))}
+        </div>
+
+        {/* Next Day Information */}
+        <div className="px-4">
+          <NextDayInfo nextDayInfo={nextDayInfo} />
         </div>
 
         {/* Close Button */}
