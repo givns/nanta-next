@@ -7,9 +7,9 @@ import { useEffect } from 'react';
 const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
   useEffect(() => {
     console.log('NextDayInfo rendered with:', {
-      hasOvertimes: Boolean(nextDayInfo.overtime?.length),
-      overtimesCount: nextDayInfo.overtime?.length,
-      overtimes: nextDayInfo.overtime,
+      hasOvertimes: Boolean(nextDayInfo.overtimes?.length),
+      overtimesCount: nextDayInfo.overtimes?.length,
+      overtimes: nextDayInfo.overtimes,
     });
   }, [nextDayInfo]);
 
@@ -99,12 +99,12 @@ const NextDayInfo: React.FC<NextDayInfoProps> = ({ nextDayInfo }) => {
                 </div>
               </div>
               {/* Overtime Section */}
-              {nextDayInfo.overtime && nextDayInfo.overtime.length > 0 && (
+              {nextDayInfo.overtimes && nextDayInfo.overtimes.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <div className="text-sm font-medium text-yellow-600">
                     งานล่วงเวลา
                   </div>
-                  {nextDayInfo.overtime.map((ot, index) => (
+                  {nextDayInfo.overtimes.map((ot, index) => (
                     <div key={ot.id} className="ml-6 text-sm">
                       <div className="text-gray-600">
                         {formatSafeTime(ot.startTime)} -{' '}
