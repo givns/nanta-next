@@ -5,7 +5,12 @@ import { User, Building2, Clock, CheckCircle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PeriodType } from '@prisma/client';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { UserData, SerializedAttendanceRecord } from '@/types/attendance';
+import {
+  UserData,
+  SerializedAttendanceRecord,
+  DailyAttendanceSummaryProps,
+} from '@/types/attendance';
+import NextDayInfo from './NextDayInformation';
 
 const AttendanceCard: React.FC<{
   record: SerializedAttendanceRecord;
@@ -51,7 +56,7 @@ const AttendanceCard: React.FC<{
             <Clock size={20} className="text-primary" />
             <span>
               {periodType === PeriodType.REGULAR
-                ? 'กะปกติ'
+                ? 'เวลาทำงานปกติ'
                 : 'ช่วงทำงานล่วงเวลา'}
             </span>
           </div>
@@ -98,18 +103,10 @@ const AttendanceCard: React.FC<{
   );
 };
 
-interface DailyAttendanceSummaryProps {
-  userData: UserData;
-  records: Array<{
-    record: SerializedAttendanceRecord;
-    periodSequence: number;
-  }>;
-  onClose?: () => void;
-}
-
 const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
   userData,
   records,
+  nextDayInfo,
   onClose,
 }) => {
   const currentTime = getCurrentTime();
@@ -180,6 +177,11 @@ const DailyAttendanceSummary: React.FC<DailyAttendanceSummaryProps> = ({
             </div>
             <div className="text-sm text-green-600">ลงเวลาครบทุกช่วงแล้ว</div>
           </div>
+        </div>
+
+        {/* Next Day Information */}
+        <div className="px-4">
+          <NextDayInfo nextDayInfo={nextDayInfo} />
         </div>
 
         {/* Attendance Records */}

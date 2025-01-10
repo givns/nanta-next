@@ -388,12 +388,46 @@ const CheckInRouter: React.FC = () => {
     };
 
     // Show summary if all periods completed
+    // Add this to the mainContent check
     if (isAllPeriodsCompleted) {
       return (
         <div className="min-h-screen flex flex-col bg-gray-50 transition-opacity duration-300">
           <DailyAttendanceSummary
             userData={userData}
             records={serializeRecords(dailyRecords)}
+            nextDayInfo={{
+              isHoliday: safeAttendanceProps.context.schedule.isHoliday,
+              holidayInfo: safeAttendanceProps.context.schedule.holidayInfo,
+              isDayOff: safeAttendanceProps.context.schedule.isDayOff,
+              leaveInfo: safeAttendanceProps.context.schedule.leaveInfo,
+              shift: {
+                id: safeAttendanceProps.context.shift.id,
+                name: safeAttendanceProps.context.shift.name,
+                startTime: safeAttendanceProps.context.shift.startTime,
+                endTime: safeAttendanceProps.context.shift.endTime,
+                isAdjusted: safeAttendanceProps.context.schedule.isAdjusted,
+                adjustedInfo:
+                  safeAttendanceProps.context.schedule.adjustedShiftInfo,
+              },
+              overtime: safeAttendanceProps.context.nextPeriod?.overtimeInfo
+                ? [
+                    {
+                      startTime:
+                        safeAttendanceProps.context.nextPeriod.overtimeInfo
+                          .startTime,
+                      endTime:
+                        safeAttendanceProps.context.nextPeriod.overtimeInfo
+                          .endTime,
+                      duration:
+                        safeAttendanceProps.context.nextPeriod.overtimeInfo
+                          .durationMinutes,
+                      reason:
+                        safeAttendanceProps.context.nextPeriod.overtimeInfo
+                          .reason,
+                    },
+                  ]
+                : undefined,
+            }}
             onClose={closeWindow}
           />
         </div>

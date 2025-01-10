@@ -20,7 +20,11 @@ import {
   ValidationMetadata,
 } from '../attendance';
 import { KeyedMutator } from 'swr';
-import { AttendanceBaseResponse, LocationState } from './base';
+import {
+  AttendanceBaseResponse,
+  LocationState,
+  SerializedAttendanceRecord,
+} from './base';
 import {
   AttendanceState,
   CheckStatus,
@@ -296,4 +300,44 @@ export interface ExtendedValidation {
   reason: string;
   flags: ValidationFlags;
   metadata: ValidationMetadata;
+}
+
+export interface DailyAttendanceSummaryProps {
+  userData: UserData;
+  records: Array<{
+    record: SerializedAttendanceRecord;
+    periodSequence: number;
+  }>;
+  nextDayInfo: {
+    isHoliday: boolean;
+    holidayInfo?: {
+      name: string;
+      date: string;
+    };
+    isDayOff: boolean;
+    leaveInfo?: {
+      type: string;
+      duration: string;
+      status: string;
+    } | null;
+    shift: {
+      id: string;
+      name: string;
+      startTime: string;
+      endTime: string;
+      isAdjusted: boolean;
+      adjustedInfo?: {
+        originalStart: string;
+        originalEnd: string;
+        reason: string;
+      };
+    };
+    overtime?: {
+      startTime: string;
+      endTime: string;
+      duration: number;
+      reason: string;
+    }[];
+  };
+  onClose?: () => void;
 }

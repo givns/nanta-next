@@ -369,7 +369,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
               !status.isHoliday &&
               currentPeriod.type !== PeriodType.OVERTIME && (
                 <div className="text-sm text-gray-500">
-                  เวลางาน {formatSafeTime(shiftData.startTime)} -{' '}
+                  เวลาทำงานปกติ {formatSafeTime(shiftData.startTime)} -{' '}
                   {formatSafeTime(shiftData.endTime)} น.
                 </div>
               )}
