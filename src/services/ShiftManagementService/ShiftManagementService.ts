@@ -43,11 +43,7 @@ import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
 import { AttendanceRecordService } from '../Attendance/AttendanceRecordService';
 
-const VALIDATION_THRESHOLDS = {
-  OVERTIME_CHECKOUT: 15, // 15 minutes threshold for overtime checkout
-  EARLY_CHECKIN: 30, // 30 minutes before shift start
-  LATE_CHECKOUT: 15, // 15 minutes after shift end
-} as const;
+const prisma = new PrismaClient();
 
 interface TimePeriod {
   type: PeriodType;
@@ -55,8 +51,6 @@ interface TimePeriod {
   endTime: string;
   isOvertime: boolean;
 }
-
-const prisma = new PrismaClient();
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -621,93 +615,6 @@ export class ShiftManagementService {
     }
 
     return null;
-  }
-
-  private getAllPeriodsForDay(window: ShiftWindowResponse): TimePeriod[] {
-    const periods: TimePeriod[] = [];
-    const now = getCurrentTime();
-    const today = format(now, 'yyyy-MM-dd');
-
-    // Add regular shift period
-    if (window.shift) {
-      periods.push({
-        type: PeriodType.REGULAR,
-        startTime: `${today}T${window.shift.startTime}`,
-        endTime: `${today}T${window.shift.endTime}`,
-        isOvertime: false,
-      });
-    }
-
-    // Add overtime periods
-    if (window.overtimeInfo) {
-      periods.push({
-        type: PeriodType.OVERTIME,
-        startTime: `${today}T${window.overtimeInfo.startTime}`,
-        endTime: `${today}T${window.overtimeInfo.endTime}`,
-        isOvertime: true,
-      });
-    }
-
-    // Sort periods chronologically
-    return periods.sort((a, b) => {
-      return parseISO(a.startTime).getTime() - parseISO(b.startTime).getTime();
-    });
-  }
-
-  private findRelevantPeriod(
-    periods: TimePeriod[],
-    now: Date,
-  ): {
-    currentPeriod: TimePeriod | null;
-    nextPeriod: TimePeriod | null;
-    isWaitingForNext: boolean;
-    isTooEarly: boolean;
-  } {
-    // If no periods, return null states
-    if (!periods.length) {
-      return {
-        currentPeriod: null,
-        nextPeriod: null,
-        isWaitingForNext: false,
-        isTooEarly: false,
-      };
-    }
-
-    // Find the first period that hasn't ended yet
-    const relevantPeriodIndex = periods.findIndex(
-      (period) => now <= parseISO(period.endTime),
-    );
-
-    // If all periods have ended
-    if (relevantPeriodIndex === -1) {
-      return {
-        currentPeriod: periods[periods.length - 1],
-        nextPeriod: null,
-        isWaitingForNext: false,
-        isTooEarly: false,
-      };
-    }
-
-    const relevantPeriod = periods[relevantPeriodIndex];
-    const nextPeriod = periods[relevantPeriodIndex + 1] || null;
-    const periodStart = parseISO(relevantPeriod.startTime);
-    const earlyThreshold = subMinutes(
-      periodStart,
-      VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-    );
-
-    // If we're before the early threshold of the relevant period
-    const isTooEarly = now < earlyThreshold;
-
-    // If we're within the early window of the next period
-    const isWaitingForNext = now >= earlyThreshold && now < periodStart;
-
-    return {
-      currentPeriod: relevantPeriod,
-      nextPeriod,
-      isWaitingForNext,
-      isTooEarly,
-    };
   }
 
   async getNextDayPeriodState(
