@@ -1,6 +1,7 @@
 import { PeriodType } from '@prisma/client';
 import { AttendanceBaseResponse } from './base';
 import { ShiftContext, TransitionContext } from './shift';
+import { ValidationMetadata } from './interface';
 
 export interface AttendanceStateResponse {
   daily: DailyAttendanceStatus;
@@ -62,50 +63,44 @@ export interface StateValidation {
 }
 
 export interface ValidationFlags {
-  // Original fields
+  // Basic check-in/out status
   isCheckingIn: boolean;
   isLateCheckIn: boolean;
   isEarlyCheckIn: boolean;
   isEarlyCheckOut: boolean;
-  isPlannedHalfDayLeave: boolean;
-  isEmergencyLeave: boolean;
-  isOvertime: boolean;
-  requireConfirmation: boolean;
-  isDayOffOvertime: boolean;
-  isInsideShift: boolean;
-  isAutoCheckIn: boolean;
-  isAutoCheckOut: boolean;
-  // Additional required fields
-  hasActivePeriod: boolean;
-  isOutsideShift: boolean;
   isLateCheckOut: boolean;
   isVeryLateCheckOut: boolean;
+
+  // Period status
+  hasActivePeriod: boolean;
+  isInsideShift: boolean;
+  isOutsideShift: boolean;
+  isOvertime: boolean;
+  isDayOffOvertime: boolean;
   isPendingOvertime: boolean;
+
+  // Automation flags
+  isAutoCheckIn: boolean;
+  isAutoCheckOut: boolean;
+  requireConfirmation: boolean;
   requiresAutoCompletion: boolean;
+
+  // Transition flags
   hasPendingTransition: boolean;
   requiresTransition: boolean;
+
+  // Shift timing
   isMorningShift: boolean;
   isAfternoonShift: boolean;
   isAfterMidshift: boolean;
+
+  // Special cases
+  isPlannedHalfDayLeave: boolean;
+  isEmergencyLeave: boolean;
   isApprovedEarlyCheckout: boolean;
   isHoliday: boolean;
   isDayOff: boolean;
   isManualEntry: boolean;
-}
-
-export interface ValidationMetadata {
-  // Core metadata
-  nextTransitionTime?: string;
-  requiredAction?: string;
-  additionalInfo?: Record<string, unknown>;
-
-  // Transition specific metadata
-  missingEntries?: any[]; // Make optional since not always needed
-  transitionWindow?: {
-    start: string;
-    end: string;
-    targetPeriod: PeriodType;
-  };
 }
 
 // New: State Resolution Result

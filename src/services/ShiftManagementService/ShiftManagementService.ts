@@ -43,14 +43,12 @@ import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { ShiftTimeUtils } from './utils';
 import { AttendanceRecordService } from '../Attendance/AttendanceRecordService';
 
-const prisma = new PrismaClient();
-
-interface TimePeriod {
-  type: PeriodType;
+interface OvertimeTimeInfo {
   startTime: string;
   endTime: string;
-  isOvertime: boolean;
 }
+
+const prisma = new PrismaClient();
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -453,59 +451,68 @@ export class ShiftManagementService {
   ): Promise<CurrentPeriod> {
     const now = getCurrentTime();
 
-    // First check for active overtime periods
-    for (const ot of sortedOvertimes) {
-      const otStartTime = parseISO(
-        `${format(date, 'yyyy-MM-dd')}T${ot.startTime}`,
-      );
+    // If there's active attendance, use that type
+    if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
+      const matchingOt =
+        attendance.type === PeriodType.OVERTIME
+          ? this.findMatchingOvertime(sortedOvertimes, date, attendance)
+          : undefined;
 
-      // Check if we're approaching overtime
-      const isApproachingOt = isWithinInterval(now, {
-        start: subMinutes(otStartTime, 15),
-        end: otStartTime,
-      });
-
-      if (isApproachingOt || this.isWithinOvertimePeriod(now, date, ot)) {
-        return {
-          type: PeriodType.OVERTIME,
-          overtimeInfo: this.mapOvertimeInfo(ot),
-          isComplete: isApproachingOt ? false : true,
-        };
-      }
+      return {
+        type: attendance.type,
+        overtimeInfo: matchingOt ? this.mapOvertimeInfo(matchingOt) : undefined,
+        isComplete: false,
+      };
     }
 
-    // Handle incomplete overtime
-    const incompleteOvertime =
-      attendance?.CheckInTime &&
-      !attendance?.CheckOutTime &&
-      attendanceState === AttendanceState.INCOMPLETE;
+    // Sort overtimes chronologically
+    const orderedOvertimes = sortedOvertimes.sort((a, b) => {
+      const aStart = parseISO(`${format(date, 'yyyy-MM-dd')}T${a.startTime}`);
+      const bStart = parseISO(`${format(date, 'yyyy-MM-dd')}T${b.startTime}`);
+      return aStart.getTime() - bStart.getTime();
+    });
 
-    if (incompleteOvertime) {
-      const matchingOt = this.findMatchingOvertime(
-        sortedOvertimes,
-        date,
-        attendance,
-      );
-      if (matchingOt) {
-        return {
-          type: PeriodType.OVERTIME,
-          overtimeInfo: this.mapOvertimeInfo(matchingOt),
-          isComplete: true,
-        };
-      }
-    }
+    // Find early overtimes (before regular shift)
+    const earlyOvertimes = orderedOvertimes.filter((ot) => {
+      const otStart = parseISO(`${format(date, 'yyyy-MM-dd')}T${ot.startTime}`);
+      return otStart < windows.start;
+    });
 
-    // Check active overtime periods
-    for (const ot of sortedOvertimes) {
+    // Check early morning overtimes
+    for (const ot of earlyOvertimes) {
       if (this.isWithinOvertimePeriod(now, date, ot)) {
-        // Don't switch to overtime if previous period incomplete
-        if (
-          attendanceState === AttendanceState.INCOMPLETE &&
-          !attendance?.CheckOutTime
-        ) {
-          continue;
-        }
+        return {
+          type: PeriodType.OVERTIME,
+          overtimeInfo: this.mapOvertimeInfo(ot),
+          isComplete: false,
+        };
+      }
+    }
 
+    // Check regular shift period
+    if (
+      isWithinInterval(now, {
+        start: windows.earlyWindow,
+        end: windows.overtimeWindow,
+      })
+    ) {
+      return {
+        type: PeriodType.REGULAR,
+        isComplete: Boolean(
+          attendance?.CheckOutTime ||
+            attendanceState !== AttendanceState.INCOMPLETE,
+        ),
+      };
+    }
+
+    // Check post-shift overtimes
+    const regularOvertimes = orderedOvertimes.filter((ot) => {
+      const otStart = parseISO(`${format(date, 'yyyy-MM-dd')}T${ot.startTime}`);
+      return otStart >= windows.start;
+    });
+
+    for (const ot of regularOvertimes) {
+      if (this.isWithinOvertimePeriod(now, date, ot)) {
         return {
           type: PeriodType.OVERTIME,
           overtimeInfo: this.mapOvertimeInfo(ot),
@@ -514,7 +521,7 @@ export class ShiftManagementService {
       }
     }
 
-    // Default to regular period
+    // Default to regular period state
     return {
       type: PeriodType.REGULAR,
       isComplete: Boolean(
@@ -542,27 +549,205 @@ export class ShiftManagementService {
     });
   }
 
+  private isWithinOvertimePeriod(
+    now: Date,
+    date: Date,
+    overtime: ApprovedOvertimeInfo,
+    includeEarlyWindow: boolean = true,
+  ): boolean {
+    const otStart = parseISO(
+      `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
+    );
+    let otEnd = parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`);
+
+    // Handle overnight overtime
+    if (overtime.endTime < overtime.startTime) {
+      otEnd = addDays(otEnd, 1);
+    }
+
+    // Include early check-in window if specified
+    const periodStart = includeEarlyWindow
+      ? subMinutes(otStart, ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD)
+      : otStart;
+
+    const isWithin = isWithinInterval(now, {
+      start: periodStart,
+      end: otEnd,
+    });
+
+    console.log('Overtime period check:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      overtime: {
+        startTime: overtime.startTime,
+        endTime: overtime.endTime,
+        isOvernight: overtime.endTime < overtime.startTime,
+      },
+      periodWindow: {
+        start: format(periodStart, 'HH:mm:ss'),
+        end: format(otEnd, 'HH:mm:ss'),
+      },
+      includeEarlyWindow,
+      isWithinPeriod: isWithin,
+    });
+
+    return isWithin;
+  }
+
+  private async calculateNextPeriod(
+    currentPeriod: CurrentPeriod,
+    sortedOvertimes: ApprovedOvertimeInfo[],
+    effectiveShift: ShiftData,
+    windows: ShiftWindows,
+    now: Date,
+  ): Promise<NextPeriod | null> {
+    console.log('Calculating next period:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      currentPeriod: {
+        type: currentPeriod.type,
+        isComplete: currentPeriod.isComplete,
+        hasOvertimeInfo: Boolean(currentPeriod.overtimeInfo),
+      },
+      overtimeCount: sortedOvertimes.length,
+    });
+
+    // Sort overtimes chronologically
+    const orderedOvertimes = sortedOvertimes.sort((a, b) => {
+      const aStart = parseISO(`${format(now, 'yyyy-MM-dd')}T${a.startTime}`);
+      const bStart = parseISO(`${format(now, 'yyyy-MM-dd')}T${b.startTime}`);
+      return aStart.getTime() - bStart.getTime();
+    });
+
+    // Log all available periods
+    this.logAvailablePeriods(orderedOvertimes, effectiveShift, now);
+
+    // Find next available period based on current state
+    if (currentPeriod.type === PeriodType.REGULAR) {
+      // Look for next overtime that starts at regular shift end
+      const nextOt = orderedOvertimes.find((ot) => {
+        const isNextInSequence = ot.startTime === effectiveShift.endTime;
+        if (isNextInSequence) {
+          console.log('Found sequential overtime:', {
+            startTime: ot.startTime,
+            endTime: ot.endTime,
+          });
+        }
+        return isNextInSequence;
+      });
+
+      if (nextOt) {
+        return {
+          type: PeriodType.OVERTIME,
+          startTime: nextOt.startTime,
+          overtimeInfo: this.mapOvertimeInfo(nextOt),
+        };
+      }
+    }
+
+    if (currentPeriod.type === PeriodType.OVERTIME) {
+      const currentOt = currentPeriod.overtimeInfo;
+      if (!currentOt) {
+        console.log('No overtime info in current period');
+        return null;
+      }
+
+      // Find position of current overtime
+      const currentIndex = orderedOvertimes.findIndex(
+        (ot) => ot.startTime === currentOt.startTime,
+      );
+
+      console.log('Current overtime position:', {
+        index: currentIndex,
+        totalOvertimes: orderedOvertimes.length,
+      });
+
+      // Early morning overtime case
+      if (this.isEarlyMorningOvertime(currentOt, effectiveShift)) {
+        console.log('Current overtime is early morning, next is regular shift');
+        return {
+          type: PeriodType.REGULAR,
+          startTime: effectiveShift.startTime,
+        };
+      }
+
+      // Check for next sequential overtime
+      if (currentIndex !== -1 && currentIndex < orderedOvertimes.length - 1) {
+        const nextOt = orderedOvertimes[currentIndex + 1];
+        console.log('Found next overtime in sequence:', {
+          startTime: nextOt.startTime,
+          endTime: nextOt.endTime,
+        });
+        return {
+          type: PeriodType.OVERTIME,
+          startTime: nextOt.startTime,
+          overtimeInfo: this.mapOvertimeInfo(nextOt),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private isEarlyMorningOvertime(
+    overtime: OvertimeTimeInfo,
+    shift: ShiftData,
+  ): boolean {
+    const otStart = this.getMinutesSinceMidnight(overtime.startTime);
+    const shiftStart = this.getMinutesSinceMidnight(shift.startTime);
+    return otStart < shiftStart;
+  }
+
+  private logAvailablePeriods(
+    overtimes: ApprovedOvertimeInfo[],
+    shift: ShiftData,
+    now: Date,
+  ): void {
+    console.log('Available periods for:', format(now, 'yyyy-MM-dd'), {
+      regularShift: {
+        start: shift.startTime,
+        end: shift.endTime,
+      },
+      overtimes: overtimes.map((ot) => ({
+        startTime: ot.startTime,
+        endTime: ot.endTime,
+        isEarlyMorning: this.isEarlyMorningOvertime(ot, shift),
+        durationMinutes: ot.durationMinutes,
+        reason: ot.reason || undefined,
+      })),
+    });
+  }
+
+  // Update transition calculation with better logging
   private calculateTransition(
     currentPeriod: CurrentPeriod,
     nextPeriod: NextPeriod | null,
     now: Date,
   ): TransitionInfo | undefined {
     if (!nextPeriod) {
+      console.log('No next period available for transition');
       return undefined;
     }
 
-    // Remove isComplete check for transitions
     const nextStart = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${nextPeriod.startTime}`,
     );
-
-    // Check if approaching shift end with upcoming overtime
-    const isApproachingShiftEnd = isWithinInterval(now, {
+    const transitionWindow = {
       start: subMinutes(nextStart, 15),
       end: nextStart,
+    };
+
+    const isInTransition = isWithinInterval(now, transitionWindow);
+
+    console.log('Transition check:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      nextPeriodStart: nextPeriod.startTime,
+      transitionWindow: {
+        start: format(transitionWindow.start, 'HH:mm:ss'),
+        end: format(transitionWindow.end, 'HH:mm:ss'),
+      },
+      isInTransition,
     });
 
-    if (isApproachingShiftEnd && nextPeriod.type === PeriodType.OVERTIME) {
+    if (isInTransition) {
       return {
         from: {
           type: currentPeriod.type,
@@ -577,44 +762,6 @@ export class ShiftManagementService {
     }
 
     return undefined;
-  }
-
-  private async calculateNextPeriod(
-    currentPeriod: CurrentPeriod,
-    sortedOvertimes: ApprovedOvertimeInfo[],
-    effectiveShift: ShiftData,
-    windows: ShiftWindows,
-    now: Date,
-  ): Promise<NextPeriod | null> {
-    if (currentPeriod.type === PeriodType.REGULAR) {
-      const nextOt = sortedOvertimes.find(
-        (ot) => ot.startTime === effectiveShift.endTime,
-      );
-
-      console.log('Next overtime:', nextOt);
-
-      if (nextOt) {
-        return {
-          type: PeriodType.OVERTIME,
-          startTime: nextOt.startTime,
-          overtimeInfo: this.mapOvertimeInfo(nextOt),
-        };
-      }
-
-      return {
-        type: PeriodType.REGULAR,
-        startTime: effectiveShift.startTime,
-      };
-    } else if (currentPeriod.type === PeriodType.OVERTIME) {
-      if (now < windows.start) {
-        return {
-          type: PeriodType.REGULAR,
-          startTime: effectiveShift.startTime,
-        };
-      }
-    }
-
-    return null;
   }
 
   async getNextDayPeriodState(
@@ -693,24 +840,6 @@ export class ShiftManagementService {
       isDayOffOvertime: ot.isDayOffOvertime,
       reason: ot.reason || '',
     };
-  }
-
-  private isWithinOvertimePeriod(
-    now: Date,
-    date: Date,
-    overtime: ApprovedOvertimeInfo,
-  ): boolean {
-    const otStart = parseISO(
-      `${format(date, 'yyyy-MM-dd')}T${overtime.startTime}`,
-    );
-    let otEnd = parseISO(`${format(date, 'yyyy-MM-dd')}T${overtime.endTime}`);
-
-    // Handle overnight overtime
-    if (overtime.endTime < overtime.startTime) {
-      otEnd = addDays(otEnd, 1);
-    }
-
-    return isWithinInterval(now, { start: otStart, end: otEnd });
   }
 
   private determineAttendanceState(attendance: any): AttendanceState {
