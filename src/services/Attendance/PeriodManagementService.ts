@@ -79,7 +79,7 @@ export class PeriodManagementService {
           : null,
       });
 
-      // Determine period windows
+      // Create period windows
       const shiftWindow = isValidShift
         ? {
             start: parseISO(
@@ -102,10 +102,10 @@ export class PeriodManagementService {
           }
         : null;
 
-      // If there's an active attendance record, use its type
-      if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
+      // 1. Handle active attendance first
+      if (isCheckedIn) {
         const timeWindow =
-          attendance.type === PeriodType.OVERTIME && overtimeWindow
+          attendance!.type === PeriodType.OVERTIME && overtimeWindow
             ? {
                 start: format(
                   overtimeWindow.start,
@@ -121,30 +121,30 @@ export class PeriodManagementService {
               : defaultWindow;
 
         return {
-          type: attendance.type,
+          type: attendance!.type,
           timeWindow,
           activity: {
             isActive: true,
             checkIn: format(
-              new Date(attendance.CheckInTime),
+              new Date(attendance!.CheckInTime!),
               "yyyy-MM-dd'T'HH:mm:ss.SSS",
             ),
             checkOut: null,
-            isOvertime: attendance.type === PeriodType.OVERTIME,
+            isOvertime: attendance!.type === PeriodType.OVERTIME,
             isDayOffOvertime: Boolean(
               periodState.overtimeInfo?.isDayOffOvertime,
             ),
-            isInsideShiftHours: attendance.type === PeriodType.REGULAR,
+            isInsideShiftHours: attendance!.type === PeriodType.REGULAR,
           },
           validation: {
             isWithinBounds: true,
             isEarly: false,
             isLate: false,
             isOvernight: this.isOvernightPeriod(
-              attendance.type === PeriodType.OVERTIME
+              attendance!.type === PeriodType.OVERTIME
                 ? periodState.overtimeInfo!.startTime
                 : periodState.shift.startTime,
-              attendance.type === PeriodType.OVERTIME
+              attendance!.type === PeriodType.OVERTIME
                 ? periodState.overtimeInfo!.endTime
                 : periodState.shift.endTime,
             ),
@@ -153,25 +153,18 @@ export class PeriodManagementService {
         };
       }
 
-      // Early overtime check (before regular shift)
-      const isEarlyOvertimePeriod =
+      // 2. Handle early overtime period
+      if (
         overtimeWindow &&
         shiftWindow &&
-        overtimeWindow.start < shiftWindow.start;
-
-      if (isEarlyOvertimePeriod) {
+        overtimeWindow.start < shiftWindow.start
+      ) {
         const overtimeEarlyThreshold = subMinutes(
           overtimeWindow.start,
           VALIDATION_THRESHOLDS.EARLY_CHECKIN,
         );
 
-        // If we're approaching or in early overtime period
         if (now >= overtimeEarlyThreshold) {
-          const isWithinOvertimeBounds = isWithinInterval(now, {
-            start: overtimeWindow.start,
-            end: overtimeWindow.end,
-          });
-
           return {
             type: PeriodType.OVERTIME,
             timeWindow: {
@@ -189,20 +182,20 @@ export class PeriodManagementService {
               isInsideShiftHours: false,
             },
             validation: {
-              isWithinBounds: isWithinOvertimeBounds,
+              isWithinBounds: now >= overtimeWindow.start,
               isEarly: now < overtimeWindow.start,
               isLate: false,
               isOvernight: this.isOvernightPeriod(
                 periodState.overtimeInfo!.startTime,
                 periodState.overtimeInfo!.endTime,
               ),
-              isConnected: false,
+              isConnected: true,
             },
           };
         }
       }
 
-      // Check for regular post-shift overtime period
+      // 3. Handle current overtime period
       if (
         overtimeWindow &&
         isWithinInterval(now, {
@@ -234,12 +227,12 @@ export class PeriodManagementService {
               periodState.overtimeInfo!.startTime,
               periodState.overtimeInfo!.endTime,
             ),
-            isConnected: false,
+            isConnected: true,
           },
         };
       }
 
-      // Regular period handling
+      // 4. Handle regular period
       if (shiftWindow) {
         const shiftEarlyThreshold = subMinutes(
           shiftWindow.start,
@@ -260,6 +253,15 @@ export class PeriodManagementService {
           end: shiftWindow.end,
         });
 
+        // Check if current time is too early for any period
+        const isTooEarlyForAnyPeriod = overtimeWindow
+          ? now <
+            subMinutes(
+              overtimeWindow.start,
+              VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+            )
+          : now < shiftEarlyThreshold;
+
         return {
           type: PeriodType.REGULAR,
           timeWindow: {
@@ -272,22 +274,24 @@ export class PeriodManagementService {
             checkOut: null,
             isOvertime: false,
             isDayOffOvertime: false,
-            isInsideShiftHours: isWithinShiftBounds,
+            isInsideShiftHours:
+              !isTooEarlyForAnyPeriod && (isWithinShiftBounds || isEarly),
           },
           validation: {
-            isWithinBounds: isWithinShiftBounds || isEarly,
+            isWithinBounds:
+              !isTooEarlyForAnyPeriod && (isWithinShiftBounds || isEarly),
             isEarly,
             isLate,
             isOvernight: this.isOvernightPeriod(
               periodState.shift.startTime,
               periodState.shift.endTime,
             ),
-            isConnected: false,
+            isConnected: Boolean(periodState.overtimeInfo),
           },
         };
       }
 
-      // Default fallback
+      // 5. Default fallback
       return {
         type: PeriodType.REGULAR,
         timeWindow: defaultWindow,
