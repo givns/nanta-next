@@ -382,6 +382,20 @@ export class AttendanceEnhancementService {
         isActive: currentState.activity.isActive,
         isOvertime: currentState.activity.isOvertime,
       },
+      window: {
+        shift: {
+          start: window.shift.startTime,
+          end: window.shift.endTime,
+        },
+        overtime: window.overtimeInfo
+          ? {
+              start: window.overtimeInfo.startTime,
+              end: window.overtimeInfo.endTime,
+              isBeforeShift:
+                window.overtimeInfo.startTime < window.shift.startTime,
+            }
+          : null,
+      },
     });
 
     const periodStatusInfo = this.determinePeriodStatusInfo(
@@ -391,7 +405,7 @@ export class AttendanceEnhancementService {
       now,
     );
 
-    // Active session handling
+    // First check: If we have an active session
     if (periodStatusInfo.isActiveAttendance) {
       return {
         allowed: true,
@@ -416,7 +430,61 @@ export class AttendanceEnhancementService {
       };
     }
 
-    // Transition handling
+    // Second check: Early morning overtime
+    if (window.overtimeInfo && !periodStatusInfo.isActiveAttendance) {
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+      );
+      const shiftStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`,
+      );
+      const isEarlyOvertime = overtimeStart < shiftStart;
+
+      if (isEarlyOvertime) {
+        const earlyWindow = subMinutes(
+          overtimeStart,
+          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        );
+        const isApproachingOvertime = now >= earlyWindow;
+
+        console.log('Early overtime validation:', {
+          currentTime: format(now, 'HH:mm:ss'),
+          overtimeStart: format(overtimeStart, 'HH:mm:ss'),
+          earlyWindow: format(earlyWindow, 'HH:mm:ss'),
+          isApproachingOvertime,
+        });
+
+        return {
+          allowed: isApproachingOvertime,
+          reason: isApproachingOvertime
+            ? ''
+            : `รอเริ่มเวลาทำงานล่วงเวลาในเวลา ${format(overtimeStart, 'HH:mm')} น.`,
+          flags: this.getValidationFlags({
+            hasActivePeriod: false,
+            isCheckingIn: true,
+            isOvertime: true,
+            isPendingOvertime: true,
+            isInsideShift: false,
+            isOutsideShift: true,
+            isDayOffOvertime: Boolean(window.overtimeInfo.isDayOffOvertime),
+          }),
+          metadata: {
+            nextTransitionTime: format(
+              overtimeStart,
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+            requiredAction: VALIDATION_ACTIONS.WAIT_FOR_OVERTIME,
+            additionalInfo: {
+              overtimeStart: format(overtimeStart, 'HH:mm'),
+              earlyWindow: format(earlyWindow, 'HH:mm'),
+              type: 'EARLY_OVERTIME',
+            },
+          },
+        };
+      }
+    }
+
+    // Third check: Period transitions
     const transitionStatus = this.determineTransitionStatusInfo(
       periodStatusInfo,
       window,
@@ -424,15 +492,6 @@ export class AttendanceEnhancementService {
     );
 
     if (transitionStatus.isInTransition) {
-      const transitionWindow = {
-        start: format(
-          transitionStatus.window.start,
-          "yyyy-MM-dd'T'HH:mm:ss.SSS",
-        ),
-        end: format(transitionStatus.window.end, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-        targetPeriod: transitionStatus.targetPeriod,
-      };
-
       return {
         allowed: true,
         reason: 'กำลังเข้าสู่ช่วงเวลาทำงานล่วงเวลา',
@@ -466,42 +525,13 @@ export class AttendanceEnhancementService {
       };
     }
 
-    // Early overtime handling
-    if (this.isApproachingEarlyOvertime(window, now)) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo!.startTime}`,
-      );
-
-      return {
-        allowed:
-          now >= subMinutes(overtimeStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-        reason: `รอเริ่มเวลาทำงานล่วงเวลาในเวลา ${format(overtimeStart, 'HH:mm')} น.`,
-        flags: this.getValidationFlags({
-          hasActivePeriod: false,
-          isCheckingIn: true,
-          isOvertime: true,
-          isPendingOvertime: true,
-          isInsideShift: false,
-          isOutsideShift: true,
-          isDayOffOvertime: Boolean(window.overtimeInfo?.isDayOffOvertime),
-        }),
-        metadata: {
-          nextTransitionTime: format(
-            overtimeStart,
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-          ),
-          requiredAction: VALIDATION_ACTIONS.WAIT_FOR_OVERTIME,
-          additionalInfo: {
-            overtimeStart: format(overtimeStart, 'HH:mm'),
-          },
-        },
-      };
+    // Fourth check: Current period state
+    if (currentState.type === PeriodType.OVERTIME) {
+      return this.getOvertimeValidation(periodStatusInfo, window, now);
     }
 
-    // Handle current period validation
-    return periodStatusInfo.isOvertimePeriod
-      ? this.getOvertimeValidation(periodStatusInfo, window, now)
-      : this.getRegularValidation(periodStatusInfo, window, attendance);
+    // Default: Regular period validation
+    return this.getRegularValidation(periodStatusInfo, window, attendance);
   }
 
   private determinePeriodStatusInfo(
