@@ -12,6 +12,13 @@ export const VALIDATION_ACTIONS = {
   REGULAR_CHECKOUT: 'REGULAR_CHECKOUT',
 } as const;
 
+export const VALIDATION_THRESHOLDS = {
+  EARLY_CHECKIN: 30,
+  LATE_CHECKIN: 15,
+  OVERTIME_CHECKOUT: 15,
+  TRANSITION_WINDOW: 15,
+} as const;
+
 // Create type for validation actions
 export type ValidationAction =
   (typeof VALIDATION_ACTIONS)[keyof typeof VALIDATION_ACTIONS];

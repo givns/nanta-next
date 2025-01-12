@@ -18,6 +18,8 @@ import {
   TimeEntry,
   SerializedOvertimeEntry,
   OvertimeEntry,
+  VALIDATION_ACTIONS,
+  VALIDATION_THRESHOLDS,
 } from '@/types/attendance';
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
@@ -39,29 +41,10 @@ interface OvertimeCheckoutStatus {
   reason: string;
 }
 
-const VALIDATION_THRESHOLDS = {
-  EARLY_CHECKIN: 30,
-  LATE_CHECKIN: 15,
-  OVERTIME_CHECKOUT: 15,
-  TRANSITION_WINDOW: 15,
-} as const;
-
 const TRANSITION_CONFIG = {
   EARLY_BUFFER: 15, // 15 minutes before period
   LATE_BUFFER: 15, // 15 minutes after period
 } as const;
-
-const VALIDATION_ACTIONS = {
-  ACTIVE_SESSION: 'ACTIVE_SESSION',
-  TRANSITION_REQUIRED: 'TRANSITION_REQUIRED',
-  WAIT_FOR_OVERTIME: 'WAIT_FOR_OVERTIME',
-  AUTO_COMPLETE_OVERTIME: 'AUTO_COMPLETE_OVERTIME',
-  REGULAR_CHECKIN: 'REGULAR_CHECKIN',
-  REGULAR_CHECKOUT: 'REGULAR_CHECKOUT',
-} as const;
-
-type ValidationAction =
-  (typeof VALIDATION_ACTIONS)[keyof typeof VALIDATION_ACTIONS];
 
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
