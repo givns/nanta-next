@@ -250,7 +250,36 @@ export class PeriodManagementService {
           isEarlyPeriod: isEarlyOvertimePeriod,
           isApproaching: isApproachingOvertime,
           earlyWindow: format(earlyThreshold, 'HH:mm:ss'),
+          currentTime: format(now, 'HH:mm:ss'),
         });
+
+        // If it's an early overtime period (like 3 AM before 8 AM shift)
+        if (isEarlyOvertimePeriod) {
+          return {
+            type: PeriodType.OVERTIME, // Set type to OVERTIME
+            timeWindow: {
+              start: format(overtimeWindow.start, "yyyy-MM-dd'T'HH:mm:ss.SSS"), // Use overtime window
+              end: format(overtimeWindow.end, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            },
+            activity: {
+              isActive: false,
+              checkIn: null,
+              checkOut: null,
+              isOvertime: true,
+              isDayOffOvertime: Boolean(
+                periodState.overtimeInfo?.isDayOffOvertime,
+              ),
+              isInsideShiftHours: false,
+            },
+            validation: {
+              isWithinBounds: false, // Set to false since we're before overtime
+              isEarly: true,
+              isLate: false,
+              isOvernight: false,
+              isConnected: true,
+            },
+          };
+        }
 
         if (isEarlyOvertimePeriod && isApproachingOvertime) {
           return {
