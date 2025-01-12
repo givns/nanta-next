@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle, Clock, XCircle } from 'lucide-react';
 import {
   AttendanceState,
   CheckStatus,
@@ -144,6 +144,17 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     type: 'regular' | 'overtime',
     isCheckIn: boolean,
   ) => {
+    if (isDisabled) {
+      return (
+        <div className="flex flex-col items-center gap-1">
+          <XCircle className="w-8 h-8 text-gray-400" />
+          {validation.message && (
+            <span className="text-xs text-gray-500">{validation.message}</span>
+          )}
+        </div>
+      );
+    }
+
     // When transitioning to regular shift
     if (type === 'overtime' && isTransitionToRegular) {
       return (
@@ -279,24 +290,28 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   // Update the renderButtons method to handle early morning cases
   const renderButtons = () => {
     // Don't allow regular check-in during very early morning hours
-    if (
-      periodType === PeriodType.REGULAR &&
-      isEarlyMorningTime() &&
-      !attendanceStatus.isOvertime
-    ) {
+    // If we're waiting for overtime and disabled
+    if (validation.flags.isPendingOvertime && isDisabled) {
       return (
-        <button
-          disabled={true}
-          className={`h-20 w-20 ${baseButtonStyle} ${buttonDisabledStyle}`}
-          aria-label="Too early for check-in"
-        >
-          <div className="flex flex-col items-center leading-tight">
-            <span className="text-gray-600 text-sm">ยังไม่ถึง</span>
-            <span className="text-gray-600 text-xl font-semibold -mt-1">
-              เวลาทำงาน
-            </span>
+        <div className="flex flex-col items-center gap-2">
+          <div className="text-sm text-yellow-600 flex items-center gap-1">
+            <Clock size={16} />
+            <span>รอเวลา OT</span>
           </div>
-        </button>
+          <button
+            disabled={true}
+            className={`h-20 w-20 ${baseButtonStyle} ${buttonDisabledStyle} relative`}
+            aria-label="Waiting for overtime"
+          >
+            <XCircle className="absolute -top-2 -right-2 w-6 h-6 text-gray-400 bg-white rounded-full" />
+            {renderButtonContent('overtime', true)}
+          </button>
+          {validation.message && (
+            <div className="text-xs text-gray-500 text-center">
+              {validation.message}
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -395,7 +410,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       <button
         onClick={handleRegularClick}
         disabled={isDisabled}
-        className={`h-20 w-20 ${baseButtonStyle} ${
+        className={`h-20 w-20 ${baseButtonStyle} relative ${
           isDisabled
             ? buttonDisabledStyle
             : buttonEnabledStyle(
@@ -404,6 +419,9 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         }`}
         aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
       >
+        {isDisabled && (
+          <XCircle className="absolute -top-2 -right-2 w-6 h-6 text-gray-400 bg-white rounded-full" />
+        )}
         {renderButtonContent(
           periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
           isCheckingIn,

@@ -103,7 +103,7 @@ export class PeriodManagementService {
         : null;
 
       // 1. Handle active attendance first
-      if (isCheckedIn) {
+      if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
         const timeWindow =
           attendance!.type === PeriodType.OVERTIME && overtimeWindow
             ? {
@@ -154,17 +154,22 @@ export class PeriodManagementService {
       }
 
       // 2. Handle early overtime period
-      if (
-        overtimeWindow &&
-        shiftWindow &&
-        overtimeWindow.start < shiftWindow.start
-      ) {
-        const overtimeEarlyThreshold = subMinutes(
+      // Check early overtime
+      if (overtimeWindow && shiftWindow) {
+        const isEarlyOvertimePeriod = overtimeWindow.start < shiftWindow.start;
+        const earlyThreshold = subMinutes(
           overtimeWindow.start,
           VALIDATION_THRESHOLDS.EARLY_CHECKIN,
         );
+        const isApproachingOvertime = now >= earlyThreshold;
 
-        if (now >= overtimeEarlyThreshold) {
+        console.log('Early overtime check:', {
+          isEarlyPeriod: isEarlyOvertimePeriod,
+          isApproaching: isApproachingOvertime,
+          earlyWindow: format(earlyThreshold, 'HH:mm:ss'),
+        });
+
+        if (isEarlyOvertimePeriod && isApproachingOvertime) {
           return {
             type: PeriodType.OVERTIME,
             timeWindow: {
@@ -185,10 +190,90 @@ export class PeriodManagementService {
               isWithinBounds: now >= overtimeWindow.start,
               isEarly: now < overtimeWindow.start,
               isLate: false,
-              isOvernight: this.isOvernightPeriod(
-                periodState.overtimeInfo!.startTime,
-                periodState.overtimeInfo!.endTime,
+              isOvernight: false,
+              isConnected: true,
+            },
+          };
+        }
+      } // Check early overtime
+      if (overtimeWindow && shiftWindow) {
+        const isEarlyOvertimePeriod = overtimeWindow.start < shiftWindow.start;
+        const earlyThreshold = subMinutes(
+          overtimeWindow.start,
+          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        );
+        const isApproachingOvertime = now >= earlyThreshold;
+
+        console.log('Early overtime check:', {
+          isEarlyPeriod: isEarlyOvertimePeriod,
+          isApproaching: isApproachingOvertime,
+          earlyWindow: format(earlyThreshold, 'HH:mm:ss'),
+        });
+
+        if (isEarlyOvertimePeriod && isApproachingOvertime) {
+          return {
+            type: PeriodType.OVERTIME,
+            timeWindow: {
+              start: format(overtimeWindow.start, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+              end: format(overtimeWindow.end, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            },
+            activity: {
+              isActive: false,
+              checkIn: null,
+              checkOut: null,
+              isOvertime: true,
+              isDayOffOvertime: Boolean(
+                periodState.overtimeInfo?.isDayOffOvertime,
               ),
+              isInsideShiftHours: false,
+            },
+            validation: {
+              isWithinBounds: now >= overtimeWindow.start,
+              isEarly: now < overtimeWindow.start,
+              isLate: false,
+              isOvernight: false,
+              isConnected: true,
+            },
+          };
+        }
+      }
+      // Check early overtime
+      if (overtimeWindow && shiftWindow) {
+        const isEarlyOvertimePeriod = overtimeWindow.start < shiftWindow.start;
+        const earlyThreshold = subMinutes(
+          overtimeWindow.start,
+          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        );
+        const isApproachingOvertime = now >= earlyThreshold;
+
+        console.log('Early overtime check:', {
+          isEarlyPeriod: isEarlyOvertimePeriod,
+          isApproaching: isApproachingOvertime,
+          earlyWindow: format(earlyThreshold, 'HH:mm:ss'),
+        });
+
+        if (isEarlyOvertimePeriod && isApproachingOvertime) {
+          return {
+            type: PeriodType.OVERTIME,
+            timeWindow: {
+              start: format(overtimeWindow.start, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+              end: format(overtimeWindow.end, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            },
+            activity: {
+              isActive: false,
+              checkIn: null,
+              checkOut: null,
+              isOvertime: true,
+              isDayOffOvertime: Boolean(
+                periodState.overtimeInfo?.isDayOffOvertime,
+              ),
+              isInsideShiftHours: false,
+            },
+            validation: {
+              isWithinBounds: now >= overtimeWindow.start,
+              isEarly: now < overtimeWindow.start,
+              isLate: false,
+              isOvernight: false,
               isConnected: true,
             },
           };
