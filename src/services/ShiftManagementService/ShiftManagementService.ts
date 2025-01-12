@@ -473,12 +473,18 @@ export class ShiftManagementService {
               ) < windows.start,
           }
         : null,
+      windows: {
+        regular: {
+          start: format(windows.start, 'HH:mm:ss'),
+          end: format(windows.end, 'HH:mm:ss'),
+        },
+        early: format(windows.earlyWindow, 'HH:mm:ss'),
+      },
     });
 
     // Handle active attendance first
     if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
       if (attendance.type === PeriodType.OVERTIME) {
-        // Get all overtimes for the day to find the matching one
         const overtimes =
           (await this.overtimeService?.getDetailedOvertimesInRange(
             attendance.employeeId,
@@ -491,15 +497,6 @@ export class ShiftManagementService {
           date,
           attendance,
         );
-        console.log('Active overtime attendance:', {
-          checkInTime: format(new Date(attendance.CheckInTime), 'HH:mm:ss'),
-          matchingOvertime: matchingOt
-            ? {
-                startTime: matchingOt.startTime,
-                endTime: matchingOt.endTime,
-              }
-            : null,
-        });
 
         return {
           type: PeriodType.OVERTIME,
@@ -510,34 +507,45 @@ export class ShiftManagementService {
         };
       }
 
-      // Regular attendance
       return {
         type: PeriodType.REGULAR,
         isComplete: false,
       };
     }
 
-    // Check early morning overtimes
+    // Early overtime checks
     if (currentOvertime) {
       const otStart = parseISO(
         `${format(date, 'yyyy-MM-dd')}T${currentOvertime.startTime}`,
       );
-      const isEarlyMorningOt = otStart < windows.start;
+      const otEarlyWindow = subMinutes(
+        otStart,
+        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+      );
+      const isBeforeShift = otStart < windows.start;
 
-      if (isEarlyMorningOt) {
-        const isApproachingOrWithinOt = this.isWithinOvertimePeriod(
-          now,
-          date,
-          currentOvertime,
-        );
+      console.log('Overtime period analysis:', {
+        currentTime: format(now, 'HH:mm:ss'),
+        overtime: {
+          start: format(otStart, 'HH:mm:ss'),
+          earlyWindow: format(otEarlyWindow, 'HH:mm:ss'),
+          isBeforeShift,
+        },
+      });
 
-        console.log('Early overtime check:', {
-          isEarlyMorningOt,
-          isApproachingOrWithinOt,
-          overtimeStart: format(otStart, 'HH:mm:ss'),
-        });
+      // If it's early overtime period
+      if (isBeforeShift) {
+        // Check if we're in early window
+        if (now >= otEarlyWindow) {
+          return {
+            type: PeriodType.OVERTIME,
+            overtimeInfo: this.mapOvertimeInfo(currentOvertime),
+            isComplete: false,
+          };
+        }
 
-        if (isApproachingOrWithinOt) {
+        // If we're before early window of early overtime
+        if (now < otEarlyWindow) {
           return {
             type: PeriodType.OVERTIME,
             overtimeInfo: this.mapOvertimeInfo(currentOvertime),
@@ -547,18 +555,13 @@ export class ShiftManagementService {
       }
     }
 
-    // Check regular shift period
+    // Only check regular shift if there's no early overtime or we're past it
     const isWithinRegularPeriod = isWithinInterval(now, {
       start: windows.earlyWindow,
       end: windows.overtimeWindow,
     });
 
     if (isWithinRegularPeriod) {
-      console.log('Within regular period:', {
-        earlyWindow: format(windows.earlyWindow, 'HH:mm:ss'),
-        overtimeWindow: format(windows.overtimeWindow, 'HH:mm:ss'),
-      });
-
       return {
         type: PeriodType.REGULAR,
         isComplete: Boolean(
@@ -568,26 +571,16 @@ export class ShiftManagementService {
       };
     }
 
-    // Check post-shift overtime
+    // Default - if there's upcoming overtime, show that
     if (currentOvertime) {
-      const otStart = parseISO(
-        `${format(date, 'yyyy-MM-dd')}T${currentOvertime.startTime}`,
-      );
-      const isPostShiftOt = otStart >= windows.start;
-
-      if (
-        isPostShiftOt &&
-        this.isWithinOvertimePeriod(now, date, currentOvertime)
-      ) {
-        return {
-          type: PeriodType.OVERTIME,
-          overtimeInfo: this.mapOvertimeInfo(currentOvertime),
-          isComplete: true,
-        };
-      }
+      return {
+        type: PeriodType.OVERTIME,
+        overtimeInfo: this.mapOvertimeInfo(currentOvertime),
+        isComplete: false,
+      };
     }
 
-    // Default to regular period state
+    // Finally default to regular
     return {
       type: PeriodType.REGULAR,
       isComplete: Boolean(
