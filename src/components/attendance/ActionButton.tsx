@@ -144,17 +144,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     type: 'regular' | 'overtime',
     isCheckIn: boolean,
   ) => {
-    if (isDisabled) {
-      return (
-        <div className="flex flex-col items-center gap-1">
-          <XCircle className="w-8 h-8 text-gray-400" />
-          {validation.message && (
-            <span className="text-xs text-gray-500">{validation.message}</span>
-          )}
-        </div>
-      );
-    }
-
     // When transitioning to regular shift
     if (type === 'overtime' && isTransitionToRegular) {
       return (
@@ -291,6 +280,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   const renderButtons = () => {
     // Don't allow regular check-in during very early morning hours
     // If we're waiting for overtime and disabled
+    // Update this part
     if (validation.flags.isPendingOvertime && isDisabled) {
       return (
         <div className="flex flex-col items-center gap-2">
@@ -300,14 +290,17 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           </div>
           <button
             disabled={true}
-            className={`h-20 w-20 ${baseButtonStyle} ${buttonDisabledStyle} relative`}
+            className={`h-20 w-20 ${baseButtonStyle} ${buttonDisabledStyle}`}
             aria-label="Waiting for overtime"
           >
-            <XCircle className="absolute -top-2 -right-2 w-6 h-6 text-gray-400 bg-white rounded-full" />
-            {renderButtonContent('overtime', true)}
+            <div className="flex flex-col items-center leading-tight">
+              <span className="text-gray-600 text-2xl font-semibold">
+                {formatSafeTime(periodWindow?.start)}
+              </span>
+            </div>
           </button>
           {validation.message && (
-            <div className="text-xs text-gray-500 text-center">
+            <div className="text-xs text-gray-500 text-center mt-1">
               {validation.message}
             </div>
           )}
@@ -412,11 +405,12 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     // Regular single button
     const isCheckingIn =
       attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
+
     return (
       <button
         onClick={handleRegularClick}
         disabled={isDisabled}
-        className={`h-20 w-20 ${baseButtonStyle} relative ${
+        className={`h-20 w-20 ${baseButtonStyle} ${
           isDisabled
             ? buttonDisabledStyle
             : buttonEnabledStyle(
@@ -425,13 +419,13 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         }`}
         aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
       >
-        {isDisabled && (
-          <XCircle className="absolute -top-2 -right-2 w-6 h-6 text-gray-400 bg-white rounded-full" />
-        )}
-        {renderButtonContent(
-          periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
-          isCheckingIn,
-        )}
+        <div className="flex flex-col items-center leading-tight">
+          <span
+            className={`text-2xl font-semibold ${isDisabled ? 'text-gray-600' : 'text-white'}`}
+          >
+            {formatSafeTime(periodWindow?.start)}
+          </span>
+        </div>
       </button>
     );
   };
