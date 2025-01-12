@@ -360,13 +360,16 @@ const ActionButton: React.FC<ActionButtonProps> = ({
               <button
                 onClick={handleRegularClick}
                 disabled={!systemState.isReady}
-                className={`h-20 w-20 rounded-l-full ${baseButtonStyle} ${
+                className={`h-20 w-20 rounded-l-full ${baseButtonStyle} relative ${
                   !systemState.isReady
                     ? buttonDisabledStyle
                     : buttonEnabledStyle('regular')
                 }`}
                 aria-label="Regular checkout"
               >
+                {!systemState.isReady && (
+                  <XCircle className="absolute -top-2 -right-2 w-6 h-6 text-gray-400 bg-white rounded-full" />
+                )}
                 <div className="flex flex-col items-center leading-tight">
                   <span className="text-white text-sm">ออกงาน</span>
                   <span className="text-white text-xl font-semibold -mt-1">
@@ -379,13 +382,16 @@ const ActionButton: React.FC<ActionButtonProps> = ({
               <button
                 onClick={handleOvertimeClick}
                 disabled={!systemState.isReady}
-                className={`h-20 w-20 rounded-r-full ${baseButtonStyle} ${
+                className={`h-20 w-20 rounded-r-full ${baseButtonStyle} relative ${
                   !systemState.isReady
                     ? buttonDisabledStyle
                     : buttonEnabledStyle('overtime')
                 }`}
                 aria-label="Start overtime"
               >
+                {!systemState.isReady && (
+                  <XCircle className="absolute -top-2 -right-2 w-6 h-6 text-gray-400 bg-white rounded-full" />
+                )}
                 <div className="flex flex-col items-center leading-tight">
                   <span className="text-white text-sm">เข้างาน</span>
                   <span className="text-white text-xl font-semibold -mt-1">

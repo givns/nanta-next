@@ -119,7 +119,9 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
         <div className="relative h-3 rounded-full overflow-hidden mb-2">
           <div className="absolute w-full h-full bg-gray-100" />
           <div
-            className={`absolute h-full transition-all duration-300 ${getProgressBarColor()}`}
+            className={`absolute h-full transition-all duration-300 ${
+              isOvertimePeriod ? 'bg-yellow-500' : 'bg-blue-500'
+            }`}
             style={{ width: `${Math.min(metrics.progressPercent, 100)}%` }}
           />
         </div>
@@ -147,7 +149,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
           <span>
             {isOvertimePeriod
               ? isEarlyOvertimePeriod
-                ? 'เวลาทำงานล่วงเวลาก่อนกะปกติ'
+                ? 'เวลาทำงานล่วงเวลาก่อนกะ'
                 : 'เวลาทำงานล่วงเวลา'
               : 'เวลาทำงาน'}
           </span>
@@ -197,16 +199,20 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
         )}
 
         {/* Status Message */}
-        <div className="mt-3 text-blue-600 text-sm">
+        <div
+          className={`mt-3 ${isOvertimePeriod ? 'text-yellow-600' : 'text-blue-600'} text-sm`}
+        >
           {(() => {
             if (isOvertimePeriod) {
               const isPastEndTime =
                 now > parseISO(currentPeriod.timeWindow.end);
-              return isPastEndTime
-                ? 'หมดเวลาทำงานล่วงเวลา'
-                : 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
+              if (isPastEndTime) return 'หมดเวลาทำงานล่วงเวลา';
+              if (isEarlyOvertimePeriod)
+                return 'รอเริ่มทำงานล่วงเวลาก่อนกะปกติ';
+              return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
             }
 
+            // Regular period status checks remain the same
             const shiftStart = shiftData
               ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
               : null;
