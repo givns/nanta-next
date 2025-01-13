@@ -18,7 +18,6 @@ import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
 import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 import ProcessingView from './ProcessingView';
-import { Button } from '../ui/button';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -112,18 +111,19 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         });
 
         const isCheckingIn = !periodState?.activity.checkIn;
-        const isLateOvertimeCheckout =
+
+        // Handle overtime auto-completion
+        const isOvertimeCheckout =
           !isCheckingIn &&
           periodState.type === PeriodType.OVERTIME &&
           periodState.activity.checkIn &&
-          !periodState.activity.checkOut &&
-          new Date() > new Date(periodState.timeWindow.end);
+          !periodState.activity.checkOut;
 
         // Structure data according to CheckInOutData interface and schema
         const requestData: CheckInOutData = {
           // Required fields
           isCheckIn: params?.isCheckIn ?? isCheckingIn,
-          checkTime: isLateOvertimeCheckout
+          checkTime: isOvertimeCheckout
             ? periodState.timeWindow.end
             : now.toISOString(),
           periodType:
@@ -139,7 +139,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             isOvertime: params?.isOvertime || false,
             isManualEntry: false,
             overtimeMissed:
-              isLateOvertimeCheckout || params?.overtimeMissed || false,
+              isOvertimeCheckout || params?.overtimeMissed || false,
           },
 
           // Optional location data
@@ -180,9 +180,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             }),
             ...(stateValidation?.flags?.isEmergencyLeave && {
               reason: 'Emergency leave',
-            }),
-            ...(isLateOvertimeCheckout && {
-              reason: 'Auto-completed overtime check-out',
             }),
           },
         };
@@ -587,161 +584,119 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     <div className="min-h-screen flex flex-col bg-white">
       {step === 'info' && (
         <>
-          {/* Check for late overtime checkout condition */}
-          {periodState.type === PeriodType.OVERTIME &&
-          periodState.activity.checkIn &&
-          !periodState.activity.checkOut &&
-          new Date() > new Date(periodState.timeWindow.end) ? (
-            <div className="flex-1 overflow-y-auto pb-32">
-              <Alert className="m-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  เลยเวลาลงเวลาออก OT แล้ว ระบบจะทำการลงเวลาให้โดยอัตโนมัติ
-                </AlertDescription>
-              </Alert>
-              <div className="m-4">
-                <Button
-                  onClick={() =>
-                    handleAttendanceSubmit({
-                      isCheckIn: false,
-                      periodType: PeriodType.OVERTIME,
-                      isOvertime: true,
-                      overtimeMissed: true,
-                    })
-                  }
-                  className="w-full"
-                  disabled={processingState.status === 'loading'}
-                >
-                  {processingState.status === 'loading'
-                    ? 'กำลังดำเนินการ...'
-                    : 'ดำเนินการต่อ'}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex-1 overflow-y-auto pb-32">
-                +
-                <MobileAttendanceApp
-                  userData={userData}
-                  shiftData={shift}
-                  currentPeriod={periodState}
-                  status={{
-                    isHoliday,
-                    isDayOff,
-                  }}
-                  attendanceStatus={attendanceBase}
-                  overtimeInfo={
-                    context.nextPeriod?.overtimeInfo
-                      ? {
-                          checkIn:
-                            attendanceBase.latestAttendance?.CheckInTime ??
-                            null,
-                          checkOut:
-                            attendanceBase.latestAttendance?.CheckOutTime ??
-                            null,
-                          isActive: periodState.activity.isActive,
-                          id: context.nextPeriod.overtimeInfo.id,
-                          startTime: context.nextPeriod.overtimeInfo.startTime,
-                          endTime: context.nextPeriod.overtimeInfo.endTime,
-                          durationMinutes:
-                            context.nextPeriod.overtimeInfo.durationMinutes,
-                          isInsideShiftHours:
-                            context.nextPeriod.overtimeInfo.isInsideShiftHours,
-                          isDayOffOvertime:
-                            context.nextPeriod.overtimeInfo.isDayOffOvertime,
-                          reason: context.nextPeriod.overtimeInfo.reason,
-                          validationWindow: context.nextPeriod.overtimeInfo
-                            .validationWindow
-                            ? {
-                                earliestCheckIn:
-                                  typeof context.nextPeriod.overtimeInfo
-                                    .validationWindow.earliestCheckIn ===
-                                  'string'
-                                    ? context.nextPeriod.overtimeInfo
-                                        .validationWindow.earliestCheckIn
-                                    : String(
-                                        context.nextPeriod.overtimeInfo
-                                          .validationWindow.earliestCheckIn,
-                                      ),
-                                latestCheckOut:
-                                  typeof context.nextPeriod.overtimeInfo
-                                    .validationWindow.latestCheckOut ===
-                                  'string'
-                                    ? context.nextPeriod.overtimeInfo
-                                        .validationWindow.latestCheckOut
-                                    : String(
-                                        context.nextPeriod.overtimeInfo
-                                          .validationWindow.latestCheckOut,
-                                      ),
-                              }
-                            : undefined,
-                        }
-                      : undefined
-                  }
-                  validation={{
-                    allowed: stateValidation.allowed,
-                    reason: stateValidation.reason,
-                    flags: {
-                      hasActivePeriod: periodState.activity.isActive,
-                      isInsideShift: stateValidation.flags.isInsideShift,
-                      isOutsideShift: stateValidation.flags.isOutsideShift,
-                      isCheckingIn: !periodState.activity.checkIn,
-                      isEarlyCheckIn: stateValidation.flags.isEarlyCheckIn,
-                      isLateCheckIn: stateValidation.flags.isLateCheckIn,
-                      isEarlyCheckOut: stateValidation.flags.isEarlyCheckOut,
-                      isLateCheckOut: stateValidation.flags.isLateCheckOut,
-                      isVeryLateCheckOut:
-                        stateValidation.flags.isVeryLateCheckOut,
-                      isOvertime: stateValidation.flags.isOvertime,
-                      isDayOffOvertime: stateValidation.flags.isDayOffOvertime,
-                      isPendingOvertime:
-                        stateValidation.flags.isPendingOvertime,
-                      isAutoCheckIn: stateValidation.flags.isAutoCheckIn,
-                      isAutoCheckOut: stateValidation.flags.isAutoCheckOut,
-                      requireConfirmation:
-                        stateValidation.flags.requiresAutoCompletion ||
-                        stateValidation.flags.hasPendingTransition,
-                      requiresAutoCompletion:
-                        stateValidation.flags.requiresAutoCompletion,
-                      hasPendingTransition:
-                        stateValidation.flags.hasPendingTransition,
-                      requiresTransition:
-                        stateValidation.flags.requiresTransition,
-                      isMorningShift: stateValidation.flags.isMorningShift,
-                      isAfternoonShift: stateValidation.flags.isAfternoonShift,
-                      isAfterMidshift: stateValidation.flags.isAfterMidshift,
-                      isApprovedEarlyCheckout:
-                        stateValidation.flags.isApprovedEarlyCheckout,
-                      isPlannedHalfDayLeave:
-                        stateValidation.flags.isPlannedHalfDayLeave,
-                      isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
-                      isHoliday: stateValidation.flags.isHoliday,
-                      isDayOff: stateValidation.flags.isDayOff,
-                      isManualEntry: stateValidation.flags.isManualEntry,
-                    },
-                    metadata: {
-                      missingEntries: [],
-                      transitionWindow: context.transition
+          <div className="flex-1 overflow-y-auto pb-32">
+            +
+            <MobileAttendanceApp
+              userData={userData}
+              shiftData={shift}
+              currentPeriod={periodState}
+              status={{
+                isHoliday,
+                isDayOff,
+              }}
+              attendanceStatus={attendanceBase}
+              overtimeInfo={
+                context.nextPeriod?.overtimeInfo
+                  ? {
+                      checkIn:
+                        attendanceBase.latestAttendance?.CheckInTime ?? null,
+                      checkOut:
+                        attendanceBase.latestAttendance?.CheckOutTime ?? null,
+                      isActive: periodState.activity.isActive,
+                      id: context.nextPeriod.overtimeInfo.id,
+                      startTime: context.nextPeriod.overtimeInfo.startTime,
+                      endTime: context.nextPeriod.overtimeInfo.endTime,
+                      durationMinutes:
+                        context.nextPeriod.overtimeInfo.durationMinutes,
+                      isInsideShiftHours:
+                        context.nextPeriod.overtimeInfo.isInsideShiftHours,
+                      isDayOffOvertime:
+                        context.nextPeriod.overtimeInfo.isDayOffOvertime,
+                      reason: context.nextPeriod.overtimeInfo.reason,
+                      validationWindow: context.nextPeriod.overtimeInfo
+                        .validationWindow
                         ? {
-                            start: context.transition.to.start || '',
-                            end: periodState.timeWindow.end,
-                            targetPeriod: context.transition.to.type,
+                            earliestCheckIn:
+                              typeof context.nextPeriod.overtimeInfo
+                                .validationWindow.earliestCheckIn === 'string'
+                                ? context.nextPeriod.overtimeInfo
+                                    .validationWindow.earliestCheckIn
+                                : String(
+                                    context.nextPeriod.overtimeInfo
+                                      .validationWindow.earliestCheckIn,
+                                  ),
+                            latestCheckOut:
+                              typeof context.nextPeriod.overtimeInfo
+                                .validationWindow.latestCheckOut === 'string'
+                                ? context.nextPeriod.overtimeInfo
+                                    .validationWindow.latestCheckOut
+                                : String(
+                                    context.nextPeriod.overtimeInfo
+                                      .validationWindow.latestCheckOut,
+                                  ),
                           }
                         : undefined,
-                    },
-                  }}
-                  locationState={{
-                    isReady: locationState.status === 'ready',
-                    error: locationState.error || undefined,
-                  }}
-                  onAction={handleAction}
-                />
-              </div>
+                    }
+                  : undefined
+              }
+              validation={{
+                allowed: stateValidation.allowed,
+                reason: stateValidation.reason,
+                flags: {
+                  hasActivePeriod: periodState.activity.isActive,
+                  isInsideShift: stateValidation.flags.isInsideShift,
+                  isOutsideShift: stateValidation.flags.isOutsideShift,
+                  isCheckingIn: !periodState.activity.checkIn,
+                  isEarlyCheckIn: stateValidation.flags.isEarlyCheckIn,
+                  isLateCheckIn: stateValidation.flags.isLateCheckIn,
+                  isEarlyCheckOut: stateValidation.flags.isEarlyCheckOut,
+                  isLateCheckOut: stateValidation.flags.isLateCheckOut,
+                  isVeryLateCheckOut: stateValidation.flags.isVeryLateCheckOut,
+                  isOvertime: stateValidation.flags.isOvertime,
+                  isDayOffOvertime: stateValidation.flags.isDayOffOvertime,
+                  isPendingOvertime: stateValidation.flags.isPendingOvertime,
+                  isAutoCheckIn: stateValidation.flags.isAutoCheckIn,
+                  isAutoCheckOut: stateValidation.flags.isAutoCheckOut,
+                  requireConfirmation:
+                    stateValidation.flags.requiresAutoCompletion ||
+                    stateValidation.flags.hasPendingTransition,
+                  requiresAutoCompletion:
+                    stateValidation.flags.requiresAutoCompletion,
+                  hasPendingTransition:
+                    stateValidation.flags.hasPendingTransition,
+                  requiresTransition: stateValidation.flags.requiresTransition,
+                  isMorningShift: stateValidation.flags.isMorningShift,
+                  isAfternoonShift: stateValidation.flags.isAfternoonShift,
+                  isAfterMidshift: stateValidation.flags.isAfterMidshift,
+                  isApprovedEarlyCheckout:
+                    stateValidation.flags.isApprovedEarlyCheckout,
+                  isPlannedHalfDayLeave:
+                    stateValidation.flags.isPlannedHalfDayLeave,
+                  isEmergencyLeave: stateValidation.flags.isEmergencyLeave,
+                  isHoliday: stateValidation.flags.isHoliday,
+                  isDayOff: stateValidation.flags.isDayOff,
+                  isManualEntry: stateValidation.flags.isManualEntry,
+                },
+                metadata: {
+                  missingEntries: [],
+                  transitionWindow: context.transition
+                    ? {
+                        start: context.transition.to.start || '',
+                        end: periodState.timeWindow.end,
+                        targetPeriod: context.transition.to.type,
+                      }
+                    : undefined,
+                },
+              }}
+              locationState={{
+                isReady: locationState.status === 'ready',
+                error: locationState.error || undefined,
+              }}
+              onAction={handleAction}
+            />
+          </div>
 
-              {renderActionComponent()}
-            </>
-          )}
+          {renderActionComponent()}
         </>
       )}
 
