@@ -21,6 +21,15 @@ export interface PeriodWindow {
   };
 }
 
+export interface PeriodDefinition {
+  type: PeriodType; // Type of period (Regular/Overtime)
+  startTime: string; // Start time as a string (e.g., '03:00')
+  endTime: string; // End time as a string (e.g., '04:00')
+  sequence: number; // Chronological order of periods
+  isDayOff?: boolean; // Optional flag for day-off periods
+  isOvernight?: boolean; // Flag to indicate if period crosses midnight
+}
+
 export interface PeriodInfo {
   type: PeriodType;
   window: {
