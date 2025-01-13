@@ -259,13 +259,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     );
   };
 
-  // Add these new helper methods to check period timing
-  const isEarlyMorningTime = () => {
-    const now = getCurrentTime();
-    const earlyMorningEnd = parseISO(`${format(now, 'yyyy-MM-dd')}T05:00:00`);
-    return now < earlyMorningEnd;
-  };
-
   const isApproachingOvertime = () => {
     if (!transition?.to.start) return false;
     const now = getCurrentTime();
@@ -434,17 +427,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
       <StatusMessages />
       {renderButtons()}
-
-      {/* Period Transition Info */}
-      {transition && !isTransitionPeriod && (
-        <div className="mt-2 text-xs text-gray-500">
-          {transition.to.type === PeriodType.OVERTIME ? (
-            <>เริ่มทำงานล่วงเวลาเวลา {formatSafeTime(transition.to.start)} น.</>
-          ) : (
-            <>เริ่มกะปกติเวลา {formatSafeTime(transition.to.start)} น.</>
-          )}
-        </div>
-      )}
     </div>
   );
 };
