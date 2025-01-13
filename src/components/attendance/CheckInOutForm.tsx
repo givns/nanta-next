@@ -436,10 +436,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       nextPeriod: context?.nextPeriod,
       availableAt: context?.transition?.to?.start,
     });
+
+    // Emergency leave case
     if (
-      periodState.activity.checkIn && // User is checked in
+      periodState.activity.checkIn &&
       periodState.type === PeriodType.REGULAR &&
-      stateValidation.flags.isEmergencyLeave // Emergency leave
+      stateValidation.flags.isEmergencyLeave
     ) {
       return (
         <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
@@ -470,6 +472,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       );
     }
 
+    // Always render action button for other cases
     return (
       <ActionButton
         attendanceStatus={{
@@ -482,9 +485,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         periodWindow={periodState.timeWindow}
         validation={{
           allowed: stateValidation.allowed,
-          canProceed: stateValidation.allowed, // Map allowed to canProceed
+          canProceed: stateValidation.allowed,
           reason: stateValidation.reason,
-          message: stateValidation.reason, // Map reason to message
+          message: stateValidation.reason,
           flags: {
             hasActivePeriod: periodState.activity.isActive,
             isInsideShift: stateValidation.flags.isInsideShift,
@@ -536,7 +539,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           locationValid: locationState.status === 'ready',
           error: locationState.error || undefined,
         }}
-        transition={context.transition} // Pass the TransitionInfo directly
+        transition={context.transition}
         onActionTriggered={handleAction}
         onTransitionRequested={
           stateValidation.flags.hasPendingTransition
