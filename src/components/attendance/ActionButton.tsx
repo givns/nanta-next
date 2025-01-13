@@ -192,9 +192,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
             <span className="text-white text-sm">
               {isCheckIn ? 'เริ่ม OT' : 'ออก OT'}
             </span>
-            <span className="text-white text-xl font-semibold -mt-1">
-              {isCheckIn ? formatSafeTime(periodWindow.start) : 'OT'}
-            </span>
+            <span className="text-white text-xl font-semibold -mt-1">OT</span>
           </div>
         );
       }
