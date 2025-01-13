@@ -161,6 +161,18 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           <span className="text-white text-sm">
             {isEarlyOvertimeTransition ? 'เริ่ม OT' : 'เข้า OT'}
           </span>
+          <span className="text-white text-xl font-semibold -mt-1">
+            {formatSafeTime(transition.to.start)}
+          </span>
+        </div>
+      );
+    }
+
+    if (type === 'overtime' && !isCheckIn) {
+      return (
+        <div className="flex flex-col items-center leading-tight">
+          <span className="text-white text-sm">ออก</span>
+          <span className="text-white text-xl font-semibold -mt-1">OT</span>
         </div>
       );
     }
@@ -397,15 +409,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
               )
         }`}
         aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
-      >
-        <div className="flex flex-col items-center leading-tight">
-          <span
-            className={`text-2xl font-semibold ${isDisabled ? 'text-gray-600' : 'text-white'}`}
-          >
-            {formatSafeTime(periodWindow?.start)}
-          </span>
-        </div>
-      </button>
+      ></button>
     );
   };
 
