@@ -280,16 +280,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         return;
       }
 
-      // Skip confirmation for overtime checkout
-      const isOvertimeCheckout =
-        periodState.type === PeriodType.OVERTIME &&
-        periodState.activity.checkIn &&
-        !periodState.activity.checkOut;
-
-      if (!isOvertimeCheckout) {
-        return;
-      }
-
       if (stateValidation.flags.isEmergencyLeave && userData?.lineUserId) {
         const leaveCreated = await createSickLeaveRequest(
           userData.lineUserId,

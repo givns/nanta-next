@@ -39,7 +39,7 @@ interface ActionButtonProps {
   onTransitionRequested?: () => void;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({
+const ActionButton: React.FunctionComponent<ActionButtonProps> = ({
   attendanceStatus,
   periodType,
   periodWindow,
@@ -383,40 +383,30 @@ const ActionButton: React.FC<ActionButtonProps> = ({
         </div>
       );
     }
-
-    // Regular single button
-    const isCheckingIn =
-      attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
-
-    return (
-      <button
-        onClick={handleRegularClick}
-        disabled={isDisabled}
-        className={`h-20 w-20 ${baseButtonStyle} ${
-          isDisabled
-            ? buttonDisabledStyle
-            : buttonEnabledStyle(
-                periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
-              )
-        }`}
-        aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
-      >
-        <div className="flex flex-col items-center leading-tight">
-          <span
-            className={`text-2xl font-semibold ${isDisabled ? 'text-gray-600' : 'text-white'}`}
-          >
-            {formatSafeTime(periodWindow?.start)}
-          </span>
-        </div>
-      </button>
-    );
   };
 
+  // Regular single button
+  const isCheckingIn = attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
+
   return (
-    <div className="fixed left-0 right-0 bottom-12 mb-safe flex flex-col items-center">
-      <StatusMessages />
-      {renderButtons()}
-    </div>
+    <button
+      onClick={handleRegularClick}
+      disabled={isDisabled}
+      className={`h-20 w-20 ${baseButtonStyle} ${
+        isDisabled
+          ? buttonDisabledStyle
+          : buttonEnabledStyle(
+              periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
+            )
+      }`}
+      aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
+    >
+      {/* Replace this entire div with renderButtonContent */}
+      {renderButtonContent(
+        periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
+        isCheckingIn,
+      )}
+    </button>
   );
 };
 
