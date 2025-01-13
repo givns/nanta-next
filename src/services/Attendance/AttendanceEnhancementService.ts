@@ -807,7 +807,7 @@ export class AttendanceEnhancementService {
         shouldAutoComplete: true,
         allowManualCheckout: false,
         checkoutTime: endTime,
-        reason: 'เลยเวลาลงเวลาออก OT แล้ว ระบบจะทำการลงเวลาให้โดยอัตโนมัติ',
+        reason: 'เลยเวลาออก OT แล้ว ระบบจะทำการลงเวลาให้โดยอัตโนมัติ',
       };
     } catch (error) {
       console.error('Error determining overtime checkout status:', error);
