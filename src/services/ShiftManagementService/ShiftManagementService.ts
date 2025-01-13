@@ -358,6 +358,13 @@ export class ShiftManagementService {
       const { effectiveShift, shiftstatus, holidayInfo } = shiftData;
       const windows = this.calculateShiftWindows(effectiveShift, date);
 
+      // Get attendance first
+      const attendance =
+        await this.attendanceRecordService.getLatestAttendanceRecord(
+          employeeId,
+        );
+      const attendanceState = this.determineAttendanceState(attendance);
+
       // Get ALL overtimes for the day and sort them
       const overtimes = await this.overtimeService?.getDetailedOvertimesInRange(
         employeeId,
@@ -365,7 +372,6 @@ export class ShiftManagementService {
         endOfDay(date),
       );
 
-      // Log all retrieved overtimes
       console.log('Retrieved overtimes:', {
         count: overtimes?.length,
         overtimes: overtimes?.map((ot) => ({
@@ -375,12 +381,21 @@ export class ShiftManagementService {
         })),
       });
 
-      // Sort and get relevant overtime
-      const relevantOvertime = this.findRelevantOvertime(overtimes || [], now);
+      // Sort and get relevant overtime with attendance
+      const relevantOvertime = this.findRelevantOvertime(
+        overtimes || [],
+        now,
+        attendance,
+      );
 
-      console.log(
-        'Selected overtime:',
-        relevantOvertime
+      console.log('Selected overtime:', {
+        attendance: attendance
+          ? {
+              type: attendance.type,
+              checkIn: attendance.CheckInTime,
+            }
+          : null,
+        overtime: relevantOvertime
           ? {
               startTime: relevantOvertime.startTime,
               endTime: relevantOvertime.endTime,
@@ -389,15 +404,8 @@ export class ShiftManagementService {
               isBeforeShift:
                 relevantOvertime.startTime < effectiveShift.startTime,
             }
-          : 'No relevant overtime',
-      );
-
-      // Get attendance
-      const attendance =
-        await this.attendanceRecordService.getLatestAttendanceRecord(
-          employeeId,
-        );
-      const attendanceState = this.determineAttendanceState(attendance);
+          : null,
+      });
 
       // Get current period
       const currentPeriod = await this.determineCurrentPeriod(
