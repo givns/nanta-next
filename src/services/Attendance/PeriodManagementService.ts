@@ -38,8 +38,6 @@ const VALIDATION_THRESHOLDS = {
 } as const;
 
 export class PeriodManagementService {
-  // In PeriodManagementService.ts
-
   resolveCurrentPeriod(
     attendance: AttendanceRecord | null,
     periodState: ShiftWindowResponse,
@@ -58,7 +56,7 @@ export class PeriodManagementService {
                 this.isOvernightPeriod(
                   periodState.overtimeInfo.startTime,
                   periodState.overtimeInfo.endTime,
-                ) ?? false, // Ensure boolean
+                ) ?? false,
               isDayOff: periodState.overtimeInfo.isDayOffOvertime ?? false,
             },
           ]
@@ -72,7 +70,7 @@ export class PeriodManagementService {
           this.isOvernightPeriod(
             periodState.shift.startTime,
             periodState.shift.endTime,
-          ) ?? false, // Ensure boolean
+          ) ?? false,
       },
     ];
 
@@ -93,6 +91,20 @@ export class PeriodManagementService {
         parsedTime.setHours(hours, minutes, 0, 0);
         return parsedTime;
       };
+
+      // Detailed logging
+      console.log('Period resolution:', {
+        currentTime: format(now, 'HH:mm'),
+        hasShift: Boolean(periodState.shift),
+        hasOvertime: Boolean(periodState.overtimeInfo),
+        attendance: attendance
+          ? {
+              checkIn: attendance.CheckInTime,
+              checkOut: attendance.CheckOutTime,
+              type: attendance.type,
+            }
+          : null,
+      });
 
       // 1. Handle active attendance first
       if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
@@ -136,14 +148,60 @@ export class PeriodManagementService {
               isWithinBounds: true,
               isEarly: false,
               isLate: false,
-              isOvernight: activePeriod.isOvernight || false, // Ensure boolean
+              isOvernight: activePeriod.isOvernight || false,
               isConnected: false,
             },
           };
         }
       }
 
-      // 2. Find current period
+      // 2. Check early overtime period
+      const earlyOvertimePeriod = periods.find(
+        (period) =>
+          period.type === PeriodType.OVERTIME &&
+          this.isEarlyOvertimePeriod(period, periods, now),
+      );
+
+      if (earlyOvertimePeriod) {
+        const overtimeStart = parseTimeWithContext(
+          earlyOvertimePeriod.startTime,
+          now,
+        );
+        const overtimeEnd = parseTimeWithContext(
+          earlyOvertimePeriod.endTime,
+          now,
+        );
+
+        // Adjust for overnight periods
+        if (earlyOvertimePeriod.isOvernight && overtimeEnd < overtimeStart) {
+          overtimeEnd.setDate(overtimeEnd.getDate() + 1);
+        }
+
+        return {
+          type: PeriodType.OVERTIME,
+          timeWindow: {
+            start: format(overtimeStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            end: format(overtimeEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          },
+          activity: {
+            isActive: false,
+            checkIn: null,
+            checkOut: null,
+            isOvertime: true,
+            isDayOffOvertime: Boolean(earlyOvertimePeriod.isDayOff),
+            isInsideShiftHours: false,
+          },
+          validation: {
+            isWithinBounds: now >= overtimeStart,
+            isEarly: now < overtimeStart,
+            isLate: false,
+            isOvernight: earlyOvertimePeriod.isOvernight || false,
+            isConnected: true,
+          },
+        };
+      }
+
+      // 3. Find current period
       const currentPeriod = periods.find((period) => {
         const periodStart = parseTimeWithContext(period.startTime, now);
         const periodEnd = parseTimeWithContext(period.endTime, now);
@@ -217,7 +275,7 @@ export class PeriodManagementService {
           isWithinBounds: true,
           isEarly: now < parseTimeWithContext(currentPeriod.startTime, now),
           isLate: now > parseTimeWithContext(currentPeriod.endTime, now),
-          isOvernight: currentPeriod.isOvernight || false, // Ensure boolean
+          isOvernight: currentPeriod.isOvernight || false,
           isConnected: Boolean(periodState.overtimeInfo),
         },
       };
@@ -243,6 +301,38 @@ export class PeriodManagementService {
         },
       };
     }
+  }
+
+  // Helper method to check early overtime period
+  private isEarlyOvertimePeriod(
+    period: PeriodDefinition,
+    allPeriods: PeriodDefinition[],
+    now: Date,
+  ): boolean {
+    // Find the regular shift period
+    const regularPeriod = allPeriods.find((p) => p.type === PeriodType.REGULAR);
+
+    if (!regularPeriod) return false;
+
+    // Check if overtime is before regular shift
+    const parseTimeWithContext = (timeString: string, referenceDate: Date) => {
+      const [hours, minutes] = timeString.split(':').map(Number);
+      const parsedTime = new Date(referenceDate);
+      parsedTime.setHours(hours, minutes, 0, 0);
+      return parsedTime;
+    };
+
+    const overtimeStart = parseTimeWithContext(period.startTime, now);
+    const shiftStart = parseTimeWithContext(regularPeriod.startTime, now);
+    const earlyThreshold = subMinutes(
+      overtimeStart,
+      VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+    );
+
+    // Check if overtime is before shift and we're approaching the early threshold
+    return (
+      overtimeStart < shiftStart && now >= earlyThreshold && now < overtimeStart
+    );
   }
 
   calculatePeriodTransitions(
