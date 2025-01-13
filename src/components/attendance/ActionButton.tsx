@@ -260,9 +260,6 @@ const ActionButton: React.FunctionComponent<ActionButtonProps> = ({
 
   // Update the renderButtons method to handle early morning cases
   const renderButtons = () => {
-    // Don't allow regular check-in during very early morning hours
-    // If we're waiting for overtime and disabled
-    // Update this part
     if (validation.flags.isPendingOvertime && isDisabled) {
       return (
         <div className="flex flex-col items-center gap-2">
@@ -388,19 +385,14 @@ const ActionButton: React.FunctionComponent<ActionButtonProps> = ({
   // Regular single button
   const isCheckingIn = attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
 
+  // Update final return statement
   return (
     <div className="fixed inset-x-0 bottom-0 mb-safe bg-white">
       <div className="flex flex-col items-center pb-12">
         <StatusMessages />
-        {/* Check for special conditions first */}
-        {validation.flags.isPendingOvertime && isDisabled ? (
-          renderButtons()
-        ) : isApproachingOvertime() && !isInTransitionState ? (
-          renderButtons()
-        ) : isInTransitionState ? (
-          renderButtons()
-        ) : (
-          /* Default button case */
+        {/* Render special cases first */}
+        {renderButtons() || (
+          // Default button case
           <button
             onClick={handleRegularClick}
             disabled={isDisabled}
@@ -410,11 +402,6 @@ const ActionButton: React.FunctionComponent<ActionButtonProps> = ({
                 : buttonEnabledStyle(
                     periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
                   )
-            }`}
-            aria-label={`Attendance action: ${
-              attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN
-                ? 'check in'
-                : 'check out'
             }`}
           >
             {renderButtonContent(
