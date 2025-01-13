@@ -208,7 +208,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
                 now > parseISO(currentPeriod.timeWindow.end);
               if (isPastEndTime) return 'หมดเวลาทำงานล่วงเวลา';
               if (isEarlyOvertimePeriod)
-                return 'รอเริ่มทำงานล่วงเวลาก่อนกะปกติ';
+                return 'รอเริ่มทำงานล่วงเวลาก่อนเวลาทำงานปกติ';
               return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
             }
 
