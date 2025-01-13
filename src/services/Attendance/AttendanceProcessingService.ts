@@ -205,173 +205,272 @@ export class AttendanceProcessingService {
     }
 
     try {
-      // Convert shift end time to proper DateTime
-      const shiftEndDate = new Date(now);
-      const [hours, minutes] = window.shift.endTime.split(':').map(Number);
-      shiftEndDate.setHours(hours, minutes, 0, 0);
+      // Handle based on period type
+      if (currentRecord.type === PeriodType.OVERTIME) {
+        // Get overtime end time from record's timeWindow
+        const overtimeEndDate = parseISO(window.current.end);
 
-      // 1. Regular check-out
-      const regularCheckout = await tx.attendance.update({
-        where: { id: currentRecord.id },
-        data: {
-          CheckOutTime: shiftEndDate,
-          state: AttendanceState.PRESENT,
-          checkStatus: CheckStatus.CHECKED_OUT,
-          metadata: {
-            update: {
+        // Update attendance record
+        const updatedAttendance = await tx.attendance.update({
+          where: { id: currentRecord.id },
+          data: {
+            CheckOutTime: overtimeEndDate,
+            state: AttendanceState.PRESENT,
+            checkStatus: CheckStatus.CHECKED_OUT,
+            overtimeState: OvertimeState.COMPLETED,
+            metadata: {
+              update: {
+                source: 'auto',
+                updatedAt: now,
+              },
+            },
+          },
+          include: {
+            timeEntries: true,
+            overtimeEntries: true,
+            location: true,
+            metadata: true,
+            checkTiming: true,
+          },
+        });
+
+        // Create new overtime time entry
+        await tx.timeEntry.create({
+          data: {
+            employeeId: currentRecord.employeeId,
+            date: startOfDay(now),
+            attendanceId: currentRecord.id,
+            startTime: currentRecord.CheckInTime,
+            endTime: overtimeEndDate,
+            status: 'COMPLETED',
+            entryType: PeriodType.OVERTIME,
+            regularHours: 0,
+            overtimeHours:
+              differenceInMinutes(overtimeEndDate, currentRecord.CheckInTime) /
+              60,
+            hours: {
+              regular: 0,
+              overtime:
+                differenceInMinutes(
+                  overtimeEndDate,
+                  currentRecord.CheckInTime,
+                ) / 60,
+            },
+            timing: {
+              actualMinutesLate: 0,
+              isHalfDayLate: false,
+            },
+            ...(options.metadata?.overtimeId && {
+              overtimeRequestId: options.metadata.overtimeId,
+            }),
+            metadata: {
               source: 'auto',
-              updatedAt: now,
+              version: 1,
+              createdAt: now.toISOString(),
+              updatedAt: now.toISOString(),
             },
           },
-        },
-        include: {
-          timeEntries: true,
-          overtimeEntries: true,
-          location: true,
-          metadata: true,
-          checkTiming: true,
-        },
-      });
+        });
 
-      // 2. Regular time entry
-      const regularTimeEntry = await tx.timeEntry.update({
-        where: {
-          id: currentRecord.timeEntries[0].id,
-          attendanceId: currentRecord.id,
-          status: 'STARTED',
-          entryType: PeriodType.REGULAR,
-        },
-        data: {
-          endTime: shiftEndDate,
-          status: 'COMPLETED' as TimeEntryStatus,
-          regularHours:
-            differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
-          hours: {
-            regular:
-              differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
-            overtime: 0,
-          },
-          metadata: {
-            source: 'auto',
-            version: 1,
-            updatedAt: now.toISOString(),
-          },
-        },
-      });
-
-      // 3. Overtime check-in
-      const overtimeCheckin = await tx.attendance.create({
-        data: {
-          employeeId: options.employeeId,
-          date: startOfDay(now),
-          state: AttendanceState.INCOMPLETE,
-          checkStatus: CheckStatus.CHECKED_IN,
-          type: PeriodType.OVERTIME,
-          isOvertime: true,
-          overtimeState: OvertimeState.IN_PROGRESS,
-          CheckInTime: shiftEndDate,
-          shiftStartTime: new Date(window.current.start),
-          shiftEndTime: new Date(window.current.end),
-          ...(options.metadata?.overtimeId && {
-            overtimeId: options.metadata.overtimeId,
-          }),
-          metadata: {
-            create: {
-              source: 'auto',
-              isManualEntry: false,
-              isDayOff: window.isDayOff,
-              createdAt: now,
-              updatedAt: now,
-            },
-          },
-          checkTiming: {
-            create: {
-              isEarlyCheckIn: false,
-              isLateCheckIn: false,
-              isLateCheckOut: false,
-              isVeryLateCheckOut: false,
-              lateCheckOutMinutes: 0,
-            },
-          },
-        },
-        include: {
-          timeEntries: true,
-          overtimeEntries: true,
-          location: true,
-          metadata: true,
-          checkTiming: true,
-        },
-      });
-
-      // 4. Overtime time entry
-      const overtimeTimeEntry = await tx.timeEntry.create({
-        data: {
-          employeeId: options.employeeId,
-          date: startOfDay(now),
-          startTime: shiftEndDate,
-          status: 'STARTED' as TimeEntryStatus,
-          entryType: PeriodType.OVERTIME,
-          attendanceId: overtimeCheckin.id,
-          regularHours: 0,
-          overtimeHours: 0,
-          hours: {
-            regular: 0,
-            overtime: 0,
-          },
-          timing: {
-            actualMinutesLate: 0,
-            isHalfDayLate: false,
-          },
-          ...(options.metadata?.overtimeId && {
-            overtimeRequestId: options.metadata.overtimeId,
-          }),
-          metadata: {
-            source: 'auto',
-            version: 1,
-            createdAt: now.toISOString(),
-            updatedAt: now.toISOString(),
-          },
-        },
-      });
-
-      // 5. Get final state
-      const currentState = this.periodManager.resolveCurrentPeriod(
-        AttendanceMappers.toAttendanceRecord(overtimeCheckin),
-        window,
-        now,
-      );
-
-      const stateValidation =
-        await this.enhancementService.createStateValidation(
-          AttendanceMappers.toAttendanceRecord(overtimeCheckin),
-          currentState,
+        const currentState = this.periodManager.resolveCurrentPeriod(
+          AttendanceMappers.toAttendanceRecord(updatedAttendance),
           window,
           now,
         );
 
-      return {
-        success: true,
-        timestamp: now.toISOString(),
-        data: {
-          state: {
-            current: currentState,
-            previous: this.periodManager.resolveCurrentPeriod(
-              currentRecord,
-              window,
-              now,
-            ),
+        const stateValidation =
+          await this.enhancementService.createStateValidation(
+            AttendanceMappers.toAttendanceRecord(updatedAttendance),
+            currentState,
+            window,
+            now,
+          );
+
+        return {
+          success: true,
+          timestamp: now.toISOString(),
+          data: {
+            state: {
+              current: currentState,
+              previous: this.periodManager.resolveCurrentPeriod(
+                currentRecord,
+                window,
+                now,
+              ),
+            },
+            validation: stateValidation,
           },
-          validation: stateValidation,
-        },
-        metadata: {
-          source: 'auto',
-          timeEntries: {
-            regular: regularTimeEntry,
-            overtime: [overtimeTimeEntry],
+          metadata: {
+            source: 'auto',
+            timeEntries: [],
+            isTransition: false,
           },
-          isTransition: true,
-        },
-      };
+        };
+      } else {
+        // Regular period handling
+        const shiftEndDate = new Date(now);
+        const [hours, minutes] = window.shift.endTime.split(':').map(Number);
+        shiftEndDate.setHours(hours, minutes, 0, 0);
+
+        const regularCheckout = await tx.attendance.update({
+          where: { id: currentRecord.id },
+          data: {
+            CheckOutTime: shiftEndDate,
+            state: AttendanceState.PRESENT,
+            checkStatus: CheckStatus.CHECKED_OUT,
+            metadata: {
+              update: {
+                source: 'auto',
+                updatedAt: now,
+              },
+            },
+          },
+          include: {
+            timeEntries: true,
+            overtimeEntries: true,
+            location: true,
+            metadata: true,
+            checkTiming: true,
+          },
+        });
+
+        const regularTimeEntry = await tx.timeEntry.update({
+          where: {
+            id: currentRecord.timeEntries[0].id,
+            attendanceId: currentRecord.id,
+            status: 'STARTED',
+            entryType: PeriodType.REGULAR,
+          },
+          data: {
+            endTime: shiftEndDate,
+            status: 'COMPLETED' as TimeEntryStatus,
+            regularHours:
+              differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) / 60,
+            hours: {
+              regular:
+                differenceInMinutes(shiftEndDate, currentRecord.CheckInTime) /
+                60,
+              overtime: 0,
+            },
+            metadata: {
+              source: 'auto',
+              version: 1,
+              updatedAt: now.toISOString(),
+            },
+          },
+        });
+
+        const overtimeCheckin = await tx.attendance.create({
+          data: {
+            employeeId: options.employeeId,
+            date: startOfDay(now),
+            state: AttendanceState.INCOMPLETE,
+            checkStatus: CheckStatus.CHECKED_IN,
+            type: PeriodType.OVERTIME,
+            isOvertime: true,
+            overtimeState: OvertimeState.IN_PROGRESS,
+            CheckInTime: shiftEndDate,
+            shiftStartTime: new Date(window.current.start),
+            shiftEndTime: new Date(window.current.end),
+            ...(options.metadata?.overtimeId && {
+              overtimeId: options.metadata.overtimeId,
+            }),
+            metadata: {
+              create: {
+                source: 'auto',
+                isManualEntry: false,
+                isDayOff: window.isDayOff,
+                createdAt: now,
+                updatedAt: now,
+              },
+            },
+            checkTiming: {
+              create: {
+                isEarlyCheckIn: false,
+                isLateCheckIn: false,
+                isLateCheckOut: false,
+                isVeryLateCheckOut: false,
+                lateCheckOutMinutes: 0,
+              },
+            },
+          },
+          include: {
+            timeEntries: true,
+            overtimeEntries: true,
+            location: true,
+            metadata: true,
+            checkTiming: true,
+          },
+        });
+
+        const overtimeTimeEntry = await tx.timeEntry.create({
+          data: {
+            employeeId: options.employeeId,
+            date: startOfDay(now),
+            startTime: shiftEndDate,
+            status: 'STARTED' as TimeEntryStatus,
+            entryType: PeriodType.OVERTIME,
+            attendanceId: overtimeCheckin.id,
+            regularHours: 0,
+            overtimeHours: 0,
+            hours: {
+              regular: 0,
+              overtime: 0,
+            },
+            timing: {
+              actualMinutesLate: 0,
+              isHalfDayLate: false,
+            },
+            ...(options.metadata?.overtimeId && {
+              overtimeRequestId: options.metadata.overtimeId,
+            }),
+            metadata: {
+              source: 'auto',
+              version: 1,
+              createdAt: now.toISOString(),
+              updatedAt: now.toISOString(),
+            },
+          },
+        });
+
+        const currentState = this.periodManager.resolveCurrentPeriod(
+          AttendanceMappers.toAttendanceRecord(overtimeCheckin),
+          window,
+          now,
+        );
+
+        const stateValidation =
+          await this.enhancementService.createStateValidation(
+            AttendanceMappers.toAttendanceRecord(overtimeCheckin),
+            currentState,
+            window,
+            now,
+          );
+
+        return {
+          success: true,
+          timestamp: now.toISOString(),
+          data: {
+            state: {
+              current: currentState,
+              previous: this.periodManager.resolveCurrentPeriod(
+                currentRecord,
+                window,
+                now,
+              ),
+            },
+            validation: stateValidation,
+          },
+          metadata: {
+            source: 'auto',
+            timeEntries: {
+              regular: regularTimeEntry,
+              overtime: [overtimeTimeEntry],
+            },
+            isTransition: true,
+          },
+        };
+      }
     } catch (error) {
       console.error('Auto-completion error:', error);
       throw this.handleProcessingError(error);
