@@ -593,14 +593,82 @@ export class ShiftManagementService {
   private findRelevantOvertime(
     overtimes: ApprovedOvertimeInfo[],
     now: Date,
+    attendance?: AttendanceRecord | null,
   ): ApprovedOvertimeInfo | null {
+    console.log('Finding relevant overtime:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      availableOvertimes: overtimes.map((ot) => ({
+        startTime: ot.startTime,
+        endTime: ot.endTime,
+        isOvernight: ot.endTime < ot.startTime,
+      })),
+      attendance: attendance
+        ? {
+            type: attendance.type,
+            checkIn: attendance.CheckInTime
+              ? format(new Date(attendance.CheckInTime), 'HH:mm:ss')
+              : null,
+            checkOut: attendance.CheckOutTime
+              ? format(new Date(attendance.CheckOutTime), 'HH:mm:ss')
+              : null,
+          }
+        : null,
+    });
+
     const sortedOvertimes = [...overtimes].sort((a, b) => {
       const aStart = this.getMinutesSinceMidnight(a.startTime);
       const bStart = this.getMinutesSinceMidnight(b.startTime);
       return aStart - bStart;
     });
 
-    // First, check for active overtime
+    // First check active attendance overtime session
+    if (
+      attendance?.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime
+    ) {
+      const activeOtCheckIn = new Date(attendance.CheckInTime);
+      const matchingOt = sortedOvertimes.find((ot) => {
+        const otStart = parseISO(
+          `${format(activeOtCheckIn, 'yyyy-MM-dd')}T${ot.startTime}`,
+        );
+        const otEnd = parseISO(
+          `${format(activeOtCheckIn, 'yyyy-MM-dd')}T${ot.endTime}`,
+        );
+
+        // Handle overnight overtime
+        let adjustedEnd = otEnd;
+        if (ot.endTime < ot.startTime) {
+          adjustedEnd = addDays(otEnd, 1);
+        }
+
+        const checkInTime = format(activeOtCheckIn, 'HH:mm');
+        const startTime = format(otStart, 'HH:mm');
+        const endTime = format(adjustedEnd, 'HH:mm');
+
+        const isMatch = checkInTime >= startTime && checkInTime <= endTime;
+
+        console.log('Checking overtime match:', {
+          checkIn: checkInTime,
+          otStart: startTime,
+          otEnd: endTime,
+          isMatch,
+        });
+
+        return isMatch;
+      });
+
+      if (matchingOt) {
+        console.log('Found matching active overtime:', {
+          startTime: matchingOt.startTime,
+          endTime: matchingOt.endTime,
+          isOvernight: matchingOt.endTime < matchingOt.startTime,
+        });
+        return matchingOt;
+      }
+    }
+
+    // If no active session, check for current/upcoming overtime
     const activeOvertime = sortedOvertimes.find((ot) => {
       const start = parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.startTime}`);
       let end = parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.endTime}`);
@@ -614,11 +682,30 @@ export class ShiftManagementService {
         start,
         VALIDATION_THRESHOLDS.EARLY_CHECKIN,
       );
-      return now >= earlyWindow && now <= end;
+      const lateWindow = addMinutes(
+        end,
+        VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
+      );
+
+      const isWithinPeriod = now >= earlyWindow && now <= lateWindow;
+
+      console.log('Checking overtime window:', {
+        overtime: {
+          start: format(start, 'HH:mm:ss'),
+          end: format(end, 'HH:mm:ss'),
+        },
+        windows: {
+          early: format(earlyWindow, 'HH:mm:ss'),
+          late: format(lateWindow, 'HH:mm:ss'),
+        },
+        isWithinPeriod,
+      });
+
+      return isWithinPeriod;
     });
 
     if (activeOvertime) {
-      console.log('Found active overtime:', {
+      console.log('Found active overtime period:', {
         startTime: activeOvertime.startTime,
         endTime: activeOvertime.endTime,
         isOvernight: activeOvertime.endTime < activeOvertime.startTime,
@@ -626,13 +713,9 @@ export class ShiftManagementService {
       return activeOvertime;
     }
 
-    // Then look for next upcoming overtime
+    // Look for next upcoming overtime
     const upcomingOvertime = sortedOvertimes.find((ot) => {
       const start = parseISO(`${format(now, 'yyyy-MM-dd')}T${ot.startTime}`);
-      const earlyWindow = subMinutes(
-        start,
-        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-      );
       return now < start;
     });
 
