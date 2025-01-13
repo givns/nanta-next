@@ -265,6 +265,12 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     }
 
     try {
+      // Handle late check-in here
+      if (stateValidation.flags.isLateCheckIn) {
+        setIsLateModalOpen(true);
+        return;
+      }
+
       // Handle emergency leave case
       if (stateValidation.flags.isEmergencyLeave && !isConfirmedEarlyCheckout) {
         const confirmed = window.confirm(
@@ -272,22 +278,17 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         );
         if (!confirmed) return;
         setIsConfirmedEarlyCheckout(true);
+
+        if (userData?.lineUserId) {
+          const leaveCreated = await createSickLeaveRequest(
+            userData.lineUserId,
+            now,
+          );
+          if (!leaveCreated) return;
+        }
       }
 
-      // Add check for late check-in here
-      if (stateValidation.flags.isLateCheckIn) {
-        setIsLateModalOpen(true);
-        return;
-      }
-
-      if (stateValidation.flags.isEmergencyLeave && userData?.lineUserId) {
-        const leaveCreated = await createSickLeaveRequest(
-          userData.lineUserId,
-          now,
-        );
-        if (!leaveCreated) return;
-      }
-
+      // Proceed directly to processing for all cases including overtime checkout
       setStep('processing');
       await handleAttendanceSubmit();
     } catch (error) {
@@ -304,8 +305,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     now,
     createSickLeaveRequest,
     handleAttendanceSubmit,
-    periodState.type,
-    periodState.activity,
   ]);
 
   const handlePeriodTransition = useCallback(async () => {
