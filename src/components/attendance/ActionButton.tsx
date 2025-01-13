@@ -168,15 +168,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       );
     }
 
-    if (type === 'overtime' && !isCheckIn) {
-      return (
-        <div className="flex flex-col items-center leading-tight">
-          <span className="text-white text-sm">ออก</span>
-          <span className="text-white text-xl font-semibold -mt-1">OT</span>
-        </div>
-      );
-    }
-
     // Enhanced overtime button content
     if (type === 'overtime') {
       const now = getCurrentTime();
@@ -409,7 +400,15 @@ const ActionButton: React.FC<ActionButtonProps> = ({
               )
         }`}
         aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
-      ></button>
+      >
+        <div className="flex flex-col items-center leading-tight">
+          <span
+            className={`text-2xl font-semibold ${isDisabled ? 'text-gray-600' : 'text-white'}`}
+          >
+            {formatSafeTime(periodWindow?.start)}
+          </span>
+        </div>
+      </button>
     );
   };
 
