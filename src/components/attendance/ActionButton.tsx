@@ -112,23 +112,14 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   const handleRegularClick = () => {
     if (isDisabled) return;
 
-    // Special handling for overtime period
-    if (
+    // Skip confirmation for overtime checkout
+    const isOvertimeCheckout =
       periodType === PeriodType.OVERTIME &&
-      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN
-    ) {
-      const now = getCurrentTime();
-      const isPastEndTime =
-        periodWindow?.end && now > new Date(periodWindow.end);
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN;
 
-      if (isPastEndTime) {
-        const confirmMessage =
-          'คุณกำลังจะลงเวลาออกจากช่วงทำงานล่วงเวลา ต้องการดำเนินการต่อหรือไม่?';
-        if (window.confirm(confirmMessage)) {
-          onActionTriggered();
-        }
-        return;
-      }
+    if (isOvertimeCheckout) {
+      onActionTriggered();
+      return;
     }
 
     onActionTriggered();

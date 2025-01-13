@@ -276,12 +276,18 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
 
       // Add check for late check-in here
       if (stateValidation.flags.isLateCheckIn) {
-        console.log('Late check-in detected:', {
-          flags: stateValidation.flags,
-          isCheckingIn: !periodState.activity.checkIn,
-        });
         setIsLateModalOpen(true);
-        return; // Stop here and wait for modal response
+        return;
+      }
+
+      // Skip confirmation for overtime checkout
+      const isOvertimeCheckout =
+        periodState.type === PeriodType.OVERTIME &&
+        periodState.activity.checkIn &&
+        !periodState.activity.checkOut;
+
+      if (!isOvertimeCheckout) {
+        return;
       }
 
       if (stateValidation.flags.isEmergencyLeave && userData?.lineUserId) {
@@ -308,6 +314,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     now,
     createSickLeaveRequest,
     handleAttendanceSubmit,
+    periodState.type,
+    periodState.activity,
   ]);
 
   const handlePeriodTransition = useCallback(async () => {
