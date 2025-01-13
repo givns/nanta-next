@@ -586,7 +586,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       {step === 'info' && (
         <>
           <div className="flex-1 overflow-y-auto pb-32">
-            +
             <MobileAttendanceApp
               userData={userData}
               shiftData={shift}
@@ -696,7 +695,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               onAction={handleAction}
             />
           </div>
-
           {renderActionComponent()}
         </>
       )}
