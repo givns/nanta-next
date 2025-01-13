@@ -23,6 +23,7 @@ import {
 } from '@/types/attendance';
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
+  addDays,
   addMinutes,
   differenceInMinutes,
   format,
@@ -46,6 +47,68 @@ const TRANSITION_CONFIG = {
   LATE_BUFFER: 15, // 15 minutes after period
 } as const;
 
+interface PeriodSequence {
+  type: PeriodType;
+  start: Date;
+  end: Date;
+  isOvernight: boolean;
+}
+
+function prioritizePeriods(
+  periods: PeriodSequence[],
+  currentTime: Date,
+): PeriodSequence | null {
+  // Sort periods chronologically, handling overnight periods
+  const sortedPeriods = periods.sort((a, b) => {
+    // If periods cross midnight, adjust comparison
+    if (a.isOvernight || b.isOvernight) {
+      // Complex comparison for overnight periods
+      const adjustedA = a.end < a.start ? addDays(a.end, 1) : a.end;
+      const adjustedB = b.end < b.start ? addDays(b.end, 1) : b.end;
+      return adjustedA.getTime() - adjustedB.getTime();
+    }
+    return a.start.getTime() - b.start.getTime();
+  });
+
+  // Find current active or upcoming period
+  for (const period of sortedPeriods) {
+    // Check for overnight periods with special handling
+    if (period.isOvernight) {
+      // For overnight periods, check if current time is within the extended interval
+      const extendedStart = period.start;
+      const extendedEnd =
+        period.end < period.start
+          ? addDays(period.end, 1) // Cross midnight
+          : period.end;
+
+      if (
+        isWithinInterval(currentTime, {
+          start: extendedStart,
+          end: extendedEnd,
+        })
+      ) {
+        return period;
+      }
+    } else {
+      // Regular period check
+      if (
+        isWithinInterval(currentTime, { start: period.start, end: period.end })
+      ) {
+        return period;
+      }
+    }
+  }
+
+  // If no period matches, find the next upcoming period
+  const upcomingPeriod = sortedPeriods.find(
+    (period) =>
+      period.start > currentTime ||
+      (period.isOvernight && addDays(period.end, 1) > currentTime),
+  );
+
+  return upcomingPeriod || null;
+}
+
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
 
@@ -54,56 +117,38 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): { type: PeriodType; isActive: boolean } {
-    // If attendance record exists and is not checked out
-    if (attendance && !attendance.CheckOutTime) {
+    // Construct periods in sequence
+    const periods: PeriodSequence[] = [
+      {
+        type: PeriodType.OVERTIME, // First overtime
+        start: parseISO(`${format(now, 'yyyy-MM-dd')}T03:00`),
+        end: parseISO(`${format(now, 'yyyy-MM-dd')}T04:00`),
+        isOvernight: false,
+      },
+      {
+        type: PeriodType.REGULAR,
+        start: parseISO(`${format(now, 'yyyy-MM-dd')}T08:00`),
+        end: parseISO(`${format(now, 'yyyy-MM-dd')}T17:00`),
+        isOvernight: false,
+      },
+      {
+        type: PeriodType.OVERTIME, // Overnight overtime
+        start: parseISO(`${format(now, 'yyyy-MM-dd')}T21:00`),
+        end: parseISO(`${format(now, 'yyyy-MM-dd')}T01:00`),
+        isOvernight: true,
+      },
+    ];
+
+    const currentPeriod = prioritizePeriods(periods, now);
+
+    if (currentPeriod) {
       return {
-        type: attendance.type,
-        isActive: true,
+        type: currentPeriod.type,
+        isActive: false, // Assuming no active attendance
       };
     }
 
-    const shiftStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`,
-    );
-    const shiftEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
-    );
-
-    // Check for overtime period (both current and upcoming)
-    if (window.overtimeInfo) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-      );
-      const overtimeEnd = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
-      );
-
-      // If overtime is before regular shift (early morning overtime)
-      if (overtimeStart < shiftStart) {
-        // Check if we're approaching overtime period (within early check-in window)
-        const overtimeEarlyThreshold = subMinutes(
-          overtimeStart,
-          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-        );
-
-        if (now >= overtimeEarlyThreshold) {
-          return {
-            type: PeriodType.OVERTIME,
-            isActive: false,
-          };
-        }
-      }
-
-      // Check if currently in overtime period
-      if (isWithinInterval(now, { start: overtimeStart, end: overtimeEnd })) {
-        return {
-          type: PeriodType.OVERTIME,
-          isActive: false,
-        };
-      }
-    }
-
-    // Default to regular period
+    // Fallback to default
     return {
       type: PeriodType.REGULAR,
       isActive: false,
