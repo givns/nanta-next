@@ -244,7 +244,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
                 {periodWindow && !validation.message && !systemState.error && (
                   <p>
                     {isEarlyOvertimePeriod
-                      ? 'ช่วงเวลาทำงานล่วงเวลาก่อนกะปกติ'
+                      ? 'ช่วงเวลาทำงานล่วงเวลาก่อนเวลาทำงานปกติ'
                       : periodType === PeriodType.OVERTIME
                         ? 'ช่วงเวลาทำงานล่วงเวลา'
                         : 'ช่วงเวลาทำงานปกติ'}

@@ -149,7 +149,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
           <span>
             {isOvertimePeriod
               ? isEarlyOvertimePeriod
-                ? 'เวลาทำงานล่วงเวลาก่อนกะ'
+                ? 'เวลาทำงานล่วงเวลาก่อนเวลาทำงานปกติ'
                 : 'เวลาทำงานล่วงเวลา'
               : 'เวลาทำงาน'}
           </span>
