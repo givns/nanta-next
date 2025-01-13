@@ -259,19 +259,19 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   const handleAction = useCallback(async () => {
     setError(null);
 
-    if (!stateValidation?.allowed) {
-      setError(stateValidation?.reason || 'ไม่สามารถลงเวลาได้ในขณะนี้');
-      return;
-    }
-
     try {
-      // Handle late check-in here
+      // Only check for late check-in, skip all other validations for overtime checkout
       if (stateValidation.flags.isLateCheckIn) {
         setIsLateModalOpen(true);
         return;
       }
 
-      // Handle emergency leave case
+      // Important: Check if this is an overtime checkout
+      const isOvertimeCheckout =
+        periodState.type === PeriodType.OVERTIME &&
+        periodState.activity.checkIn &&
+        !periodState.activity.checkOut;
+
       if (stateValidation.flags.isEmergencyLeave && !isConfirmedEarlyCheckout) {
         const confirmed = window.confirm(
           'คุณกำลังจะลงเวลาออกก่อนเวลาเที่ยง ระบบจะทำการยื่นคำขอลาป่วยเต็มวันให้อัตโนมัติ ต้องการดำเนินการต่อหรือไม่?',
@@ -288,9 +288,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         }
       }
 
-      // Proceed directly to processing for all cases including overtime checkout
-      setStep('processing');
-      await handleAttendanceSubmit();
+      // Important: Skip validation for overtime checkout
+      if (isOvertimeCheckout || stateValidation?.allowed) {
+        setStep('processing');
+        await handleAttendanceSubmit();
+      } else {
+        setError(stateValidation?.reason || 'ไม่สามารถลงเวลาได้ในขณะนี้');
+      }
     } catch (error) {
       console.error('Action error:', error);
       setError(
@@ -305,6 +309,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     now,
     createSickLeaveRequest,
     handleAttendanceSubmit,
+    periodState.type,
+    periodState.activity,
   ]);
 
   const handlePeriodTransition = useCallback(async () => {

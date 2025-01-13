@@ -792,20 +792,10 @@ export class AttendanceEnhancementService {
         };
       }
 
-      // If within late threshold
-      if (now <= lateThresholdEnd) {
-        return {
-          shouldAutoComplete: false,
-          allowManualCheckout: true,
-          checkoutTime: null,
-          reason: 'ลงเวลาออก OT ก่อนเวลาเลย 15 นาที',
-        };
-      }
-
-      // Past late threshold - should auto complete at exact overtime end
+      // Past late threshold - should auto complete but still allow manual checkout
       return {
         shouldAutoComplete: true,
-        allowManualCheckout: false,
+        allowManualCheckout: true, // Changed to true to allow manual checkout
         checkoutTime: endTime,
         reason: 'เลยเวลาออก OT แล้ว ระบบจะทำการลงเวลาให้โดยอัตโนมัติ',
       };
