@@ -388,15 +388,19 @@ const ActionButton: React.FunctionComponent<ActionButtonProps> = ({
   // Regular single button
   const isCheckingIn = attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
 
-  // The final return statement should use renderButtons and add proper positioning
   return (
     <div className="fixed inset-x-0 bottom-0 mb-safe bg-white">
       <div className="flex flex-col items-center pb-12">
         <StatusMessages />
-        {/* Regular single button */}
-        {!isInTransitionState &&
-        !validation.flags.isPendingOvertime &&
-        !isApproachingOvertime() ? (
+        {/* Check for special conditions first */}
+        {validation.flags.isPendingOvertime && isDisabled ? (
+          renderButtons()
+        ) : isApproachingOvertime() && !isInTransitionState ? (
+          renderButtons()
+        ) : isInTransitionState ? (
+          renderButtons()
+        ) : (
+          /* Default button case */
           <button
             onClick={handleRegularClick}
             disabled={isDisabled}
@@ -407,15 +411,17 @@ const ActionButton: React.FunctionComponent<ActionButtonProps> = ({
                     periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
                   )
             }`}
-            aria-label={`Attendance action: ${isCheckingIn ? 'check in' : 'check out'}`}
+            aria-label={`Attendance action: ${
+              attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN
+                ? 'check in'
+                : 'check out'
+            }`}
           >
             {renderButtonContent(
               periodType === PeriodType.OVERTIME ? 'overtime' : 'regular',
-              isCheckingIn,
+              attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN,
             )}
           </button>
-        ) : (
-          renderButtons()
         )}
       </div>
     </div>
