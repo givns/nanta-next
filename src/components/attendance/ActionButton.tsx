@@ -161,9 +161,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
           <span className="text-white text-sm">
             {isEarlyOvertimeTransition ? 'เริ่ม OT' : 'เข้า OT'}
           </span>
-          <span className="text-white text-xl font-semibold -mt-1">
-            {formatSafeTime(transition.to.start)}
-          </span>
         </div>
       );
     }
