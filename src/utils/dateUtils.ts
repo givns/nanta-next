@@ -29,7 +29,7 @@ export function toBangkokTime(date: Date | string | number): Date {
 
 export function getCurrentTime(): Date {
   //For testing specific scenarios
-  const [datePart, timePart] = '2024-12-18T07:40'.split('T');
+  const [datePart, timePart] = '2024-12-18T05:00'.split('T');
   const time = timePart.split('+')[0];
   return parseISO(`${datePart}T${time}`);
 }
