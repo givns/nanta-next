@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { format, isWithinInterval, parseISO, subMinutes } from 'date-fns';
-import { th } from 'date-fns/locale';
+import { is, th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
@@ -207,7 +207,10 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
               const isPastEndTime =
                 now > parseISO(currentPeriod.timeWindow.end);
               if (isPastEndTime) return 'หมดเวลาทำงานล่วงเวลา';
-              if (isEarlyOvertimePeriod)
+              if (
+                isEarlyOvertimePeriod &&
+                now < parseISO(currentPeriod.timeWindow.start)
+              )
                 return 'รอเริ่มทำงานล่วงเวลาก่อนเวลาทำงานปกติ';
               return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
             }
