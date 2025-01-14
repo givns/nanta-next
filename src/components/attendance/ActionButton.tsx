@@ -92,16 +92,30 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     );
   }, [validation.flags, attendanceStatus.checkStatus]);
 
-  // Approaching overtime check with better date handling
+  // First, revise isApproachingOvertime to handle early overtime
   const isApproachingOvertime = useMemo(() => {
-    if (!transition?.to.start) return false;
-    const now = getCurrentTime();
-    const overtimeStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${transition.to.start}`,
-    );
-    const approachWindow = subMinutes(overtimeStart, 30);
-    return now >= approachWindow && now < overtimeStart;
-  }, [transition?.to.start]);
+    // Case 1: Regular transition to overtime
+    if (transition?.to.start) {
+      const now = getCurrentTime();
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${transition.to.start}`,
+      );
+      const approachWindow = subMinutes(overtimeStart, 30);
+      return now >= approachWindow && now < overtimeStart;
+    }
+
+    // Case 2: Early morning overtime approach
+    if (periodType === PeriodType.OVERTIME && periodWindow?.start) {
+      const now = getCurrentTime();
+      const overtimeStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${periodWindow.start}`,
+      );
+      const approachWindow = subMinutes(overtimeStart, 30);
+      return now >= approachWindow && now < overtimeStart;
+    }
+
+    return false;
+  }, [transition?.to.start, periodType, periodWindow?.start]);
 
   const renderButtonContent = (
     type: 'regular' | 'overtime',
@@ -157,7 +171,26 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     );
   };
 
-  if (isInTransitionState) {
+  // Then modify the render conditions to prioritize approaching overtime
+  if (isApproachingOvertime) {
+    return (
+      <div className="fixed left-0 right-0 bottom-0 mb-safe flex flex-col items-center bg-gray-50 pb-12">
+        <div className="text-sm text-yellow-600 flex items-center gap-1 mb-2">
+          <Clock size={16} />
+          <span>กำลังจะถึงเวลา OT</span>
+        </div>
+        <button
+          disabled={isDisabled}
+          className={`h-20 w-20 ${baseButtonStyle} ${
+            isDisabled ? buttonDisabledStyle : buttonEnabledStyle('overtime')
+          }`}
+          onClick={handleOvertimeClick}
+        >
+          {renderButtonContent('overtime', true)}
+        </button>
+      </div>
+    );
+  } else if (isInTransitionState) {
     return (
       <div className="fixed left-0 right-0 bottom-0 mb-safe flex flex-col items-center bg-gray-50 pb-12">
         <div className="mb-4 p-3 rounded-lg bg-yellow-50 max-w-[280px]">
@@ -192,26 +225,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
             {renderButtonContent('overtime', true)}
           </button>
         </div>
-      </div>
-    );
-  }
-
-  if (isApproachingOvertime) {
-    return (
-      <div className="fixed left-0 right-0 bottom-0 mb-safe flex flex-col items-center bg-gray-50 pb-12">
-        <div className="text-sm text-yellow-600 flex items-center gap-1 mb-2">
-          <Clock size={16} />
-          <span>กำลังจะถึงเวลา OT</span>
-        </div>
-        <button
-          disabled={isDisabled}
-          className={`h-20 w-20 ${baseButtonStyle} ${
-            isDisabled ? buttonDisabledStyle : buttonEnabledStyle('overtime')
-          }`}
-          onClick={handleOvertimeClick}
-        >
-          {renderButtonContent('overtime', true)}
-        </button>
       </div>
     );
   }

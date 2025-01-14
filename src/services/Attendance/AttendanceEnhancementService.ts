@@ -612,7 +612,14 @@ export class AttendanceEnhancementService {
         now,
       );
       if (validationResult) {
-        return validationResult;
+        return {
+          ...validationResult,
+          flags: {
+            ...validationResult.flags,
+            requiresTransition: false, // Override for early overtime
+            hasPendingTransition: false, // No transition needed for early overtime
+          },
+        };
       }
     }
 

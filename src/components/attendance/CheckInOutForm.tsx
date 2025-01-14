@@ -18,6 +18,7 @@ import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
 import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 import ProcessingView from './ProcessingView';
+import { format, parseISO } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -490,7 +491,19 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         periodWindow={periodState.timeWindow}
         validation={{
           allowed: stateValidation.allowed,
-          canProceed: stateValidation.allowed,
+          canProceed:
+            stateValidation.allowed &&
+            // Allow proceed if:
+            // 1. Not overtime
+            (periodState.type !== PeriodType.OVERTIME ||
+              // 2. Is overtime and within valid window
+              (periodState.type === PeriodType.OVERTIME &&
+                stateValidation.metadata?.additionalInfo?.type ===
+                  'EARLY_OVERTIME' &&
+                new Date() >=
+                  parseISO(
+                    `${format(now, 'yyyy-MM-dd')}T${stateValidation.metadata.additionalInfo.earlyWindow}`,
+                  ))),
           reason: stateValidation.reason,
           message: stateValidation.reason,
           flags: {
