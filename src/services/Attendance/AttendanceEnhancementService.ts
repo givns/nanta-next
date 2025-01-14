@@ -301,6 +301,15 @@ export class AttendanceEnhancementService {
   ): TransitionInfo | undefined {
     if (!overtimeInfo) return undefined;
 
+    // Add check for early overtime - no transition needed
+    const isEarlyOvertime = this.isBeforeShift(
+      overtimeInfo.startTime,
+      periodState.shift.startTime,
+    );
+    if (isEarlyOvertime) {
+      return undefined; // Early overtime should not have transition
+    }
+
     const shiftStart = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${periodState.shift.startTime}`,
     );
