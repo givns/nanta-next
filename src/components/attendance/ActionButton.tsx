@@ -221,7 +221,8 @@ const ActionButton: React.FC<ActionButtonProps> = ({
   }
 
   return (
-    <div className="fixed left-0 right-0 bottom-0 mb-safe flex flex-col items-center bg-gray-100 pb-12">
+    <div className="fixed left-0 right-0 bottom-0 mb-safe flex flex-col items-center bg-gray-50 pb-12">
+      {' '}
       <StatusMessages />
       <button
         onClick={handleRegularClick}
