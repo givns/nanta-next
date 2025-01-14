@@ -250,13 +250,13 @@ export class AttendanceEnhancementService {
     });
   }
 
-  private findRelevantPeriod(periods: any[], now: Date) {
+  private findRelevantPeriod(periods: PeriodDefinition[], now: Date) {
     const currentMinutes = this.getCurrentTimeInMinutes(now);
 
     // First, check for current period
     for (const period of periods) {
-      const startMinutes = this.parseTimeToMinutes(period.start);
-      let endMinutes = this.parseTimeToMinutes(period.end);
+      const startMinutes = this.parseTimeToMinutes(period.startTime); // Changed from period.start
+      let endMinutes = this.parseTimeToMinutes(period.endTime); // Changed from period.end
 
       // Adjust for overnight periods
       if (period.isOvernight && endMinutes < startMinutes) {
@@ -280,7 +280,7 @@ export class AttendanceEnhancementService {
 
     // If no current period, find next upcoming period
     return periods.find((period) => {
-      const startMinutes = this.parseTimeToMinutes(period.start);
+      const startMinutes = this.parseTimeToMinutes(period.startTime); // Changed from period.start
       return currentMinutes < startMinutes;
     });
   }
