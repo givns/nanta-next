@@ -85,12 +85,22 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 
   // Transition state check
   const isInTransitionState = useMemo(() => {
+    // First check validation flags - if no transition required, ignore transition object
+    if (!validation.flags.requiresTransition) {
+      return false;
+    }
+
+    // Only then check transition state
     return (
-      validation.flags.requiresTransition &&
       validation.flags.hasPendingTransition &&
-      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN
+      attendanceStatus.checkStatus === CheckStatus.CHECKED_IN &&
+      Boolean(transition?.isInTransition)
     );
-  }, [validation.flags, attendanceStatus.checkStatus]);
+  }, [
+    validation.flags,
+    attendanceStatus.checkStatus,
+    transition?.isInTransition,
+  ]);
 
   // First, revise isApproachingOvertime to handle early overtime
   const isApproachingOvertime = useMemo(() => {
