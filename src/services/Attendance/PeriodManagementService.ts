@@ -3,7 +3,6 @@ import {
   ShiftWindowResponse,
   UnifiedPeriodState,
   AttendanceRecord,
-  OvertimeContext,
   PeriodDefinition,
 } from '@/types/attendance';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
@@ -43,205 +42,248 @@ export class PeriodManagementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): UnifiedPeriodState {
-    // Enhanced period creation with more context
-    const periods: PeriodDefinition[] = [
-      ...(periodState.overtimeInfo
-        ? [
-            {
-              type: PeriodType.OVERTIME,
-              startTime: periodState.overtimeInfo.startTime,
-              endTime: periodState.overtimeInfo.endTime,
-              sequence: attendance?.periodSequence || 1,
-              isOvernight:
-                this.isOvernightPeriod(
-                  periodState.overtimeInfo.startTime,
-                  periodState.overtimeInfo.endTime,
-                ) ?? false,
-              isDayOff: periodState.overtimeInfo.isDayOffOvertime ?? false,
-            },
-          ]
-        : []),
-      {
-        type: PeriodType.REGULAR,
-        startTime: periodState.shift.startTime,
-        endTime: periodState.shift.endTime,
-        sequence: 2,
-        isOvernight:
-          this.isOvernightPeriod(
-            periodState.shift.startTime,
-            periodState.shift.endTime,
-          ) ?? false,
-      },
-    ];
+    // Create periods array with proper chronological order
+    const periods: PeriodDefinition[] = this.buildPeriodSequence(
+      periodState,
+      now,
+    );
 
-    // Default time window
-    const defaultWindow = {
-      start: format(startOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-      end: format(endOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-    };
+    console.log('Period Resolution:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      availablePeriods: periods.map((p) => ({
+        type: p.type,
+        start: p.startTime,
+        end: p.endTime,
+        sequence: p.sequence,
+      })),
+    });
 
-    try {
-      // Enhanced logging with more context
-      console.log('Period Resolution Context:', {
-        currentTime: format(now, 'HH:mm:ss'),
-        attendance: attendance
-          ? {
-              checkIn: attendance.CheckInTime,
-              checkOut: attendance.CheckOutTime,
-              type: attendance.type,
-              periodSequence: attendance.periodSequence,
-              overtimeState: attendance.overtimeState,
-            }
-          : null,
-        shift: {
-          startTime: periodState.shift.startTime,
-          endTime: periodState.shift.endTime,
-        },
-        overtime: periodState.overtimeInfo
-          ? {
-              startTime: periodState.overtimeInfo.startTime,
-              endTime: periodState.overtimeInfo.endTime,
-              isDayOffOvertime: periodState.overtimeInfo.isDayOffOvertime,
-            }
-          : null,
-      });
-
-      // Priority: Active Attendance
-      if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
-        const activePeriod = periods.find((period) => {
-          const periodStart = this.parseTimeWithContext(period.startTime, now);
-          const periodEnd = this.parseTimeWithContext(period.endTime, now);
-
-          if (period.isOvernight && periodEnd < periodStart) {
-            periodEnd.setDate(periodEnd.getDate() + 1);
-          }
-
-          return now >= periodStart && now <= periodEnd;
-        });
-
-        if (activePeriod) {
-          return {
-            type: activePeriod.type,
-            timeWindow: {
-              start: format(
-                this.parseTimeWithContext(activePeriod.startTime, now),
-                "yyyy-MM-dd'T'HH:mm:ss.SSS",
-              ),
-              end: format(
-                this.parseTimeWithContext(activePeriod.endTime, now),
-                "yyyy-MM-dd'T'HH:mm:ss.SSS",
-              ),
-            },
-            activity: {
-              isActive: true,
-              checkIn: format(
-                new Date(attendance.CheckInTime),
-                "yyyy-MM-dd'T'HH:mm:ss.SSS",
-              ),
-              checkOut: null,
-              isOvertime: activePeriod.type === PeriodType.OVERTIME,
-              isDayOffOvertime: Boolean(activePeriod.isDayOff),
-              isInsideShiftHours: activePeriod.type === PeriodType.REGULAR,
-            },
-            validation: {
-              isWithinBounds: true,
-              isEarly: false,
-              isLate: false,
-              isOvernight: activePeriod.isOvernight || false,
-              isConnected: attendance.overtimeState === 'COMPLETED',
-            },
-          };
-        }
-      }
-
-      // Find current period with more nuanced detection
-      const currentPeriod = periods.find((period) => {
-        const periodStart = this.parseTimeWithContext(period.startTime, now);
-        const periodEnd = this.parseTimeWithContext(period.endTime, now);
-
-        if (period.isOvernight && periodEnd < periodStart) {
-          periodEnd.setDate(periodEnd.getDate() + 1);
-        }
-
-        return now >= periodStart && now <= periodEnd;
-      });
-
-      // If no current period found
-      if (!currentPeriod) {
-        return {
-          type: PeriodType.REGULAR,
-          timeWindow: defaultWindow,
-          activity: {
-            isActive: false,
-            checkIn: null,
-            checkOut: null,
-            isOvertime: false,
-            isDayOffOvertime: false,
-            isInsideShiftHours: false,
-          },
-          validation: {
-            isWithinBounds: false,
-            isEarly: false,
-            isLate: false,
-            isOvernight: false,
-            isConnected: false,
-          },
-        };
-      }
-
-      // Return current period state
-      return {
-        type: currentPeriod.type,
-        timeWindow: {
-          start: format(
-            this.parseTimeWithContext(currentPeriod.startTime, now),
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-          ),
-          end: format(
-            this.parseTimeWithContext(currentPeriod.endTime, now),
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-          ),
-        },
-        activity: {
-          isActive: false,
-          checkIn: null,
-          checkOut: null,
-          isOvertime: currentPeriod.type === PeriodType.OVERTIME,
-          isDayOffOvertime: Boolean(currentPeriod.isDayOff),
-          isInsideShiftHours: currentPeriod.type === PeriodType.REGULAR,
-        },
-        validation: {
-          isWithinBounds: true,
-          isEarly:
-            now < this.parseTimeWithContext(currentPeriod.startTime, now),
-          isLate: now > this.parseTimeWithContext(currentPeriod.endTime, now),
-          isOvernight: currentPeriod.isOvernight || false,
-          isConnected: Boolean(periodState.overtimeInfo),
-        },
-      };
-    } catch (error) {
-      console.error('Error resolving period:', error);
-      return {
-        type: PeriodType.REGULAR,
-        timeWindow: defaultWindow,
-        activity: {
-          isActive: false,
-          checkIn: null,
-          checkOut: null,
-          isOvertime: false,
-          isDayOffOvertime: false,
-          isInsideShiftHours: false,
-        },
-        validation: {
-          isWithinBounds: false,
-          isEarly: false,
-          isLate: false,
-          isOvernight: false,
-          isConnected: false,
-        },
-      };
+    // Handle active attendance first
+    if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
+      return this.resolveActivePeriod(attendance, periods, now);
     }
+
+    // Find relevant period (either current or upcoming)
+    const relevantPeriod = this.findRelevantPeriod(periods, now);
+    if (!relevantPeriod) {
+      return this.createDefaultPeriodState(now);
+    }
+
+    // Create period state with proper time window
+    return {
+      type: relevantPeriod.type,
+      timeWindow: {
+        start: format(
+          this.parseTimeWithContext(relevantPeriod.startTime, now),
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+        end: format(
+          this.parseTimeWithContext(relevantPeriod.endTime, now),
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+      },
+      activity: {
+        isActive: false,
+        checkIn: null,
+        checkOut: null,
+        isOvertime: relevantPeriod.type === PeriodType.OVERTIME,
+        isDayOffOvertime: Boolean(relevantPeriod.isDayOff),
+        isInsideShiftHours: relevantPeriod.type === PeriodType.REGULAR,
+      },
+      validation: {
+        isWithinBounds: true,
+        isEarly: now < this.parseTimeWithContext(relevantPeriod.startTime, now),
+        isLate: now > this.parseTimeWithContext(relevantPeriod.endTime, now),
+        isOvernight: relevantPeriod.isOvernight || false,
+        isConnected: Boolean(periodState.overtimeInfo),
+      },
+    };
   }
+
+  private buildPeriodSequence(
+    periodState: ShiftWindowResponse,
+    now: Date,
+  ): PeriodDefinition[] {
+    const periods: PeriodDefinition[] = [];
+
+    // Add early morning overtime if exists
+    if (
+      periodState.overtimeInfo &&
+      this.isEarlyMorningOvertime(
+        periodState.overtimeInfo.startTime,
+        periodState.shift.startTime,
+      )
+    ) {
+      periods.push({
+        type: PeriodType.OVERTIME,
+        startTime: periodState.overtimeInfo.startTime,
+        endTime: periodState.overtimeInfo.endTime,
+        sequence: 1,
+        isOvernight: this.isOvernightPeriod(
+          periodState.overtimeInfo.startTime,
+          periodState.overtimeInfo.endTime,
+        ),
+        isDayOff: periodState.overtimeInfo.isDayOffOvertime,
+      });
+    }
+
+    // Add regular shift
+    periods.push({
+      type: PeriodType.REGULAR,
+      startTime: periodState.shift.startTime,
+      endTime: periodState.shift.endTime,
+      sequence: 2,
+      isOvernight: this.isOvernightPeriod(
+        periodState.shift.startTime,
+        periodState.shift.endTime,
+      ),
+    });
+
+    // Add evening overtime if exists
+    if (
+      periodState.overtimeInfo &&
+      !this.isEarlyMorningOvertime(
+        periodState.overtimeInfo.startTime,
+        periodState.shift.startTime,
+      )
+    ) {
+      periods.push({
+        type: PeriodType.OVERTIME,
+        startTime: periodState.overtimeInfo.startTime,
+        endTime: periodState.overtimeInfo.endTime,
+        sequence: 3,
+        isOvernight: this.isOvernightPeriod(
+          periodState.overtimeInfo.startTime,
+          periodState.overtimeInfo.endTime,
+        ),
+        isDayOff: periodState.overtimeInfo.isDayOffOvertime,
+      });
+    }
+
+    return this.sortPeriodsByChronologicalOrder(periods, now);
+  }
+
+  private findRelevantPeriod(
+    periods: PeriodDefinition[],
+    now: Date,
+  ): PeriodDefinition | null {
+    for (const period of periods) {
+      const periodStart = this.parseTimeWithContext(period.startTime, now);
+      const periodEnd = this.parseTimeWithContext(period.endTime, now);
+
+      // Adjust end time for overnight periods
+      const adjustedEnd =
+        period.isOvernight && periodEnd < periodStart
+          ? addDays(periodEnd, 1)
+          : periodEnd;
+
+      // If we're approaching the period (within 30 minutes) or inside it
+      const approachWindow = subMinutes(periodStart, 30);
+      if (now >= approachWindow && now <= adjustedEnd) {
+        return period;
+      }
+    }
+
+    // If no current period, get the next upcoming one
+    return (
+      periods.find((period) => {
+        const periodStart = this.parseTimeWithContext(period.startTime, now);
+        return now < periodStart;
+      }) || null
+    );
+  }
+
+  private resolveActivePeriod(
+    attendance: AttendanceRecord,
+    periods: PeriodDefinition[],
+    now: Date,
+  ): UnifiedPeriodState {
+    const activePeriod = periods.find(
+      (period) => period.type === attendance.type,
+    );
+    if (!activePeriod) {
+      return this.createDefaultPeriodState(now);
+    }
+
+    return {
+      type: activePeriod.type,
+      timeWindow: {
+        start: format(
+          this.parseTimeWithContext(activePeriod.startTime, now),
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+        end: format(
+          this.parseTimeWithContext(activePeriod.endTime, now),
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+      },
+      activity: {
+        isActive: true,
+        checkIn: format(
+          new Date(attendance.CheckInTime!),
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+        checkOut: null,
+        isOvertime: activePeriod.type === PeriodType.OVERTIME,
+        isDayOffOvertime: Boolean(activePeriod.isDayOff),
+        isInsideShiftHours: activePeriod.type === PeriodType.REGULAR,
+      },
+      validation: {
+        isWithinBounds: true,
+        isEarly: false,
+        isLate: false,
+        isOvernight: activePeriod.isOvernight || false,
+        isConnected: attendance.overtimeState === 'COMPLETED',
+      },
+    };
+  }
+
+  private createDefaultPeriodState(now: Date): UnifiedPeriodState {
+    return {
+      type: PeriodType.REGULAR,
+      timeWindow: {
+        start: format(startOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        end: format(endOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+      },
+      activity: {
+        isActive: false,
+        checkIn: null,
+        checkOut: null,
+        isOvertime: false,
+        isDayOffOvertime: false,
+        isInsideShiftHours: false,
+      },
+      validation: {
+        isWithinBounds: false,
+        isEarly: false,
+        isLate: false,
+        isOvernight: false,
+        isConnected: false,
+      },
+    };
+  }
+
+  private isEarlyMorningOvertime(
+    overtimeStart: string,
+    shiftStart: string,
+  ): boolean {
+    const [otHours, otMinutes] = overtimeStart.split(':').map(Number);
+    const [shiftHours, shiftMinutes] = shiftStart.split(':').map(Number);
+
+    return otHours * 60 + otMinutes < shiftHours * 60 + shiftMinutes;
+  }
+
+  private sortPeriodsByChronologicalOrder(
+    periods: PeriodDefinition[],
+    now: Date,
+  ): PeriodDefinition[] {
+    return periods.sort((a, b) => {
+      const aTime = this.parseTimeWithContext(a.startTime, now);
+      const bTime = this.parseTimeWithContext(b.startTime, now);
+      return aTime.getTime() - bTime.getTime();
+    });
+  }
+
   // Helper method for time context parsing
   private parseTimeWithContext(timeString: string, referenceDate: Date) {
     const [hours, minutes] = timeString.split(':').map(Number);
