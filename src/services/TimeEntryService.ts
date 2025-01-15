@@ -826,46 +826,45 @@ export class TimeEntryService {
     breakStart: Date | null,
     breakEnd: Date | null,
   ): { hours: number; metadata: OvertimeMetadataInput | null } {
+    console.log('Calculating overtime hours:', {
+      checkIn: format(checkInTime, 'HH:mm:ss'),
+      checkout: format(checkOutTime, 'HH:mm:ss'),
+      overtime: {
+        startTime: overtimeRequest.startTime,
+        endTime: overtimeRequest.endTime,
+      },
+    });
+
     // Convert overtime period boundaries to Date objects
     const overtimeStart = parseISO(
       `${format(checkInTime, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
     );
-    const overtimeEnd = parseISO(
+    let overtimeEnd = parseISO(
       `${format(checkInTime, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
     );
 
-    // Handle overnight overtime
-    if (overtimeEnd < overtimeStart) {
-      overtimeEnd.setDate(overtimeEnd.getDate() + 1);
+    // Handle overnight period
+    const isOvernight = overtimeEnd < overtimeStart;
+    if (isOvernight) {
+      overtimeEnd = addDays(overtimeEnd, 1);
     }
-
-    console.log('Calculating overtime hours:', {
-      actualCheckIn: format(checkInTime, 'HH:mm:ss'),
-      actualCheckOut: format(checkOutTime, 'HH:mm:ss'),
-      overtimePeriod: {
-        start: format(overtimeStart, 'HH:mm:ss'),
-        end: format(overtimeEnd, 'HH:mm:ss'),
-      },
-    });
 
     // Use period start time if checked in early
     const effectiveStartTime =
       checkInTime < overtimeStart ? overtimeStart : checkInTime;
 
-    // Check if within early checkout allowance (5 minutes before period end)
-    const earlyCheckoutAllowance = subMinutes(overtimeEnd, 5);
-    const isWithinEarlyAllowance =
-      checkOutTime >= earlyCheckoutAllowance && checkOutTime < overtimeEnd;
+    // Check if within late checkout allowance (5 minutes after period end)
+    const lateCheckoutAllowance = addMinutes(overtimeEnd, 5);
+    const isWithinLateAllowance =
+      checkOutTime > overtimeEnd && checkOutTime <= lateCheckoutAllowance;
 
-    // Use period end time if within early checkout allowance
-    const effectiveEndTime = isWithinEarlyAllowance
-      ? overtimeEnd
-      : checkOutTime;
+    // Use period end time if within allowance
+    const effectiveEndTime = isWithinLateAllowance ? overtimeEnd : checkOutTime;
 
     // Calculate worked minutes
-    const workedMinutes = differenceInMinutes(
-      effectiveEndTime,
-      effectiveStartTime,
+    const workedMinutes = Math.max(
+      0,
+      differenceInMinutes(effectiveEndTime, effectiveStartTime),
     );
 
     // Calculate completed 30-minute cycles
@@ -873,14 +872,18 @@ export class TimeEntryService {
     const overtimeMinutes = completedCycles * 30;
 
     console.log('Overtime calculation details:', {
-      effectiveTime: {
+      period: {
+        start: format(overtimeStart, 'HH:mm:ss'),
+        end: format(overtimeEnd, 'HH:mm:ss'),
+      },
+      effective: {
         start: format(effectiveStartTime, 'HH:mm:ss'),
         end: format(effectiveEndTime, 'HH:mm:ss'),
       },
       workedMinutes,
       completedCycles,
       overtimeMinutes,
-      isWithinEarlyAllowance,
+      isWithinLateAllowance,
     });
 
     return {
