@@ -149,74 +149,18 @@ export class TimeEntryService {
   ) {
     const { overtimeRequest, leaveRequests } = context;
 
-    // Handle auto-completion case
-    if (
-      options.activity.requireConfirmation &&
-      options.activity.overtimeMissed
-    ) {
-      // First handle regular checkout
-      const regularEntry = await this.handleRegularEntry(
-        tx,
-        attendance,
-        false, // isCheckIn = false for checkout
-        leaveRequests,
-        context.shift,
-      );
-
-      // Then handle overtime entries if there's overtime
-      if (overtimeRequest) {
-        const overtimeCheckin = await this.handleOvertimeEntry(
-          tx,
-          attendance,
-          overtimeRequest,
-          true, // isCheckIn = true
-        );
-
-        const overtimeCheckout = await this.handleOvertimeEntry(
-          tx,
-          attendance,
-          overtimeRequest,
-          false, // isCheckIn = false
-        );
-
-        return {
-          regular: regularEntry,
-          overtime: [overtimeCheckin, overtimeCheckout],
-        };
-      }
-
-      return { regular: regularEntry };
-    }
-
-    // Existing logic for normal cases
-    console.log('Processing entries with context:', {
-      periodType: options.periodType,
-      isOvertime: options.activity.isOvertime,
-      checkTime: options.checkTime,
-    });
-
-    // Verify period type matches activity
     if (options.periodType === PeriodType.OVERTIME) {
-      // Force overtime true if period type is overtime
-      options.activity.isOvertime = true;
-
+      // Handle overtime entry
       const overtimeEntry = await this.handleOvertimeEntry(
         tx,
         attendance,
         context.overtimeRequest!,
         options.activity.isCheckIn,
       );
-
-      console.log('Created overtime entry:', {
-        id: overtimeEntry.id,
-        startTime: overtimeEntry.startTime,
-        endTime: overtimeEntry.endTime,
-        overtimeHours: overtimeEntry.overtimeHours,
-      });
-
       return { overtime: [overtimeEntry] };
     }
 
+    // Handle regular entry
     const regularEntry = await this.handleRegularEntry(
       tx,
       attendance,
@@ -234,6 +178,15 @@ export class TimeEntryService {
     leaveRequests: LeaveRequest[],
     shift: any,
   ): Promise<TimeEntry> {
+    const existingEntry = await tx.timeEntry.findFirst({
+      where: {
+        attendanceId: attendance.id,
+        entryType: PeriodType.REGULAR,
+        status: 'STARTED',
+      },
+    });
+
+    // Get shift times and calculate metrics
     const shiftTimes = this.getShiftTimes(shift, attendance.date);
     const metrics = this.calculateEntryMetrics(
       attendance,
@@ -242,31 +195,60 @@ export class TimeEntryService {
       leaveRequests,
     );
 
-    const existingEntry = await tx.timeEntry.findFirst({
-      where: {
-        attendanceId: attendance.id,
-        entryType: PeriodType.REGULAR,
-      },
-    });
-
+    // Prepare data
     const entryData = this.prepareRegularEntryData(
       attendance,
       metrics,
       isCheckIn,
     );
 
-    if (existingEntry) {
-      return tx.timeEntry.update({
-        where: { id: existingEntry.id },
-        data: entryData,
+    if (isCheckIn) {
+      return tx.timeEntry.create({
+        data: {
+          employeeId: attendance.employeeId,
+          date: attendance.date,
+          startTime: attendance.CheckInTime!,
+          endTime: null,
+          status: TimeEntryStatus.STARTED,
+          entryType: PeriodType.REGULAR,
+          attendanceId: attendance.id,
+          hours: {
+            regular: 0,
+            overtime: 0,
+          },
+          metadata: {
+            source: 'system',
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
       });
     }
 
-    return tx.timeEntry.create({
+    if (!existingEntry) {
+      throw new Error('No existing regular entry found for checkout');
+    }
+
+    // Get shift times and calculate hours
+    const workingHours = this.calculateWorkingHours(
+      attendance.CheckInTime!,
+      attendance.CheckOutTime!,
+      shiftTimes.start!,
+      shiftTimes.end!,
+      null,
+      leaveRequests,
+    );
+
+    return tx.timeEntry.update({
+      where: { id: existingEntry.id },
       data: {
-        ...entryData,
-        user: { connect: { employeeId: attendance.employeeId } },
-        attendance: { connect: { id: attendance.id } },
+        endTime: attendance.CheckOutTime,
+        status: TimeEntryStatus.COMPLETED,
+        hours: {
+          regular: workingHours.regularHours, // Will be 8 hours (or 4 for half day)
+          overtime: 0,
+        },
       },
     });
   }
@@ -284,26 +266,7 @@ export class TimeEntryService {
         !options.activity.isOvertime &&
         result.regular
       ) {
-        if (shift?.effectiveShift) {
-          const shiftStart = this.parseShiftTime(
-            shift.effectiveShift.startTime,
-            attendance.date,
-          );
-
-          const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
-            attendance.CheckInTime!,
-            shiftStart,
-          );
-
-          if (minutesLate > this.LATE_THRESHOLD && !leaveRequests.length) {
-            await this.notifyLateCheckIn(
-              attendance.employeeId,
-              attendance.CheckInTime!,
-              minutesLate,
-              isHalfDayLate,
-            );
-          }
-        }
+        await this.processLateCheckIn(attendance, shift, leaveRequests);
       }
     } catch (error) {
       console.error('Post-processing error:', {
@@ -312,6 +275,54 @@ export class TimeEntryService {
         timestamp: getCurrentTime(),
       });
     }
+  }
+
+  private async processLateCheckIn(
+    attendance: AttendanceRecord,
+    shift: any,
+    leaveRequests: LeaveRequest[],
+  ) {
+    if (!shift?.effectiveShift || !attendance.CheckInTime) return;
+
+    const shiftStart = this.parseShiftTime(
+      shift.effectiveShift.startTime,
+      attendance.date,
+    );
+
+    const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
+      attendance.CheckInTime,
+      shiftStart,
+    );
+
+    // Check if notification should be sent
+    if (minutesLate <= this.LATE_THRESHOLD) return;
+
+    // Check for approved leaves that would affect notification
+    const hasApprovedLeave = leaveRequests.some(
+      (leave) =>
+        leave.status === 'approved' &&
+        isSameDay(new Date(leave.startDate), attendance.date) &&
+        (leave.leaveFormat === 'ลาเต็มวัน' ||
+          leave.leaveFormat === 'ลาครึ่งวัน'),
+    );
+
+    if (hasApprovedLeave) return;
+
+    // Check for pending emergency leave
+    const hasPendingEmergencyLeave = leaveRequests.some(
+      (leave) =>
+        leave.status === 'pending' &&
+        leave.leaveFormat === 'ลาฉุกเฉิน' &&
+        isSameDay(new Date(leave.startDate), attendance.date),
+    );
+
+    await this.notifyLateCheckIn(
+      attendance.employeeId,
+      attendance.CheckInTime,
+      minutesLate,
+      isHalfDayLate,
+      hasPendingEmergencyLeave,
+    );
   }
 
   private prepareOvertimeData(
@@ -324,8 +335,10 @@ export class TimeEntryService {
       regularHours: 0,
       entryType: PeriodType.OVERTIME,
       overtimeMetadata: {
-        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-        isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+        create: {
+          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+        },
       },
     };
 
@@ -334,26 +347,39 @@ export class TimeEntryService {
         ...baseData,
         startTime: attendance.CheckInTime!,
         endTime: null,
-        overtimeHours: 0,
+        hours: {
+          regular: 0,
+          overtime: 0,
+        },
         status: TimeEntryStatus.STARTED,
+        metadata: {
+          source: 'system',
+          version: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       };
     }
 
-    // For checkout
-    const overtimeHours = this.calculateOvertimeHours(
-      attendance.CheckInTime!,
+    const workMinutes = differenceInMinutes(
       attendance.CheckOutTime!,
-      overtimeRequest,
-      null,
-      null,
-    ).hours;
+      attendance.CheckInTime!,
+    );
 
     return {
       ...baseData,
       startTime: attendance.CheckInTime!,
       endTime: attendance.CheckOutTime!,
-      overtimeHours,
+      hours: {
+        regular: 0,
+        overtime: workMinutes / 60,
+      },
       status: TimeEntryStatus.COMPLETED,
+      metadata: {
+        source: 'system',
+        version: 1,
+        updatedAt: new Date(),
+      },
     };
   }
 
@@ -362,67 +388,81 @@ export class TimeEntryService {
     attendance: AttendanceRecord,
     overtimeRequest: ApprovedOvertimeInfo,
     isCheckIn: boolean,
-    periodType = PeriodType,
   ): Promise<TimeEntry> {
-    console.log('Handle overtime entry:', {
-      isCheckIn,
-      attendanceId: attendance.id,
-      checkInTime: attendance.CheckInTime,
-      checkOutTime: attendance.CheckOutTime,
-      overtimeId: overtimeRequest.id,
-    });
-
-    // Find existing entry by overtime request ID and employee ID
+    // Find existing entry
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
-        overtimeRequestId: overtimeRequest.id,
-        employeeId: attendance.employeeId,
-        date: attendance.date,
+        attendanceId: attendance.id,
         entryType: PeriodType.OVERTIME,
+        status: 'STARTED',
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: { overtimeMetadata: true },
     });
 
-    // Handle checkout
-    if (!isCheckIn) {
-      if (!existingEntry) {
-        throw new Error('No existing overtime entry found for checkout');
-      }
-
-      const overtimeData = this.prepareOvertimeData(
-        attendance,
-        overtimeRequest,
-        isCheckIn,
-      );
-      return await this.updateOvertimeEntry(tx, existingEntry.id, overtimeData);
-    }
-
-    // Handle check-in
-    if (existingEntry?.endTime === null) {
-      // Entry exists but isn't completed - can use it
-      const overtimeData = this.prepareOvertimeData(
-        attendance,
-        overtimeRequest,
-        isCheckIn,
-      );
-      return await this.updateOvertimeEntry(tx, existingEntry.id, overtimeData);
-    }
-
-    // Create new entry
-    const overtimeData = this.prepareOvertimeData(
+    // Prepare data
+    const entryData = this.prepareOvertimeData(
       attendance,
       overtimeRequest,
       isCheckIn,
     );
-    return this.createOvertimeEntry(
-      tx,
-      attendance,
+
+    if (isCheckIn) {
+      // Create new entry for check-in
+      return tx.timeEntry.create({
+        data: {
+          employeeId: attendance.employeeId,
+          date: attendance.date,
+          startTime: attendance.CheckInTime!,
+          status: TimeEntryStatus.STARTED,
+          entryType: PeriodType.OVERTIME,
+          attendanceId: attendance.id,
+          overtimeRequestId: overtimeRequest.id,
+          hours: {
+            regular: 0,
+            overtime: 0,
+          },
+          timing: {
+            actualMinutesLate: 0,
+            isHalfDayLate: false,
+          },
+          metadata: {
+            source: 'system',
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      });
+    }
+
+    if (!existingEntry) {
+      throw new Error('No existing overtime entry found for checkout');
+    }
+
+    // For checkout, use approved overtime hours
+    const { hours, metadata } = this.calculateOvertimeHours(
+      attendance.CheckInTime!,
+      attendance.CheckOutTime!,
       overtimeRequest,
-      overtimeData,
+      null,
+      null,
     );
+
+    return tx.timeEntry.update({
+      where: { id: existingEntry.id },
+      data: {
+        endTime: attendance.CheckOutTime,
+        status: TimeEntryStatus.COMPLETED,
+        hours: {
+          regular: 0,
+          overtime: hours,
+        },
+        metadata: {
+          source: 'system',
+          version: 1,
+          updatedAt: new Date(),
+        },
+      },
+    });
   }
 
   private getShiftTimes(shift: any, date: Date) {
@@ -564,6 +604,7 @@ export class TimeEntryService {
     checkInTime: Date,
     minutesLate: number,
     isHalfDayLate: boolean,
+    isEmergency: boolean = false,
   ): Promise<void> {
     console.log('Preparing admin notification for late check-in:', {
       employeeId,
@@ -576,6 +617,7 @@ export class TimeEntryService {
       where: { employeeId },
       select: {
         name: true,
+        employeeId: true,
         department: {
           select: { name: true },
         },
@@ -597,37 +639,49 @@ export class TimeEntryService {
     const formattedDate = format(checkInTime, 'dd MMMM yyyy', { locale: th });
     const formattedTime = format(checkInTime, 'HH:mm');
 
+    // Prepare notification message
+    const messageLines = [
+      '🔔 แจ้งเตือนการมาสาย',
+      `พนักงาน: ${employee.name}`,
+      `รหัส: ${employee.employeeId}`,
+      `แผนก: ${employee.department?.name || 'ไม่ระบุ'}`,
+      `วันที่: ${formattedDate}`,
+      `เวลาเข้างาน: ${formattedTime} น.`,
+      `สาย: ${Math.floor(minutesLate)} นาที`,
+    ];
+
+    if (isHalfDayLate) {
+      messageLines.push('⚠️ สายเกิน 4 ชั่วโมง (ถือเป็นการลาครึ่งวัน)');
+    }
+
+    if (isEmergency) {
+      messageLines.push('📝 อยู่ระหว่างรอการอนุมัติลาฉุกเฉิน');
+    }
+
+    // Send to each admin
     for (const admin of admins) {
       if (admin.lineUserId) {
         try {
           const message = {
             type: 'text',
-            text: [
-              '🔔 แจ้งเตือนการมาสาย',
-              `พนักงาน: ${employee.name}`,
-              `วันที่: ${formattedDate}`,
-              `เวลาเข้างาน: ${formattedTime} น.`,
-              `สาย: ${Math.floor(minutesLate)} นาที`,
-              isHalfDayLate ? '⚠️ สายเกิน 4 ชั่วโมง' : '',
-            ]
-              .filter(Boolean)
-              .join('\n'),
+            text: messageLines.join('\n'),
           };
 
           await this.notificationService.sendNotification(
             admin.employeeId,
             admin.lineUserId,
             JSON.stringify(message),
-            'check-in',
+            'attendance',
           );
-          console.log(
-            `Late check-in notification sent to admin ${admin.employeeId}`,
-            {
-              employeeId,
-              adminId: admin.employeeId,
-              timestamp: getCurrentTime(),
-            },
-          );
+
+          console.log('Late check-in notification sent:', {
+            employeeId,
+            adminId: admin.employeeId,
+            minutesLate,
+            isHalfDayLate,
+            isEmergency,
+            timestamp: getCurrentTime(),
+          });
         } catch (error) {
           console.error(
             `Failed to send late check-in notification to admin ${admin.employeeId}:`,
@@ -833,70 +887,5 @@ export class TimeEntryService {
       0,
       0,
     );
-  }
-
-  private async updateOvertimeEntry(
-    tx: Prisma.TransactionClient,
-    id: string,
-    data: any,
-  ): Promise<TimeEntry> {
-    console.log('Updating overtime entry:', {
-      id,
-      endTime: data.endTime,
-      overtimeHours: data.overtimeHours,
-    });
-
-    // First check if metadata exists
-    const existingEntry = await tx.timeEntry.findUnique({
-      where: { id },
-      include: { overtimeMetadata: true },
-    });
-
-    if (!existingEntry) {
-      throw new Error(`No overtime entry found with id: ${id}`);
-    }
-
-    // Prepare update data
-    const updateData: Prisma.TimeEntryUpdateInput = {
-      endTime: data.endTime,
-      overtimeHours: data.overtimeHours,
-      status: data.status,
-      regularHours: 0,
-    };
-
-    // Handle metadata differently based on whether it exists
-    if (existingEntry.overtimeMetadata) {
-      updateData.overtimeMetadata = {
-        update: data.overtimeMetadata,
-      };
-    } else {
-      updateData.overtimeMetadata = {
-        create: data.overtimeMetadata,
-      };
-    }
-
-    return tx.timeEntry.update({
-      where: { id },
-      data: updateData,
-      include: { overtimeMetadata: true },
-    });
-  }
-
-  private async createOvertimeEntry(
-    tx: Prisma.TransactionClient,
-    attendance: AttendanceRecord,
-    overtimeRequest: ApprovedOvertimeInfo,
-    data: any,
-  ): Promise<TimeEntry> {
-    return tx.timeEntry.create({
-      data: {
-        ...data,
-        user: { connect: { employeeId: attendance.employeeId } },
-        attendance: { connect: { id: attendance.id } },
-        overtimeRequest: { connect: { id: overtimeRequest.id } },
-        overtimeMetadata: { create: data.overtimeMetadata },
-      },
-      include: { overtimeMetadata: true },
-    });
   }
 }

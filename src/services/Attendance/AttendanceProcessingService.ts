@@ -517,44 +517,16 @@ export class AttendanceProcessingService {
         })
       : null;
 
-    console.log('Processing attendance record:', {
-      isCheckIn,
-      periodType: options.periodType,
-      employeeId: options.employeeId,
-      date: format(now, 'yyyy-MM-dd'),
-      activeRecordId: activeRecord?.id,
-      hasLocation: !!activeRecord?.location,
-    });
-
     // Handle checkout
     if (!isCheckIn) {
       if (!activeRecord) {
-        // Error handling for no active record...
         throw new AppError({
           code: ErrorCode.PROCESSING_ERROR,
           message: `No active ${options.periodType} period found for checkout.`,
         });
       }
 
-      // Prepare base update data
-      const baseUpdateData: Prisma.AttendanceUpdateInput = {
-        CheckOutTime: now,
-        state: AttendanceState.PRESENT,
-        checkStatus: CheckStatus.CHECKED_OUT,
-        ...(options.periodType === PeriodType.OVERTIME && {
-          overtimeState: OvertimeState.COMPLETED,
-          isOvertime: true,
-        }),
-        metadata: {
-          update: {
-            source: options.metadata?.source || 'system',
-            updatedAt: now,
-          },
-        },
-      };
-
-      // Handle location update separately
-      let locationUpdate = {};
+      // Handle location update if provided
       if (options.location) {
         const coordinates = this.prepareLocationJson(
           options.location.coordinates,
@@ -562,12 +534,6 @@ export class AttendanceProcessingService {
         const address = options.location.address;
 
         if (activeRecord.location) {
-          console.log('Updating existing location record:', {
-            locationId: activeRecord.location.id,
-            attendanceId: activeRecord.id,
-          });
-
-          // Update existing location record
           await tx.attendanceLocation.update({
             where: { attendanceId: activeRecord.id },
             data: {
@@ -576,11 +542,6 @@ export class AttendanceProcessingService {
             },
           });
         } else {
-          console.log('Creating new location record for:', {
-            attendanceId: activeRecord.id,
-          });
-
-          // Create new location record
           await tx.attendanceLocation.create({
             data: {
               attendanceId: activeRecord.id,
@@ -591,19 +552,24 @@ export class AttendanceProcessingService {
         }
       }
 
-      console.log('Updating attendance record:', {
-        id: activeRecord.id,
-        isOvertime: options.periodType === PeriodType.OVERTIME,
-        updateData: {
-          ...baseUpdateData,
-          CheckOutTime: format(now, 'HH:mm:ss'),
-        },
-      });
-
       // Update attendance record
       const updatedAttendance = await tx.attendance.update({
         where: { id: activeRecord.id },
-        data: baseUpdateData,
+        data: {
+          CheckOutTime: now,
+          state: AttendanceState.PRESENT,
+          checkStatus: CheckStatus.CHECKED_OUT,
+          ...(options.periodType === PeriodType.OVERTIME && {
+            overtimeState: OvertimeState.COMPLETED,
+            isOvertime: true,
+          }),
+          metadata: {
+            update: {
+              source: options.metadata?.source || 'system',
+              updatedAt: now,
+            },
+          },
+        },
         include: {
           timeEntries: true,
           overtimeEntries: true,
@@ -617,7 +583,6 @@ export class AttendanceProcessingService {
     }
 
     // Handle check-in
-    // Get latest sequence for this specific period type
     const latestRecord = await tx.attendance.findFirst({
       where: {
         employeeId: options.employeeId,
@@ -631,45 +596,39 @@ export class AttendanceProcessingService {
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
 
-    // Prepare attendance data for new check-in
-    const attendanceData: Prisma.AttendanceCreateInput = {
-      user: { connect: { employeeId: options.employeeId } },
-      date: startOfDay(now),
-      state: AttendanceState.INCOMPLETE,
-      checkStatus: CheckStatus.CHECKED_IN,
-      type: options.periodType,
-      periodSequence: nextSequence,
-      isOvertime: options.periodType === PeriodType.OVERTIME,
-      overtimeState:
-        options.periodType === PeriodType.OVERTIME
-          ? OvertimeState.IN_PROGRESS
-          : undefined,
-      shiftStartTime: parseISO(window.current.start),
-      shiftEndTime: parseISO(window.current.end),
-      CheckInTime: now,
-      ...(options.metadata?.overtimeId && {
-        overtimeId: options.metadata.overtimeId,
-      }),
-      ...(locationData && {
-        location: { create: locationData },
-      }),
-      metadata: {
-        create: {
-          isManualEntry: options.activity.isManualEntry || false,
-          isDayOff: window.isDayOff,
-          source: options.metadata?.source || 'system',
+    // Create new attendance record
+    const attendance = await tx.attendance.create({
+      data: {
+        user: { connect: { employeeId: options.employeeId } },
+        date: startOfDay(now),
+        state: AttendanceState.INCOMPLETE,
+        checkStatus: CheckStatus.CHECKED_IN,
+        type: options.periodType,
+        periodSequence: nextSequence,
+        isOvertime: options.periodType === PeriodType.OVERTIME,
+        overtimeState:
+          options.periodType === PeriodType.OVERTIME
+            ? OvertimeState.IN_PROGRESS
+            : undefined,
+        shiftStartTime: parseISO(window.current.start),
+        shiftEndTime: parseISO(window.current.end),
+        CheckInTime: now,
+        ...(options.metadata?.overtimeId && {
+          overtimeId: options.metadata.overtimeId,
+        }),
+        ...(locationData && {
+          location: { create: locationData },
+        }),
+        metadata: {
+          create: {
+            isManualEntry: options.activity.isManualEntry || false,
+            isDayOff: window.isDayOff,
+            source: options.metadata?.source || 'system',
+            createdAt: now,
+            updatedAt: now,
+          },
         },
       },
-    };
-
-    console.log('Creating new attendance record:', {
-      type: options.periodType,
-      isOvertime: options.periodType === PeriodType.OVERTIME,
-      nextSequence,
-    });
-
-    const attendance = await tx.attendance.create({
-      data: attendanceData,
       include: {
         timeEntries: true,
         overtimeEntries: true,

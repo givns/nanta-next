@@ -1,7 +1,15 @@
 // services/Attendance/AutoCompletionService.ts (new file)
+import { ShiftWindowResponse } from '@/types/attendance';
 import { AttendanceRecord } from '@/types/attendance/records';
+import { getCurrentTime } from '@/utils/dateUtils';
 import { PeriodType } from '@prisma/client';
-import { addHours, isWithinInterval } from 'date-fns';
+import {
+  addHours,
+  format,
+  isWithinInterval,
+  parseISO,
+  subMinutes,
+} from 'date-fns';
 
 export interface AutoCompleteEntry {
   type: 'check-in' | 'check-out';
@@ -20,6 +28,7 @@ export class AutoCompletionService {
   handleMissingEntries(
     attendance: AttendanceRecord | null,
     currentTime: Date,
+    window: ShiftWindowResponse,
   ): AutoCompletionStrategy {
     if (!attendance) {
       return { requiresConfirmation: false, message: '', entries: [] };
@@ -27,77 +36,76 @@ export class AutoCompletionService {
 
     const entries: AutoCompleteEntry[] = [];
 
-    // If trying to check out but no check-in exists
-    if (!attendance.CheckInTime && attendance.shiftStartTime) {
-      // Check if it's overtime period
-      const isOvertimePeriod = attendance.overtimeEntries.some(
-        (entry) =>
-          !entry.actualStartTime &&
-          isWithinInterval(currentTime, {
-            start: new Date(attendance.shiftEndTime!), // Overtime starts after shift
-            end: addHours(new Date(attendance.shiftEndTime!), 2), // Approximate, should get from actual overtime request
-          }),
-      );
+    // Case 1: Attempting regular checkout without check-in
+    if (
+      !attendance.CheckInTime &&
+      attendance.type === PeriodType.REGULAR &&
+      !attendance.isOvertime
+    ) {
+      entries.push({
+        type: 'check-in',
+        suggestedTime: parseISO(
+          `${format(currentTime, 'yyyy-MM-dd')}T${window.shift.startTime}`,
+        ),
+        periodType: PeriodType.REGULAR,
+      });
+    }
 
-      if (isOvertimePeriod) {
-        // Need both regular check-in/out and overtime check-in
-        entries.push({
-          type: 'check-in',
-          suggestedTime: new Date(attendance.shiftStartTime),
-          periodType: PeriodType.REGULAR,
-        });
+    // Case 2: Early regular check-in with incomplete overtime
+    if (
+      attendance.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime &&
+      window.overtimeInfo
+    ) {
+      const regularShiftStart = parseISO(
+        `${format(currentTime, 'yyyy-MM-dd')}T${window.shift.startTime}`,
+      );
+      const earlyCheckInWindow = subMinutes(regularShiftStart, 30);
+
+      if (currentTime >= earlyCheckInWindow) {
         entries.push({
           type: 'check-out',
-          suggestedTime: new Date(attendance.shiftEndTime!),
-          periodType: PeriodType.REGULAR,
+          suggestedTime: parseISO(
+            `${format(currentTime, 'yyyy-MM-dd')}T${window.overtimeInfo.endTime}`,
+          ),
+          periodType: PeriodType.OVERTIME,
+          overtimeId: attendance.overtimeId || undefined,
         });
+      }
+    }
 
-        // For overtime, we'll use the first pending overtime entry
-        const pendingOT = attendance.overtimeEntries.find(
-          (entry) => !entry.actualStartTime,
-        );
-        if (pendingOT) {
-          entries.push({
-            type: 'check-in',
-            suggestedTime: new Date(attendance.shiftEndTime!), // Overtime starts at shift end
-            periodType: PeriodType.OVERTIME,
-            overtimeId: pendingOT.overtimeRequestId,
-          });
-        }
-      } else {
-        // Just regular check-in needed
+    // Case 3: Attempting overtime check-in without regular checkout
+    if (
+      attendance.type === PeriodType.REGULAR &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime &&
+      window.overtimeInfo
+    ) {
+      const overtimeStart = parseISO(
+        `${format(currentTime, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
+      );
+      if (currentTime >= overtimeStart) {
         entries.push({
-          type: 'check-in',
-          suggestedTime: attendance.shiftStartTime,
+          type: 'check-out',
+          suggestedTime: parseISO(
+            `${format(currentTime, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+          ),
           periodType: PeriodType.REGULAR,
         });
       }
     }
 
-    // Handle missing regular check-out with overtime
+    // Validate entries
     if (
-      !attendance.CheckOutTime &&
-      attendance.CheckInTime &&
-      attendance.overtimeEntries.length > 0
+      !this.validateTimeOrder(entries) ||
+      !this.validateSuggestions(entries)
     ) {
-      const pendingOT = attendance.overtimeEntries.find(
-        (entry) => !entry.actualStartTime && !entry.actualEndTime,
-      );
-
-      if (pendingOT) {
-        // Missing both regular check-out and overtime check-in
-        entries.push({
-          type: 'check-out',
-          suggestedTime: new Date(attendance.shiftEndTime!),
-          periodType: PeriodType.REGULAR,
-        });
-        entries.push({
-          type: 'check-in',
-          suggestedTime: new Date(attendance.shiftEndTime!), // Overtime starts at shift end
-          periodType: PeriodType.OVERTIME,
-          overtimeId: pendingOT.overtimeRequestId,
-        });
-      }
+      return {
+        requiresConfirmation: false,
+        message: 'Invalid auto-completion entries',
+        entries: [],
+      };
     }
 
     return {
@@ -105,6 +113,53 @@ export class AutoCompletionService {
       message: this.generateEnhancedMessage(entries),
       entries,
     };
+  }
+
+  private validateTimeOrder(entries: AutoCompleteEntry[]): boolean {
+    if (entries.length <= 1) return true;
+
+    for (let i = 0; i < entries.length - 1; i++) {
+      const currentEntry = entries[i];
+      const nextEntry = entries[i + 1];
+      if (currentEntry.suggestedTime >= nextEntry.suggestedTime) {
+        console.error('Invalid time order in auto-completion entries:', {
+          current: format(currentEntry.suggestedTime, 'HH:mm'),
+          next: format(nextEntry.suggestedTime, 'HH:mm'),
+        });
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private validateSuggestions(entries: AutoCompleteEntry[]): boolean {
+    const now = getCurrentTime();
+    const today = format(now, 'yyyy-MM-dd');
+
+    return entries.every((entry) => {
+      const time = entry.suggestedTime;
+      const entryDate = format(time, 'yyyy-MM-dd');
+
+      // Check for future time
+      if (time > now) {
+        console.error('Future time suggestion detected:', {
+          suggested: format(time, 'HH:mm'),
+          current: format(now, 'HH:mm'),
+        });
+        return false;
+      }
+
+      // Check same day
+      if (entryDate !== today) {
+        console.error('Cross-day suggestion detected:', {
+          suggested: entryDate,
+          current: today,
+        });
+        return false;
+      }
+
+      return true;
+    });
   }
 
   private generateEnhancedMessage(entries: AutoCompleteEntry[]): string {
@@ -117,24 +172,26 @@ export class AutoCompletionService {
       (e) => e.periodType === PeriodType.OVERTIME,
     );
 
-    let message = 'พบการลงเวลาที่ไม่สมบูรณ์: ';
+    const parts: string[] = [];
 
     if (regularEntries.length > 0) {
-      message += 'กะปกติ ';
-      message += regularEntries
-        .map((e) => (e.type === 'check-in' ? 'เข้างาน' : 'ออกงาน'))
-        .join(' และ ');
+      const regularActions = regularEntries.map(
+        (e) =>
+          `${e.type === 'check-in' ? 'เข้างาน' : 'ออกงาน'} ${format(e.suggestedTime, 'HH:mm')}`,
+      );
+      parts.push(`กะปกติ ${regularActions.join(' และ ')}`);
     }
 
     if (overtimeEntries.length > 0) {
-      message += regularEntries.length > 0 ? ' และ ' : '';
-      message += 'โอที ';
-      message += overtimeEntries
-        .map((e) => (e.type === 'check-in' ? 'เข้างาน' : 'ออกงาน'))
-        .join(' และ ');
+      const overtimeActions = overtimeEntries.map(
+        (e) =>
+          `${e.type === 'check-in' ? 'เข้างาน' : 'ออกงาน'} ${format(e.suggestedTime, 'HH:mm')}`,
+      );
+      parts.push(`โอที ${overtimeActions.join(' และ ')}`);
     }
 
-    message += ' ระบบจะทำการลงเวลาย้อนหลังให้อัตโนมัติ';
-    return message;
+    return parts.length > 0
+      ? `พบการลงเวลาที่ไม่สมบูรณ์: ${parts.join(' และ ')} ระบบจะทำการลงเวลาย้อนหลังให้อัตโนมัติ`
+      : '';
   }
 }
