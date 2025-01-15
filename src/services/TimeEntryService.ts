@@ -416,6 +416,10 @@ export class TimeEntryService {
         ? format(attendance.CheckOutTime, 'HH:mm:ss')
         : null,
       overtimeId: overtimeRequest.id,
+      overtimePeriod: {
+        start: overtimeRequest.startTime,
+        end: overtimeRequest.endTime,
+      },
     });
 
     // Find existing entry
@@ -427,50 +431,53 @@ export class TimeEntryService {
       },
     });
 
-    // Prepare overtime data
-    const entryData = this.prepareOvertimeData(
-      attendance,
-      overtimeRequest,
-      isCheckIn,
-    );
-
     if (isCheckIn) {
-      if (existingEntry) {
-        console.warn('Found existing overtime entry on check-in:', {
-          entryId: existingEntry.id,
-          attendanceId: attendance.id,
-        });
-      }
-
       return tx.timeEntry.create({
         data: {
-          ...entryData,
           employeeId: attendance.employeeId,
+          date: attendance.date,
+          startTime: attendance.CheckInTime!,
+          status: TimeEntryStatus.STARTED,
+          entryType: PeriodType.OVERTIME,
           attendanceId: attendance.id,
           overtimeRequestId: overtimeRequest.id,
-          timing: {
-            actualMinutesLate: 0,
-            isHalfDayLate: false,
+          hours: {
+            regular: 0,
+            overtime: 0,
           },
-          // Additional metadata comes from prepareOvertimeData
+          metadata: {
+            source: 'system',
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
         },
       });
     }
 
-    // Handle checkout
     if (!existingEntry) {
-      console.error('No existing overtime entry found for checkout:', {
-        attendanceId: attendance.id,
-        overtimeId: overtimeRequest.id,
-      });
       throw new Error('No existing overtime entry found for checkout');
     }
 
-    // Calculate hours based on approved overtime boundaries
+    // Calculate hours based on matched overtime period
     const { hours, metadata } = this.calculateOvertimeHours(
       attendance.CheckInTime!,
       attendance.CheckOutTime!,
-      overtimeRequest,
+      {
+        // Pass only the relevant overtime period based on matched overtime
+        startTime: overtimeRequest.startTime,
+        endTime: overtimeRequest.endTime,
+        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
+        isInsideShiftHours: overtimeRequest.isInsideShiftHours,
+        id: overtimeRequest.id,
+        durationMinutes: overtimeRequest.durationMinutes,
+        date: overtimeRequest.date,
+        employeeId: '',
+        status: 'approved',
+        employeeResponse: null,
+        reason: null,
+        approverId: null,
+      },
       null,
       null,
     );
@@ -479,6 +486,10 @@ export class TimeEntryService {
       entryId: existingEntry.id,
       hours,
       checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
+      periodUsed: {
+        start: overtimeRequest.startTime,
+        end: overtimeRequest.endTime,
+      },
     });
 
     return tx.timeEntry.update({
@@ -488,7 +499,7 @@ export class TimeEntryService {
         status: TimeEntryStatus.COMPLETED,
         hours: {
           regular: 0,
-          overtime: hours, // Uses approved overtime duration
+          overtime: hours,
         },
         metadata: {
           source: 'system',
@@ -829,9 +840,10 @@ export class TimeEntryService {
     console.log('Calculating overtime hours:', {
       checkIn: format(checkInTime, 'HH:mm:ss'),
       checkout: format(checkOutTime, 'HH:mm:ss'),
-      overtime: {
-        startTime: overtimeRequest.startTime,
-        endTime: overtimeRequest.endTime,
+      overtimePeriod: {
+        start: overtimeRequest.startTime,
+        end: overtimeRequest.endTime,
+        date: format(checkInTime, 'yyyy-MM-dd'),
       },
     });
 
@@ -843,7 +855,7 @@ export class TimeEntryService {
       `${format(checkInTime, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
     );
 
-    // Handle overnight period
+    // Determine if overnight by comparing times
     const isOvernight = overtimeEnd < overtimeStart;
     if (isOvernight) {
       overtimeEnd = addDays(overtimeEnd, 1);
@@ -875,6 +887,7 @@ export class TimeEntryService {
       period: {
         start: format(overtimeStart, 'HH:mm:ss'),
         end: format(overtimeEnd, 'HH:mm:ss'),
+        isOvernight,
       },
       effective: {
         start: format(effectiveStartTime, 'HH:mm:ss'),
