@@ -67,122 +67,112 @@ export class AttendanceProcessingService {
     };
   }
 
+  // In AttendanceProcessingService.ts
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
     const normalizedOptions = this.validateAndNormalizeOptions(options);
-    console.log('Normalized options:', {
-      original: options,
-      normalized: normalizedOptions,
-    });
 
     try {
-      const result = await this.prisma.$transaction(
-        async (tx) => {
-          // 1. Get current state
-          const [currentRecord, window] = await Promise.all([
-            this.getLatestAttendance(tx, options.employeeId),
-            this.shiftService.getCurrentWindow(options.employeeId, now),
-          ]);
+      const result = await this.prisma.$transaction(async (tx) => {
+        const [currentRecord, window] = await Promise.all([
+          this.getLatestAttendance(tx, options.employeeId),
+          this.shiftService.getCurrentWindow(options.employeeId, now),
+        ]);
 
-          if (!window) {
-            throw new AppError({
-              code: ErrorCode.SHIFT_DATA_ERROR,
-              message: 'Shift configuration not found',
-            });
-          }
+        if (!window) {
+          throw new AppError({
+            code: ErrorCode.SHIFT_DATA_ERROR,
+            message: 'Shift configuration not found',
+          });
+        }
 
-          // 2. Handle auto-completion if needed
-          if (normalizedOptions.activity.overtimeMissed) {
-            return this.handleAutoCompletion(
-              tx,
-              currentRecord,
-              window,
-              normalizedOptions,
-              now,
-            );
-          }
+        // Only use autocompletion when actually handling missing entries
+        // i.e., when trying to check in to a period but previous period's checkout is missing
+        const shouldAutoComplete =
+          normalizedOptions.activity.overtimeMissed &&
+          // Case 1: Trying to check in regular but overtime checkout is missing
+          ((normalizedOptions.periodType === PeriodType.REGULAR &&
+            currentRecord?.type === PeriodType.OVERTIME &&
+            !currentRecord.CheckOutTime) ||
+            // Case 2: Missing regular checkin when trying to checkout
+            (normalizedOptions.activity.isCheckIn === false &&
+              !currentRecord?.CheckInTime));
 
-          // 3. Process regular attendance
-          const previousState = currentRecord
-            ? this.periodManager.resolveCurrentPeriod(
-                currentRecord,
-                window,
-                now,
-              )
-            : undefined;
-
-          // Process main attendance record
-          const processedAttendance = await this.processAttendanceRecord(
+        if (shouldAutoComplete) {
+          return this.handleAutoCompletion(
             tx,
             currentRecord,
             window,
-            options,
-            now,
-          );
-
-          // Create proper StatusUpdateResult for TimeEntryService
-          const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
             normalizedOptions,
-            currentRecord,
             now,
           );
+        }
 
-          // Process time entries with proper status update
-          const timeEntries = await this.timeEntryService.processTimeEntries(
-            tx,
-            processedAttendance,
-            timeEntryStatusUpdate,
-            normalizedOptions,
-          );
+        // Process main attendance record
+        const processedAttendance = await this.processAttendanceRecord(
+          tx,
+          currentRecord,
+          window,
+          options,
+          now,
+        );
 
-          const currentState = this.periodManager.resolveCurrentPeriod(
-            processedAttendance,
-            window,
-            now,
-          );
+        // Create proper StatusUpdateResult for TimeEntryService
+        const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
+          normalizedOptions,
+          currentRecord,
+          now,
+        );
 
-          const stateValidation =
-            await this.enhancementService.createStateValidation(
+        // Process time entries with proper status update
+        const timeEntries = await this.timeEntryService.processTimeEntries(
+          tx,
+          processedAttendance,
+          timeEntryStatusUpdate,
+          normalizedOptions,
+        );
+
+        const currentState = this.periodManager.resolveCurrentPeriod(
+          processedAttendance,
+          window,
+          now,
+        );
+
+        return {
+          success: true,
+          timestamp: now.toISOString(),
+          data: {
+            state: {
+              current: currentState,
+              previous: currentRecord
+                ? this.periodManager.resolveCurrentPeriod(
+                    currentRecord,
+                    window,
+                    now,
+                  )
+                : undefined,
+            },
+            validation: await this.enhancementService.createStateValidation(
               processedAttendance,
               currentState,
               window,
               now,
-            );
+            ),
+          },
+          metadata: {
+            source: normalizedOptions.activity.isManualEntry
+              ? 'manual'
+              : 'system',
+            timeEntries,
+          },
+        };
+      });
 
-          return {
-            success: true,
-            timestamp: now.toISOString(),
-            data: {
-              state: {
-                current: currentState,
-                previous: previousState,
-              },
-              validation: stateValidation,
-            },
-            metadata: {
-              source: options.activity.isManualEntry ? 'manual' : 'system',
-              timeEntries,
-            },
-          };
-        },
-        {
-          timeout: 15000, // Increase timeout to 15 seconds for auto-completion
-          maxWait: 20000, // Maximum time to wait for transaction to start
-        },
-      );
-
-      // Only set force refresh after successful transaction
       await cacheService.set(`forceRefresh:${options.employeeId}`, 'true', 30);
 
-      return {
-        ...result,
-        metadata: {
-          ...result.metadata,
-          source: 'auto',
-        },
-      };
+      return result as ProcessingResult; // Add type assertion to ensure the correct type is returned
     } catch (error) {
       console.error('Attendance processing error:', error);
       throw this.handleProcessingError(error);

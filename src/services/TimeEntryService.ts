@@ -178,6 +178,15 @@ export class TimeEntryService {
     leaveRequests: LeaveRequest[],
     shift: any,
   ): Promise<TimeEntry> {
+    console.log('Handle regular entry:', {
+      isCheckIn,
+      attendanceId: attendance.id,
+      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      checkOutTime: attendance.CheckOutTime
+        ? format(attendance.CheckOutTime, 'HH:mm:ss')
+        : null,
+    });
+
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
         attendanceId: attendance.id,
@@ -195,7 +204,7 @@ export class TimeEntryService {
       leaveRequests,
     );
 
-    // Prepare data
+    // Prepare regular entry data
     const entryData = this.prepareRegularEntryData(
       attendance,
       metrics,
@@ -203,34 +212,31 @@ export class TimeEntryService {
     );
 
     if (isCheckIn) {
+      if (existingEntry) {
+        console.warn('Found existing regular entry on check-in:', {
+          entryId: existingEntry.id,
+          attendanceId: attendance.id,
+        });
+      }
+
       return tx.timeEntry.create({
         data: {
+          ...entryData,
           employeeId: attendance.employeeId,
-          date: attendance.date,
-          startTime: attendance.CheckInTime!,
-          endTime: null,
-          status: TimeEntryStatus.STARTED,
-          entryType: PeriodType.REGULAR,
           attendanceId: attendance.id,
-          hours: {
-            regular: 0,
-            overtime: 0,
-          },
-          metadata: {
-            source: 'system',
-            version: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
         },
       });
     }
 
+    // Handle checkout
     if (!existingEntry) {
+      console.error('No existing regular entry found for checkout:', {
+        attendanceId: attendance.id,
+      });
       throw new Error('No existing regular entry found for checkout');
     }
 
-    // Get shift times and calculate hours
+    // Calculate working hours considering leaves
     const workingHours = this.calculateWorkingHours(
       attendance.CheckInTime!,
       attendance.CheckOutTime!,
@@ -240,14 +246,25 @@ export class TimeEntryService {
       leaveRequests,
     );
 
+    console.log('Updating regular entry:', {
+      entryId: existingEntry.id,
+      regularHours: workingHours.regularHours,
+      checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
+    });
+
     return tx.timeEntry.update({
       where: { id: existingEntry.id },
       data: {
         endTime: attendance.CheckOutTime,
         status: TimeEntryStatus.COMPLETED,
         hours: {
-          regular: workingHours.regularHours, // Will be 8 hours (or 4 for half day)
+          regular: workingHours.regularHours, // Will be 8 hours or 4 for half day
           overtime: 0,
+        },
+        metadata: {
+          source: 'system',
+          version: 1,
+          updatedAt: new Date(),
         },
       },
     });
@@ -389,6 +406,16 @@ export class TimeEntryService {
     overtimeRequest: ApprovedOvertimeInfo,
     isCheckIn: boolean,
   ): Promise<TimeEntry> {
+    console.log('Handle overtime entry:', {
+      isCheckIn,
+      attendanceId: attendance.id,
+      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      checkOutTime: attendance.CheckOutTime
+        ? format(attendance.CheckOutTime, 'HH:mm:ss')
+        : null,
+      overtimeId: overtimeRequest.id,
+    });
+
     // Find existing entry
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
@@ -398,7 +425,7 @@ export class TimeEntryService {
       },
     });
 
-    // Prepare data
+    // Prepare overtime data
     const entryData = this.prepareOvertimeData(
       attendance,
       overtimeRequest,
@@ -406,39 +433,38 @@ export class TimeEntryService {
     );
 
     if (isCheckIn) {
-      // Create new entry for check-in
+      if (existingEntry) {
+        console.warn('Found existing overtime entry on check-in:', {
+          entryId: existingEntry.id,
+          attendanceId: attendance.id,
+        });
+      }
+
       return tx.timeEntry.create({
         data: {
+          ...entryData,
           employeeId: attendance.employeeId,
-          date: attendance.date,
-          startTime: attendance.CheckInTime!,
-          status: TimeEntryStatus.STARTED,
-          entryType: PeriodType.OVERTIME,
           attendanceId: attendance.id,
           overtimeRequestId: overtimeRequest.id,
-          hours: {
-            regular: 0,
-            overtime: 0,
-          },
           timing: {
             actualMinutesLate: 0,
             isHalfDayLate: false,
           },
-          metadata: {
-            source: 'system',
-            version: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
+          // Additional metadata comes from prepareOvertimeData
         },
       });
     }
 
+    // Handle checkout
     if (!existingEntry) {
+      console.error('No existing overtime entry found for checkout:', {
+        attendanceId: attendance.id,
+        overtimeId: overtimeRequest.id,
+      });
       throw new Error('No existing overtime entry found for checkout');
     }
 
-    // For checkout, use approved overtime hours
+    // Calculate hours based on approved overtime boundaries
     const { hours, metadata } = this.calculateOvertimeHours(
       attendance.CheckInTime!,
       attendance.CheckOutTime!,
@@ -447,6 +473,12 @@ export class TimeEntryService {
       null,
     );
 
+    console.log('Updating overtime entry:', {
+      entryId: existingEntry.id,
+      hours,
+      checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
+    });
+
     return tx.timeEntry.update({
       where: { id: existingEntry.id },
       data: {
@@ -454,7 +486,7 @@ export class TimeEntryService {
         status: TimeEntryStatus.COMPLETED,
         hours: {
           regular: 0,
-          overtime: hours,
+          overtime: hours, // Uses approved overtime duration
         },
         metadata: {
           source: 'system',
