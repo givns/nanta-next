@@ -415,10 +415,9 @@ export class TimeEntryService {
       checkOutTime: attendance.CheckOutTime
         ? format(attendance.CheckOutTime, 'HH:mm:ss')
         : null,
-      overtimeId: overtimeRequest.id,
-      overtimePeriod: {
-        start: overtimeRequest.startTime,
-        end: overtimeRequest.endTime,
+      requestedOvertime: {
+        startTime: overtimeRequest.startTime,
+        endTime: overtimeRequest.endTime,
       },
     });
 
@@ -459,25 +458,11 @@ export class TimeEntryService {
       throw new Error('No existing overtime entry found for checkout');
     }
 
-    // Calculate hours based on matched overtime period
+    // Calculate hours using the matched overtime period
     const { hours, metadata } = this.calculateOvertimeHours(
       attendance.CheckInTime!,
       attendance.CheckOutTime!,
-      {
-        // Pass only the relevant overtime period based on matched overtime
-        startTime: overtimeRequest.startTime,
-        endTime: overtimeRequest.endTime,
-        isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-        isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-        id: overtimeRequest.id,
-        durationMinutes: overtimeRequest.durationMinutes,
-        date: overtimeRequest.date,
-        employeeId: '',
-        status: 'approved',
-        employeeResponse: null,
-        reason: null,
-        approverId: null,
-      },
+      overtimeRequest, // This should already be the correct matched overtime from getCurrentWindow
       null,
       null,
     );
@@ -486,7 +471,7 @@ export class TimeEntryService {
       entryId: existingEntry.id,
       hours,
       checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
-      periodUsed: {
+      overtimePeriod: {
         start: overtimeRequest.startTime,
         end: overtimeRequest.endTime,
       },
