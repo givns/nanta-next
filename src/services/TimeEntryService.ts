@@ -19,6 +19,8 @@ import {
   isSameDay,
   max,
   min,
+  parseISO,
+  subMinutes,
 } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
 import { NotificationService } from './NotificationService';
@@ -824,65 +826,65 @@ export class TimeEntryService {
     breakStart: Date | null,
     breakEnd: Date | null,
   ): { hours: number; metadata: OvertimeMetadataInput | null } {
-    const overtimeStart = this.parseShiftTime(
-      overtimeRequest.startTime,
-      overtimeRequest.date,
+    // Convert overtime period boundaries to Date objects
+    const overtimeStart = parseISO(
+      `${format(checkInTime, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
     );
-    let overtimeEnd = this.parseShiftTime(
-      overtimeRequest.endTime,
-      overtimeRequest.date,
+    const overtimeEnd = parseISO(
+      `${format(checkInTime, 'yyyy-MM-dd')}T${overtimeRequest.endTime}`,
     );
 
     // Handle overnight overtime
     if (overtimeEnd < overtimeStart) {
-      overtimeEnd = addDays(overtimeEnd, 1);
+      overtimeEnd.setDate(overtimeEnd.getDate() + 1);
     }
 
-    // Ensure checkout is within overtime period
-    const effectiveStart = max([checkInTime, overtimeStart]);
-    const effectiveEnd = min([checkOutTime, overtimeEnd]);
+    console.log('Calculating overtime hours:', {
+      actualCheckIn: format(checkInTime, 'HH:mm:ss'),
+      actualCheckOut: format(checkOutTime, 'HH:mm:ss'),
+      overtimePeriod: {
+        start: format(overtimeStart, 'HH:mm:ss'),
+        end: format(overtimeEnd, 'HH:mm:ss'),
+      },
+    });
 
-    // Calculate minutes worked
-    const overtimeMinutes =
-      breakStart && breakEnd
-        ? this.calculateEffectiveMinutes(
-            effectiveStart,
-            effectiveEnd,
-            breakStart,
-            breakEnd,
-          )
-        : differenceInMinutes(effectiveEnd, effectiveStart);
+    // Use period start time if checked in early
+    const effectiveStartTime =
+      checkInTime < overtimeStart ? overtimeStart : checkInTime;
 
-    // Special handling: if less than minimum threshold, return 0
-    if (overtimeMinutes < this.OVERTIME_MINIMUM_MINUTES) {
-      return {
-        hours: 0,
-        metadata: null,
-      };
-    }
+    // Check if within early checkout allowance (5 minutes before period end)
+    const earlyCheckoutAllowance = subMinutes(overtimeEnd, 5);
+    const isWithinEarlyAllowance =
+      checkOutTime >= earlyCheckoutAllowance && checkOutTime < overtimeEnd;
 
-    // Calculate based on planned overtime duration
-    const plannedOvertimeMinutes = overtimeRequest.durationMinutes;
-    const workedPercentage = (overtimeMinutes / plannedOvertimeMinutes) * 100;
+    // Use period end time if within early checkout allowance
+    const effectiveEndTime = isWithinEarlyAllowance
+      ? overtimeEnd
+      : checkOutTime;
 
-    // Must complete at least 90% of planned overtime to get full hours
-    if (workedPercentage < 90) {
-      // Round down to nearest 30 minutes
-      const roundedMinutes =
-        Math.floor(overtimeMinutes / this.OVERTIME_INCREMENT) *
-        this.OVERTIME_INCREMENT;
-      return {
-        hours: roundedMinutes / 60,
-        metadata: {
-          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-        },
-      };
-    }
+    // Calculate worked minutes
+    const workedMinutes = differenceInMinutes(
+      effectiveEndTime,
+      effectiveStartTime,
+    );
 
-    // If completed 90% or more, give full overtime hours
+    // Calculate completed 30-minute cycles
+    const completedCycles = Math.floor(workedMinutes / 30);
+    const overtimeMinutes = completedCycles * 30;
+
+    console.log('Overtime calculation details:', {
+      effectiveTime: {
+        start: format(effectiveStartTime, 'HH:mm:ss'),
+        end: format(effectiveEndTime, 'HH:mm:ss'),
+      },
+      workedMinutes,
+      completedCycles,
+      overtimeMinutes,
+      isWithinEarlyAllowance,
+    });
+
     return {
-      hours: plannedOvertimeMinutes / 60,
+      hours: overtimeMinutes / 60,
       metadata: {
         isDayOffOvertime: overtimeRequest.isDayOffOvertime,
         isInsideShiftHours: overtimeRequest.isInsideShiftHours,
