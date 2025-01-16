@@ -740,7 +740,6 @@ export class TimeEntryService {
       '🔔 แจ้งเตือนการมาสาย',
       `พนักงาน: ${employee.name}`,
       `รหัส: ${employee.employeeId}`,
-      `แผนก: ${employee.department?.name || 'ไม่ระบุ'}`,
       `วันที่: ${formattedDate}`,
       `เวลาเข้างาน: ${formattedTime} น.`,
       `สาย: ${Math.floor(minutesLate)} นาที`,
