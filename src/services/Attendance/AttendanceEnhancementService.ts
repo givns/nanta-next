@@ -28,19 +28,29 @@ import {
   addMinutes,
   differenceInMinutes,
   format,
-  isBefore,
   isWithinInterval,
   parseISO,
   subMinutes,
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
-import { getCurrentTime } from '@/utils/dateUtils';
 
 interface OvertimeCheckoutStatus {
   shouldAutoComplete: boolean;
   allowManualCheckout: boolean;
   checkoutTime: Date | null;
   reason: string;
+}
+
+interface LateCheckoutStatus {
+  canCheckout: boolean;
+  shouldAutoComplete: boolean;
+  isVeryLate: boolean;
+  reason: string;
+  flags: {
+    isLateCheckOut: boolean;
+    isVeryLateCheckOut: boolean;
+    requiresAutoCompletion: boolean;
+  };
 }
 
 const TRANSITION_CONFIG = {
@@ -737,68 +747,123 @@ export class AttendanceEnhancementService {
       now,
     );
 
-    // Get validation reason
-    const reason = this.getValidationReason({
-      periodStatusInfo: statusInfo,
-      window,
-      attendance,
-    });
+    const periodEnd = parseISO(currentState.timeWindow.end);
+    const checkoutStatus = this.determineLateCheckoutStatus(
+      now,
+      periodEnd,
+      currentState.type,
+      true,
+    );
 
-    if (isOvertimeSession && window.overtimeInfo) {
-      const overtimeStatus = this.determineOvertimeCheckoutStatus(
-        now,
-        window.overtimeInfo.endTime,
-        true,
-      );
+    // Common flags based on period type
+    const commonFlags = {
+      hasActivePeriod: true,
+      isCheckingIn: false,
+      isOvertime: isOvertimeSession,
+      isDayOffOvertime:
+        isOvertimeSession && Boolean(window.overtimeInfo?.isDayOffOvertime),
+      isInsideShift: !isOvertimeSession,
+      isOutsideShift: isOvertimeSession,
+      ...checkoutStatus.flags,
+    };
 
+    return {
+      allowed: checkoutStatus.canCheckout,
+      reason: checkoutStatus.reason,
+      flags: this.getValidationFlags(commonFlags),
+      metadata: {
+        requiredAction: checkoutStatus.shouldAutoComplete
+          ? isOvertimeSession
+            ? VALIDATION_ACTIONS.AUTO_COMPLETE_OVERTIME
+            : VALIDATION_ACTIONS.AUTO_COMPLETE
+          : VALIDATION_ACTIONS.ACTIVE_SESSION,
+        additionalInfo: {
+          periodType: attendance.type,
+          shouldAutoComplete: checkoutStatus.shouldAutoComplete,
+          isVeryLate: checkoutStatus.isVeryLate,
+          ...(checkoutStatus.shouldAutoComplete && {
+            autoCompleteTime: format(periodEnd, 'HH:mm:ss'),
+          }),
+        },
+      },
+    };
+  }
+
+  private determineLateCheckoutStatus(
+    now: Date,
+    periodEnd: Date,
+    periodType: PeriodType,
+    isActiveAttendance: boolean,
+  ): LateCheckoutStatus {
+    // Don't process if no active attendance
+    if (!isActiveAttendance) {
       return {
-        allowed: overtimeStatus?.allowManualCheckout ?? true,
-        reason: overtimeStatus?.reason || reason,
-        flags: this.getValidationFlags({
-          hasActivePeriod: true,
-          isCheckingIn: false,
-          isOvertime: true,
-          isDayOffOvertime: Boolean(window.overtimeInfo.isDayOffOvertime),
-          isInsideShift: false,
-          isOutsideShift: true,
-          isAutoCheckOut: Boolean(overtimeStatus?.shouldAutoComplete),
-          requiresAutoCompletion: Boolean(overtimeStatus?.shouldAutoComplete),
-        }),
-        metadata: overtimeStatus?.shouldAutoComplete
-          ? {
-              requiredAction: VALIDATION_ACTIONS.AUTO_COMPLETE_OVERTIME,
-              nextTransitionTime: overtimeStatus.checkoutTime?.toISOString(),
-              additionalInfo: {
-                autoCompleteTime: overtimeStatus.checkoutTime
-                  ? format(overtimeStatus.checkoutTime, 'HH:mm:ss')
-                  : undefined,
-              },
-            }
-          : {
-              requiredAction: VALIDATION_ACTIONS.ACTIVE_SESSION,
-              additionalInfo: {
-                periodType: attendance.type,
-              },
-            },
+        canCheckout: false,
+        shouldAutoComplete: false,
+        isVeryLate: false,
+        reason: 'ไม่พบการลงเวลาเข้างาน',
+        flags: {
+          isLateCheckOut: false,
+          isVeryLateCheckOut: false,
+          requiresAutoCompletion: false,
+        },
       };
     }
 
-    // Regular period validation
-    return {
-      allowed: true,
-      reason: '',
-      flags: this.getValidationFlags({
-        hasActivePeriod: true,
-        isCheckingIn: false,
-        isOvertime: false,
-        isInsideShift: true,
-        isOutsideShift: false,
-      }),
-      metadata: {
-        requiredAction: VALIDATION_ACTIONS.ACTIVE_SESSION,
-        additionalInfo: {
-          periodType: attendance.type,
+    // Calculate thresholds
+    const lateThreshold = addMinutes(
+      periodEnd,
+      VALIDATION_THRESHOLDS.LATE_CHECKOUT,
+    );
+    const veryLateThreshold = addMinutes(
+      periodEnd,
+      VALIDATION_THRESHOLDS.VERY_LATE_CHECKOUT,
+    );
+
+    // Check time intervals
+    const isWithinNormal = now <= periodEnd;
+    const isWithinLate = now > periodEnd && now <= lateThreshold;
+    const isWithinVeryLate = now > lateThreshold && now <= veryLateThreshold;
+    const isPastAllThresholds = now > veryLateThreshold;
+
+    // For overtime periods
+    if (periodType === PeriodType.OVERTIME) {
+      return {
+        canCheckout: true, // Always allow manual checkout for overtime
+        shouldAutoComplete: false,
+        isVeryLate: isWithinVeryLate || isPastAllThresholds,
+        reason: isPastAllThresholds
+          ? 'เลยเวลา OT มาก กรุณาลงเวลาออกโดยเร็วที่สุด'
+          : isWithinVeryLate
+            ? 'เลยเวลา OT กรุณาลงเวลาออก'
+            : isWithinLate
+              ? 'ใกล้หมดเวลา OT'
+              : '',
+        flags: {
+          isLateCheckOut:
+            isWithinLate || isWithinVeryLate || isPastAllThresholds,
+          isVeryLateCheckOut: isWithinVeryLate || isPastAllThresholds,
+          requiresAutoCompletion: false,
         },
+      };
+    }
+
+    // For regular periods
+    return {
+      canCheckout: true,
+      shouldAutoComplete: isPastAllThresholds,
+      isVeryLate: isWithinVeryLate || isPastAllThresholds,
+      reason: isPastAllThresholds
+        ? 'เลยเวลาออกงานมาก ระบบจะทำการลงเวลาให้อัตโนมัติ'
+        : isWithinVeryLate
+          ? 'เลยเวลาออกงานมาก กรุณาลงเวลาออกโดยเร็วที่สุด'
+          : isWithinLate
+            ? 'เลยเวลาออกงาน กรุณาลงเวลาออก'
+            : '',
+      flags: {
+        isLateCheckOut: isWithinLate || isWithinVeryLate || isPastAllThresholds,
+        isVeryLateCheckOut: isWithinVeryLate || isPastAllThresholds,
+        requiresAutoCompletion: isPastAllThresholds,
       },
     };
   }
@@ -811,30 +876,33 @@ export class AttendanceEnhancementService {
     const currentPeriodStart = parseISO(currentState.timeWindow.start);
     const currentPeriodEnd = parseISO(currentState.timeWindow.end);
 
+    // Add early window calculation
+    const earlyWindow = {
+      start: subMinutes(
+        currentPeriodStart,
+        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+      ),
+      end: currentPeriodStart,
+    };
+
+    // Check if within period OR within early window
     const isWithinPeriod = isWithinInterval(now, {
       start: currentPeriodStart,
       end: currentPeriodEnd,
     });
 
-    const reason = this.getValidationReason({
-      periodStatusInfo: this.determinePeriodStatusInfo(
-        null,
-        currentState,
-        window,
-        now,
-      ),
-      window,
-      attendance: null,
-    });
+    const isWithinEarlyWindow = isWithinInterval(now, earlyWindow);
+    const isValidTime = isWithinPeriod || isWithinEarlyWindow;
 
     return {
-      allowed: isWithinPeriod,
-      reason: reason || (isWithinPeriod ? '' : 'ไม่อยู่ในช่วงเวลาทำงาน'),
+      allowed: isValidTime,
+      reason: isValidTime ? '' : 'ไม่อยู่ในช่วงเวลาทำงาน',
       flags: this.getValidationFlags({
         hasActivePeriod: false,
         isCheckingIn: true,
         isInsideShift: isWithinPeriod,
-        isOutsideShift: !isWithinPeriod,
+        isOutsideShift: !isValidTime, // Changed to consider early window
+        isEarlyCheckIn: isWithinEarlyWindow,
         isOvertime: currentState.activity.isOvertime,
         isDayOffOvertime: currentState.activity.isDayOffOvertime,
       }),

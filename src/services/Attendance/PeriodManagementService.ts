@@ -4,6 +4,7 @@ import {
   UnifiedPeriodState,
   AttendanceRecord,
   PeriodDefinition,
+  VALIDATION_THRESHOLDS,
 } from '@/types/attendance';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance/base';
 import { PeriodType } from '@prisma/client';
@@ -28,13 +29,6 @@ const TRANSITION_CONFIG: TransitionWindowConfig = {
   EARLY_BUFFER: 5, // 5 minutes before shift end
   LATE_BUFFER: 15, // 15 minutes after shift end
 };
-
-const VALIDATION_THRESHOLDS = {
-  OVERTIME_CHECKOUT: 15, // 15 minutes threshold for overtime checkout
-  EARLY_CHECKIN: 30, // 30 minutes before shift start
-  LATE_CHECKOUT: 15, // 15 minutes after shift end
-  LATE_CHECKIN: 15, // 15 minutes after shift start
-} as const;
 
 export class PeriodManagementService {
   resolveCurrentPeriod(
