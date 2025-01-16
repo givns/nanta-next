@@ -97,39 +97,42 @@ export class AttendanceProcessingService {
               )
             : undefined;
 
-          // Only use autocompletion when actually handling missing entries
+          // Only trigger auto-completion for specific cases
           const shouldAutoComplete =
-            normalizedOptions.activity.overtimeMissed &&
-            // Case 1: Trying to check in regular but overtime checkout is missing
-            ((normalizedOptions.periodType === PeriodType.REGULAR &&
+            options.activity.overtimeMissed &&
+            // Case 1: Trying to check in regular but previous overtime checkout is missing
+            ((options.periodType === PeriodType.REGULAR &&
               currentRecord?.type === PeriodType.OVERTIME &&
-              !currentRecord.CheckOutTime) ||
-              // Case 2: Missing regular checkin when trying to checkout
-              (normalizedOptions.activity.isCheckIn === false &&
-                !currentRecord?.CheckInTime));
+              !currentRecord.CheckOutTime &&
+              options.activity.isCheckIn) ||
+              // Case 2: Missing check-in when trying to checkout
+              (!currentRecord?.CheckInTime && !options.activity.isCheckIn));
+
+          console.log('Auto-completion check:', {
+            currentTime: format(now, 'HH:mm:ss'),
+            shouldAutoComplete,
+            conditions: {
+              overtimeMissed: options.activity.overtimeMissed,
+              isRegularCheckIn:
+                options.periodType === PeriodType.REGULAR &&
+                options.activity.isCheckIn,
+              hasMissingOvertimeCheckout:
+                currentRecord?.type === PeriodType.OVERTIME &&
+                !currentRecord.CheckOutTime,
+              missingCheckIn:
+                !currentRecord?.CheckInTime && !options.activity.isCheckIn,
+            },
+          });
 
           if (shouldAutoComplete) {
             return this.handleAutoCompletion(
               tx,
               currentRecord,
               periodState,
-              normalizedOptions,
+              options,
               now,
             );
           }
-
-          // Log the current state for debugging
-          console.log('Processing with period state:', {
-            currentTime: format(now, 'HH:mm:ss'),
-            periodType: periodState.type,
-            current: periodState.current,
-            overtimeInfo: periodState.overtimeInfo
-              ? {
-                  startTime: periodState.overtimeInfo.startTime,
-                  endTime: periodState.overtimeInfo.endTime,
-                }
-              : null,
-          });
 
           // Process main attendance record
           const processedAttendance = await this.processAttendanceRecord(

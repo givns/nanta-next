@@ -965,22 +965,40 @@ export class AttendanceEnhancementService {
         VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
       );
 
-      // If not after end time, normal checkout
-      if (now <= endTime) {
+      console.log('Checking overtime checkout status:', {
+        currentTime: format(now, 'HH:mm:ss'),
+        overtimeEnd: format(endTime, 'HH:mm:ss'),
+        lateThreshold: format(lateThresholdEnd, 'HH:mm:ss'),
+        isActive: isActiveAttendance,
+      });
+
+      // Only allow checkout if attendance is active
+      if (!isActiveAttendance) {
+        return {
+          shouldAutoComplete: false,
+          allowManualCheckout: false,
+          checkoutTime: null,
+          reason: 'ไม่พบการลงเวลาเข้า OT',
+        };
+      }
+
+      // If within normal period or late allowance
+      if (now <= lateThresholdEnd) {
         return {
           shouldAutoComplete: false,
           allowManualCheckout: true,
           checkoutTime: null,
-          reason: '',
+          reason: now > endTime ? 'เลยเวลา OT แล้ว กรุณาลงเวลาออก' : '',
         };
       }
 
-      // Past late threshold - should auto complete but still allow manual checkout
+      // Past late threshold - but still has active check-in
+      // Should allow very late manual checkout with warning
       return {
-        shouldAutoComplete: true,
-        allowManualCheckout: true, // Changed to true to allow manual checkout
-        checkoutTime: endTime,
-        reason: 'เลยเวลาออก OT แล้ว ระบบจะทำการลงเวลาให้โดยอัตโนมัติ',
+        shouldAutoComplete: false, // Changed: Don't auto-complete even when very late
+        allowManualCheckout: true,
+        checkoutTime: null,
+        reason: 'เลยเวลา OT กรุณาลงเวลาออกโดยเร็วที่สุด',
       };
     } catch (error) {
       console.error('Error determining overtime checkout status:', error);
