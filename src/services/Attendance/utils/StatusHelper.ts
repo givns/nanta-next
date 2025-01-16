@@ -188,28 +188,45 @@ export class StatusHelpers {
     return newStatus.isOvertime ? 'Overtime check-out' : 'Regular check-out';
   }
 
-  // Helper to get display status
   static getDisplayStatus(status: AttendanceCompositeStatus): string {
+    // Holiday and day-off checks
     if (status.state === AttendanceState.HOLIDAY) return 'holiday';
     if (status.state === AttendanceState.OFF) return 'day-off';
 
+    // Handle overtime period
     if (status.isOvertime) {
+      // Only show overtime states if there's actual overtime activity
       switch (status.overtimeState) {
         case OvertimeState.IN_PROGRESS:
           return 'ลงเวลาเข้า OT แล้ว';
         case OvertimeState.COMPLETED:
           return 'ทำ OT เสร็จแล้ว';
         default:
-          return 'ยังไม่ได้ลงเวลา OT';
+          return 'ยังไม่ลงเวลา OT';
       }
     }
 
+    // Handle regular shift period
     switch (status.checkStatus) {
       case CheckStatus.CHECKED_IN:
+        if (status.state === AttendanceState.PRESENT) {
+          // If there's approved overtime after shift
+          if (status.overtimeState === OvertimeState.NOT_STARTED) {
+            return 'ลงเวลาเข้างานแล้ว, มี OT รออยู่';
+          }
+          return 'ลงเวลาเข้างานแล้ว';
+        }
         return 'ลงเวลาเข้างานแล้ว';
+
       case CheckStatus.CHECKED_OUT:
+        // If there's approved overtime after regular shift
+        if (status.overtimeState === OvertimeState.NOT_STARTED) {
+          return 'ลงเวลาออกงานแล้ว, รอเข้า OT';
+        }
         return 'ลงเวลาออกงานแล้ว';
+
       default:
+        // Default state - no check-in yet
         return 'ยังไม่ลงเวลา';
     }
   }
