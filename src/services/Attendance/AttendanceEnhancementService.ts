@@ -578,31 +578,51 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): StateValidation {
-    console.log('Creating state validation:', {
-      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      currentState: {
-        type: currentState.type,
-        isActive: currentState.activity.isActive,
-        isOvertime: currentState.activity.isOvertime,
-        timeWindow: currentState.timeWindow,
-      },
-      window: {
-        shift: {
-          start: window.shift.startTime,
-          end: window.shift.endTime,
-        },
-        overtime: window.overtimeInfo
-          ? {
-              start: window.overtimeInfo.startTime,
-              end: window.overtimeInfo.endTime,
-              isBeforeShift: this.isBeforeShift(
-                window.overtimeInfo.startTime,
-                window.shift.startTime,
-              ),
-            }
-          : null,
-      },
+    const lastCompletedPeriod = attendance?.CheckOutTime
+      ? {
+          type: attendance.type,
+          checkOutTime: attendance.CheckOutTime,
+        }
+      : null;
+
+    console.log('Validation context:', {
+      currentTime: format(now, 'HH:mm'),
+      completedPeriod: lastCompletedPeriod
+        ? {
+            type: lastCompletedPeriod.type,
+            checkOut: format(lastCompletedPeriod.checkOutTime, 'HH:mm'),
+          }
+        : null,
+      nextPeriod: window.overtimeInfo
+        ? {
+            start: window.overtimeInfo.startTime,
+            end: window.overtimeInfo.endTime,
+          }
+        : null,
     });
+
+    // Prevent validation during gap periods
+    if (
+      lastCompletedPeriod &&
+      !this.isWithinAnyValidPeriod(now, window, lastCompletedPeriod)
+    ) {
+      return {
+        allowed: false,
+        reason: 'ไม่อยู่ในช่วงเวลาทำงาน',
+        flags: this.getValidationFlags({
+          hasActivePeriod: false,
+          isCheckingIn: true,
+          isInsideShift: false,
+          isOutsideShift: true,
+        }),
+        metadata: {
+          requiredAction: VALIDATION_ACTIONS.WAIT_FOR_PERIOD,
+          additionalInfo: {
+            nextPeriodStart: window.overtimeInfo?.startTime,
+          },
+        },
+      };
+    }
 
     const statusInfo = this.determinePeriodStatusInfo(
       attendance,
@@ -685,6 +705,26 @@ export class AttendanceEnhancementService {
 
     // Default validation based on current period state
     return this.createDefaultPeriodValidation(currentState, window, now);
+  }
+
+  private isWithinAnyValidPeriod(
+    now: Date,
+    window: ShiftWindowResponse,
+    lastCompletedPeriod: { type: PeriodType; checkOutTime: Date },
+  ): boolean {
+    // If we have a completed regular period, only allow overtime periods
+    if (lastCompletedPeriod.type === PeriodType.REGULAR) {
+      if (!window.overtimeInfo) return false;
+
+      const overtimeStart = this.parseTimeWithContext(
+        window.overtimeInfo.startTime,
+        now,
+      );
+      const approachWindow = subMinutes(overtimeStart, 30);
+      return now >= approachWindow;
+    }
+
+    return true;
   }
 
   private handleEarlyOvertimeValidation(
@@ -1124,6 +1164,28 @@ export class AttendanceEnhancementService {
 
       ...overrides,
     };
+  }
+
+  private parseTimeWithContext(timeString: string, referenceDate: Date): Date {
+    try {
+      // Split time string into hours and minutes
+      const [hours, minutes] = timeString.split(':').map(Number);
+
+      // Create new date using reference date's year/month/day
+      const parsedTime = new Date(referenceDate);
+      // Set time components
+      parsedTime.setHours(hours, minutes, 0, 0);
+
+      return parsedTime;
+    } catch (error) {
+      console.error('Error parsing time with context:', {
+        timeString,
+        referenceDate,
+        error,
+      });
+      // Return reference date if parsing fails
+      return referenceDate;
+    }
   }
 
   // getValidationReason needs to be updated to handle new format:

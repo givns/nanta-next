@@ -799,13 +799,21 @@ export class TimeEntryService {
       return { regularHours: 0, overtimeHours: 0, overtimeMetadata: null };
     }
 
-    // Check for leaves
+    // First check for leaves as they override actual worked hours
     const hasFullDayLeave = leaveRequests.some(
       (leave) =>
         leave.status === 'approved' &&
         leave.leaveFormat === 'ลาเต็มวัน' &&
         isSameDay(new Date(leave.startDate), checkInTime),
     );
+
+    if (hasFullDayLeave) {
+      return {
+        regularHours: this.REGULAR_HOURS_PER_SHIFT, // Always 8 hours for full day leave
+        overtimeHours: 0,
+        overtimeMetadata: null,
+      };
+    }
 
     const hasHalfDayLeave = leaveRequests.some(
       (leave) =>
@@ -814,29 +822,23 @@ export class TimeEntryService {
         isSameDay(new Date(leave.startDate), checkInTime),
     );
 
-    if (hasFullDayLeave) {
-      return {
-        regularHours: this.REGULAR_HOURS_PER_SHIFT,
-        overtimeHours: 0,
-        overtimeMetadata: null,
-      };
-    }
-
     if (hasHalfDayLeave) {
       return {
-        regularHours: this.REGULAR_HOURS_PER_SHIFT / 2,
+        regularHours: this.REGULAR_HOURS_PER_SHIFT / 2, // Always 4 hours for half day leave
         overtimeHours: 0,
         overtimeMetadata: null,
       };
     }
 
-    // For regular attendance, calculate based on actual time within shift bounds
-    const effectiveStart = max([checkInTime, shiftStart]);
-    const effectiveEnd = min([checkOutTime, shiftEnd]);
+    // For regular attendance
+    const effectiveStart = checkInTime;
+    const effectiveEnd = checkOutTime;
 
+    // Calculate break time deduction
     const breakStart = addHours(shiftStart, this.BREAK_START_OFFSET);
     const breakEnd = addMinutes(breakStart, this.BREAK_DURATION_MINUTES);
 
+    // Calculate minutes worked excluding break
     const effectiveMinutes = this.calculateEffectiveMinutes(
       effectiveStart,
       effectiveEnd,
@@ -844,9 +846,46 @@ export class TimeEntryService {
       breakEnd,
     );
 
+    // Check if very late (over 4 hours late)
+    const minutesLate = Math.max(
+      0,
+      differenceInMinutes(checkInTime, shiftStart),
+    );
+    const isVeryLate = minutesLate >= 240; // 4 hours
+
+    if (isVeryLate) {
+      return {
+        regularHours: this.REGULAR_HOURS_PER_SHIFT / 2, // Half day for very late
+        overtimeHours: 0,
+        overtimeMetadata: null,
+      };
+    }
+
+    // For normal cases, always maintain 8 hours if worked full shift
+    const totalMinutesInShift = differenceInMinutes(shiftEnd, shiftStart);
+    const minimumRequiredMinutes = totalMinutesInShift * 0.75; // 75% of shift duration
+
+    console.log('Working hours calculation:', {
+      checkIn: format(checkInTime, 'HH:mm:ss'),
+      checkOut: format(checkOutTime, 'HH:mm:ss'),
+      effectiveMinutes,
+      totalMinutesInShift,
+      minimumRequiredMinutes,
+    });
+
+    // If worked at least 75% of shift, give full 8 hours
+    if (effectiveMinutes >= minimumRequiredMinutes) {
+      return {
+        regularHours: this.REGULAR_HOURS_PER_SHIFT,
+        overtimeHours: 0,
+        overtimeMetadata: null,
+      };
+    }
+
+    // For partial days (not meeting minimum threshold)
     return {
       regularHours: Math.min(
-        effectiveMinutes / 60,
+        Math.max(effectiveMinutes / 60, 4), // Minimum 4 hours if not very late
         this.REGULAR_HOURS_PER_SHIFT,
       ),
       overtimeHours: 0,
@@ -860,16 +899,19 @@ export class TimeEntryService {
     breakStart: Date,
     breakEnd: Date,
   ): number {
+    // If work period doesn't overlap with break, return full duration
     if (endTime <= breakStart || startTime >= breakEnd) {
       return differenceInMinutes(endTime, startTime);
     }
 
+    // If work period fully contains break, subtract break duration
     if (startTime <= breakStart && endTime >= breakEnd) {
       return (
         differenceInMinutes(endTime, startTime) - this.BREAK_DURATION_MINUTES
       );
     }
 
+    // If work period partially overlaps with break
     if (startTime < breakEnd && endTime > breakStart) {
       const overlapStart = max([startTime, breakStart]);
       const overlapEnd = min([endTime, breakEnd]);

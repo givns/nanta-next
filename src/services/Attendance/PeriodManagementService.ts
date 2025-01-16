@@ -160,25 +160,46 @@ export class PeriodManagementService {
   private findRelevantPeriod(
     periods: PeriodDefinition[],
     now: Date,
+    lastCompletedPeriod?: { type: PeriodType; checkOutTime: Date } | null,
   ): PeriodDefinition | null {
+    // 1. First check if we have a completed period
+    if (lastCompletedPeriod) {
+      const completedPeriodEnd = lastCompletedPeriod.checkOutTime;
+      const nextPeriod = periods.find((period) => {
+        const periodStart = this.parseTimeWithContext(period.startTime, now);
+        return (
+          period.type !== lastCompletedPeriod.type &&
+          periodStart > completedPeriodEnd
+        );
+      });
+
+      // If we're in between completed period and next period, return next period
+      if (nextPeriod) {
+        const nextStart = this.parseTimeWithContext(nextPeriod.startTime, now);
+        const approachWindow = subMinutes(nextStart, 30);
+        if (now >= approachWindow) {
+          return nextPeriod;
+        }
+        return null; // No valid period if we're not approaching next period
+      }
+    }
+
+    // 2. Regular period checking
     for (const period of periods) {
       const periodStart = this.parseTimeWithContext(period.startTime, now);
       const periodEnd = this.parseTimeWithContext(period.endTime, now);
-
-      // Adjust end time for overnight periods
       const adjustedEnd =
         period.isOvernight && periodEnd < periodStart
           ? addDays(periodEnd, 1)
           : periodEnd;
 
-      // If we're approaching the period (within 30 minutes) or inside it
       const approachWindow = subMinutes(periodStart, 30);
       if (now >= approachWindow && now <= adjustedEnd) {
         return period;
       }
     }
 
-    // If no current period, get the next upcoming one
+    // If no current period, get next upcoming one
     return (
       periods.find((period) => {
         const periodStart = this.parseTimeWithContext(period.startTime, now);
