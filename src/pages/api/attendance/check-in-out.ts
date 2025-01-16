@@ -415,19 +415,6 @@ export default async function handler(
     await prisma.$disconnect();
   }
 
-  // Helper functions for calculations
-  function calculateRegularHours(startTime: Date, endTime: Date): number {
-    const diffInMilliseconds = endTime.getTime() - startTime.getTime();
-    // Convert milliseconds to hours with 2 decimal places
-    return Number((diffInMilliseconds / (1000 * 60 * 60)).toFixed(2));
-  }
-
-  function calculateOvertimeHours(startTime: Date, endTime: Date): number {
-    const diffInMilliseconds = endTime.getTime() - startTime.getTime();
-    // Convert milliseconds to hours with 2 decimal places
-    return Number((diffInMilliseconds / (1000 * 60 * 60)).toFixed(2));
-  }
-
   function calculateMinutesLate(
     expectedStart: Date,
     actualStart: Date,
