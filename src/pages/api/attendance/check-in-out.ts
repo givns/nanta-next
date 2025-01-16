@@ -266,158 +266,67 @@ export default async function handler(
 
     const result = await Promise.race<QueueResult>([
       new Promise<QueueResult>((resolve, reject) => {
-        checkInOutQueue.push(validatedData, (error, queueResult) => {
+        checkInOutQueue.push(validatedData, async (error, queueResult) => {
           if (error) reject(error);
           else if (queueResult) {
-            const isAutoCompleted =
-              queueResult.status.validation.flags.requiresAutoCompletion;
-            if (isAutoCompleted) {
-              // Create regular time entry
-              const regular = queueResult.status.daily?.currentState?.timeWindow
+            console.log('Initial queue result:', {
+              status: queueResult.status.base.state,
+              checkStatus: queueResult.status.base.checkStatus,
+              requiresAutoComplete:
+                queueResult.status.validation.flags.requiresAutoCompletion,
+              currentAttendance: queueResult.status.base.latestAttendance
                 ? {
-                    // Core identifiers
-                    id: 'auto-generated',
-                    employeeId: validatedData.employeeId!,
-                    date: new Date(),
-
-                    // Time fields
-                    startTime: new Date(
-                      queueResult.status.daily.currentState.timeWindow.start,
-                    ),
-                    endTime: new Date(
-                      queueResult.status.daily.currentState.timeWindow.end,
-                    ),
-
-                    // Status and type
-                    status: TimeEntryStatus.COMPLETED,
-                    entryType: PeriodType.REGULAR,
-
-                    // Duration tracking with separated hours
-                    hours: {
-                      regular: calculateRegularHours(
-                        new Date(
-                          queueResult.status.daily.currentState.timeWindow.start,
-                        ),
-                        new Date(
-                          queueResult.status.daily.currentState.timeWindow.end,
-                        ),
-                      ),
-                      overtime: 0,
-                    },
-
-                    // References
-                    attendanceId:
-                      queueResult.status.base.latestAttendance?.id || null,
-                    overtimeRequestId: null,
-
-                    // Timing statistics
-                    timing: {
-                      actualMinutesLate: calculateMinutesLate(
-                        new Date(
-                          queueResult.status.daily.currentState.timeWindow.start,
-                        ),
-                        new Date(
-                          queueResult.status.daily.currentState.timeWindow.end,
-                        ),
-                      ),
-                      isHalfDayLate: false,
-                    },
-
-                    // Metadata
-                    metadata: {
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                      source: 'auto' as const,
-                      version: 1,
-                    },
+                    type: queueResult.status.base.latestAttendance.type,
+                    checkIn:
+                      queueResult.status.base.latestAttendance.CheckInTime,
+                    checkOut:
+                      queueResult.status.base.latestAttendance.CheckOutTime,
                   }
-                : undefined;
+                : null,
+            });
 
-              // Transform transitions to TimeEntry array for overtime
-              const overtime =
-                queueResult.status.daily?.transitions.map((transition) => {
-                  const startTime = new Date(transition.transitionTime);
-                  const endTime = null; // Overtime might not have ended yet
-                  const timeEntryId = `ot-${transition.from.periodIndex}`;
-
-                  return {
-                    // Core identifiers
-                    id: timeEntryId,
-                    employeeId: validatedData.employeeId!,
-                    date: new Date(),
-
-                    // Time fields
-                    startTime,
-                    endTime,
-
-                    // Status and type
-                    status: TimeEntryStatus.STARTED,
-                    entryType: PeriodType.OVERTIME,
-
-                    // Duration tracking
-                    hours: {
-                      regular: 0,
-                      overtime: endTime
-                        ? calculateOvertimeHours(startTime, endTime)
-                        : 0,
-                    },
-
-                    // References
-                    attendanceId:
-                      queueResult.status.base.latestAttendance?.id || null,
-                    overtimeRequestId:
-                      queueResult.status.context?.nextPeriod?.overtimeInfo
-                        ?.id || null,
-
-                    // Timing statistics
-                    timing: {
-                      actualMinutesLate: 0, // Not applicable for overtime
-                      isHalfDayLate: false,
-                    },
-
-                    // Overtime specific data
-                    overtime: {
-                      metadata: {
-                        id: `otmeta-${timeEntryId}`,
-                        timeEntryId,
-                        isDayOffOvertime: Boolean(
-                          queueResult.status.context?.nextPeriod?.overtimeInfo
-                            ?.isDayOffOvertime,
-                        ),
-                        isInsideShiftHours: Boolean(
-                          queueResult.status.context?.nextPeriod?.overtimeInfo
-                            ?.isInsideShiftHours,
-                        ),
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                      },
-                      startReason: 'Auto-generated overtime entry',
-                      endReason: undefined,
-                      comments: 'Created during auto-completion',
-                    },
-
-                    // Entry metadata
-                    metadata: {
-                      createdAt: new Date(),
-                      updatedAt: new Date(),
-                      source: 'auto' as const,
-                      version: 1,
-                    },
-                  };
-                }) || [];
-
-              resolve({
-                ...queueResult,
-                message: 'ระบบได้ทำการลงเวลาย้อนหลังให้เรียบร้อยแล้ว',
-                autoCompletedEntries: {
-                  regular,
-                  overtime,
-                },
-              });
-            } else {
+            // Case 1: Checking out without check-in
+            if (
+              !queueResult.status.base.latestAttendance?.CheckInTime &&
+              !validatedData.activity.isCheckIn
+            ) {
+              console.log('Auto-completion: Missing check-in for checkout');
+              // Let processAttendance handle this through auto-completion
               resolve(queueResult);
+              return;
             }
-          } else reject(new Error('No result returned from queue'));
+
+            // Case 2: Checking in regular shift with incomplete overtime
+            if (
+              validatedData.periodType === PeriodType.REGULAR &&
+              validatedData.activity.isCheckIn &&
+              queueResult.status.base.latestAttendance?.type ===
+                PeriodType.OVERTIME &&
+              !queueResult.status.base.latestAttendance.CheckOutTime
+            ) {
+              console.log(
+                'Auto-completion: Missing overtime checkout before regular check-in',
+              );
+              // Let processAttendance handle the overtime completion
+              resolve(queueResult);
+              return;
+            }
+
+            // Case 3: Normal check-in/out, not auto-completion
+            // This includes late overtime checkout - should go through normal processing
+            if (
+              validatedData.periodType === PeriodType.OVERTIME &&
+              !validatedData.activity.isCheckIn
+            ) {
+              console.log(
+                'Normal overtime checkout - no auto-completion needed',
+              );
+            }
+
+            resolve(queueResult);
+          } else {
+            reject(new Error('No result returned from queue'));
+          }
         });
       }),
       new Promise<QueueResult>((_, reject) =>
@@ -428,6 +337,11 @@ export default async function handler(
       ),
     ]);
 
+    if (!result.success) {
+      throw new Error('Failed to process attendance');
+    }
+
+    // Always let processAttendance handle the actual processing
     return res.status(200).json({
       success: true,
       data: result.status,

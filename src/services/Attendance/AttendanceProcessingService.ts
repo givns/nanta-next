@@ -43,6 +43,11 @@ import { PeriodManagementService } from './PeriodManagementService';
 import { StatusHelpers } from './utils/StatusHelper';
 import { cacheService } from '../cache/CacheService';
 
+interface TimeEntryHours {
+  regular: number;
+  overtime: number;
+}
+
 export class AttendanceProcessingService {
   constructor(
     private readonly prisma: PrismaClient,
@@ -582,6 +587,29 @@ export class AttendanceProcessingService {
         }
       }
 
+      // Get overtime hours from time entry with proper type casting
+      let overtimeDuration = 0;
+      if (
+        options.periodType === PeriodType.OVERTIME &&
+        activeRecord.timeEntries?.[0]
+      ) {
+        const hours = activeRecord.timeEntries[0]
+          .hours as unknown as TimeEntryHours;
+        overtimeDuration = Number(hours?.overtime) || 0;
+      }
+
+      console.log('Processing checkout:', {
+        recordId: activeRecord.id,
+        type: options.periodType,
+        timeEntry: activeRecord.timeEntries?.[0]
+          ? {
+              id: activeRecord.timeEntries[0].id,
+              hours: activeRecord.timeEntries[0].hours,
+            }
+          : null,
+        calculatedOvertime: overtimeDuration,
+      });
+
       // Update attendance record
       const updatedAttendance = await tx.attendance.update({
         where: { id: activeRecord.id },
@@ -592,6 +620,7 @@ export class AttendanceProcessingService {
           ...(options.periodType === PeriodType.OVERTIME && {
             overtimeState: OvertimeState.COMPLETED,
             isOvertime: true,
+            overtimeDuration, // Using the safely extracted value
           }),
           metadata: {
             update: {
