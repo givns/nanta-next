@@ -90,12 +90,14 @@ export class TimeEntryService {
     overtime?: TimeEntry[];
   }> {
     try {
+      const overtimeRequest = options.metadata?.overtimeId
+        ? await this.overtimeService.getCurrentApprovedOvertimeRequest(
+            options.employeeId,
+            new Date(options.checkTime),
+          )
+        : null;
       // Pre-fetch all necessary data
-      const [overtimeRequest, leaveRequests, shift] = await Promise.all([
-        this.overtimeService.getCurrentApprovedOvertimeRequest(
-          options.employeeId,
-          new Date(options.checkTime),
-        ),
+      const [leaveRequests, shift] = await Promise.all([
         this.leaveService.getLeaveRequests(options.employeeId),
         this.shiftService.getEffectiveShiftAndStatus(
           attendance.employeeId,
@@ -149,25 +151,38 @@ export class TimeEntryService {
       shift: any;
     },
   ) {
-    const { overtimeRequest, leaveRequests } = context;
+    console.log('Processing entries with context:', {
+      attendanceId: attendance.id,
+      type: attendance.type,
+      isCheckIn: options.activity.isCheckIn,
+      overtimePeriod: context.overtimeRequest
+        ? {
+            startTime: context.overtimeRequest.startTime,
+            endTime: context.overtimeRequest.endTime,
+          }
+        : null,
+    });
 
     if (options.periodType === PeriodType.OVERTIME) {
+      if (!context.overtimeRequest) {
+        throw new Error('No overtime request found for overtime entry');
+      }
+
       // Handle overtime entry
       const overtimeEntry = await this.handleOvertimeEntry(
         tx,
         attendance,
-        context.overtimeRequest!,
+        context.overtimeRequest,
         options.activity.isCheckIn,
       );
       return { overtime: [overtimeEntry] };
     }
-
     // Handle regular entry
     const regularEntry = await this.handleRegularEntry(
       tx,
       attendance,
       options.activity.isCheckIn,
-      leaveRequests,
+      context.leaveRequests,
       context.shift,
     );
     return { regular: regularEntry };
@@ -415,7 +430,7 @@ export class TimeEntryService {
       checkOutTime: attendance.CheckOutTime
         ? format(attendance.CheckOutTime, 'HH:mm:ss')
         : null,
-      requestedOvertime: {
+      overtimePeriod: {
         startTime: overtimeRequest.startTime,
         endTime: overtimeRequest.endTime,
       },
@@ -458,11 +473,11 @@ export class TimeEntryService {
       throw new Error('No existing overtime entry found for checkout');
     }
 
-    // Calculate hours using the matched overtime period
+    // Calculate hours based on matched overtime period
     const { hours, metadata } = this.calculateOvertimeHours(
       attendance.CheckInTime!,
       attendance.CheckOutTime!,
-      overtimeRequest, // This should already be the correct matched overtime from getCurrentWindow
+      overtimeRequest,
       null,
       null,
     );
@@ -471,7 +486,7 @@ export class TimeEntryService {
       entryId: existingEntry.id,
       hours,
       checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
-      overtimePeriod: {
+      period: {
         start: overtimeRequest.startTime,
         end: overtimeRequest.endTime,
       },

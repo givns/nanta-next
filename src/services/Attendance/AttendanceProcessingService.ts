@@ -76,15 +76,15 @@ export class AttendanceProcessingService {
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
-          const [currentRecord, window] = await Promise.all([
+          const [currentRecord, periodState] = await Promise.all([
             this.getLatestAttendance(tx, options.employeeId),
-            this.shiftService.getCurrentWindow(options.employeeId, now),
+            this.shiftService.getCurrentPeriodState(options.employeeId, now),
           ]);
 
-          if (!window) {
+          if (!periodState) {
             throw new AppError({
               code: ErrorCode.SHIFT_DATA_ERROR,
-              message: 'Shift configuration not found',
+              message: 'Period state configuration not found',
             });
           }
 
@@ -92,7 +92,7 @@ export class AttendanceProcessingService {
           const previousState = currentRecord
             ? this.periodManager.resolveCurrentPeriod(
                 currentRecord,
-                window,
+                periodState,
                 now,
               )
             : undefined;
@@ -112,17 +112,30 @@ export class AttendanceProcessingService {
             return this.handleAutoCompletion(
               tx,
               currentRecord,
-              window,
+              periodState,
               normalizedOptions,
               now,
             );
           }
 
+          // Log the current state for debugging
+          console.log('Processing with period state:', {
+            currentTime: format(now, 'HH:mm:ss'),
+            periodType: periodState.type,
+            current: periodState.current,
+            overtimeInfo: periodState.overtimeInfo
+              ? {
+                  startTime: periodState.overtimeInfo.startTime,
+                  endTime: periodState.overtimeInfo.endTime,
+                }
+              : null,
+          });
+
           // Process main attendance record
           const processedAttendance = await this.processAttendanceRecord(
             tx,
             currentRecord,
-            window,
+            periodState, // Now using periodState instead of window
             options,
             now,
           );
@@ -134,6 +147,17 @@ export class AttendanceProcessingService {
             now,
           );
 
+          // If it's overtime, ensure we pass the overtime ID to metadata
+          if (
+            options.periodType === PeriodType.OVERTIME &&
+            periodState.overtimeInfo
+          ) {
+            normalizedOptions.metadata = {
+              ...normalizedOptions.metadata,
+              overtimeId: periodState.overtimeInfo.id,
+            };
+          }
+
           // Process time entries with proper status update
           const timeEntries = await this.timeEntryService.processTimeEntries(
             tx,
@@ -144,7 +168,7 @@ export class AttendanceProcessingService {
 
           const currentState = this.periodManager.resolveCurrentPeriod(
             processedAttendance,
-            window,
+            periodState,
             now,
           );
 
@@ -153,7 +177,7 @@ export class AttendanceProcessingService {
             await this.enhancementService.createStateValidation(
               processedAttendance,
               currentState,
-              window,
+              periodState,
               now,
             );
 
