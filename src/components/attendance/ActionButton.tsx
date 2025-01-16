@@ -144,7 +144,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
 
     return (
       <span className="text-white text-2xl font-semibold">
-        {isCheckIn ? 'เข้า' : 'ออก'}
+        {isCheckIn ? 'IN' : 'OUT'}
       </span>
     );
   };
