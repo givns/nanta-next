@@ -15,11 +15,13 @@ import {
   addHours,
   addMinutes,
   differenceInMinutes,
+  endOfDay,
   format,
   isSameDay,
   max,
   min,
   parseISO,
+  startOfDay,
   subMinutes,
 } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
@@ -35,6 +37,7 @@ import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { th } from 'date-fns/locale';
 import { getCurrentTime } from '@/utils/dateUtils';
+import overtimeRequest from '@/pages/overtime-request';
 
 interface CheckInCalculationsResult {
   minutesLate: number;
@@ -90,12 +93,39 @@ export class TimeEntryService {
     overtime?: TimeEntry[];
   }> {
     try {
-      const overtimeRequest = options.metadata?.overtimeId
-        ? await this.overtimeService.getCurrentApprovedOvertimeRequest(
-            options.employeeId,
-            new Date(options.checkTime),
-          )
-        : null;
+      // Get all overtimes first
+      const overtimes = await this.overtimeService.getDetailedOvertimesInRange(
+        options.employeeId,
+        startOfDay(new Date(options.checkTime)),
+        endOfDay(new Date(options.checkTime)),
+      );
+
+      // Match the correct overtime period based on check-in time
+      const matchedOvertime = overtimes?.find((ot) => {
+        const checkInHour = attendance.CheckInTime!.getHours();
+        const checkInMinute = attendance.CheckInTime!.getMinutes();
+        const [startHour, startMinute] = ot.startTime.split(':').map(Number);
+        const [endHour, endMinute] = ot.endTime.split(':').map(Number);
+
+        return checkInHour === startHour
+          ? checkInMinute >= startMinute
+          : checkInHour >= startHour && checkInHour < endHour;
+      });
+
+      console.log('Overtime matching:', {
+        checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+        availableOvertimes: overtimes?.map((ot) => ({
+          start: ot.startTime,
+          end: ot.endTime,
+        })),
+        matched: matchedOvertime
+          ? {
+              start: matchedOvertime.startTime,
+              end: matchedOvertime.endTime,
+            }
+          : null,
+      });
+
       // Pre-fetch all necessary data
       const [leaveRequests, shift] = await Promise.all([
         this.leaveService.getLeaveRequests(options.employeeId),
@@ -111,7 +141,7 @@ export class TimeEntryService {
         attendance,
         options,
         {
-          overtimeRequest,
+          overtimeRequest: matchedOvertime || null,
           leaveRequests,
           shift,
         },
