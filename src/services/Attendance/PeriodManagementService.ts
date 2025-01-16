@@ -42,16 +42,6 @@ export class PeriodManagementService {
       now,
     );
 
-    console.log('Period Resolution:', {
-      currentTime: format(now, 'HH:mm:ss'),
-      availablePeriods: periods.map((p) => ({
-        type: p.type,
-        start: p.startTime,
-        end: p.endTime,
-        sequence: p.sequence,
-      })),
-    });
-
     // Handle active attendance first
     if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
       return this.resolveActivePeriod(attendance, periods, now);
@@ -63,7 +53,50 @@ export class PeriodManagementService {
       return this.createDefaultPeriodState(now);
     }
 
-    // Create period state with proper time window
+    // Check if we're in a waiting state for overtime
+    const isWaitingForOvertime = this.isWaitingForOvertimePeriod(
+      now,
+      periods,
+      attendance,
+    );
+
+    if (isWaitingForOvertime) {
+      const overtimePeriod = periods.find(
+        (p) => p.type === PeriodType.OVERTIME,
+      );
+      if (overtimePeriod) {
+        return {
+          type: PeriodType.OVERTIME, // Set type as overtime even when waiting
+          timeWindow: {
+            start: format(
+              this.parseTimeWithContext(overtimePeriod.startTime, now),
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+            end: format(
+              this.parseTimeWithContext(overtimePeriod.endTime, now),
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+          },
+          activity: {
+            isActive: false,
+            checkIn: null,
+            checkOut: null,
+            isOvertime: true,
+            isDayOffOvertime: Boolean(overtimePeriod.isDayOff),
+            isInsideShiftHours: false,
+          },
+          validation: {
+            isWithinBounds: false,
+            isEarly: true, // Indicate it's early for the overtime period
+            isLate: false,
+            isOvernight: overtimePeriod.isOvernight || false,
+            isConnected: true, // Connected to previous regular period
+          },
+        };
+      }
+    }
+
+    // Default period state creation (existing code)
     return {
       type: relevantPeriod.type,
       timeWindow: {
@@ -94,6 +127,38 @@ export class PeriodManagementService {
     };
   }
 
+  private isWaitingForOvertimePeriod(
+    now: Date,
+    periods: PeriodDefinition[],
+    lastAttendance: AttendanceRecord | null,
+  ): boolean {
+    // Check if there's a completed regular period
+    const hasCompletedRegular =
+      lastAttendance?.type === PeriodType.REGULAR &&
+      lastAttendance.CheckOutTime !== null && // Check explicitly for null
+      lastAttendance.state === 'PRESENT';
+
+    if (!hasCompletedRegular || !lastAttendance?.CheckOutTime) return false; // Early return if no checkout time
+
+    // Find next overtime period
+    const nextOvertime = periods.find(
+      (p) =>
+        p.type === PeriodType.OVERTIME &&
+        this.parseTimeWithContext(p.startTime, now) > now,
+    );
+
+    if (!nextOvertime) return false;
+
+    const overtimeStart = this.parseTimeWithContext(
+      nextOvertime.startTime,
+      now,
+    );
+    const approachWindow = subMinutes(overtimeStart, 30);
+
+    // Now we can safely use CheckOutTime as we've checked it's not null
+    return now >= lastAttendance.CheckOutTime && now <= overtimeStart;
+  }
+
   private buildPeriodSequence(
     periodState: ShiftWindowResponse,
     now: Date,
@@ -119,6 +184,36 @@ export class PeriodManagementService {
         ),
         isDayOff: periodState.overtimeInfo.isDayOffOvertime,
       });
+    }
+
+    // First check if we have completed regular period and pending overtime
+    if (periodState.overtimeInfo) {
+      const otStart = this.parseTimeWithContext(
+        periodState.overtimeInfo.startTime,
+        now,
+      );
+      const regularEnd = this.parseTimeWithContext(
+        periodState.shift.endTime,
+        now,
+      );
+
+      // If we're between regular end and overtime start
+      if (now > regularEnd && now < otStart) {
+        // Only include overtime period as it's the relevant one
+        periods.push({
+          type: PeriodType.OVERTIME,
+          startTime: periodState.overtimeInfo.startTime,
+          endTime: periodState.overtimeInfo.endTime,
+          sequence: 3,
+          isOvernight: this.isOvernightPeriod(
+            periodState.overtimeInfo.startTime,
+            periodState.overtimeInfo.endTime,
+          ),
+          isDayOff: periodState.overtimeInfo.isDayOffOvertime,
+        });
+
+        return periods; // Return only overtime period
+      }
     }
 
     // Add regular shift
@@ -172,6 +267,22 @@ export class PeriodManagementService {
           periodStart > completedPeriodEnd
         );
       });
+
+      if (lastCompletedPeriod?.type === PeriodType.REGULAR) {
+        const overtimePeriod = periods.find(
+          (p) => p.type === PeriodType.OVERTIME,
+        );
+        if (overtimePeriod) {
+          const overtimeStart = this.parseTimeWithContext(
+            overtimePeriod.startTime,
+            now,
+          );
+          // Even if not yet in approach window, return overtime period as next
+          if (now <= overtimeStart) {
+            return overtimePeriod;
+          }
+        }
+      }
 
       // If we're in between completed period and next period, return next period
       if (nextPeriod) {
