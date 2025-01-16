@@ -19,6 +19,7 @@ import {
   GeoLocationJson,
   GeoLocation,
   StatusUpdateResult,
+  TimeEntry,
 } from '../../types/attendance';
 import { getCurrentTime } from '../../utils/dateUtils';
 import {
@@ -86,6 +87,20 @@ export class AttendanceProcessingService {
             this.shiftService.getCurrentPeriodState(options.employeeId, now),
           ]);
 
+          console.log('Starting attendance processing:', {
+            currentTime: format(now, 'HH:mm:ss'),
+            type: options.periodType,
+            isCheckIn: options.activity.isCheckIn,
+            currentRecord: currentRecord
+              ? {
+                  id: currentRecord.id,
+                  type: currentRecord.type,
+                  checkIn: format(currentRecord.CheckInTime!, 'HH:mm:ss'),
+                  checkOut: currentRecord.CheckOutTime,
+                }
+              : null,
+          });
+
           if (!periodState) {
             throw new AppError({
               code: ErrorCode.SHIFT_DATA_ERROR,
@@ -134,19 +149,10 @@ export class AttendanceProcessingService {
               tx,
               currentRecord,
               periodState,
-              options,
+              normalizedOptions,
               now,
             );
           }
-
-          // Process main attendance record
-          const processedAttendance = await this.processAttendanceRecord(
-            tx,
-            currentRecord,
-            periodState, // Now using periodState instead of window
-            options,
-            now,
-          );
 
           // Create proper StatusUpdateResult for TimeEntryService
           const timeEntryStatusUpdate = this.createStatusUpdateFromProcessing(
@@ -169,9 +175,25 @@ export class AttendanceProcessingService {
           // Process time entries with proper status update
           const timeEntries = await this.timeEntryService.processTimeEntries(
             tx,
-            processedAttendance,
+            currentRecord!, // We know it exists for checkout
             timeEntryStatusUpdate,
             normalizedOptions,
+          );
+
+          console.log('Time entries processed:', {
+            timeEntries: timeEntries.overtime?.map((entry) => ({
+              id: entry.id,
+              hours: entry.hours,
+            })),
+          });
+
+          // Step 2: Process attendance record with updated time entry hours
+          const processedAttendance = await this.processAttendanceRecord(
+            tx,
+            currentRecord,
+            periodState, // Now using periodState instead of window
+            options,
+            now,
           );
 
           const currentState = this.periodManager.resolveCurrentPeriod(
@@ -518,6 +540,10 @@ export class AttendanceProcessingService {
     window: ShiftWindowResponse,
     options: ProcessingOptions,
     now: Date,
+    timeEntries?: {
+      regular?: TimeEntry | undefined;
+      overtime?: TimeEntry[] | undefined;
+    },
   ): Promise<AttendanceRecord> {
     const isCheckIn = options.activity.isCheckIn;
     const locationData = options.location
@@ -587,27 +613,16 @@ export class AttendanceProcessingService {
         }
       }
 
-      // Get overtime hours from time entry with proper type casting
-      let overtimeDuration = 0;
-      if (
-        options.periodType === PeriodType.OVERTIME &&
-        activeRecord.timeEntries?.[0]
-      ) {
-        const hours = activeRecord.timeEntries[0]
-          .hours as unknown as TimeEntryHours;
-        overtimeDuration = Number(hours?.overtime) || 0;
-      }
+      // Safely get overtime hours
+      const overtimeHours = timeEntries?.overtime?.[0]?.hours.overtime || 0;
 
-      console.log('Processing checkout:', {
-        recordId: activeRecord.id,
+      console.log('Processing attendance with time entries:', {
         type: options.periodType,
-        timeEntry: activeRecord.timeEntries?.[0]
-          ? {
-              id: activeRecord.timeEntries[0].id,
-              hours: activeRecord.timeEntries[0].hours,
-            }
-          : null,
-        calculatedOvertime: overtimeDuration,
+        timeEntries: timeEntries?.overtime?.map((entry) => ({
+          id: entry.id,
+          hours: entry.hours,
+        })),
+        overtimeHours,
       });
 
       // Update attendance record
@@ -620,7 +635,7 @@ export class AttendanceProcessingService {
           ...(options.periodType === PeriodType.OVERTIME && {
             overtimeState: OvertimeState.COMPLETED,
             isOvertime: true,
-            overtimeDuration, // Using the safely extracted value
+            overtimeDuration: overtimeHours, // Use the processed hours
           }),
           metadata: {
             update: {

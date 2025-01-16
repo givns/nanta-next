@@ -32,6 +32,7 @@ import {
   StatusUpdateResult,
   ProcessingOptions,
   AttendanceRecord,
+  TimeEntryHours,
 } from '../types/attendance';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
@@ -164,11 +165,43 @@ export class TimeEntryService {
         );
       });
 
-      return result;
+      // Convert raw results to properly typed entries
+      return {
+        regular: result.regular
+          ? this.ensureProcessedEntry(result.regular)
+          : undefined,
+        overtime: result.overtime?.map((entry) =>
+          this.ensureProcessedEntry(entry),
+        ),
+      };
     } catch (error) {
       console.error('Error processing time entries:', error);
       throw error;
     }
+  }
+
+  private ensureProcessedEntry(entry: any): TimeEntry {
+    // Ensure hours are properly formed
+    const hours: TimeEntryHours = {
+      regular: Number(entry.hours?.regular || 0),
+      overtime: Number(entry.hours?.overtime || 0),
+    };
+
+    return {
+      ...entry,
+      hours,
+      // Ensure other required fields are present
+      metadata: {
+        source: entry.metadata?.source || 'system',
+        version: Number(entry.metadata?.version || 1),
+        createdAt: new Date(entry.metadata?.createdAt || Date.now()),
+        updatedAt: new Date(entry.metadata?.updatedAt || Date.now()),
+      },
+      timing: {
+        actualMinutesLate: Number(entry.timing?.actualMinutesLate || 0),
+        isHalfDayLate: Boolean(entry.timing?.isHalfDayLate),
+      },
+    };
   }
 
   private async processEntriesWithContext(
@@ -180,42 +213,30 @@ export class TimeEntryService {
       leaveRequests: LeaveRequest[];
       shift: any;
     },
-  ) {
-    console.log('Processing entries with context:', {
-      attendanceId: attendance.id,
-      type: attendance.type,
-      isCheckIn: options.activity.isCheckIn,
-      overtimePeriod: context.overtimeRequest
-        ? {
-            startTime: context.overtimeRequest.startTime,
-            endTime: context.overtimeRequest.endTime,
-          }
-        : null,
-    });
+  ): Promise<{
+    regular?: TimeEntry;
+    overtime?: TimeEntry[];
+  }> {
+    const { overtimeRequest, leaveRequests } = context;
 
     if (options.periodType === PeriodType.OVERTIME) {
-      if (!context.overtimeRequest) {
-        throw new Error('No overtime request found for overtime entry');
-      }
-
-      // Handle overtime entry
       const overtimeEntry = await this.handleOvertimeEntry(
         tx,
         attendance,
-        context.overtimeRequest,
+        overtimeRequest!,
         options.activity.isCheckIn,
       );
-      return { overtime: [overtimeEntry] };
+      return { overtime: [this.ensureProcessedEntry(overtimeEntry)] };
     }
-    // Handle regular entry
+
     const regularEntry = await this.handleRegularEntry(
       tx,
       attendance,
       options.activity.isCheckIn,
-      context.leaveRequests,
+      leaveRequests,
       context.shift,
     );
-    return { regular: regularEntry };
+    return { regular: this.ensureProcessedEntry(regularEntry) };
   }
 
   private async handleRegularEntry(

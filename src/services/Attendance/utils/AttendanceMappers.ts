@@ -9,6 +9,9 @@ import {
   UnifiedPeriodState,
   AttendanceCompositeStatus,
   GeoLocationJson,
+  TimeEntryMetadata,
+  TimeEntryHours,
+  TimeEntryTiming,
 } from '../../../types/attendance';
 import {
   AttendanceState,
@@ -112,8 +115,21 @@ export class AttendanceMappers {
       overtimeEntries: (dbAttendance.overtimeEntries || []).map(
         this.mapOvertimeEntry,
       ),
-      timeEntries: (dbAttendance.timeEntries || []).map(this.mapTimeEntry),
-
+      timeEntries: (dbAttendance.timeEntries || [])
+        .map((entry: any) => {
+          try {
+            const mappedEntry = this.mapTimeEntry(entry);
+            console.log('Mapped time entry:', {
+              id: mappedEntry.id,
+              hours: mappedEntry.hours,
+            });
+            return mappedEntry;
+          } catch (error) {
+            console.error('Error mapping time entry:', error);
+            return null;
+          }
+        })
+        .filter(Boolean), // Remove any failed mappings
       // Metadata
       metadata: {
         isManualEntry: dbAttendance.metadata?.isManualEntry || false,
@@ -265,39 +281,76 @@ export class AttendanceMappers {
   }
 
   static mapTimeEntry(prismaTimeEntry: PrismaTimeEntry): TimeEntry {
+    // Parse hours safely with default values
+    let hours: TimeEntryHours = { regular: 0, overtime: 0 };
+    try {
+      const rawHours =
+        typeof prismaTimeEntry.hours === 'string'
+          ? JSON.parse(prismaTimeEntry.hours)
+          : prismaTimeEntry.hours;
+      hours = {
+        regular: Number(rawHours?.regular || 0),
+        overtime: Number(rawHours?.overtime || 0),
+      };
+    } catch (error) {
+      console.error('Error parsing hours:', error);
+    }
+
+    // Parse timing safely
+    let timing: TimeEntryTiming = {
+      actualMinutesLate: 0,
+      isHalfDayLate: false,
+    };
+    try {
+      const rawTiming =
+        typeof prismaTimeEntry.timing === 'string'
+          ? JSON.parse(prismaTimeEntry.timing)
+          : prismaTimeEntry.timing;
+      timing = {
+        actualMinutesLate: Number(rawTiming?.actualMinutesLate || 0),
+        isHalfDayLate: Boolean(rawTiming?.isHalfDayLate),
+      };
+    } catch (error) {
+      console.error('Error parsing timing:', error);
+    }
+
+    // Parse metadata safely
+    let metadata: TimeEntryMetadata = {
+      source: 'system',
+      version: 1,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    try {
+      const rawMetadata =
+        typeof prismaTimeEntry.metadata === 'string'
+          ? JSON.parse(prismaTimeEntry.metadata)
+          : prismaTimeEntry.metadata;
+      metadata = {
+        source: rawMetadata?.source || 'system',
+        version: Number(rawMetadata?.version || 1),
+        createdAt: new Date(rawMetadata?.createdAt || Date.now()),
+        updatedAt: new Date(rawMetadata?.updatedAt || Date.now()),
+      };
+    } catch (error) {
+      console.error('Error parsing metadata:', error);
+    }
+
     return {
       id: prismaTimeEntry.id,
       employeeId: prismaTimeEntry.employeeId,
-      date: prismaTimeEntry.date,
-      startTime: prismaTimeEntry.startTime,
-      endTime: prismaTimeEntry.endTime,
+      date: new Date(prismaTimeEntry.date),
+      startTime: new Date(prismaTimeEntry.startTime),
+      endTime: prismaTimeEntry.endTime
+        ? new Date(prismaTimeEntry.endTime)
+        : null,
       status: prismaTimeEntry.status,
       entryType: prismaTimeEntry.entryType,
-
-      // Add safety checks and handle both string and object cases
-      hours:
-        typeof prismaTimeEntry.hours === 'string'
-          ? JSON.parse(prismaTimeEntry.hours)
-          : prismaTimeEntry.hours,
-
+      hours,
+      timing,
       attendanceId: prismaTimeEntry.attendanceId,
       overtimeRequestId: prismaTimeEntry.overtimeRequestId,
-
-      timing:
-        typeof prismaTimeEntry.timing === 'string'
-          ? JSON.parse(prismaTimeEntry.timing)
-          : prismaTimeEntry.timing,
-
-      overtime: prismaTimeEntry.overtime
-        ? typeof prismaTimeEntry.overtime === 'string'
-          ? JSON.parse(prismaTimeEntry.overtime)
-          : prismaTimeEntry.overtime
-        : undefined,
-
-      metadata:
-        typeof prismaTimeEntry.metadata === 'string'
-          ? JSON.parse(prismaTimeEntry.metadata)
-          : prismaTimeEntry.metadata,
+      metadata,
     };
   }
 
@@ -310,13 +363,20 @@ export class AttendanceMappers {
       endTime: timeEntry.endTime,
       status: timeEntry.status,
       entryType: timeEntry.entryType,
-
-      hours: JSON.stringify(timeEntry.hours),
-      timing: JSON.stringify(timeEntry.timing),
-      overtime: timeEntry.overtime
-        ? JSON.stringify(timeEntry.overtime)
-        : undefined,
-      metadata: JSON.stringify(timeEntry.metadata),
+      hours: JSON.stringify({
+        regular: Number(timeEntry.hours.regular || 0),
+        overtime: Number(timeEntry.hours.overtime || 0),
+      }),
+      timing: JSON.stringify({
+        actualMinutesLate: Number(timeEntry.timing.actualMinutesLate || 0),
+        isHalfDayLate: Boolean(timeEntry.timing.isHalfDayLate),
+      }),
+      metadata: JSON.stringify({
+        source: timeEntry.metadata.source || 'system',
+        version: Number(timeEntry.metadata.version || 1),
+        createdAt: new Date(timeEntry.metadata.createdAt).toISOString(),
+        updatedAt: new Date(timeEntry.metadata.updatedAt).toISOString(),
+      }),
     };
   }
 

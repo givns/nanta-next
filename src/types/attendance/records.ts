@@ -100,6 +100,23 @@ export interface AttendanceRecord {
   };
 }
 
+export interface TimeEntryHours {
+  regular: number;
+  overtime: number;
+}
+
+export interface TimeEntryTiming {
+  actualMinutesLate: number;
+  isHalfDayLate: boolean;
+}
+
+export interface TimeEntryMetadata {
+  source: 'manual' | 'system' | 'auto';
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface TimeEntry {
   // Core identifiers - Keep
   id: string;
@@ -115,20 +132,14 @@ export interface TimeEntry {
   entryType: PeriodType;
 
   // Duration tracking - Keep
-  hours: {
-    regular: number;
-    overtime: number;
-  };
+  hours: TimeEntryHours;
 
   // References - Keep
   attendanceId: string | null;
   overtimeRequestId: string | null;
 
   // Timing statistics - Group
-  timing: {
-    actualMinutesLate: number;
-    isHalfDayLate: boolean;
-  };
+  timing: TimeEntryTiming;
 
   // Overtime specific data - Move to dedicated section
   overtime?: {
@@ -139,12 +150,7 @@ export interface TimeEntry {
   };
 
   // Metadata - Enhanced
-  metadata: {
-    createdAt: Date;
-    updatedAt: Date;
-    source: 'system' | 'manual' | 'auto';
-    version: number;
-  };
+  metadata: TimeEntryMetadata;
 }
 
 export interface OvertimeEntry {
