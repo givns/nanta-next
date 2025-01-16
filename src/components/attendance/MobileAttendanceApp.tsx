@@ -120,7 +120,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
           <div className="absolute w-full h-full bg-gray-100" />
           <div
             className={`absolute h-full transition-all duration-300 ${
-              isOvertimePeriod ? 'bg-yellow-500' : 'bg-green-950'
+              isOvertimePeriod ? 'bg-yellow-500' : 'bg-green-900'
             }`}
             style={{ width: `${Math.min(metrics.progressPercent, 100)}%` }}
           />
@@ -200,7 +200,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
 
         {/* Status Message */}
         <div
-          className={`mt-3 ${isOvertimePeriod ? 'text-yellow-600' : 'text-green-950'} text-sm`}
+          className={`mt-3 ${isOvertimePeriod ? 'text-yellow-600' : 'text-green-800'} text-sm`}
         >
           {(() => {
             if (isOvertimePeriod) {
