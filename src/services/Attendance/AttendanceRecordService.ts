@@ -46,12 +46,13 @@ export class AttendanceRecordService {
           // Records that start today
           {
             date: {
-              gte: startOfDay(now),
+              gte: startOfDay(subDays(now, 1)), // Look back one day
               lt: endOfDay(now),
             },
           },
-          // Records with check-in before today's end but no check-out or check-out after today's start
+          // Overtime records spanning midnight
           {
+            type: PeriodType.OVERTIME,
             CheckInTime: {
               lt: endOfDay(now),
             },
