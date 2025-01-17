@@ -19,6 +19,7 @@ import {
   AttendanceBaseResponse,
   ValidationFlags,
   ExtendedOvertimeInfo,
+  ExtendedValidation,
 } from '@/types/attendance';
 
 interface ProgressMetrics {
@@ -28,22 +29,6 @@ interface ProgressMetrics {
   progressPercent: number;
   totalShiftMinutes: number;
   isMissed: boolean;
-}
-
-interface ValidationMetadata {
-  missingEntries: any[];
-  transitionWindow?: {
-    start: string;
-    end: string;
-    targetPeriod: PeriodType;
-  };
-}
-
-interface ExtendedValidation {
-  allowed: boolean;
-  reason: string;
-  flags: ValidationFlags;
-  metadata: ValidationMetadata;
 }
 
 interface ProgressSectionProps {

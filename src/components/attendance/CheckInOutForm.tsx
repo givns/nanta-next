@@ -342,7 +342,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           isCheckIn: false, // Match the root isCheckIn
           isOvertime: false,
           isManualEntry: false,
-          overtimeMissed: true, // Trigger auto-completion
         },
 
         // Optional location data

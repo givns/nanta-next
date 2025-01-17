@@ -296,13 +296,13 @@ export interface ExtendedOvertimeInfo {
 }
 
 export interface ExtendedValidation {
-  allowed: boolean;
+  message?: string;
   reason: string;
+  canProceed?: boolean; // Make it optional for backwards compatibility
+  allowed: boolean;
   flags: ValidationFlags;
   metadata: ValidationMetadata;
 }
-
-// in types/attendance/props.ts
 
 // For today's summary
 export interface TodaySummaryProps {
