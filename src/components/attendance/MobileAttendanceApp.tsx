@@ -1,5 +1,11 @@
 import React, { useMemo } from 'react';
-import { format, isWithinInterval, parseISO, subMinutes } from 'date-fns';
+import {
+  addDays,
+  format,
+  isWithinInterval,
+  parseISO,
+  subMinutes,
+} from 'date-fns';
 import { is, th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
@@ -60,57 +66,6 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
     currentPeriod.timeWindow.start &&
     parseISO(currentPeriod.timeWindow.start) <
       parseISO(`${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`);
-
-  const getProgressBarColor = () => {
-    if (isOvertimePeriod) {
-      return isEarlyOvertimePeriod ? 'bg-orange-500' : 'bg-yellow-500';
-    }
-    return 'bg-blue-500';
-  };
-
-  const determineStatusMessage = () => {
-    if (isOvertimePeriod) {
-      const isPastEndTime = now > parseISO(currentPeriod.timeWindow.end);
-      if (isPastEndTime) return 'หมดเวลาทำงานล่วงเวลา';
-      if (isEarlyOvertimePeriod) return 'ช่วงเวลาทำงานล่วงเวลาก่อนกะปกติ';
-      return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
-    }
-
-    const shiftStart = shiftData
-      ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
-      : null;
-    const shiftEnd = shiftData
-      ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`)
-      : null;
-
-    if (!shiftStart || !shiftEnd) return '';
-
-    const earlyWindow = {
-      start: subMinutes(shiftStart, 30),
-      end: shiftStart,
-    };
-
-    // Check if we have upcoming overtime
-    const hasUpcomingOvertime = overtimeInfo && overtimeInfo.startTime;
-    if (hasUpcomingOvertime) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
-      );
-      const approachingOvertime = isWithinInterval(now, {
-        start: subMinutes(overtimeStart, 30),
-        end: overtimeStart,
-      });
-
-      if (approachingOvertime) {
-        return `กำลังจะถึงเวลาทำงานล่วงเวลา (${formatSafeTime(overtimeInfo.startTime)} น.)`;
-      }
-    }
-
-    if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
-    if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
-    if (now < earlyWindow.start) return 'ยังไม่ถึงเวลาทำงาน';
-    return 'อยู่ในเวลาทำงานปกติ';
-  };
 
   return (
     <div className="space-y-4">
@@ -204,18 +159,56 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
         >
           {(() => {
             if (isOvertimePeriod) {
-              const isPastEndTime =
-                now > parseISO(currentPeriod.timeWindow.end);
-              if (isPastEndTime) return 'หมดเวลาทำงานล่วงเวลา';
-              if (
-                isEarlyOvertimePeriod &&
-                now < parseISO(currentPeriod.timeWindow.start)
-              )
-                return 'รอเริ่มทำงานล่วงเวลาก่อนเวลาทำงานปกติ';
+              // Get the target overtime window
+              const targetOvertime = overtimeInfo && {
+                start: parseISO(
+                  `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+                ),
+                end: parseISO(
+                  `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`,
+                ),
+              };
+
+              // If no target overtime found, return empty
+              if (!targetOvertime) return '';
+
+              // For overnight periods, adjust end time
+              const adjustedEnd =
+                targetOvertime.end < targetOvertime.start
+                  ? addDays(targetOvertime.end, 1)
+                  : targetOvertime.end;
+
+              // Early overtime check (before regular shift)
+              const isEarlyOvertimePeriod = Boolean(
+                overtimeInfo &&
+                  overtimeInfo.startTime &&
+                  parseInt(overtimeInfo.startTime.split(':')[0], 10) <
+                    parseInt(shiftData?.startTime?.split(':')[0] || '08', 10),
+              );
+
+              // Check if it's an upcoming overtime
+              const isUpcoming = now < targetOvertime.start;
+              if (isUpcoming) {
+                const approachWindow = subMinutes(targetOvertime.start, 30);
+                if (now >= approachWindow) {
+                  return 'กำลังจะถึงเวลาทำงานล่วงเวลา';
+                }
+                return `รอเริ่มเวลาทำงานล่วงเวลา ${format(targetOvertime.start, 'HH:mm')} น.`;
+              }
+
+              // Regular overtime status
+              if (now > adjustedEnd) {
+                return 'หมดเวลาทำงานล่วงเวลา';
+              }
+
+              if (isEarlyOvertimePeriod) {
+                return 'อยู่ในช่วงเวลาทำงานล่วงเวลาก่อนเวลาทำงานปกติ';
+              }
+
               return 'อยู่ในช่วงเวลาทำงานล่วงเวลา';
             }
 
-            // Regular period status checks remain the same
+            // Regular period checks...
             const shiftStart = shiftData
               ? parseISO(`${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`)
               : null;
@@ -229,6 +222,21 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
               start: subMinutes(shiftStart, 30),
               end: shiftStart,
             };
+
+            // Has upcoming overtime
+            if (overtimeInfo?.startTime) {
+              const overtimeStart = parseISO(
+                `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
+              );
+              const approachingOvertime = isWithinInterval(now, {
+                start: subMinutes(overtimeStart, 30),
+                end: overtimeStart,
+              });
+
+              if (approachingOvertime) {
+                return `กำลังจะถึงเวลาทำงานล่วงเวลา (${format(overtimeStart, 'HH:mm')} น.)`;
+              }
+            }
 
             if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
             if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
