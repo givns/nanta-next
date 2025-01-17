@@ -604,46 +604,67 @@ export class AttendanceEnhancementService {
       },
     });
 
-    // Get the latest active attendance for the current date
+    // Check for active session
     const hasActiveAttendance = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
 
-    const statusInfo = this.determinePeriodStatusInfo(
-      attendance,
-      currentState,
-      window,
-      now,
-    );
+    console.log('State validation check:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      hasActiveAttendance,
+      attendance: attendance
+        ? {
+            type: attendance.type,
+            checkIn: attendance.CheckInTime
+              ? format(attendance.CheckInTime, 'HH:mm:ss')
+              : null,
+            checkOut: attendance.CheckOutTime
+              ? format(attendance.CheckOutTime, 'HH:mm:ss')
+              : null,
+          }
+        : null,
+    });
 
-    // Handle active attendance validation first
-    if (hasActiveAttendance) {
+    // If there's an active attendance, block further check-ins
+    if (hasActiveAttendance && attendance) {
       return {
         allowed: false,
         reason: 'มีการลงเวลาเข้างานแล้ว',
         flags: this.getValidationFlags({
           hasActivePeriod: true,
           isCheckingIn: false,
-          isOvertime: currentState.type === PeriodType.OVERTIME,
-          isInsideShift: currentState.type === PeriodType.REGULAR,
-          isOutsideShift: currentState.type === PeriodType.OVERTIME,
+          isOvertime: attendance.type === PeriodType.OVERTIME,
+          isInsideShift: attendance.type === PeriodType.REGULAR,
+          isOutsideShift: attendance.type === PeriodType.OVERTIME,
           isDayOffOvertime: Boolean(window.overtimeInfo?.isDayOffOvertime),
         }),
         metadata: {
           requiredAction: VALIDATION_ACTIONS.ACTIVE_SESSION,
           additionalInfo: {
             type:
-              currentState.type === PeriodType.OVERTIME
+              attendance.type === PeriodType.OVERTIME
                 ? 'OVERTIME_PERIOD'
                 : 'REGULAR_PERIOD',
             periodWindow: {
               start: format(parseISO(currentState.timeWindow.start), 'HH:mm'),
               end: format(parseISO(currentState.timeWindow.end), 'HH:mm'),
             },
+            activeSession: {
+              type: attendance.type,
+              checkIn: format(attendance.CheckInTime!, 'HH:mm'),
+            },
           },
         },
       };
     }
+
+    // Rest of your existing validation logic stays the same...
+    const statusInfo = this.determinePeriodStatusInfo(
+      attendance,
+      currentState,
+      window,
+      now,
+    );
 
     // Handle early morning overtime validation
     if (
