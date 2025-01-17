@@ -495,16 +495,20 @@ export class AttendanceEnhancementService {
       attendance,
     );
 
-    // Determine the correct period type based on multiple factors
+    // Update the period type determination
     const determinePeriodType = () => {
-      // Prioritize active attendance type
-      if (attendance?.type) return attendance.type;
+      // If there's an active overtime attendance and it's within the overtime period
+      if (
+        attendance?.type === PeriodType.OVERTIME &&
+        attendance.CheckInTime &&
+        !attendance.CheckOutTime &&
+        isWithinOvertimePeriod
+      ) {
+        return PeriodType.OVERTIME;
+      }
 
       // Check current state type
-      if (currentState.type) return currentState.type;
-
-      // Check overtime info
-      if (periodState.overtimeInfo && isWithinOvertimePeriod) {
+      if (currentState.type === PeriodType.OVERTIME) {
         return PeriodType.OVERTIME;
       }
 
@@ -605,8 +609,29 @@ export class AttendanceEnhancementService {
     return {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
-        currentState,
-        transitions: isOvertimeActive ? [] : transitions,
+        currentState: {
+          ...currentState,
+          type: periodType,
+          activity: {
+            ...currentState.activity,
+            isActive: periodType === PeriodType.OVERTIME,
+            checkIn:
+              periodType === PeriodType.OVERTIME
+                ? format(attendance!.CheckInTime!, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+                : null,
+            isOvertime: periodType === PeriodType.OVERTIME,
+            isDayOffOvertime:
+              periodType === PeriodType.OVERTIME
+                ? Boolean(periodState.overtimeInfo?.isDayOffOvertime)
+                : false,
+          },
+          validation: {
+            ...currentState.validation,
+            isWithinBounds: periodType === PeriodType.OVERTIME,
+            isOvernight: periodType === PeriodType.OVERTIME,
+          },
+        },
+        transitions: periodType === PeriodType.OVERTIME ? [] : transitions,
       },
       base: {
         state: attendance?.state || AttendanceState.ABSENT,
@@ -640,96 +665,47 @@ export class AttendanceEnhancementService {
   private isWithinOvertimePeriod(
     now: Date,
     overtimeInfo?: OvertimeContext,
-    attendance?: AttendanceRecord | null, // Change to allow null
+    attendance?: AttendanceRecord | null,
   ): boolean {
     try {
-      // If no overtime info, check if there's an active overtime attendance
-      if (
-        !overtimeInfo &&
-        attendance &&
-        attendance.type === PeriodType.OVERTIME
-      ) {
-        // Use attendance check-in time to determine overtime period
-        const nowDateString = format(now, 'yyyy-MM-dd');
-        const checkInTime = attendance.CheckInTime!;
-
-        // Assume overtime period is from check-in until next shift start
-        const overtimeStart = checkInTime;
-        const overtimeEnd = parseISO(`${nowDateString}T01:00:00.000Z`); // Hardcoded end time
-
-        console.log('Fallback Overtime Period Check:', {
-          currentTime: format(now, 'HH:mm:ss'),
-          overtimeStart: format(overtimeStart, 'HH:mm:ss'),
-          overtimeEnd: format(overtimeEnd, 'HH:mm:ss'),
-        });
-
-        // Check if current time is within the overtime interval
-        const isWithinPeriod = isWithinInterval(now, {
-          start: overtimeStart,
-          end: overtimeEnd,
-        });
-
-        console.log('Fallback Overtime Validation Result:', {
-          isWithinPeriod,
-          currentTime: format(now, 'HH:mm:ss'),
-          periodStart: format(overtimeStart, 'HH:mm:ss'),
-          periodEnd: format(overtimeEnd, 'HH:mm:ss'),
-        });
-
-        return isWithinPeriod;
-      }
-
-      // Original implementation for when overtime info is present
-      if (!overtimeInfo) return false;
+      // If no attendance record or no overtime check-in, return false
+      if (!attendance || !attendance.CheckInTime) return false;
 
       const nowDateString = format(now, 'yyyy-MM-dd');
-      let overtimeStartISO = parseISO(
-        `${nowDateString}T${overtimeInfo.startTime}`,
-      );
-      let overtimeEndISO = parseISO(`${nowDateString}T${overtimeInfo.endTime}`);
+      const checkInTime = attendance.CheckInTime;
 
-      console.log('Overtime Period Check:', {
+      // Determine overtime end time (01:00 of the next day)
+      const overtimeEnd = parseISO(`${nowDateString}T01:00:00.000Z`);
+
+      // If check-in is after 21:00, use that as the start
+      // Otherwise, use the check-in time
+      const overtimeStart = checkInTime;
+
+      console.log('Detailed Overtime Period Check:', {
         currentTime: format(now, 'HH:mm:ss'),
-        overtimeStart: format(overtimeStartISO, 'HH:mm:ss'),
-        overtimeEnd: format(overtimeEndISO, 'HH:mm:ss'),
-        isOvernightPeriod: overtimeEndISO < overtimeStartISO,
-      });
-
-      // Handle overnight periods
-      let adjustedOvertimeEnd = overtimeEndISO;
-      if (overtimeEndISO < overtimeStartISO) {
-        // If end time is earlier than start time, it's an overnight period
-        adjustedOvertimeEnd = addDays(overtimeEndISO, 1);
-
-        // If current time is before midnight, adjust start time to previous day
-        if (now < overtimeStartISO) {
-          overtimeStartISO = subDays(overtimeStartISO, 1);
-        }
-      }
-
-      console.log('Adjusted Overtime Times:', {
-        adjustedStart: format(overtimeStartISO, 'yyyy-MM-dd HH:mm:ss'),
-        adjustedEnd: format(adjustedOvertimeEnd, 'yyyy-MM-dd HH:mm:ss'),
+        checkInTime: format(checkInTime, 'HH:mm:ss'),
+        overtimeStart: format(overtimeStart, 'HH:mm:ss'),
+        overtimeEnd: format(overtimeEnd, 'HH:mm:ss'),
       });
 
       // Check if current time is within the overtime interval
       const isWithinPeriod = isWithinInterval(now, {
-        start: overtimeStartISO,
-        end: adjustedOvertimeEnd,
+        start: overtimeStart,
+        end: overtimeEnd,
       });
 
-      console.log('Overtime Period Validation Result:', {
+      console.log('Overtime Validation Detailed Result:', {
         isWithinPeriod,
         currentTime: format(now, 'HH:mm:ss'),
-        periodStart: format(overtimeStartISO, 'HH:mm:ss'),
-        periodEnd: format(adjustedOvertimeEnd, 'HH:mm:ss'),
+        periodStart: format(overtimeStart, 'HH:mm:ss'),
+        periodEnd: format(overtimeEnd, 'HH:mm:ss'),
       });
 
       return isWithinPeriod;
     } catch (error) {
       console.error('Error checking overtime period:', {
         error,
-        overtimeInfo,
+        attendance,
         currentTime: now,
       });
       return false;
