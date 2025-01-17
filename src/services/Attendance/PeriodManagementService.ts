@@ -18,6 +18,7 @@ import {
   endOfDay,
   differenceInMinutes,
   addDays,
+  subDays,
 } from 'date-fns';
 
 interface TransitionWindowConfig {
@@ -63,7 +64,63 @@ export class PeriodManagementService {
         : null,
     });
 
-    // Handle active attendance first
+    // Find active overtime first if exists
+    if (
+      attendance?.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime
+    ) {
+      const activePeriod = periods.find((p) => p.type === PeriodType.OVERTIME);
+      if (activePeriod) {
+        let periodStart = this.parseTimeWithContext(
+          activePeriod.startTime,
+          now,
+        );
+        let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
+
+        // Explicitly handle overnight periods
+        if (activePeriod.isOvernight) {
+          if (periodEnd < periodStart) {
+            periodEnd = addDays(periodEnd, 1);
+          }
+          // If current time is before midnight, adjust start time to previous day
+          if (now < periodStart) {
+            periodStart = subDays(periodStart, 1);
+          }
+        }
+
+        return {
+          type: PeriodType.OVERTIME,
+          timeWindow: {
+            start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          },
+          activity: {
+            isActive: true,
+            checkIn: format(
+              attendance.CheckInTime,
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+            checkOut: null,
+            isOvertime: true,
+            isDayOffOvertime: Boolean(activePeriod.isDayOff),
+            isInsideShiftHours: false,
+          },
+          validation: {
+            isWithinBounds: isWithinInterval(now, {
+              start: periodStart,
+              end: periodEnd,
+            }),
+            isEarly: now < periodStart,
+            isLate: now > periodEnd,
+            isOvernight: Boolean(activePeriod.isOvernight),
+            isConnected: true,
+          },
+        };
+      }
+    }
+
+    // Handle other active attendance
     if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
       // Find matching period for active attendance
       const activePeriod = periods.find((p) => p.type === attendance.type);
@@ -79,7 +136,6 @@ export class PeriodManagementService {
       );
       let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
 
-      // Adjust end time for overnight periods
       if (activePeriod.isOvernight && periodEnd < periodStart) {
         periodEnd = addDays(periodEnd, 1);
       }
