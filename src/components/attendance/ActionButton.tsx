@@ -72,9 +72,22 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       periodType === PeriodType.OVERTIME &&
       attendanceStatus.checkStatus === CheckStatus.CHECKED_IN;
 
+    const canProceed = validation.canProceed ?? validation.allowed;
+
+    console.log('Button disable check:', {
+      periodType,
+      isOvertimeCheckedIn,
+      checkStatus: attendanceStatus.checkStatus,
+      validation: {
+        canProceed,
+        allowed: validation.allowed,
+      },
+      systemReady: systemState.isReady,
+    });
+
     return isOvertimeCheckedIn
       ? !systemState.isReady
-      : !(validation.canProceed ?? validation.allowed) || !systemState.isReady;
+      : !canProceed || !systemState.isReady;
   }, [
     periodType,
     attendanceStatus.checkStatus,
