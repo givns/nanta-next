@@ -642,78 +642,56 @@ export class AttendanceEnhancementService {
       }
     }
 
-    // NEW: Handle waiting for overtime period
-    if (
-      currentState.type === PeriodType.OVERTIME &&
-      currentState.validation.isEarly
-    ) {
+    // Handle active overtime period
+    if (currentState.type === PeriodType.OVERTIME) {
       const overtimeStart = parseISO(currentState.timeWindow.start);
-      const approachWindow = subMinutes(overtimeStart, 30);
-      const isApproaching = now >= approachWindow;
-      if (
-        currentState.type === PeriodType.OVERTIME &&
-        !currentState.validation.isEarly
-      ) {
-        const overtimeStart = parseISO(currentState.timeWindow.start);
-        const overtimeEnd = parseISO(currentState.timeWindow.end);
-        const isWithinOvertime = isWithinInterval(now, {
-          start: overtimeStart,
-          end: overtimeEnd,
-        });
+      const overtimeEnd = parseISO(currentState.timeWindow.end);
 
-        return {
-          allowed: isWithinOvertime,
-          reason: isWithinOvertime ? '' : 'ไม่อยู่ในช่วงเวลาทำงานล่วงเวลา',
-          flags: this.getValidationFlags({
-            hasActivePeriod: false,
-            isCheckingIn: true,
-            isOvertime: true,
-            isPendingOvertime: false,
-            isInsideShift: false,
-            isOutsideShift: !isWithinOvertime,
-            isDayOffOvertime: Boolean(window.overtimeInfo?.isDayOffOvertime),
-          }),
-          metadata: {
-            requiredAction: VALIDATION_ACTIONS.OVERTIME_CHECKIN, // Correct action type
-            additionalInfo: {
-              type: 'OVERTIME_PERIOD',
-              periodWindow: {
-                start: format(overtimeStart, 'HH:mm'),
-                end: format(overtimeEnd, 'HH:mm'),
-              },
-            },
-          },
-        };
-      }
+      // Handle overnight period
+      const adjustedEnd =
+        overtimeEnd < overtimeStart ? addDays(overtimeEnd, 1) : overtimeEnd;
+
+      const approachWindow = subMinutes(overtimeStart, 30);
+      const isApproaching = now >= approachWindow && now < overtimeStart;
+      const isWithinPeriod = isWithinInterval(now, {
+        start: overtimeStart,
+        end: adjustedEnd,
+      });
+
+      const isAllowed = isWithinPeriod || isApproaching;
 
       return {
-        allowed: isApproaching,
+        allowed: isAllowed,
         reason: isApproaching
           ? 'กำลังจะถึงเวลาทำงานล่วงเวลา'
-          : `รอเริ่มเวลาทำงานล่วงเวลาในเวลา ${format(overtimeStart, 'HH:mm')} น.`,
+          : isWithinPeriod
+            ? ''
+            : 'ไม่อยู่ในช่วงเวลาทำงานล่วงเวลา',
         flags: this.getValidationFlags({
           hasActivePeriod: false,
           isCheckingIn: true,
           isOvertime: true,
-          isPendingOvertime: true,
-          isInsideShift: false,
-          isOutsideShift: true,
+          isPendingOvertime: isApproaching,
+          isInsideShift: isWithinPeriod,
+          isOutsideShift: !isWithinPeriod,
           isDayOffOvertime: Boolean(window.overtimeInfo?.isDayOffOvertime),
-          hasPendingTransition: true,
-          requiresTransition: isApproaching,
+          hasPendingTransition: isApproaching,
+          requiresTransition: false,
         }),
         metadata: {
           requiredAction: isApproaching
-            ? VALIDATION_ACTIONS.TRANSITION_REQUIRED
-            : VALIDATION_ACTIONS.WAIT_FOR_OVERTIME,
-          nextTransitionTime: format(
-            overtimeStart,
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-          ),
+            ? VALIDATION_ACTIONS.WAIT_FOR_OVERTIME
+            : VALIDATION_ACTIONS.OVERTIME_CHECKIN,
+          nextTransitionTime: isApproaching
+            ? format(overtimeStart, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+            : undefined,
           additionalInfo: {
-            overtimeStart: format(overtimeStart, 'HH:mm'),
-            type: 'WAITING_FOR_OVERTIME',
-            periodType: PeriodType.OVERTIME,
+            type: 'OVERTIME_PERIOD',
+            periodWindow: {
+              start: format(overtimeStart, 'HH:mm'),
+              end: format(adjustedEnd, 'HH:mm'),
+            },
+            isOvernight: overtimeEnd < overtimeStart,
           },
         },
       };
