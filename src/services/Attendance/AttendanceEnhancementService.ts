@@ -487,22 +487,26 @@ export class AttendanceEnhancementService {
       now,
     );
 
+    // Enhanced overtime detection
+    const isOvertimeActive = Boolean(
+      attendance?.isOvertime ||
+        attendance?.type === PeriodType.OVERTIME ||
+        currentState.type === PeriodType.OVERTIME,
+    );
+
+    console.log('Enhanced Attendance Status Debug:', {
+      currentTime: format(now, 'HH:mm'),
+      attendanceType: attendance?.type,
+      currentStateType: currentState.type,
+      isOvertimeActive,
+      hasActiveCheckIn: attendance?.CheckInTime && !attendance?.CheckOutTime,
+    });
+
     const transitions = this.periodManager.calculatePeriodTransitions(
       currentState,
       periodState,
       now,
     );
-
-    const isOvertimeActive = Boolean(
-      attendance?.isOvertime || attendance?.type === PeriodType.OVERTIME,
-    );
-
-    console.log('Building context:', {
-      currentTime: format(now, 'HH:mm'),
-      isOvertimeActive,
-      currentType: attendance?.type,
-      transitions: transitions.length,
-    });
 
     const context: ShiftContext & TransitionContext = {
       shift: periodState.shift,

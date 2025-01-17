@@ -38,39 +38,40 @@ export class PeriodManagementService {
     now: Date,
   ): UnifiedPeriodState {
     // Create periods array with proper chronological order
-    const periods: PeriodDefinition[] = this.buildPeriodSequence(
-      periodState,
-      now,
-    );
 
-    console.log('Resolving current period:', {
-      currentTime: format(now, 'HH:mm:ss'),
-      periods: periods.map((p) => ({
-        type: p.type,
-        start: p.startTime,
-        end: p.endTime,
-        isOvernight: p.isOvernight,
-      })),
-      attendance: attendance
+    console.log('Resolving Current Period - Detailed Input:', {
+      attendanceRecord: attendance
         ? {
+            id: attendance.id,
             type: attendance.type,
-            checkIn: attendance.CheckInTime
-              ? format(attendance.CheckInTime, 'HH:mm:ss')
-              : null,
-            checkOut: attendance.CheckOutTime
-              ? format(attendance.CheckOutTime, 'HH:mm:ss')
-              : null,
+            checkInTime: attendance.CheckInTime,
+            checkOutTime: attendance.CheckOutTime,
+            overtimeState: attendance.overtimeState,
+            isOvertime: attendance.isOvertime,
           }
         : null,
+      periodState: {
+        shift: periodState.shift,
+        overtimeInfo: periodState.overtimeInfo,
+      },
+      currentTime: now,
     });
 
-    // Find active overtime first if exists
+    // Create periods with more robust chronological handling
+    const periods = this.buildPeriodSequence(periodState, now);
+
+    // Explicitly handle active overtime first
     if (
       attendance?.type === PeriodType.OVERTIME &&
       attendance.CheckInTime &&
       !attendance.CheckOutTime
     ) {
-      const activePeriod = periods.find((p) => p.type === PeriodType.OVERTIME);
+      const activePeriod = periods.find(
+        (p) =>
+          p.type === PeriodType.OVERTIME &&
+          this.isWithinOvernightPeriod(now, attendance.CheckInTime!, p),
+      );
+
       if (activePeriod) {
         let periodStart = this.parseTimeWithContext(
           activePeriod.startTime,
@@ -78,12 +79,11 @@ export class PeriodManagementService {
         );
         let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
 
-        // Explicitly handle overnight periods
+        // Robust overnight handling
         if (activePeriod.isOvernight) {
           if (periodEnd < periodStart) {
             periodEnd = addDays(periodEnd, 1);
           }
-          // If current time is before midnight, adjust start time to previous day
           if (now < periodStart) {
             periodStart = subDays(periodStart, 1);
           }
@@ -98,7 +98,7 @@ export class PeriodManagementService {
           activity: {
             isActive: true,
             checkIn: format(
-              attendance.CheckInTime,
+              attendance.CheckInTime!,
               "yyyy-MM-dd'T'HH:mm:ss.SSS",
             ),
             checkOut: null,
@@ -573,6 +573,38 @@ export class PeriodManagementService {
     return parsedTime;
   }
 
+  private validateCheckTiming(
+    now: Date,
+    shiftStart: Date,
+    shiftEnd: Date,
+    type: PeriodType,
+  ): { isEarly: boolean; isLate: boolean; minutesDeviation: number } {
+    try {
+      const earlyThreshold = subMinutes(
+        shiftStart,
+        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+      );
+      const lateThreshold = addMinutes(
+        shiftStart,
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+      );
+
+      const isEarly = now >= earlyThreshold && now < shiftStart;
+      const isLate = now > lateThreshold;
+      const minutesDeviation =
+        type === PeriodType.REGULAR ? differenceInMinutes(now, shiftStart) : 0;
+
+      return {
+        isEarly,
+        isLate,
+        minutesDeviation: Math.abs(minutesDeviation),
+      };
+    } catch (error) {
+      console.error('Check timing validation error:', error);
+      return { isEarly: false, isLate: false, minutesDeviation: 0 };
+    }
+  }
+
   calculatePeriodTransitions(
     currentState: UnifiedPeriodState,
     window: ShiftWindowResponse,
@@ -654,15 +686,62 @@ export class PeriodManagementService {
   }
 
   // Add this helper method to the class
-  private isWithinOvertimeCheckout(now: Date, overtimeEnd: string): boolean {
+  private isWithinOvertimeCheckout(
+    now: Date,
+    overtimeRecord: AttendanceRecord,
+    periods: PeriodDefinition[],
+  ): boolean {
     try {
-      const end = parseISO(`${format(now, 'yyyy-MM-dd')}T${overtimeEnd}`);
-      return isWithinInterval(now, {
-        start: end,
-        end: addMinutes(end, VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT),
+      // Find the corresponding overtime period
+      const overtimePeriod = periods.find(
+        (p) => p.type === PeriodType.OVERTIME,
+      );
+
+      if (!overtimePeriod) return false;
+
+      // Parse period end time with context
+      const periodEnd = this.parseTimeWithContext(
+        overtimePeriod.endTime,
+        overtimeRecord.CheckInTime!,
+      );
+
+      // Adjust for overnight periods
+      let adjustedPeriodEnd = periodEnd;
+      if (
+        overtimePeriod.isOvernight &&
+        periodEnd <
+          this.parseTimeWithContext(
+            overtimePeriod.startTime,
+            overtimeRecord.CheckInTime!,
+          )
+      ) {
+        adjustedPeriodEnd = addDays(periodEnd, 1);
+      }
+
+      // Define checkout window (e.g., 30 minutes after period end)
+      const checkoutWindow = {
+        start: adjustedPeriodEnd,
+        end: addMinutes(
+          adjustedPeriodEnd,
+          VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
+        ),
+      };
+
+      // Log detailed checkout validation
+      console.log('Overtime Checkout Validation:', {
+        now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+        periodEnd: format(adjustedPeriodEnd, 'yyyy-MM-dd HH:mm:ss'),
+        checkoutWindowStart: format(
+          checkoutWindow.start,
+          'yyyy-MM-dd HH:mm:ss',
+        ),
+        checkoutWindowEnd: format(checkoutWindow.end, 'yyyy-MM-dd HH:mm:ss'),
+        isWithinWindow: isWithinInterval(now, checkoutWindow),
       });
+
+      return isWithinInterval(now, checkoutWindow);
     } catch (error) {
-      console.error('Error checking overtime checkout:', error);
+      console.error('Error validating overtime checkout:', error);
       return false;
     }
   }
@@ -672,14 +751,16 @@ export class PeriodManagementService {
     checkInTime: Date,
     period: PeriodDefinition,
   ): boolean {
-    const periodStart = this.parseTimeWithContext(
-      period.startTime,
-      checkInTime,
-    );
+    let periodStart = this.parseTimeWithContext(period.startTime, checkInTime);
     let periodEnd = this.parseTimeWithContext(period.endTime, checkInTime);
 
     if (period.isOvernight && periodEnd < periodStart) {
       periodEnd = addDays(periodEnd, 1);
+    }
+
+    // If current time is before midnight, adjust start time to previous day
+    if (now < periodStart) {
+      periodStart = subDays(periodStart, 1);
     }
 
     return isWithinInterval(now, { start: periodStart, end: periodEnd });
