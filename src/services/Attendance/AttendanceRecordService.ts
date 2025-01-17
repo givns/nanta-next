@@ -13,44 +13,19 @@ export class AttendanceRecordService {
 
   async getLatestAttendanceRecord(
     employeeId: string,
-    options?: GetAttendanceRecordOptions,
+    options?: { periodType?: PeriodType },
   ): Promise<AttendanceRecord | null> {
-    const now = getCurrentTime();
+    const records = await this.getAllAttendanceRecords(employeeId, options);
 
-    const record = await this.prisma.attendance.findFirst({
-      where: {
-        employeeId,
-        date: {
-          gte: startOfDay(now),
-          lt: endOfDay(now),
-        },
-        ...(options?.periodType && { type: options.periodType }),
-      },
-      include: {
-        timeEntries: {
-          include: {
-            overtimeMetadata: true,
-          },
-        },
-        overtimeEntries: true,
-        checkTiming: true,
-        location: true,
-        metadata: true,
-      },
-      orderBy: [
-        // Order by createdAt desc to get the latest record
-        { createdAt: 'desc' },
-        // Secondary ordering by periodSequence desc
-        { periodSequence: 'desc' },
-        // Final fallback to ID
-        { id: 'desc' },
-      ],
-    });
+    // First try to find an active (unchecked-out) record
+    const activeRecord = records.find(
+      (record) => record.CheckInTime && !record.CheckOutTime,
+    );
+    if (activeRecord) return activeRecord;
 
-    return record ? AttendanceMappers.toAttendanceRecord(record) : null;
+    return records[0] ? AttendanceMappers.toAttendanceRecord(records) : null;
   }
 
-  // AttendanceRecordService.ts
   async getAllAttendanceRecords(
     employeeId: string,
     options?: GetAttendanceRecordOptions,
@@ -84,7 +59,10 @@ export class AttendanceRecordService {
         location: true,
         metadata: true,
       },
-      orderBy: [{ type: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [
+        { CheckInTime: 'desc' }, // Order by check-in time descending
+        { id: 'desc' },
+      ],
     });
 
     // Log raw records from Prisma

@@ -47,13 +47,21 @@ export class AttendanceStatusService {
       }
     }
 
-    // Get all records for the day
+    // Get all records for the day first
     const [allRecords, periodState] = await Promise.all([
-      this.attendanceRecordService.getAllAttendanceRecords(employeeId, {
-        periodType: options.periodType,
-      }),
+      this.attendanceRecordService.getAllAttendanceRecords(employeeId),
       this.shiftService.getCurrentPeriodState(employeeId, now),
     ]);
+
+    // Find active record first (prioritize overtime)
+    const activeRecord =
+      allRecords.find(
+        (record) =>
+          record.CheckInTime &&
+          !record.CheckOutTime &&
+          record.type === PeriodType.OVERTIME,
+      ) ||
+      allRecords.find((record) => record.CheckInTime && !record.CheckOutTime);
 
     if (!periodState) {
       throw new AppError({
@@ -63,8 +71,7 @@ export class AttendanceStatusService {
     }
 
     // Get latest record and serialize it
-    const latestRecord =
-      allRecords.length > 0 ? allRecords[allRecords.length - 1] : null;
+    const latestRecord = activeRecord || allRecords[0] || null;
     const serializedLatest = latestRecord
       ? AttendanceMappers.toSerializedAttendanceRecord(latestRecord)
       : null;
