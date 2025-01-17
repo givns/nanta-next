@@ -650,6 +650,41 @@ export class AttendanceEnhancementService {
       const overtimeStart = parseISO(currentState.timeWindow.start);
       const approachWindow = subMinutes(overtimeStart, 30);
       const isApproaching = now >= approachWindow;
+      if (
+        currentState.type === PeriodType.OVERTIME &&
+        !currentState.validation.isEarly
+      ) {
+        const overtimeStart = parseISO(currentState.timeWindow.start);
+        const overtimeEnd = parseISO(currentState.timeWindow.end);
+        const isWithinOvertime = isWithinInterval(now, {
+          start: overtimeStart,
+          end: overtimeEnd,
+        });
+
+        return {
+          allowed: isWithinOvertime,
+          reason: isWithinOvertime ? '' : 'ไม่อยู่ในช่วงเวลาทำงานล่วงเวลา',
+          flags: this.getValidationFlags({
+            hasActivePeriod: false,
+            isCheckingIn: true,
+            isOvertime: true,
+            isPendingOvertime: false,
+            isInsideShift: false,
+            isOutsideShift: !isWithinOvertime,
+            isDayOffOvertime: Boolean(window.overtimeInfo?.isDayOffOvertime),
+          }),
+          metadata: {
+            requiredAction: VALIDATION_ACTIONS.OVERTIME_CHECKIN, // Correct action type
+            additionalInfo: {
+              type: 'OVERTIME_PERIOD',
+              periodWindow: {
+                start: format(overtimeStart, 'HH:mm'),
+                end: format(overtimeEnd, 'HH:mm'),
+              },
+            },
+          },
+        };
+      }
 
       return {
         allowed: isApproaching,

@@ -324,6 +324,7 @@ export class PeriodManagementService {
     periods: PeriodDefinition[],
     now: Date,
   ): UnifiedPeriodState {
+    // Find the active period matching attendance type
     const activePeriod = periods.find(
       (period) => period.type === attendance.type,
     );
@@ -331,17 +332,20 @@ export class PeriodManagementService {
       return this.createDefaultPeriodState(now);
     }
 
+    // Parse time with proper overnight handling
+    const periodStart = this.parseTimeWithContext(activePeriod.startTime, now);
+    let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
+
+    // Adjust end time for overnight periods
+    if (activePeriod.isOvernight && periodEnd < periodStart) {
+      periodEnd = addDays(periodEnd, 1);
+    }
+
     return {
       type: activePeriod.type,
       timeWindow: {
-        start: format(
-          this.parseTimeWithContext(activePeriod.startTime, now),
-          "yyyy-MM-dd'T'HH:mm:ss.SSS",
-        ),
-        end: format(
-          this.parseTimeWithContext(activePeriod.endTime, now),
-          "yyyy-MM-dd'T'HH:mm:ss.SSS",
-        ),
+        start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
       },
       activity: {
         isActive: true,
@@ -355,9 +359,12 @@ export class PeriodManagementService {
         isInsideShiftHours: activePeriod.type === PeriodType.REGULAR,
       },
       validation: {
-        isWithinBounds: true,
-        isEarly: false,
-        isLate: false,
+        isWithinBounds: isWithinInterval(now, {
+          start: periodStart,
+          end: periodEnd,
+        }),
+        isEarly: now < periodStart,
+        isLate: false, // Don't mark as late during active period
         isOvernight: activePeriod.isOvernight || false,
         isConnected: attendance.overtimeState === 'COMPLETED',
       },
