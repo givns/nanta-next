@@ -21,6 +21,7 @@ import {
   VALIDATION_ACTIONS,
   VALIDATION_THRESHOLDS,
   PeriodDefinition,
+  ApprovedOvertimeInfo,
 } from '@/types/attendance';
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
@@ -30,9 +31,11 @@ import {
   format,
   isWithinInterval,
   parseISO,
+  subDays,
   subMinutes,
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
+import overtimeSlice from '@/store/slices/overtimeSlice';
 
 interface OvertimeCheckoutStatus {
   shouldAutoComplete: boolean;
@@ -472,7 +475,6 @@ export class AttendanceEnhancementService {
     periodState: ShiftWindowResponse,
     now: Date,
   ): Promise<AttendanceStateResponse> {
-    // Deserialize for internal processing
     const attendance = this.deserializeAttendanceRecord(serializedAttendance);
 
     const currentPeriod = this.determineCurrentPeriod(
@@ -487,20 +489,73 @@ export class AttendanceEnhancementService {
       now,
     );
 
-    // Enhanced overtime detection
+    // Determine the correct period type based on multiple factors
+    const determinePeriodType = () => {
+      // Prioritize active attendance type
+      if (attendance?.type) return attendance.type;
+
+      // Check current state type
+      if (currentState.type) return currentState.type;
+
+      // Check overtime info
+      if (periodState.overtimeInfo && this.isWithinOvertimePeriod(now)) {
+        return PeriodType.OVERTIME;
+      }
+
+      // Default to regular
+      return PeriodType.REGULAR;
+    };
+
+    const periodType = determinePeriodType();
+
+    console.log('Period Type Determination:', {
+      attendanceType: attendance?.type,
+      currentStateType: currentState.type,
+      determinedPeriodType: periodType,
+      overtimeInfo: periodState.overtimeInfo,
+    });
+
+    // Dynamically adjust daily state based on determined period type
+    const dailyState = {
+      ...currentState,
+      type: periodType,
+      activity: {
+        ...currentState.activity,
+        isActive: false,
+        checkIn: null,
+        checkOut: null,
+        isOvertime: periodType === PeriodType.OVERTIME,
+        isDayOffOvertime:
+          periodType === PeriodType.OVERTIME
+            ? Boolean(periodState.overtimeInfo?.isDayOffOvertime)
+            : false,
+      },
+      validation: {
+        isConnected: false,
+        isEarly:
+          periodType === PeriodType.OVERTIME
+            ? currentState.validation.isEarly
+            : false,
+        isLate:
+          periodType === PeriodType.OVERTIME
+            ? currentState.validation.isLate
+            : false,
+        isOvernight:
+          periodType === PeriodType.OVERTIME
+            ? currentState.validation.isOvernight
+            : false,
+        isWithinBounds:
+          periodType === PeriodType.OVERTIME
+            ? currentState.validation.isWithinBounds
+            : false,
+      },
+    };
+
     const isOvertimeActive = Boolean(
       attendance?.isOvertime ||
         attendance?.type === PeriodType.OVERTIME ||
         currentState.type === PeriodType.OVERTIME,
     );
-
-    console.log('Enhanced Attendance Status Debug:', {
-      currentTime: format(now, 'HH:mm'),
-      attendanceType: attendance?.type,
-      currentStateType: currentState.type,
-      isOvertimeActive,
-      hasActiveCheckIn: attendance?.CheckInTime && !attendance?.CheckOutTime,
-    });
 
     const transitions = this.periodManager.calculatePeriodTransitions(
       currentState,
@@ -574,6 +629,70 @@ export class AttendanceEnhancementService {
       context,
       validation: stateValidation,
     };
+  }
+
+  private isWithinOvertimePeriod(
+    now: Date,
+    overtimeInfo?: OvertimeContext,
+  ): boolean {
+    try {
+      if (!overtimeInfo) return false;
+
+      // Create full date-time strings for parsing
+      const nowDateString = format(now, 'yyyy-MM-dd');
+      let overtimeStartISO = parseISO(
+        `${nowDateString}T${overtimeInfo.startTime}`,
+      );
+      let overtimeEndISO = parseISO(`${nowDateString}T${overtimeInfo.endTime}`);
+
+      // Log detailed overtime period information
+      console.log('Overtime Period Check:', {
+        currentTime: format(now, 'HH:mm:ss'),
+        overtimeStart: format(overtimeStartISO, 'HH:mm:ss'),
+        overtimeEnd: format(overtimeEndISO, 'HH:mm:ss'),
+        isOvernightPeriod: overtimeEndISO < overtimeStartISO,
+      });
+
+      // Handle overnight periods
+      let adjustedOvertimeEnd = overtimeEndISO;
+      if (overtimeEndISO < overtimeStartISO) {
+        // If end time is earlier than start time, it's an overnight period
+        adjustedOvertimeEnd = addDays(overtimeEndISO, 1);
+
+        // If current time is before midnight, adjust start time to previous day
+        if (now < overtimeStartISO) {
+          overtimeStartISO = subDays(overtimeStartISO, 1);
+        }
+      }
+
+      // Detailed logging of adjusted times
+      console.log('Adjusted Overtime Times:', {
+        adjustedStart: format(overtimeStartISO, 'yyyy-MM-dd HH:mm:ss'),
+        adjustedEnd: format(adjustedOvertimeEnd, 'yyyy-MM-dd HH:mm:ss'),
+      });
+
+      // Check if current time is within the overtime interval
+      const isWithinPeriod = isWithinInterval(now, {
+        start: overtimeStartISO,
+        end: adjustedOvertimeEnd,
+      });
+
+      console.log('Overtime Period Validation Result:', {
+        isWithinPeriod,
+        currentTime: format(now, 'HH:mm:ss'),
+        periodStart: format(overtimeStartISO, 'HH:mm:ss'),
+        periodEnd: format(adjustedOvertimeEnd, 'HH:mm:ss'),
+      });
+
+      return isWithinPeriod;
+    } catch (error) {
+      console.error('Error checking overtime period:', {
+        error,
+        overtimeInfo,
+        currentTime: now,
+      });
+      return false;
+    }
   }
 
   public createStateValidation(
