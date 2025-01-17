@@ -42,9 +42,79 @@ export class PeriodManagementService {
       now,
     );
 
+    console.log('Resolving current period:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      periods: periods.map((p) => ({
+        type: p.type,
+        start: p.startTime,
+        end: p.endTime,
+        isOvernight: p.isOvernight,
+      })),
+      attendance: attendance
+        ? {
+            type: attendance.type,
+            checkIn: attendance.CheckInTime
+              ? format(attendance.CheckInTime, 'HH:mm:ss')
+              : null,
+            checkOut: attendance.CheckOutTime
+              ? format(attendance.CheckOutTime, 'HH:mm:ss')
+              : null,
+          }
+        : null,
+    });
+
     // Handle active attendance first
     if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
-      return this.resolveActivePeriod(attendance, periods, now);
+      const activePeriod = periods.find(
+        (p) =>
+          p.type === attendance.type &&
+          (p.isOvernight
+            ? this.isWithinOvernightPeriod(now, attendance.CheckInTime!, p)
+            : true),
+      );
+
+      if (activePeriod) {
+        // Parse time with proper overnight handling
+        const periodStart = this.parseTimeWithContext(
+          activePeriod.startTime,
+          now,
+        );
+        let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
+
+        // Adjust end time for overnight periods
+        if (activePeriod.isOvernight && periodEnd < periodStart) {
+          periodEnd = addDays(periodEnd, 1);
+        }
+
+        return {
+          type: activePeriod.type,
+          timeWindow: {
+            start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          },
+          activity: {
+            isActive: true,
+            checkIn: format(
+              attendance.CheckInTime,
+              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            ),
+            checkOut: null,
+            isOvertime: activePeriod.type === PeriodType.OVERTIME,
+            isDayOffOvertime: Boolean(activePeriod.isDayOff),
+            isInsideShiftHours: activePeriod.type === PeriodType.REGULAR,
+          },
+          validation: {
+            isWithinBounds: isWithinInterval(now, {
+              start: periodStart,
+              end: periodEnd,
+            }),
+            isEarly: false,
+            isLate: false,
+            isOvernight: Boolean(activePeriod.isOvernight), // Fixed here
+            isConnected: attendance.overtimeState === 'COMPLETED',
+          },
+        };
+      }
     }
 
     // Find relevant period (either current or upcoming)
@@ -65,17 +135,21 @@ export class PeriodManagementService {
         (p) => p.type === PeriodType.OVERTIME,
       );
       if (overtimePeriod) {
+        const periodStart = this.parseTimeWithContext(
+          overtimePeriod.startTime,
+          now,
+        );
+        let periodEnd = this.parseTimeWithContext(overtimePeriod.endTime, now);
+
+        if (overtimePeriod.isOvernight && periodEnd < periodStart) {
+          periodEnd = addDays(periodEnd, 1);
+        }
+
         return {
-          type: PeriodType.OVERTIME, // Set type as overtime even when waiting
+          type: PeriodType.OVERTIME,
           timeWindow: {
-            start: format(
-              this.parseTimeWithContext(overtimePeriod.startTime, now),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            ),
-            end: format(
-              this.parseTimeWithContext(overtimePeriod.endTime, now),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            ),
+            start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+            end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
           },
           activity: {
             isActive: false,
@@ -87,27 +161,31 @@ export class PeriodManagementService {
           },
           validation: {
             isWithinBounds: false,
-            isEarly: true, // Indicate it's early for the overtime period
+            isEarly: true,
             isLate: false,
-            isOvernight: overtimePeriod.isOvernight || false,
-            isConnected: true, // Connected to previous regular period
+            isOvernight: Boolean(overtimePeriod.isOvernight), // Fixed here
+            isConnected: true,
           },
         };
       }
     }
 
-    // Default period state creation (existing code)
+    // Handle default period state with overnight support
+    const periodStart = this.parseTimeWithContext(
+      relevantPeriod.startTime,
+      now,
+    );
+    let periodEnd = this.parseTimeWithContext(relevantPeriod.endTime, now);
+
+    if (relevantPeriod.isOvernight && periodEnd < periodStart) {
+      periodEnd = addDays(periodEnd, 1);
+    }
+
     return {
       type: relevantPeriod.type,
       timeWindow: {
-        start: format(
-          this.parseTimeWithContext(relevantPeriod.startTime, now),
-          "yyyy-MM-dd'T'HH:mm:ss.SSS",
-        ),
-        end: format(
-          this.parseTimeWithContext(relevantPeriod.endTime, now),
-          "yyyy-MM-dd'T'HH:mm:ss.SSS",
-        ),
+        start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
       },
       activity: {
         isActive: false,
@@ -118,10 +196,13 @@ export class PeriodManagementService {
         isInsideShiftHours: relevantPeriod.type === PeriodType.REGULAR,
       },
       validation: {
-        isWithinBounds: true,
-        isEarly: now < this.parseTimeWithContext(relevantPeriod.startTime, now),
-        isLate: now > this.parseTimeWithContext(relevantPeriod.endTime, now),
-        isOvernight: relevantPeriod.isOvernight || false,
+        isWithinBounds: isWithinInterval(now, {
+          start: periodStart,
+          end: periodEnd,
+        }),
+        isEarly: now < periodStart,
+        isLate: now > periodEnd,
+        isOvernight: Boolean(relevantPeriod.isOvernight), // Fixed here
         isConnected: Boolean(periodState.overtimeInfo),
       },
     };
@@ -256,6 +337,7 @@ export class PeriodManagementService {
     periods: PeriodDefinition[],
     now: Date,
     lastCompletedPeriod?: { type: PeriodType; checkOutTime: Date } | null,
+    lastAttendance?: AttendanceRecord | null,
   ): PeriodDefinition | null {
     // 1. First check if we have a completed period
     if (lastCompletedPeriod) {
@@ -282,6 +364,19 @@ export class PeriodManagementService {
             return overtimePeriod;
           }
         }
+      }
+
+      if (
+        lastAttendance?.type === PeriodType.OVERTIME &&
+        !lastAttendance?.CheckOutTime
+      ) {
+        return (
+          periods.find(
+            (p) =>
+              p.type === PeriodType.OVERTIME &&
+              this.isWithinOvernightPeriod(now, lastAttendance.CheckInTime!, p),
+          ) ?? null
+        );
       }
 
       // If we're in between completed period and next period, return next period
@@ -521,31 +616,20 @@ export class PeriodManagementService {
 
   private isWithinOvernightPeriod(
     now: Date,
-    timeWindow: { start: string; end: string },
+    checkInTime: Date,
+    period: PeriodDefinition,
   ): boolean {
-    try {
-      const dayStart = startOfDay(now);
-      const dayEnd = endOfDay(now);
-      const periodStart = parseISO(timeWindow.start);
-      const periodEnd = parseISO(timeWindow.end);
+    const periodStart = this.parseTimeWithContext(
+      period.startTime,
+      checkInTime,
+    );
+    let periodEnd = this.parseTimeWithContext(period.endTime, checkInTime);
 
-      // For overnight periods, check if we're in either day's time range
-      if (periodEnd < periodStart) {
-        // Check if we're after start time today or before end time tomorrow
-        return (
-          (now >= periodStart && now <= dayEnd) ||
-          (now >= dayStart && now <= periodEnd)
-        );
-      }
-
-      return isWithinInterval(now, {
-        start: periodStart,
-        end: periodEnd,
-      });
-    } catch (error) {
-      console.error('Error checking overnight period:', error);
-      return false;
+    if (period.isOvernight && periodEnd < periodStart) {
+      periodEnd = addDays(periodEnd, 1);
     }
+
+    return isWithinInterval(now, { start: periodStart, end: periodEnd });
   }
 
   public checkIfEarly(now: Date, start: Date): boolean {
