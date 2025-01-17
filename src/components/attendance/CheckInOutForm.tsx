@@ -490,19 +490,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         periodWindow={periodState.timeWindow}
         validation={{
           allowed: stateValidation.allowed,
-          canProceed:
-            stateValidation.allowed &&
-            // Allow proceed if:
-            // 1. Not overtime
-            (periodState.type !== PeriodType.OVERTIME ||
-              // 2. Is overtime and within valid window
-              (periodState.type === PeriodType.OVERTIME &&
-                stateValidation.metadata?.additionalInfo?.type ===
-                  'EARLY_OVERTIME' &&
-                new Date() >=
-                  parseISO(
-                    `${format(now, 'yyyy-MM-dd')}T${stateValidation.metadata.additionalInfo.earlyWindow}`,
-                  ))),
+          canProceed: stateValidation.allowed, // Set canProceed based on allowed
           reason: stateValidation.reason,
           message: stateValidation.reason,
           flags: {

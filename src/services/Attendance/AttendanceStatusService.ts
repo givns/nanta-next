@@ -85,6 +85,11 @@ export class AttendanceStatusService {
     // Add all records to base
     enhancedStatus.base.latestAttendance = serializedLatest;
     enhancedStatus.base.additionalRecords = serializedRecords;
+    enhancedStatus.base.validation = {
+      canCheckIn: enhancedStatus.validation.allowed,
+      canCheckOut: enhancedStatus.validation.allowed,
+      message: enhancedStatus.validation.reason || '',
+    };
 
     // Cache the result
     await cacheService.del(forceRefreshKey);
