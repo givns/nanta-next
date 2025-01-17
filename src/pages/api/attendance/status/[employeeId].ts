@@ -91,6 +91,18 @@ export default async function handler(
     const { employeeId, inPremises, address } = validatedParams.data;
     const now = getCurrentTime();
 
+    // Get period state first
+    const periodState = await services.shiftService.getCurrentPeriodState(
+      employeeId,
+      now,
+    );
+    if (!periodState) {
+      throw new AppError({
+        code: ErrorCode.SHIFT_DATA_ERROR,
+        message: 'Failed to fetch period state',
+      });
+    }
+
     // Get attendance status
     const attendanceStatus =
       await services.attendanceService.getAttendanceStatus(employeeId, {
@@ -128,22 +140,15 @@ export default async function handler(
         },
       },
       context: {
-        shift: {
-          id: attendanceStatus.context.shift.id,
-          shiftCode: attendanceStatus.context.shift.shiftCode,
-          name: attendanceStatus.context.shift.name,
-          startTime: attendanceStatus.context.shift.startTime,
-          endTime: attendanceStatus.context.shift.endTime,
-          workDays: attendanceStatus.context.shift.workDays,
-        },
+        shift: periodState.shift,
         schedule: {
           isHoliday: Boolean(attendanceStatus.context.schedule.isHoliday),
           isDayOff: Boolean(attendanceStatus.context.schedule.isDayOff),
           isAdjusted: Boolean(attendanceStatus.context.schedule.isAdjusted),
           holidayInfo: attendanceStatus.context.schedule.holidayInfo,
         },
-        nextPeriod: attendanceStatus.context.nextPeriod,
-        transition: attendanceStatus.context.transition,
+        nextPeriod: periodState.nextPeriod,
+        transition: periodState.transition,
       },
       validation: {
         allowed: Boolean(attendanceStatus.validation.allowed),

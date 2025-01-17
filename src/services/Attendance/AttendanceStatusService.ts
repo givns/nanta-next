@@ -6,6 +6,7 @@ import {
   AttendanceRecord,
   AttendanceStateResponse,
   AttendanceStatusResponse,
+  ShiftWindowResponse,
 } from '../../types/attendance';
 import { CacheManager } from '../cache/CacheManager';
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService'; // Add this line
@@ -19,6 +20,7 @@ interface GetAttendanceStatusOptions {
   inPremises: boolean;
   address: string;
   periodType?: PeriodType;
+  periodState?: ShiftWindowResponse;
 }
 
 export class AttendanceStatusService {
@@ -47,10 +49,20 @@ export class AttendanceStatusService {
       }
     }
 
-    // Get all records for the day first
-    const [allRecords, periodState] = await Promise.all([
+    // Use provided period state or fetch new one
+    const periodState =
+      options.periodState ||
+      (await this.shiftService.getCurrentPeriodState(employeeId, now));
+
+    if (!periodState) {
+      throw new AppError({
+        code: ErrorCode.SHIFT_DATA_ERROR,
+        message: 'Shift configuration not found',
+      });
+    }
+
+    const [allRecords] = await Promise.all([
       this.attendanceRecordService.getAllAttendanceRecords(employeeId),
-      this.shiftService.getCurrentPeriodState(employeeId, now),
     ]);
 
     // Find active record first (prioritize overtime)
