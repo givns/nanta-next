@@ -1,7 +1,7 @@
 import { AttendanceRecord } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { PeriodType, PrismaClient } from '@prisma/client';
-import { endOfDay, startOfDay } from 'date-fns';
+import { endOfDay, startOfDay, subDays } from 'date-fns';
 import { AttendanceMappers } from './utils/AttendanceMappers';
 
 interface GetAttendanceRecordOptions {
@@ -42,10 +42,31 @@ export class AttendanceRecordService {
     const records = await this.prisma.attendance.findMany({
       where: {
         employeeId,
-        date: {
-          gte: startOfDay(now),
-          lt: endOfDay(now),
-        },
+        OR: [
+          // Records that start today
+          {
+            date: {
+              gte: startOfDay(now),
+              lt: endOfDay(now),
+            },
+          },
+          // Records with check-in before today's end but no check-out or check-out after today's start
+          {
+            CheckInTime: {
+              lt: endOfDay(now),
+            },
+            OR: [
+              // No check-out time (still active)
+              { CheckOutTime: null },
+              // Check-out time is after today's start
+              {
+                CheckOutTime: {
+                  gt: startOfDay(now),
+                },
+              },
+            ],
+          },
+        ],
         ...(options?.periodType && { type: options.periodType }),
       },
       include: {
