@@ -578,51 +578,32 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     now: Date,
   ): StateValidation {
-    console.log('Creating state validation:', {
-      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      currentState: {
-        type: currentState.type,
-        isActive: currentState.activity.isActive,
-        isOvertime: currentState.activity.isOvertime,
-        timeWindow: currentState.timeWindow,
-      },
-      window: {
-        shift: {
-          start: window.shift.startTime,
-          end: window.shift.endTime,
-        },
-        overtime: window.overtimeInfo
-          ? {
-              start: window.overtimeInfo.startTime,
-              end: window.overtimeInfo.endTime,
-              isBeforeShift: this.isBeforeShift(
-                window.overtimeInfo.startTime,
-                window.shift.startTime,
-              ),
-            }
-          : null,
-      },
-    });
-
-    // Check for active session
+    // Check if current attendance is active
     const hasActiveAttendance = Boolean(
-      attendance?.CheckInTime && !attendance?.CheckOutTime,
+      currentState.activity.isActive ||
+        (currentState.type === PeriodType.OVERTIME &&
+          attendance?.CheckInTime &&
+          !attendance?.CheckOutTime),
     );
 
     console.log('State validation check:', {
       currentTime: format(now, 'HH:mm:ss'),
       hasActiveAttendance,
-      attendance: attendance
-        ? {
-            type: attendance.type,
-            checkIn: attendance.CheckInTime
-              ? format(attendance.CheckInTime, 'HH:mm:ss')
-              : null,
-            checkOut: attendance.CheckOutTime
-              ? format(attendance.CheckOutTime, 'HH:mm:ss')
-              : null,
-          }
-        : null,
+      currentState: {
+        type: currentState.type,
+        activity: currentState.activity,
+        attendance: attendance
+          ? {
+              type: attendance.type,
+              checkIn: attendance.CheckInTime
+                ? format(attendance.CheckInTime, 'HH:mm:ss')
+                : null,
+              checkOut: attendance.CheckOutTime
+                ? format(attendance.CheckOutTime, 'HH:mm:ss')
+                : null,
+            }
+          : null,
+      },
     });
 
     // If there's an active attendance, block further check-ins
@@ -633,16 +614,16 @@ export class AttendanceEnhancementService {
         flags: this.getValidationFlags({
           hasActivePeriod: true,
           isCheckingIn: false,
-          isOvertime: attendance.type === PeriodType.OVERTIME,
-          isInsideShift: attendance.type === PeriodType.REGULAR,
-          isOutsideShift: attendance.type === PeriodType.OVERTIME,
+          isOvertime: currentState.type === PeriodType.OVERTIME,
+          isInsideShift: currentState.type === PeriodType.REGULAR,
+          isOutsideShift: currentState.type === PeriodType.OVERTIME,
           isDayOffOvertime: Boolean(window.overtimeInfo?.isDayOffOvertime),
         }),
         metadata: {
           requiredAction: VALIDATION_ACTIONS.ACTIVE_SESSION,
           additionalInfo: {
             type:
-              attendance.type === PeriodType.OVERTIME
+              currentState.type === PeriodType.OVERTIME
                 ? 'OVERTIME_PERIOD'
                 : 'REGULAR_PERIOD',
             periodWindow: {
@@ -650,8 +631,10 @@ export class AttendanceEnhancementService {
               end: format(parseISO(currentState.timeWindow.end), 'HH:mm'),
             },
             activeSession: {
-              type: attendance.type,
-              checkIn: format(attendance.CheckInTime!, 'HH:mm'),
+              type: currentState.type,
+              checkIn: attendance.CheckInTime
+                ? format(attendance.CheckInTime, 'HH:mm')
+                : null,
             },
           },
         },
