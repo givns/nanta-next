@@ -603,19 +603,17 @@ export class AttendanceEnhancementService {
           : null,
       },
     });
-
+  
     // Get the latest active attendance for the current date
-    const hasActiveAttendance = Boolean(
-      attendance?.CheckInTime && !attendance?.CheckOutTime,
-    );
-
+    const hasActiveAttendance = Boolean(attendance?.CheckInTime && !attendance?.CheckOutTime);
+  
     const statusInfo = this.determinePeriodStatusInfo(
       attendance,
       currentState,
       window,
       now,
     );
-
+  
     // Handle active attendance validation first
     if (hasActiveAttendance) {
       return {
@@ -632,19 +630,16 @@ export class AttendanceEnhancementService {
         metadata: {
           requiredAction: VALIDATION_ACTIONS.ACTIVE_SESSION,
           additionalInfo: {
-            type:
-              currentState.type === PeriodType.OVERTIME
-                ? 'OVERTIME_PERIOD'
-                : 'REGULAR_PERIOD',
+            type: currentState.type === PeriodType.OVERTIME ? 'OVERTIME_PERIOD' : 'REGULAR_PERIOD',
             periodWindow: {
               start: format(parseISO(currentState.timeWindow.start), 'HH:mm'),
               end: format(parseISO(currentState.timeWindow.end), 'HH:mm'),
-            },
-          },
-        },
+            }
+          }
+        }
       };
     }
-
+  
     // Handle early morning overtime validation
     if (
       window.overtimeInfo &&
@@ -665,16 +660,13 @@ export class AttendanceEnhancementService {
         };
       }
     }
-
+  
     // Handle waiting for overtime period
-    if (
-      currentState.type === PeriodType.OVERTIME &&
-      currentState.validation.isEarly
-    ) {
+    if (currentState.type === PeriodType.OVERTIME && currentState.validation.isEarly) {
       const overtimeStart = parseISO(currentState.timeWindow.start);
       const approachWindow = subMinutes(overtimeStart, 30);
       const isApproaching = now >= approachWindow;
-
+  
       return {
         allowed: isApproaching,
         reason: isApproaching
@@ -695,10 +687,7 @@ export class AttendanceEnhancementService {
           requiredAction: isApproaching
             ? VALIDATION_ACTIONS.TRANSITION_REQUIRED
             : VALIDATION_ACTIONS.WAIT_FOR_OVERTIME,
-          nextTransitionTime: format(
-            overtimeStart,
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-          ),
+          nextTransitionTime: format(overtimeStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
           additionalInfo: {
             overtimeStart: format(overtimeStart, 'HH:mm'),
             type: 'WAITING_FOR_OVERTIME',
@@ -707,14 +696,14 @@ export class AttendanceEnhancementService {
         },
       };
     }
-
+  
     // Handle period transitions
     const transitionStatus = this.determineTransitionStatusInfo(
       statusInfo,
       window,
       now,
     );
-
+  
     if (transitionStatus.isInTransition) {
       return {
         allowed: true,
@@ -748,7 +737,7 @@ export class AttendanceEnhancementService {
         },
       };
     }
-
+  
     // Default validation based on current period state
     return this.createDefaultPeriodValidation(currentState, window, now);
   }
