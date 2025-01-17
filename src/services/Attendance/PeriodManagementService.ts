@@ -65,56 +65,50 @@ export class PeriodManagementService {
 
     // Handle active attendance first
     if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
-      const activePeriod = periods.find(
-        (p) =>
-          p.type === attendance.type &&
-          (p.isOvernight
-            ? this.isWithinOvernightPeriod(now, attendance.CheckInTime!, p)
-            : true),
-      );
+      // Find matching period for active attendance
+      const activePeriod = periods.find((p) => p.type === attendance.type);
 
-      if (activePeriod) {
-        // Parse time with proper overnight handling
-        const periodStart = this.parseTimeWithContext(
-          activePeriod.startTime,
-          now,
-        );
-        let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
-
-        // Adjust end time for overnight periods
-        if (activePeriod.isOvernight && periodEnd < periodStart) {
-          periodEnd = addDays(periodEnd, 1);
-        }
-
-        return {
-          type: activePeriod.type,
-          timeWindow: {
-            start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-            end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-          },
-          activity: {
-            isActive: true,
-            checkIn: format(
-              attendance.CheckInTime,
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            ),
-            checkOut: null,
-            isOvertime: activePeriod.type === PeriodType.OVERTIME,
-            isDayOffOvertime: Boolean(activePeriod.isDayOff),
-            isInsideShiftHours: activePeriod.type === PeriodType.REGULAR,
-          },
-          validation: {
-            isWithinBounds: isWithinInterval(now, {
-              start: periodStart,
-              end: periodEnd,
-            }),
-            isEarly: false,
-            isLate: false,
-            isOvernight: Boolean(activePeriod.isOvernight), // Fixed here
-            isConnected: attendance.overtimeState === 'COMPLETED',
-          },
-        };
+      if (!activePeriod) {
+        return this.createDefaultPeriodState(now);
       }
+
+      // Parse time with proper overnight handling
+      const periodStart = this.parseTimeWithContext(
+        activePeriod.startTime,
+        now,
+      );
+      let periodEnd = this.parseTimeWithContext(activePeriod.endTime, now);
+
+      // Adjust end time for overnight periods
+      if (activePeriod.isOvernight && periodEnd < periodStart) {
+        periodEnd = addDays(periodEnd, 1);
+      }
+
+      return {
+        type: activePeriod.type,
+        timeWindow: {
+          start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        },
+        activity: {
+          isActive: true,
+          checkIn: format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          checkOut: null,
+          isOvertime: activePeriod.type === PeriodType.OVERTIME,
+          isDayOffOvertime: Boolean(activePeriod.isDayOff),
+          isInsideShiftHours: activePeriod.type === PeriodType.REGULAR,
+        },
+        validation: {
+          isWithinBounds: isWithinInterval(now, {
+            start: periodStart,
+            end: periodEnd,
+          }),
+          isEarly: false,
+          isLate: now > periodEnd,
+          isOvernight: Boolean(activePeriod.isOvernight),
+          isConnected: attendance.overtimeState === 'COMPLETED',
+        },
+      };
     }
 
     // Find relevant period (either current or upcoming)
@@ -163,23 +157,29 @@ export class PeriodManagementService {
             isWithinBounds: false,
             isEarly: true,
             isLate: false,
-            isOvernight: Boolean(overtimePeriod.isOvernight), // Fixed here
+            isOvernight: Boolean(overtimePeriod.isOvernight),
             isConnected: true,
           },
         };
       }
     }
 
-    // Handle default period state with overnight support
+    // Parse time with proper overnight handling for default state
     const periodStart = this.parseTimeWithContext(
       relevantPeriod.startTime,
       now,
     );
     let periodEnd = this.parseTimeWithContext(relevantPeriod.endTime, now);
 
+    // Adjust end time for overnight periods
     if (relevantPeriod.isOvernight && periodEnd < periodStart) {
       periodEnd = addDays(periodEnd, 1);
     }
+
+    const isWithinPeriod = isWithinInterval(now, {
+      start: periodStart,
+      end: periodEnd,
+    });
 
     return {
       type: relevantPeriod.type,
@@ -196,13 +196,10 @@ export class PeriodManagementService {
         isInsideShiftHours: relevantPeriod.type === PeriodType.REGULAR,
       },
       validation: {
-        isWithinBounds: isWithinInterval(now, {
-          start: periodStart,
-          end: periodEnd,
-        }),
+        isWithinBounds: isWithinPeriod,
         isEarly: now < periodStart,
         isLate: now > periodEnd,
-        isOvernight: Boolean(relevantPeriod.isOvernight), // Fixed here
+        isOvernight: Boolean(relevantPeriod.isOvernight),
         isConnected: Boolean(periodState.overtimeInfo),
       },
     };
