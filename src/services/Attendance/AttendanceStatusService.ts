@@ -1,34 +1,34 @@
 //AttendanceStatusService.ts
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
-import { ErrorCode, AppError } from '../../types/errors';
 import { getCurrentTime } from '../../utils/dateUtils';
 import {
   AttendanceRecord,
   AttendanceStateResponse,
   AttendanceStatusResponse,
   ShiftWindowResponse,
+  ValidationContext,
 } from '../../types/attendance';
 import { CacheManager } from '../cache/CacheManager';
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService'; // Add this line
 import { AttendanceRecordService } from './AttendanceRecordService';
 import { cacheService } from '../cache/CacheService';
-import { format } from 'date-fns';
 import { PeriodType } from '@prisma/client';
 import { AttendanceMappers } from './utils/AttendanceMappers';
+import { PeriodManagementService } from './PeriodManagementService';
 
 interface GetAttendanceStatusOptions {
   inPremises: boolean;
   address: string;
   periodType?: PeriodType;
-  periodState?: ShiftWindowResponse;
 }
 
 export class AttendanceStatusService {
   constructor(
     private readonly shiftService: ShiftManagementService,
     private readonly enhancementService: AttendanceEnhancementService,
-    private readonly attendanceRecordService: AttendanceRecordService, // Add this
+    private readonly attendanceRecordService: AttendanceRecordService,
     private readonly cacheManager: CacheManager,
+    private readonly periodManager: PeriodManagementService,
   ) {}
 
   async getAttendanceStatus(
@@ -37,7 +37,6 @@ export class AttendanceStatusService {
   ): Promise<AttendanceStatusResponse> {
     const now = getCurrentTime();
     const forceRefreshKey = `forceRefresh:${employeeId}`;
-    const cacheKey = `attendance:${employeeId}:${format(now, 'yyyy-MM-dd:HH:mm')}`;
     const forceRefresh = await cacheService.get(forceRefreshKey);
 
     // If force refresh flag exists, bypass cache
@@ -49,23 +48,22 @@ export class AttendanceStatusService {
       }
     }
 
-    // Use provided period state or fetch new one
-    const periodState =
-      options.periodState ||
-      (await this.shiftService.getCurrentPeriodState(employeeId, now));
-
-    if (!periodState) {
-      throw new AppError({
-        code: ErrorCode.SHIFT_DATA_ERROR,
-        message: 'Shift configuration not found',
-      });
+    // Get effective shift first
+    const shiftData = await this.shiftService.getEffectiveShift(
+      employeeId,
+      now,
+    );
+    if (!shiftData) {
+      throw new Error('No shift configuration found');
     }
 
-    const [allRecords] = await Promise.all([
-      this.attendanceRecordService.getAllAttendanceRecords(employeeId),
-    ]);
+    // Get all attendance records and ensure it's not null
+    const allRecords =
+      (await this.attendanceRecordService.getAllAttendanceRecords(
+        employeeId,
+      )) || [];
 
-    // Find active record first (prioritize overtime)
+    // Find active record (prioritize overtime)
     const activeRecord =
       allRecords.find(
         (record) =>
@@ -75,12 +73,26 @@ export class AttendanceStatusService {
       ) ||
       allRecords.find((record) => record.CheckInTime && !record.CheckOutTime);
 
-    if (!periodState) {
-      throw new AppError({
-        code: ErrorCode.SHIFT_DATA_ERROR,
-        message: 'Shift configuration not found',
-      });
-    }
+    // Get period state from period manager
+    const periodState = await this.periodManager.getCurrentPeriodState(
+      employeeId,
+      allRecords,
+      now,
+    );
+
+    // Transform period state to window response
+    const windowResponse: ShiftWindowResponse = {
+      current: {
+        start: periodState.current.timeWindow.start,
+        end: periodState.current.timeWindow.end,
+      },
+      type: periodState.current.type,
+      shift: shiftData.current,
+      isHoliday: false, // Will be updated from context
+      isDayOff: !shiftData.current.workDays.includes(now.getDay()),
+      isAdjusted: shiftData.isAdjusted,
+      overtimeInfo: periodState.overtime || undefined,
+    };
 
     // Get latest record and serialize it
     const latestRecord = activeRecord || allRecords[0] || null;
@@ -93,20 +105,35 @@ export class AttendanceStatusService {
       AttendanceMappers.toSerializedAttendanceRecord(record),
     );
 
-    // Build response through enhancement service with serialized record
+    // Create validation context
+    const validationContext: ValidationContext = {
+      employeeId,
+      timestamp: now,
+      isCheckIn:
+        !activeRecord?.CheckInTime || Boolean(activeRecord?.CheckOutTime),
+      state: activeRecord?.state,
+      checkStatus: activeRecord?.checkStatus,
+      overtimeState: activeRecord?.overtimeState,
+      attendance: activeRecord || undefined,
+      shift: shiftData.current,
+      periodType: periodState.current.type,
+      isOvertime: periodState.current.type === PeriodType.OVERTIME,
+    };
+
+    // Get enhanced status with proper context
     const enhancedStatus =
       await this.enhancementService.enhanceAttendanceStatus(
         serializedLatest,
-        periodState,
-        now,
+        windowResponse,
+        validationContext,
       );
 
-    // Add all records to base
+    // Update base response with all records
     enhancedStatus.base.latestAttendance = serializedLatest;
     enhancedStatus.base.additionalRecords = serializedRecords;
     enhancedStatus.base.validation = {
-      canCheckIn: enhancedStatus.validation.allowed,
-      canCheckOut: enhancedStatus.validation.allowed,
+      canCheckIn: enhancedStatus.validation.allowed && !activeRecord,
+      canCheckOut: enhancedStatus.validation.allowed && Boolean(activeRecord),
       message: enhancedStatus.validation.reason || '',
     };
 

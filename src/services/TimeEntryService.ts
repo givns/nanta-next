@@ -6,9 +6,6 @@ import {
   LeaveRequest,
   PeriodType,
   TimeEntryStatus,
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
 } from '@prisma/client';
 import {
   addDays,
@@ -22,7 +19,6 @@ import {
   min,
   parseISO,
   startOfDay,
-  subMinutes,
 } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
 import { NotificationService } from './NotificationService';
@@ -38,7 +34,6 @@ import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { th } from 'date-fns/locale';
 import { getCurrentTime } from '@/utils/dateUtils';
-import overtimeRequest from '@/pages/overtime-request';
 
 interface CheckInCalculationsResult {
   minutesLate: number;
@@ -130,7 +125,7 @@ export class TimeEntryService {
       // Pre-fetch all necessary data
       const [leaveRequests, shift] = await Promise.all([
         this.leaveService.getLeaveRequests(options.employeeId),
-        this.shiftService.getEffectiveShiftAndStatus(
+        this.shiftService.getEffectiveShift(
           attendance.employeeId,
           attendance.date,
         ),

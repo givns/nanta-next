@@ -100,22 +100,23 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     employeeId: string,
     date: Date,
   ): Promise<boolean> {
-    const shift = await this.shiftService.getEffectiveShiftAndStatus(
-      employeeId,
-      date,
-    );
+    // Get effective shift using defined types
+    const shift = await this.shiftService.getEffectiveShift(employeeId, date);
     if (!shift) return true;
 
+    // Get holiday info
     const isHoliday = await this.holidayService.isHoliday(
       date,
-      [],
-      shift.effectiveShift?.shiftCode === 'SHIFT104',
+      [], // holidays array
+      shift.current.shiftCode === 'SHIFT104', // special shift check
     );
     if (isHoliday) return true;
 
+    // Check work days using ShiftData type
     const dayOfWeek = date.getDay();
-    if (!shift.effectiveShift?.workDays.includes(dayOfWeek)) return true;
+    if (!shift.current.workDays.includes(dayOfWeek)) return true;
 
+    // Check leave status
     const leave = await this.leaveService.checkUserOnLeave(employeeId, date);
     if (leave) return true;
 

@@ -18,18 +18,20 @@ export class AttendanceRecordService {
     const records = await this.getAllAttendanceRecords(employeeId, options);
 
     // First try to find an active (unchecked-out) record
-    const activeRecord = records.find(
+    const activeRecord = records?.find(
       (record) => record.CheckInTime && !record.CheckOutTime,
     );
     if (activeRecord) return activeRecord;
 
-    return records[0] ? AttendanceMappers.toAttendanceRecord(records) : null;
+    return records && records[0]
+      ? AttendanceMappers.toAttendanceRecord(records)
+      : null;
   }
 
   async getAllAttendanceRecords(
     employeeId: string,
     options?: GetAttendanceRecordOptions,
-  ): Promise<AttendanceRecord[]> {
+  ): Promise<AttendanceRecord[] | null> {
     const now = getCurrentTime();
 
     // Log before Prisma query

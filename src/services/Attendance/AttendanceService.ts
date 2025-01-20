@@ -36,15 +36,16 @@ export class AttendanceService {
     this.processingService = new AttendanceProcessingService(
       prisma,
       shiftService,
-      periodManager,
       timeEntryService,
       enhancementService,
+      periodManager,
     );
     this.statusService = new AttendanceStatusService( // Initialize the property
       shiftService,
       enhancementService,
       attendanceRecordService,
       cacheManager,
+      periodManager,
     );
   }
 

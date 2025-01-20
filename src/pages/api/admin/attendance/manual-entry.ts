@@ -12,6 +12,8 @@ import { initializeServices } from '@/services/ServiceInitializer';
 import { ErrorCode, AppError } from '@/types/attendance/error';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { CacheManager } from '@/services/cache/CacheManager';
+import { z } from 'zod';
+import { EffectiveShift } from '@/types/attendance';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -24,6 +26,33 @@ let cacheManager = CacheManager.getInstance();
 
 // Cache the services initialization promise
 let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Define request body schema
+const RequestSchema = z.object({
+  employeeId: z.string(),
+  date: z.string(),
+  checkInTime: z.string().nullable(),
+  checkOutTime: z.string().nullable(),
+  reason: z.string(),
+  periodType: z.nativeEnum(PeriodType),
+  reasonType: z.string(),
+  overtimeRequestId: z.string().optional(),
+});
+
+// Types for working hours calculation
+interface WorkingHours {
+  regularHours: number;
+  overtimeHours: number;
+}
+
+interface CalculateHoursParams {
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  date: string;
+  shiftData: EffectiveShift;
+  overtimeRequest: any | null;
+  periodType: PeriodType;
+}
 
 // Initialize services once
 const getServices = async (): Promise<InitializedServices> => {
@@ -82,6 +111,9 @@ export default async function handler(
         message: 'Required services not initialized',
       });
     }
+
+    // Validate request body
+    const validatedData = RequestSchema.parse(req.body);
     const {
       employeeId,
       date,
@@ -91,20 +123,7 @@ export default async function handler(
       periodType,
       reasonType,
       overtimeRequestId,
-    } = req.body;
-
-    // Validate inputs
-    if (
-      !employeeId ||
-      !date ||
-      (!checkInTime && !checkOutTime) ||
-      !periodType
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields',
-      });
-    }
+    } = validatedData;
 
     // Start transaction
     return await prisma.$transaction(async (tx) => {
@@ -143,12 +162,12 @@ export default async function handler(
       const targetDate = startOfDay(parseISO(date));
 
       // Get shift data
-      const shiftData = await services.shiftService.getEffectiveShiftAndStatus(
+      const shiftData = await services.shiftService.getEffectiveShift(
         employeeId,
         targetDate,
       );
 
-      if (!shiftData?.effectiveShift) {
+      if (!shiftData) {
         throw new AppError({
           code: ErrorCode.SHIFT_NOT_FOUND,
           message: 'No shift found for this date',
@@ -157,7 +176,7 @@ export default async function handler(
 
       // Get overtime request if needed
       let overtimeRequest = null;
-      if (periodType === PeriodType.OVERTIME || overtimeRequestId) {
+      if (periodType === PeriodType.OVERTIME && overtimeRequestId) {
         overtimeRequest = await tx.overtimeRequest.findFirst({
           where: {
             id: overtimeRequestId,
@@ -175,7 +194,7 @@ export default async function handler(
         }
       }
 
-      // First find existing record for this period type to get the sequence
+      // Find existing record for this period type to get the sequence
       const existingAttendance = await tx.attendance.findFirst({
         where: {
           employeeId,
@@ -191,7 +210,7 @@ export default async function handler(
         ? existingAttendance.periodSequence + 1
         : 1;
 
-      // Create or update base attendance record with related records
+      // Create or update base attendance record
       const attendance = await tx.attendance.upsert({
         where: {
           employee_date_period_sequence: {
@@ -223,10 +242,8 @@ export default async function handler(
           CheckOutTime: checkOutTime
             ? parseISO(`${date}T${checkOutTime}`)
             : null,
-          shiftStartTime: parseISO(
-            `${date}T${shiftData.effectiveShift.startTime}`,
-          ),
-          shiftEndTime: parseISO(`${date}T${shiftData.effectiveShift.endTime}`),
+          shiftStartTime: parseISO(`${date}T${shiftData.current.startTime}`),
+          shiftEndTime: parseISO(`${date}T${shiftData.current.endTime}`),
           checkTiming: {
             create: {
               isEarlyCheckIn: false,
@@ -252,7 +269,7 @@ export default async function handler(
           metadata: {
             create: {
               isManualEntry: true,
-              isDayOff: !shiftData.effectiveShift.workDays.includes(
+              isDayOff: !shiftData.current.workDays.includes(
                 targetDate.getDay(),
               ),
               source: 'manual',
@@ -303,14 +320,14 @@ export default async function handler(
             upsert: {
               create: {
                 isManualEntry: true,
-                isDayOff: !shiftData.effectiveShift.workDays.includes(
+                isDayOff: !shiftData.current.workDays.includes(
                   targetDate.getDay(),
                 ),
                 source: 'manual',
               },
               update: {
                 isManualEntry: true,
-                isDayOff: !shiftData.effectiveShift.workDays.includes(
+                isDayOff: !shiftData.current.workDays.includes(
                   targetDate.getDay(),
                 ),
                 source: 'manual',
@@ -333,23 +350,16 @@ export default async function handler(
         shiftData,
         overtimeRequest,
         periodType,
-      }: {
-        checkInTime: string | null;
-        checkOutTime: string | null;
-        date: string;
-        shiftData: any;
-        overtimeRequest: any;
-        periodType: PeriodType;
-      }) => {
+      }: CalculateHoursParams): Promise<WorkingHours> => {
         if (!checkInTime || !checkOutTime) {
           return { regularHours: 0, overtimeHours: 0 };
         }
 
-        const workingHours = services.timeEntryService.calculateWorkingHours(
+        const workingHours = timeEntryService.calculateWorkingHours(
           parseISO(`${date}T${checkInTime}`),
           parseISO(`${date}T${checkOutTime}`),
-          parseISO(`${date}T${shiftData.effectiveShift.startTime}`),
-          parseISO(`${date}T${shiftData.effectiveShift.endTime}`),
+          parseISO(`${date}T${shiftData.current.startTime}`),
+          parseISO(`${date}T${shiftData.current.endTime}`),
           overtimeRequest,
           [],
         );
@@ -449,12 +459,14 @@ export default async function handler(
 
       // Update overtime entry if needed
       if (periodType === PeriodType.OVERTIME && overtimeRequest) {
+        const overtimeEntryId = `${attendance.id}-${overtimeRequest.id}`;
+
         await tx.overtimeEntry.upsert({
           where: {
-            id: `${attendance.id}-${overtimeRequest.id}`,
+            id: overtimeEntryId,
           },
           create: {
-            id: `${attendance.id}-${overtimeRequest.id}`,
+            id: overtimeEntryId,
             attendanceId: attendance.id,
             overtimeRequestId: overtimeRequest.id,
             actualStartTime: checkInTime
@@ -518,7 +530,7 @@ export default async function handler(
 
       // Send notifications
       if (targetEmployee.lineUserId) {
-        await services.notificationService.sendNotification(
+        await notificationService.sendNotification(
           targetEmployee.employeeId,
           targetEmployee.lineUserId,
           `Your attendance record for ${format(targetDate, 'dd/MM/yyyy')} has been updated by admin.
@@ -536,6 +548,7 @@ export default async function handler(
           address: '',
         },
       );
+
       const finalAttendance = await tx.attendance.findUnique({
         where: { id: attendance.id },
         include: {
@@ -563,15 +576,17 @@ export default async function handler(
         message: 'Attendance record updated successfully',
         data: {
           status: updatedStatus,
-          attendance: {
-            ...finalAttendance,
-            CheckInTime: finalAttendance?.CheckInTime
-              ? format(finalAttendance.CheckInTime, 'HH:mm')
-              : null,
-            CheckOutTime: finalAttendance?.CheckOutTime
-              ? format(finalAttendance.CheckOutTime, 'HH:mm')
-              : null,
-          },
+          attendance: finalAttendance
+            ? {
+                ...finalAttendance,
+                CheckInTime: finalAttendance.CheckInTime
+                  ? format(finalAttendance.CheckInTime, 'HH:mm')
+                  : null,
+                CheckOutTime: finalAttendance.CheckOutTime
+                  ? format(finalAttendance.CheckOutTime, 'HH:mm')
+                  : null,
+              }
+            : null,
         },
       });
     });
@@ -586,6 +601,15 @@ export default async function handler(
           message: error.message,
           code: error.code,
         });
+    }
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request parameters',
+        code: ErrorCode.INVALID_INPUT,
+        details: error.format(),
+      });
     }
 
     return res.status(500).json({

@@ -49,7 +49,12 @@ const QuerySchema = z.object({
     .record(z.any())
     .transform((coords) =>
       coords.lat && coords.lng
-        ? { lat: Number(coords.lat), lng: Number(coords.lng) }
+        ? {
+            lat: Number(coords.lat),
+            lng: Number(coords.lng),
+            latitude: Number(coords.lat),
+            longitude: Number(coords.lng),
+          }
         : undefined,
     )
     .optional(),
@@ -75,10 +80,7 @@ export default async function handler(
   }
 
   try {
-    // Initialize services
     const services = await getServices();
-
-    // Validate request parameters
     const validatedParams = QuerySchema.safeParse(req.query);
     if (!validatedParams.success) {
       return res.status(400).json({
@@ -88,88 +90,28 @@ export default async function handler(
       });
     }
 
-    const { employeeId, inPremises, address } = validatedParams.data;
+    const { employeeId, inPremises, address, coordinates } =
+      validatedParams.data;
     const now = getCurrentTime();
 
-    // Get period state first
-    const periodState = await services.shiftService.getCurrentPeriodState(
-      employeeId,
-      now,
-    );
-    if (!periodState) {
-      throw new AppError({
-        code: ErrorCode.SHIFT_DATA_ERROR,
-        message: 'Failed to fetch period state',
-      });
-    }
-
-    // Get attendance status
+    // Get attendance status using the correct parameter structure
     const attendanceStatus =
       await services.attendanceService.getAttendanceStatus(employeeId, {
-        inPremises,
-        address,
+        inPremises: inPremises || false,
+        address: address || '',
+        // Only pass periodType if needed, remove location as it's not part of the interface
       });
-
-    if (!attendanceStatus) {
-      throw new AppError({
-        code: ErrorCode.ATTENDANCE_ERROR,
-        message: 'Failed to fetch attendance status',
-      });
-    }
-
-    // Log pre-processing state
-    console.log('Pre-processing state:', {
-      transitions: attendanceStatus.daily?.transitions?.length || 0,
-      hasShift: Boolean(attendanceStatus.context?.shift),
-      hasOvertime: Boolean(attendanceStatus.context?.nextPeriod?.overtimeInfo),
-    });
-
-    // Construct response
-    const response: AttendanceStatusResponse = {
-      daily: {
-        date: format(now, 'yyyy-MM-dd'),
-        currentState: attendanceStatus.daily.currentState,
-        transitions: attendanceStatus.daily.transitions,
-      },
-      base: {
-        ...attendanceStatus.base,
-        metadata: {
-          lastUpdated: now.toISOString(),
-          version: 1,
-          source: attendanceStatus.base.metadata?.source || 'system',
-        },
-      },
-      context: {
-        shift: periodState.shift,
-        schedule: {
-          isHoliday: Boolean(attendanceStatus.context.schedule.isHoliday),
-          isDayOff: Boolean(attendanceStatus.context.schedule.isDayOff),
-          isAdjusted: Boolean(attendanceStatus.context.schedule.isAdjusted),
-          holidayInfo: attendanceStatus.context.schedule.holidayInfo,
-        },
-        nextPeriod: periodState.nextPeriod,
-        transition: periodState.transition,
-      },
-      validation: {
-        allowed: Boolean(attendanceStatus.validation.allowed),
-        reason: attendanceStatus.validation.reason || '',
-        flags: {
-          ...attendanceStatus.validation.flags,
-          hasPendingTransition: attendanceStatus.daily.transitions.length > 0,
-        },
-        metadata: attendanceStatus.validation.metadata,
-      },
-    };
 
     // Log final state
     console.log('Final response state:', {
-      hasTransitions: response.daily.transitions.length > 0,
-      hasShift: Boolean(response.context.shift.id),
-      hasOvertime: Boolean(response.context.nextPeriod?.overtimeInfo),
-      transitionState: response.context.transition,
+      hasTransitions: attendanceStatus.daily.transitions.length > 0,
+      hasShift: Boolean(attendanceStatus.context.shift.id),
+      hasOvertime: Boolean(attendanceStatus.context.nextPeriod?.overtimeInfo),
+      transitionState: attendanceStatus.context.transition,
+      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
-    return res.status(200).json(response);
+    return res.status(200).json(attendanceStatus);
   } catch (error) {
     console.error('Attendance status error:', error);
 

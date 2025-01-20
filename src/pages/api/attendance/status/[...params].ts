@@ -5,6 +5,7 @@ import { initializeServices } from '@/services/ServiceInitializer';
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { AppError, ErrorCode } from '@/types/attendance';
+import { addDays } from 'date-fns';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -55,11 +56,13 @@ export default async function handler(
     const action = params[1]; // 'next-day' or undefined for regular status
 
     const services = await getServices();
+    const now = getCurrentTime();
+    const nextDay = addDays(now, 1);
 
     if (action === 'next-day') {
-      const nextDayState = await services.shiftService.getNextDayPeriodState(
+      const nextDayState = await services.periodManager.getNextDayPeriodState(
         employeeId,
-        getCurrentTime(),
+        nextDay,
       );
 
       return res.status(200).json(nextDayState);

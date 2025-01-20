@@ -223,6 +223,7 @@ export interface AddressInput {
 export interface TimeWindow {
   start: Date;
   end: Date;
+  type: PeriodType; // Add missing type property
   isFlexible?: boolean; // Enhanced
   gracePeriod?: number; // Enhanced
 }

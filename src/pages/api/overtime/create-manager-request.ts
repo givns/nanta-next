@@ -110,28 +110,25 @@ export default async function handler(
           }
 
           // Get effective shift
-          const shiftData =
-            await services.shiftService.getEffectiveShiftAndStatus(
-              employee.employeeId,
-              overtimeDate,
-            );
+          const shiftData = await services.shiftService.getEffectiveShift(
+            employee.employeeId,
+            overtimeDate,
+          );
 
           // Check if it's a day off
           const isDayOffOvertime =
             isHoliday ||
             (shiftData &&
-              !shiftData.effectiveShift.workDays.includes(
-                overtimeDate.getDay(),
-              ));
+              !shiftData.current.workDays.includes(overtimeDate.getDay()));
 
           // Determine if overtime is inside or outside shift hours
           const requestStartTime = parseTime(startTime);
           const requestEndTime = parseTime(endTime);
-          const shiftStartTime = shiftData?.effectiveShift?.startTime
-            ? parseTime(shiftData.effectiveShift.startTime)
+          const shiftStartTime = shiftData?.current.startTime
+            ? parseTime(shiftData.current.startTime)
             : null;
-          const shiftEndTime = shiftData?.effectiveShift?.endTime
-            ? parseTime(shiftData.effectiveShift.endTime)
+          const shiftEndTime = shiftData?.current.endTime
+            ? parseTime(shiftData.current.endTime)
             : null;
 
           // For day off overtime, check if it's within regular shift hours
@@ -153,8 +150,8 @@ export default async function handler(
               reason: formattedReason,
               status: 'pending_response',
               approverId: manager.id,
-              isDayOffOvertime: isDayOffOvertime ?? false, // Ensure isDayOffOvertime is always a boolean
-              isInsideShiftHours: isInsideShift || false, // Only relevant for day off OT
+              isDayOffOvertime: isDayOffOvertime ?? false,
+              isInsideShiftHours: isInsideShift || false,
             },
           });
 

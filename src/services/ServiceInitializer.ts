@@ -21,13 +21,9 @@ export async function initializeServices(prisma: PrismaClient) {
   const attendanceRecordService = new AttendanceRecordService(prisma);
 
   // Initialize base services
-  const shiftService = new ShiftManagementService(
-    prisma,
-    holidayService,
-    attendanceRecordService,
-  );
+  const shiftService = new ShiftManagementService(prisma, holidayService);
 
-  const periodManager = new PeriodManagementService();
+  const periodManager = new PeriodManagementService(shiftService);
 
   // Create leave service
   const leaveService = await createLeaveServiceServer(
@@ -79,6 +75,7 @@ export async function initializeServices(prisma: PrismaClient) {
     enhancementService,
     attendanceRecordService,
     cacheManager,
+    periodManager,
   );
 
   const attendanceService = new AttendanceService(

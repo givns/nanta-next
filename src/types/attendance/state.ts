@@ -2,6 +2,8 @@ import { PeriodType } from '@prisma/client';
 import { AttendanceBaseResponse } from './base';
 import { ShiftContext, TransitionContext } from './shift';
 import { ValidationMetadata } from './interface';
+import { OvertimeContext } from './overtime';
+import { ValidationResult } from './validation';
 
 export interface AttendanceStateResponse {
   daily: DailyAttendanceStatus;
@@ -29,6 +31,14 @@ export interface PeriodTransition {
   };
   transitionTime: string;
   isComplete: boolean;
+}
+
+export interface PeriodState {
+  // Current period information
+  current: UnifiedPeriodState; // Current period state
+  transitions: PeriodTransition[]; // Any pending transitions
+  overtime: OvertimeContext | null; // Overtime context if exists
+  validation: ValidationResult; // Validation state
 }
 
 export interface UnifiedPeriodState {

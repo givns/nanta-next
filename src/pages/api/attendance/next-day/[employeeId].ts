@@ -1,15 +1,15 @@
-// pages/api/attendance/next-day/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { z } from 'zod';
 import {
   AppError,
   ErrorCode,
-  NextDayScheduleInfo,
   NextDayScheduleResponse,
+  OvertimeContext,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
-import { startOfDay, addDays, endOfDay } from 'date-fns';
+import { startOfDay, addDays, endOfDay, format } from 'date-fns';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -37,9 +37,22 @@ const getServices = async (): Promise<InitializedServices> => {
   return services;
 };
 
+// Request validation schema
+const ParamsSchema = z.object({
+  employeeId: z.string(),
+});
+
+type ApiResponse =
+  | NextDayScheduleResponse
+  | {
+      error: string;
+      message: string;
+      details?: unknown;
+    };
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse,
+  res: NextApiResponse<ApiResponse>,
 ) {
   if (req.method !== 'GET') {
     return res.status(405).json({
@@ -49,20 +62,46 @@ export default async function handler(
   }
 
   try {
-    const { employeeId } = req.query;
     const services = await getServices();
 
-    const nextDayState = await services.shiftService.getNextDayPeriodState(
-      employeeId as string,
-      getCurrentTime(),
+    // Validate request parameters
+    const validatedParams = ParamsSchema.safeParse(req.query);
+    if (!validatedParams.success) {
+      return res.status(400).json({
+        error: ErrorCode.INVALID_INPUT,
+        message: 'Invalid request parameters',
+        details: validatedParams.error.format(),
+      });
+    }
+
+    const { employeeId } = validatedParams.data;
+    const now = getCurrentTime();
+    const nextDay = addDays(now, 1);
+
+    // Get next day period state from period manager
+    const nextDayState = await services.periodManager.getNextDayPeriodState(
+      employeeId,
+      nextDay,
     );
 
+    // Get overtime information for next day
     const nextDayOvertimes =
       (await services.overtimeService.getDetailedOvertimesInRange(
-        employeeId as string,
-        startOfDay(addDays(getCurrentTime(), 1)),
-        endOfDay(addDays(getCurrentTime(), 1)),
+        employeeId,
+        startOfDay(nextDay),
+        endOfDay(nextDay),
       )) || [];
+
+    // Map overtimes to OvertimeContext
+    const mappedOvertimes: OvertimeContext[] = nextDayOvertimes.map((ot) => ({
+      id: ot.id,
+      startTime: format(new Date(ot.startTime), 'HH:mm'),
+      endTime: format(new Date(ot.endTime), 'HH:mm'),
+      durationMinutes: ot.durationMinutes,
+      isInsideShiftHours: ot.isInsideShiftHours,
+      isDayOffOvertime: ot.isDayOffOvertime,
+      reason: ot.reason || undefined,
+    }));
 
     const response: NextDayScheduleResponse = {
       current: nextDayState.current,
@@ -72,24 +111,43 @@ export default async function handler(
       isDayOff: nextDayState.isDayOff,
       isAdjusted: nextDayState.isAdjusted,
       holidayInfo: nextDayState.holidayInfo,
-
-      overtimes: nextDayOvertimes.map((ot) => ({
-        id: ot.id,
-        startTime: ot.startTime,
-        endTime: ot.endTime,
-        durationMinutes: ot.durationMinutes,
-        isInsideShiftHours: ot.isInsideShiftHours,
-        isDayOffOvertime: ot.isDayOffOvertime,
-        reason: ot.reason || undefined,
-      })),
+      overtimes: mappedOvertimes,
     };
+
+    // Log final state
+    console.log('Next day response state:', {
+      hasShift: Boolean(response.shift?.id),
+      hasOvertimes: response.overtimes.length,
+      isDayOff: response.isDayOff,
+      isHoliday: response.isHoliday,
+    });
 
     return res.status(200).json(response);
   } catch (error) {
     console.error('Next day info error:', error);
+
+    if (error instanceof AppError) {
+      return res.status(400).json({
+        error: error.code,
+        message: error.message,
+        details: error.details,
+      });
+    }
+
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        error: ErrorCode.INVALID_INPUT,
+        message: 'Invalid request parameters',
+        details: error.format(),
+      });
+    }
+
     return res.status(500).json({
       error: ErrorCode.INTERNAL_ERROR,
       message: error instanceof Error ? error.message : 'Internal server error',
+      details: { timestamp: getCurrentTime().toISOString() },
     });
+  } finally {
+    await prisma.$disconnect();
   }
 }

@@ -12,6 +12,7 @@ import { cacheService } from '@/services/cache/CacheService';
 import { addDays, format } from 'date-fns';
 import { initializeServices } from '@/services/ServiceInitializer';
 import { AppError, ErrorCode } from '@/types/attendance';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -130,10 +131,13 @@ export default async function handler(
         ? await services.shiftService.getShiftByCode(user.shiftCode)
         : null;
 
-      const effectiveShift =
-        await services.shiftService.getEffectiveShiftAndStatus(user.employeeId);
+      const effectiveShift = await services.shiftService.getEffectiveShift(
+        user.employeeId,
+        getCurrentTime(), // Pass current date or specific date if needed
+      );
+
       // Accessing workDays with a default value to avoid errors
-      const workDays = effectiveShift?.regularShift?.workDays || [];
+      const workDays = effectiveShift?.regular.workDays || [];
       const isWorkDay = (day: number) => workDays.includes(day);
 
       // Get current payroll period
@@ -174,7 +178,7 @@ export default async function handler(
       const dashboardData = {
         user,
         attendanceStatus,
-        effectiveShift,
+        effectiveShift, // This now contains the new structure
         payrollAttendance: timeEntries,
         totalWorkingDays: workingDays,
         totalPresent: timeEntries.length,
