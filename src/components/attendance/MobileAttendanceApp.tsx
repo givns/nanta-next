@@ -297,23 +297,42 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       attendanceStatus.latestAttendance?.CheckInTime &&
       !attendanceStatus.latestAttendance?.CheckOutTime
     ) {
+      const shiftStart = parseISO(
+        attendanceStatus.latestAttendance.shiftStartTime || '',
+      );
+      const shiftEnd = parseISO(
+        attendanceStatus.latestAttendance.shiftEndTime || '',
+      );
       const overtimeStart = parseISO(currentPeriod.timeWindow.start);
       const overtimeEnd = parseISO(currentPeriod.timeWindow.end);
-      const totalMinutes =
-        Math.abs(overtimeEnd.getTime() - overtimeStart.getTime()) / 60000;
 
-      // Calculate elapsed minutes from overtime start
-      const elapsedMinutes = Math.max(
-        0,
-        Math.min(
-          totalMinutes,
-          (now.getTime() - overtimeStart.getTime()) / 60000,
-        ),
-      );
+      let elapsedMinutes;
+      let totalMinutes;
+
+      if (now < overtimeStart) {
+        // If current time is before overtime start, use shift duration
+        totalMinutes =
+          Math.abs(shiftEnd.getTime() - shiftStart.getTime()) / 60000;
+        elapsedMinutes =
+          Math.abs(shiftEnd.getTime() - shiftStart.getTime()) / 60000;
+      } else {
+        // If current time is within or after overtime period
+        totalMinutes =
+          Math.abs(overtimeEnd.getTime() - overtimeStart.getTime()) / 60000;
+        elapsedMinutes = Math.max(
+          0,
+          Math.min(
+            totalMinutes,
+            (now.getTime() - overtimeStart.getTime()) / 60000,
+          ),
+        );
+      }
 
       const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
 
       console.log('Overnight OT Progress Calculation:', {
+        shiftStart: format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+        shiftEnd: format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
         overtimeStart: format(overtimeStart, 'yyyy-MM-dd HH:mm:ss'),
         overtimeEnd: format(overtimeEnd, 'yyyy-MM-dd HH:mm:ss'),
         now: format(now, 'yyyy-MM-dd HH:mm:ss'),
