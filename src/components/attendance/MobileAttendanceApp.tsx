@@ -297,26 +297,25 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       attendanceStatus.latestAttendance?.CheckInTime &&
       !attendanceStatus.latestAttendance?.CheckOutTime
     ) {
-      const checkIn = parseISO(attendanceStatus.latestAttendance.CheckInTime);
-      const periodStart = parseISO(currentPeriod.timeWindow.start);
-      const periodEnd = parseISO(currentPeriod.timeWindow.end);
-
-      // Calculate total minutes based on the current period's time window
+      const overtimeStart = parseISO(currentPeriod.timeWindow.start);
+      const overtimeEnd = parseISO(currentPeriod.timeWindow.end);
       const totalMinutes =
-        Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
+        Math.abs(overtimeEnd.getTime() - overtimeStart.getTime()) / 60000;
 
-      // Calculate elapsed minutes from check-in
+      // Calculate elapsed minutes from overtime start
       const elapsedMinutes = Math.max(
         0,
-        Math.min(totalMinutes, (now.getTime() - checkIn.getTime()) / 60000),
+        Math.min(
+          totalMinutes,
+          (now.getTime() - overtimeStart.getTime()) / 60000,
+        ),
       );
 
       const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
 
       console.log('Overnight OT Progress Calculation:', {
-        checkIn: format(checkIn, 'yyyy-MM-dd HH:mm:ss'),
-        periodStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
-        periodEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
+        overtimeStart: format(overtimeStart, 'yyyy-MM-dd HH:mm:ss'),
+        overtimeEnd: format(overtimeEnd, 'yyyy-MM-dd HH:mm:ss'),
         now: format(now, 'yyyy-MM-dd HH:mm:ss'),
         elapsedMinutes,
         totalMinutes,
