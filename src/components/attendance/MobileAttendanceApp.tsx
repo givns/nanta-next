@@ -287,7 +287,13 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     const now = getCurrentTime();
     const periodStart = parseISO(currentPeriod.timeWindow.start);
-    const periodEnd = parseISO(currentPeriod.timeWindow.end);
+    // For overnight periods, use actual timestamps from attendance record
+    const periodEnd =
+      currentPeriod.activity.isOvertime &&
+      attendanceStatus.latestAttendance?.shiftEndTime
+        ? parseISO(attendanceStatus.latestAttendance.shiftEndTime)
+        : parseISO(currentPeriod.timeWindow.end);
+
     const checkIn = currentPeriod.activity.checkIn
       ? parseISO(currentPeriod.activity.checkIn)
       : null;
@@ -295,20 +301,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const totalMinutes =
       Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
 
-    const isTransition = Boolean(
-      validation.flags.requiresTransition &&
-        validation.flags.hasPendingTransition &&
-        currentPeriod.type === PeriodType.REGULAR,
-    );
-
-    console.log('Transition state check:', {
-      isTransition,
-      flags: validation.flags,
-      periodType: currentPeriod.type,
-    });
-
     if (!checkIn) {
-      if (now < periodStart)
+      if (now < periodStart) {
         return {
           lateMinutes: 0,
           earlyMinutes: 0,
@@ -317,7 +311,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           totalShiftMinutes: totalMinutes,
           isMissed: false,
         };
+      }
 
+      // If not checked in, show progress based on current time
       const progress = Math.min(
         ((now.getTime() - periodStart.getTime()) /
           (periodEnd.getTime() - periodStart.getTime())) *
@@ -338,12 +334,15 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
+    // If checked in, calculate progress from check-in time
     const isEarly = checkIn < periodStart;
     const progressStart = isEarly ? periodStart : checkIn;
     const elapsedMinutes = Math.max(
       0,
       (now.getTime() - progressStart.getTime()) / 60000,
     );
+
+    // Calculate progress percentage based on elapsed time
     const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
 
     return {
@@ -358,7 +357,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       totalShiftMinutes: totalMinutes,
       isMissed: false,
     };
-  }, [currentPeriod]);
+  }, [currentPeriod, attendanceStatus.latestAttendance]);
 
   const isOvertimePeriod = currentPeriod.type === PeriodType.OVERTIME;
 
