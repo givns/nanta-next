@@ -272,9 +272,28 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [status.isDayOff, status.isHoliday, currentPeriod.activity.isOvertime],
   );
 
-  // Calculate progress metrics
   const metrics = useMemo((): ProgressMetrics => {
+    console.log('Progress Calculation Input:', {
+      currentPeriod: {
+        timeWindow: currentPeriod?.timeWindow,
+        activity: currentPeriod?.activity,
+        type: currentPeriod?.type,
+      },
+      latestAttendance: attendanceStatus.latestAttendance
+        ? {
+            checkIn: attendanceStatus.latestAttendance.CheckInTime,
+            checkOut: attendanceStatus.latestAttendance.CheckOutTime,
+            shiftStart: attendanceStatus.latestAttendance.shiftStartTime,
+            shiftEnd: attendanceStatus.latestAttendance.shiftEndTime,
+            type: attendanceStatus.latestAttendance.type,
+            state: attendanceStatus.latestAttendance.state,
+          }
+        : null,
+      now: getCurrentTime().toISOString(),
+    });
+
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
+      console.log('No time window found, returning default metrics');
       return {
         lateMinutes: 0,
         earlyMinutes: 0,
@@ -287,12 +306,22 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     const now = getCurrentTime();
     const periodStart = parseISO(currentPeriod.timeWindow.start);
-    // For overnight periods, use actual timestamps from attendance record
     const periodEnd =
       currentPeriod.activity.isOvertime &&
       attendanceStatus.latestAttendance?.shiftEndTime
         ? parseISO(attendanceStatus.latestAttendance.shiftEndTime)
         : parseISO(currentPeriod.timeWindow.end);
+
+    console.log('Time boundaries:', {
+      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      periodStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
+      periodEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
+      isOvertime: currentPeriod.activity.isOvertime,
+      usingAttendanceEnd: Boolean(
+        currentPeriod.activity.isOvertime &&
+          attendanceStatus.latestAttendance?.shiftEndTime,
+      ),
+    });
 
     const checkIn = currentPeriod.activity.checkIn
       ? parseISO(currentPeriod.activity.checkIn)
@@ -301,8 +330,15 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const totalMinutes =
       Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;
 
+    console.log('Check-in state:', {
+      hasCheckIn: !!checkIn,
+      checkInTime: checkIn ? format(checkIn, 'yyyy-MM-dd HH:mm:ss') : null,
+      totalPeriodMinutes: totalMinutes,
+    });
+
     if (!checkIn) {
       if (now < periodStart) {
+        console.log('Before period start, no progress');
         return {
           lateMinutes: 0,
           earlyMinutes: 0,
@@ -313,13 +349,17 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         };
       }
 
-      // If not checked in, show progress based on current time
       const progress = Math.min(
         ((now.getTime() - periodStart.getTime()) /
           (periodEnd.getTime() - periodStart.getTime())) *
           100,
         100,
       );
+
+      console.log('Progress without check-in:', {
+        progress,
+        elapsedMinutes: (now.getTime() - periodStart.getTime()) / 60000,
+      });
 
       return {
         lateMinutes: Math.max(
@@ -334,16 +374,26 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    // If checked in, calculate progress from check-in time
     const isEarly = checkIn < periodStart;
     const progressStart = isEarly ? periodStart : checkIn;
     const elapsedMinutes = Math.max(
       0,
       (now.getTime() - progressStart.getTime()) / 60000,
     );
-
-    // Calculate progress percentage based on elapsed time
     const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
+
+    console.log('Final progress calculation:', {
+      isEarly,
+      progressStartTime: format(progressStart, 'yyyy-MM-dd HH:mm:ss'),
+      elapsedMinutes,
+      calculatedProgress: progress,
+      earlyMinutes: isEarly
+        ? (periodStart.getTime() - checkIn.getTime()) / 60000
+        : 0,
+      lateMinutes: !isEarly
+        ? (checkIn.getTime() - periodStart.getTime()) / 60000
+        : 0,
+    });
 
     return {
       lateMinutes: !isEarly
