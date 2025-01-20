@@ -273,7 +273,9 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   );
 
   const metrics = useMemo((): ProgressMetrics => {
+    const now = getCurrentTime();
     console.log('Progress Calculation Input:', {
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
       currentPeriod: {
         timeWindow: currentPeriod?.timeWindow,
         activity: currentPeriod?.activity,
@@ -285,15 +287,48 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
             checkOut: attendanceStatus.latestAttendance.CheckOutTime,
             shiftStart: attendanceStatus.latestAttendance.shiftStartTime,
             shiftEnd: attendanceStatus.latestAttendance.shiftEndTime,
-            type: attendanceStatus.latestAttendance.type,
-            state: attendanceStatus.latestAttendance.state,
           }
         : null,
-      now: getCurrentTime().toISOString(),
     });
 
+    // For overnight active overtime, use the attendance record times directly
+    if (
+      currentPeriod.activity.isOvertime &&
+      attendanceStatus.latestAttendance?.CheckInTime &&
+      !attendanceStatus.latestAttendance?.CheckOutTime
+    ) {
+      const checkIn = parseISO(attendanceStatus.latestAttendance.CheckInTime);
+      const periodEnd = parseISO(
+        attendanceStatus.latestAttendance.shiftEndTime!,
+      );
+      const totalMinutes =
+        Math.abs(periodEnd.getTime() - checkIn.getTime()) / 60000;
+      const elapsedMinutes = Math.max(
+        0,
+        (now.getTime() - checkIn.getTime()) / 60000,
+      );
+      const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
+
+      console.log('Overnight OT Progress:', {
+        checkIn: format(checkIn, 'yyyy-MM-dd HH:mm:ss'),
+        periodEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
+        elapsedMinutes,
+        totalMinutes,
+        progress,
+      });
+
+      return {
+        lateMinutes: 0,
+        earlyMinutes: 0,
+        isEarly: false,
+        progressPercent: progress,
+        totalShiftMinutes: totalMinutes,
+        isMissed: false,
+      };
+    }
+
+    // Rest of the code for non-overnight periods...
     if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
-      console.log('No time window found, returning default metrics');
       return {
         lateMinutes: 0,
         earlyMinutes: 0,
@@ -304,13 +339,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    const now = getCurrentTime();
     const periodStart = parseISO(currentPeriod.timeWindow.start);
-    const periodEnd =
-      currentPeriod.activity.isOvertime &&
-      attendanceStatus.latestAttendance?.shiftEndTime
-        ? parseISO(attendanceStatus.latestAttendance.shiftEndTime)
-        : parseISO(currentPeriod.timeWindow.end);
+    const periodEnd = parseISO(currentPeriod.timeWindow.end);
 
     console.log('Time boundaries:', {
       now: format(now, 'yyyy-MM-dd HH:mm:ss'),
