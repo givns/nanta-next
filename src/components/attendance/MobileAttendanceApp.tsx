@@ -302,7 +302,10 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         attendanceStatus.latestAttendance.shiftEndTime!,
       );
       const totalMinutes =
-        Math.abs(periodEnd.getTime() - checkIn.getTime()) / 60000;
+        Math.abs(
+          periodEnd.getTime() -
+            parseISO(currentPeriod.timeWindow.start).getTime(),
+        ) / 60000;
       const elapsedMinutes = Math.max(
         0,
         (now.getTime() - checkIn.getTime()) / 60000,
