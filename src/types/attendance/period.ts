@@ -51,16 +51,20 @@ export interface PeriodAttendance {
   checkStatus: CheckStatus;
 }
 
+export interface TimingFlags {
+  isEarlyCheckIn: boolean;
+  isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
+  isVeryLateCheckOut: boolean;
+  lateCheckOutMinutes: number;
+  requiresTransition: boolean;
+  requiresAutoCompletion: boolean;
+}
+
 export interface PeriodStatusInfo {
   isActiveAttendance: boolean;
   isOvertimePeriod: boolean;
-  timingFlags: {
-    isEarlyCheckIn: boolean;
-    isLateCheckIn: boolean;
-    isLateCheckOut: boolean;
-    isVeryLateCheckOut: boolean;
-    lateCheckOutMinutes: number;
-  };
+  timingFlags: TimingFlags;
   shiftTiming: {
     isMorningShift: boolean;
     isAfternoonShift: boolean;

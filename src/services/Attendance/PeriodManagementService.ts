@@ -15,6 +15,7 @@ import {
   TransitionInfo,
   PeriodState,
   PeriodStatusInfo,
+  TimingFlags,
 } from '@/types/attendance';
 import { PeriodType, AttendanceState } from '@prisma/client';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -498,13 +499,7 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     currentState: UnifiedPeriodState,
     now: Date,
-  ): {
-    isEarlyCheckIn: boolean;
-    isLateCheckIn: boolean;
-    isLateCheckOut: boolean;
-    isVeryLateCheckOut: boolean;
-    lateCheckOutMinutes: number;
-  } {
+  ): TimingFlags {
     const periodStart = parseISO(currentState.timeWindow.start);
     const periodEnd = parseISO(currentState.timeWindow.end);
 
@@ -529,6 +524,21 @@ export class PeriodManagementService {
       now,
     );
 
+    // Calculate if transition is required - typically when approaching next period
+    const requiresTransition = Boolean(
+      attendance?.CheckInTime &&
+        !attendance.CheckOutTime &&
+        isWithinInterval(now, {
+          start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
+          end: periodEnd,
+        }),
+    );
+
+    // Calculate if auto-completion is needed (very late checkouts)
+    const requiresAutoCompletion = Boolean(
+      attendance?.CheckInTime && !attendance.CheckOutTime && isVeryLateCheckOut,
+    );
+
     return {
       isEarlyCheckIn,
       isLateCheckIn,
@@ -539,6 +549,8 @@ export class PeriodManagementService {
         currentState,
         now,
       ),
+      requiresTransition,
+      requiresAutoCompletion,
     };
   }
 

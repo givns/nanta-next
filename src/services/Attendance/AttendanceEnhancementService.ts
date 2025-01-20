@@ -21,6 +21,7 @@ import {
   SerializedOvertimeEntry,
   OvertimeEntry,
   OvertimeContext,
+  TimingFlags,
 } from '@/types/attendance';
 import {
   AttendanceState,
@@ -166,7 +167,7 @@ export class AttendanceEnhancementService {
       allowed:
         this.canCheckIn(currentState, statusInfo, context.timestamp) ||
         this.canCheckOut(currentState, statusInfo, context.timestamp),
-      reason: this.getValidationMessage(statusInfo, currentState),
+      reason: this.getValidationMessage(statusInfo, currentState, attendance),
       flags,
       metadata,
     };
@@ -200,7 +201,11 @@ export class AttendanceEnhancementService {
       isAfterMidshift: now >= midShift,
     };
 
-    const timingFlags = {
+    const isActive = Boolean(
+      attendance?.CheckInTime && !attendance?.CheckOutTime,
+    );
+
+    const timingFlags: TimingFlags = {
       isEarlyCheckIn: currentState.validation.isEarly,
       isLateCheckIn: currentState.validation.isLate,
       isLateCheckOut: this.isLateCheckOut(attendance, currentState, now),
@@ -214,12 +219,28 @@ export class AttendanceEnhancementService {
         currentState,
         now,
       ),
+      // Check if transition is needed based on period end approach
+      requiresTransition:
+        isActive &&
+        isWithinInterval(now, {
+          start: subMinutes(
+            parseISO(currentState.timeWindow.end),
+            VALIDATION_THRESHOLDS.TRANSITION_WINDOW,
+          ),
+          end: parseISO(currentState.timeWindow.end),
+        }),
+      // Auto-completion needed for very late checkouts in active periods
+      requiresAutoCompletion:
+        isActive &&
+        Boolean(
+          attendance?.CheckInTime &&
+            !attendance.CheckOutTime &&
+            this.isVeryLateCheckOut(attendance, currentState, now),
+        ),
     };
 
     return {
-      isActiveAttendance: Boolean(
-        attendance?.CheckInTime && !attendance?.CheckOutTime,
-      ),
+      isActiveAttendance: isActive,
       isOvertimePeriod: currentState.type === PeriodType.OVERTIME,
       timingFlags,
       shiftTiming,
@@ -469,19 +490,119 @@ export class AttendanceEnhancementService {
   private getValidationMessage(
     statusInfo: PeriodStatusInfo,
     currentState: UnifiedPeriodState,
+    attendance: AttendanceRecord | null,
   ): string {
-    if (statusInfo.timingFlags.isVeryLateCheckOut) {
-      return 'Significantly late check-out detected';
+    // Case 1: Active period cases
+    if (statusInfo.isActiveAttendance) {
+      if (statusInfo.timingFlags.isVeryLateCheckOut) {
+        return 'เลยเวลาออกงานมากกว่าที่กำหนด';
+      }
+      if (statusInfo.timingFlags.isLateCheckOut) {
+        return 'เลยเวลาออกงาน';
+      }
+      return ''; // Active period is fine
     }
-    if (statusInfo.timingFlags.isLateCheckOut) {
-      return 'Late check-out detected';
+
+    // Case 2: Overnight overtime specific cases
+    if (
+      currentState.validation.isOvernight &&
+      currentState.type === PeriodType.OVERTIME
+    ) {
+      if (
+        attendance?.type === PeriodType.OVERTIME &&
+        attendance.CheckInTime &&
+        !attendance.CheckOutTime
+      ) {
+        return `กำลังทำงานล่วงเวลาถึง ${format(
+          typeof attendance.shiftEndTime === 'string'
+            ? parseISO(attendance.shiftEndTime)
+            : attendance.shiftEndTime!,
+          'HH:mm',
+        )} น.`;
+      }
+      if (currentState.validation.isEarly) {
+        return `เวลาทำงานล่วงเวลาเริ่ม ${format(parseISO(currentState.timeWindow.start), 'HH:mm')} น.`;
+      }
+      if (currentState.validation.isLate) {
+        return 'เลยเวลาเข้างานล่วงเวลา';
+      }
     }
-    if (currentState.validation.isEarly) {
-      return `Too early for ${currentState.type.toLowerCase()} period check-in`;
+
+    // Case 3: Regular shift timing
+    if (currentState.type === PeriodType.REGULAR) {
+      if (currentState.validation.isEarly) {
+        return `เวลาทำงานปกติเริ่ม ${format(parseISO(currentState.timeWindow.start), 'HH:mm')} น.`;
+      }
+      if (currentState.validation.isLate) {
+        return 'เลยเวลาเข้างานปกติ';
+      }
     }
-    if (currentState.validation.isLate) {
-      return `Late ${currentState.type.toLowerCase()} period check-out`;
+
+    // Case 4: Regular overtime (non-overnight)
+    if (
+      currentState.type === PeriodType.OVERTIME &&
+      !currentState.validation.isOvernight
+    ) {
+      if (currentState.validation.isEarly) {
+        return `เวลาทำงานล่วงเวลาเริ่ม ${format(parseISO(currentState.timeWindow.start), 'HH:mm')} น.`;
+      }
+      if (currentState.validation.isLate) {
+        return 'เลยเวลาเข้างานล่วงเวลา';
+      }
     }
+
+    // Case 5: Active overtime with next period
+    if (
+      attendance?.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime &&
+      currentState.validation.isOvernight
+    ) {
+      if (currentState.validation.isEarly) {
+        return `กำลังทำงานล่วงเวลาถึง ${format(
+          typeof attendance.shiftEndTime === 'string'
+            ? parseISO(attendance.shiftEndTime)
+            : attendance.shiftEndTime!,
+          'HH:mm',
+        )} น. เวลาทำงานล่วงเวลาถัดไปเริ่ม ${format(parseISO(currentState.timeWindow.start), 'HH:mm')} น.`;
+      }
+
+      if (currentState.validation.isLate) {
+        return 'สิ้นสุดเวลาทำงานล่วงเวลา กรุณาลงเวลาออก';
+      }
+
+      return `อยู่ในช่วงเวลาทำงานล่วงเวลาถึง ${format(
+        typeof attendance.shiftEndTime === 'string'
+          ? parseISO(attendance.shiftEndTime)
+          : attendance.shiftEndTime!,
+        'HH:mm',
+      )} น.`;
+    }
+
+    // Case 6: Transition required
+    if (statusInfo.timingFlags.requiresTransition) {
+      return 'กรุณาลงเวลาออกก่อนเริ่มช่วงเวลาถัดไป';
+    }
+
+    // Case 7: Auto-completion required
+    if (statusInfo.timingFlags.requiresAutoCompletion) {
+      return 'ระบบจะทำการลงเวลาออกให้อัตโนมัติ';
+    }
+
+    // Case 8: Day-off overtime
+    if (currentState.activity.isDayOffOvertime) {
+      return 'ช่วงเวลาทำงานล่วงเวลาวันหยุด';
+    }
+
+    // Case 9: Outside all periods
+    if (
+      !currentState.validation.isWithinBounds &&
+      !statusInfo.isActiveAttendance
+    ) {
+      return 'อยู่นอกช่วงเวลาทำงานที่กำหนด';
+    }
+
+    // Default case
     return '';
   }
 
