@@ -573,7 +573,7 @@ const CheckInRouter: React.FC = () => {
             onRequestAdminAssistance={requestAdminAssistance}
           />
         </div>
-        <div className="opacity-0">{/* Placeholder */}</div>
+        <div className="opacity-0">{mainContent}</div>
       </>
     );
   }
