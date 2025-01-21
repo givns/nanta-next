@@ -10,6 +10,7 @@ import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
 import { AttendanceStateResponse, TimeEntry } from '@/types/attendance';
+import { parseISO } from 'date-fns';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -171,6 +172,7 @@ async function processCheckInOut(
     clientTime: task.checkTime,
   });
 
+  // Check cache first
   const existingResult = processedRequests.get(requestKey);
   if (existingResult) {
     console.log('Request already processed:', requestKey);
@@ -182,19 +184,64 @@ async function processCheckInOut(
   }
 
   try {
-    // Process attendance first
+    // Get current status first to check if auto-completion needed
+    const currentStatus = await attendanceService.getAttendanceStatus(
+      task.employeeId!,
+      {
+        inPremises: true,
+        address: task.location?.address || '',
+        periodType: task.periodType,
+      },
+    );
+
+    // Check if auto-completion needed based on current status
+    const activeAttendance = currentStatus.base.latestAttendance;
+    const needsAutoCompletion =
+      // Case 1: Attempting checkout without check-in
+      (!activeAttendance?.CheckInTime && !task.activity.isCheckIn) ||
+      // Case 2: Regular check-in with incomplete overtime that has ended
+      (task.periodType === PeriodType.REGULAR &&
+        task.activity.isCheckIn &&
+        activeAttendance?.type === PeriodType.OVERTIME &&
+        !activeAttendance.CheckOutTime &&
+        activeAttendance.shiftEndTime &&
+        serverTime > parseISO(activeAttendance.shiftEndTime));
+
+    if (needsAutoCompletion) {
+      console.log('Auto-completion needed:', {
+        noCheckIn: !activeAttendance?.CheckInTime,
+        isCheckingIn: task.activity.isCheckIn,
+        activeType: activeAttendance?.type,
+        hasCheckOut: Boolean(activeAttendance?.CheckOutTime),
+        overtimeEnd: activeAttendance?.shiftEndTime,
+      });
+    } else {
+      console.log('Regular processing:', {
+        type: task.periodType,
+        isCheckIn: task.activity.isCheckIn,
+        isOvertime: task.periodType === PeriodType.OVERTIME,
+      });
+    }
+
+    // Process attendance with correct flags
     const [processedAttendance, updatedStatus] = await Promise.all([
       attendanceService.processAttendance({
         ...task,
-        checkTime: serverTime.toISOString(), // Convert to ISO string
+        checkTime: serverTime.toISOString(),
+        activity: {
+          ...task.activity,
+          isOvertime: task.periodType === PeriodType.OVERTIME,
+          overtimeMissed: Boolean(needsAutoCompletion), // Force boolean type
+        },
       }),
       attendanceService.getAttendanceStatus(task.employeeId!, {
         inPremises: true,
         address: task.location?.address || '',
-        periodType: task.periodType, // Add period type if available from task
+        periodType: task.periodType,
       }),
     ]);
 
+    // Rest of the function remains the same...
     if (!processedAttendance.success) {
       throw new AppError({
         code: ErrorCode.PROCESSING_ERROR,
@@ -202,11 +249,7 @@ async function processCheckInOut(
       });
     }
 
-    // Clear existing cache entries
-    userCache.delete(task.employeeId || task.lineUserId!);
-    processedRequests.delete(requestKey);
-
-    // Cache the new result
+    // Cache handling
     processedRequests.set(requestKey, {
       timestamp: Date.now(),
       status: updatedStatus,
@@ -238,7 +281,6 @@ async function processCheckInOut(
     if (error instanceof AppError) {
       throw error;
     }
-
     console.error('Error in processCheckInOut:', error);
     throw new AppError({
       code: ErrorCode.PROCESSING_ERROR,
@@ -413,14 +455,5 @@ export default async function handler(
     });
   } finally {
     await prisma.$disconnect();
-  }
-
-  function calculateMinutesLate(
-    expectedStart: Date,
-    actualStart: Date,
-  ): number {
-    if (actualStart <= expectedStart) return 0;
-    const diffInMilliseconds = actualStart.getTime() - expectedStart.getTime();
-    return Math.floor(diffInMilliseconds / (1000 * 60));
   }
 }

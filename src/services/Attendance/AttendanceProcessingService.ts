@@ -21,7 +21,7 @@ import {
   ValidationContext,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { startOfDay, endOfDay, parseISO, format } from 'date-fns';
+import { startOfDay, endOfDay, parseISO, format, subDays } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { TimeEntryService } from '../TimeEntryService';
 import { AttendanceMappers } from './utils/AttendanceMappers';
@@ -197,6 +197,14 @@ export class AttendanceProcessingService {
     now: Date,
   ): Promise<ProcessingResult> {
     try {
+      // Verify we have a record to complete
+      if (!currentRecord?.type || !currentRecord.CheckInTime) {
+        throw new AppError({
+          code: ErrorCode.PROCESSING_ERROR,
+          message: 'Invalid record for auto-completion',
+        });
+      }
+
       const completedRecord = await this.completeAttendanceRecord(
         tx,
         currentRecord,
@@ -449,14 +457,14 @@ export class AttendanceProcessingService {
     const activeRecord = await tx.attendance.findFirst({
       where: {
         employeeId: options.employeeId,
-        date: startOfDay(now),
+        // Important: Don't limit to today only for overnight periods
+        date: {
+          gte: startOfDay(subDays(now, 1)), // Look back one day
+          lte: endOfDay(now),
+        },
         state: AttendanceState.INCOMPLETE,
         type: options.periodType,
-        isOvertime: options.periodType === PeriodType.OVERTIME,
-        overtimeState:
-          options.periodType === PeriodType.OVERTIME
-            ? OvertimeState.IN_PROGRESS
-            : undefined,
+        isOvertime: options.activity.isOvertime || undefined,
         CheckInTime: { not: null },
         CheckOutTime: null,
       },
@@ -620,23 +628,6 @@ export class AttendanceProcessingService {
   /**
    * Data Preparation and Utilities
    */
-  private prepareLocationData(
-    options: ProcessingOptions,
-    isCheckIn: boolean,
-  ): Omit<Prisma.AttendanceLocationCreateInput, 'attendance'> | undefined {
-    if (!options.location) return undefined;
-
-    return {
-      checkInCoordinates: isCheckIn
-        ? this.prepareLocationJson(options.location.coordinates)
-        : undefined,
-      checkInAddress: isCheckIn ? options.location.address : undefined,
-      checkOutCoordinates: !isCheckIn
-        ? this.prepareLocationJson(options.location.coordinates)
-        : undefined,
-      checkOutAddress: !isCheckIn ? options.location.address : undefined,
-    };
-  }
 
   private prepareLocationJson(
     location?: GeoLocation,
