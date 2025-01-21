@@ -87,6 +87,8 @@ const CheckInRouter: React.FC = () => {
     null,
   );
 
+  const [debugInfo, setDebugInfo] = useState<Record<string, any>>({});
+
   // Enhanced location handling
   const {
     locationState,
@@ -333,6 +335,17 @@ const CheckInRouter: React.FC = () => {
       hasUser: !!userData,
       hasAttendanceState: !!safeAttendanceProps?.base?.state,
     };
+
+    // Update debug info
+    setDebugInfo((prev) => ({
+      ...prev,
+      conditions,
+      currentStep,
+      loadingPhase,
+      userData: !!userData,
+      attendanceProps: !!attendanceProps.base,
+    }));
+
     return Object.values(conditions).every(Boolean);
   }, [
     currentStep,
@@ -341,6 +354,15 @@ const CheckInRouter: React.FC = () => {
     userData,
     safeAttendanceProps,
   ]);
+
+  // Loading phase management with debug
+  useEffect(() => {
+    console.log('Loading phase update:', {
+      isSystemReady,
+      currentPhase: loadingPhase,
+      debugInfo,
+    });
+  }, []); // Fix: Replace the arrow function with an empty function declaration
 
   // Loading phase management
   useEffect(() => {
@@ -361,6 +383,12 @@ const CheckInRouter: React.FC = () => {
 
   // Step management
   useEffect(() => {
+    console.log('Step management:', {
+      authLoading,
+      userData: !!userData,
+      locationVerified: isVerified,
+      currentStep,
+    });
     try {
       let nextStep: Step = 'auth';
       if (!userData) {
@@ -546,6 +574,17 @@ const CheckInRouter: React.FC = () => {
     isLoadingNextDay,
     handleViewNextDay,
   ]);
+
+  // Add debug output before rendering
+  useEffect(() => {
+    console.log('Render state:', {
+      loadingPhase,
+      userData: !!userData,
+      error,
+      attendanceProps: !!attendanceProps.base,
+      locationState: formattedLocationState,
+    });
+  });
 
   // Error state
   if (error || attendanceError) {
