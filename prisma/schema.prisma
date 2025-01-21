@@ -95,6 +95,8 @@ model User {
   checkPoints             CheckPoint[]
   timeEntries             TimeEntry[]
   isRegistrationComplete  String                   @default("No")
+  locationRequests      LocationAssistanceRequest[] @relation(name: "locationRequests")
+  locationVerifications LocationAssistanceRequest[] @relation(name: "locationVerifications")
   updatedAt               DateTime?                 @updatedAt
 }
 
@@ -336,6 +338,34 @@ model AttendanceMetadata {
   isManualEntry Boolean  @default(false)
   isDayOff     Boolean   @default(false)
   version      Int       @default(1)
+}
+
+model LocationAssistanceRequest {
+  id              String      @id @default(cuid()) @map("_id")
+  employeeId      String
+  requestedAt     DateTime    @default(now())
+  coordinates     Json?
+  address         String?
+  accuracy        Float
+  status          String      // PENDING, APPROVED, REJECTED
+  reason          String?
+  verifiedAt      DateTime?
+  verifiedBy      String?     // Admin's employeeId
+  verificationNote String?
+  rejectionReason String?
+  source          String?     // mobile-app, web, etc.
+  metadata        Json?
+  
+  // Relations
+  employee        User        @relation(name: "locationRequests", fields: [employeeId], references: [employeeId])
+  verifier        User?       @relation(name: "locationVerifications", fields: [verifiedBy], references: [employeeId])
+
+  // Timestamps
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
 }
 
 

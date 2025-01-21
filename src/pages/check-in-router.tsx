@@ -19,6 +19,7 @@ import { useNextDayInfo } from '@/hooks/useNextDayInfo';
 import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
+import { useLocationVerification } from '@/hooks/useLocationVerification';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -86,12 +87,44 @@ const CheckInRouter: React.FC = () => {
     null,
   );
 
+  // Enhanced location handling
+  const {
+    locationState,
+    isLoading: locationLoading,
+    needsVerification,
+    isVerified,
+    isAdminPending,
+    triggerReason,
+    verifyLocation,
+    requestAdminAssistance,
+  } = useLocationVerification(userData?.employeeId);
+
+  // Format location state for LoadingBar
+  const formattedLocationState = useMemo(
+    () => ({
+      status: locationState.status,
+      error: locationState.error,
+      address: locationState.address,
+      accuracy: locationState.accuracy,
+      coordinates: locationState.coordinates
+        ? {
+            latitude: locationState.coordinates.lat,
+            longitude: locationState.coordinates.lng,
+          }
+        : undefined,
+    }),
+    [locationState],
+  );
+
+  // Handle location retry with void return type
+  const handleLocationRetry = useCallback(async () => {
+    await verifyLocation(true);
+  }, [verifyLocation]);
+
   // Hooks
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
   const {
-    locationReady,
-    locationState = { status: null },
     isLoading: attendanceLoading,
     error: attendanceError,
     ...attendanceProps
@@ -128,6 +161,28 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
+
+  // Enhanced location handling in step management
+  useEffect(() => {
+    try {
+      let nextStep: Step = 'auth';
+
+      if (!userData) {
+        nextStep = 'user';
+      } else if (!isVerified && (needsVerification || locationLoading)) {
+        nextStep = 'location';
+      } else if (authLoading) {
+        nextStep = 'auth';
+      } else {
+        nextStep = 'ready';
+      }
+
+      setCurrentStep(nextStep);
+    } catch (error) {
+      console.error('Error updating step:', error);
+      setError('Error initializing application');
+    }
+  }, [authLoading, userData, isVerified, needsVerification, locationLoading]);
 
   // Function to fetch next day data
   const fetchNextDayInfo = useCallback(async () => {
@@ -274,7 +329,7 @@ const CheckInRouter: React.FC = () => {
     const conditions = {
       stepIsReady: currentStep === 'ready',
       notLoading: !attendanceLoading,
-      locationReady: locationState?.status === 'ready',
+      locationVerified: isVerified,
       hasUser: !!userData,
       hasAttendanceState: !!safeAttendanceProps?.base?.state,
     };
@@ -310,7 +365,7 @@ const CheckInRouter: React.FC = () => {
       let nextStep: Step = 'auth';
       if (!userData) {
         nextStep = 'user';
-      } else if (!locationState || locationState.status !== 'ready') {
+      } else if (!isVerified && (needsVerification || locationLoading)) {
         nextStep = 'location';
       } else if (authLoading) {
         nextStep = 'auth';
@@ -322,7 +377,7 @@ const CheckInRouter: React.FC = () => {
       console.error('Error updating step:', error);
       setError('Error initializing application');
     }
-  }, [authLoading, userData, locationReady, locationState]);
+  }, [authLoading, userData, isVerified, needsVerification, locationLoading]);
 
   const mainContent = useMemo(() => {
     console.log('MainContent render:', {
@@ -503,7 +558,7 @@ const CheckInRouter: React.FC = () => {
   }
 
   // Loading state
-  if (loadingPhase !== 'complete') {
+  if (loadingPhase !== 'complete' || !userData) {
     return (
       <>
         <div
@@ -511,15 +566,44 @@ const CheckInRouter: React.FC = () => {
             loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
           }`}
         >
-          <LoadingBar step={currentStep} />
+          <LoadingBar
+            step={currentStep}
+            locationState={formattedLocationState}
+            onLocationRetry={handleLocationRetry}
+            onRequestAdminAssistance={requestAdminAssistance}
+          />
         </div>
-        <div className="opacity-0">{mainContent}</div>
+        <div className="opacity-0">{/* Placeholder */}</div>
       </>
     );
   }
 
-  // Render main content
-  return mainContent;
+  // Main content
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {isAdminPending && (
+        <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {triggerReason ? (
+                <p className="mb-1 text-sm font-medium">
+                  เหตุผล: {triggerReason}
+                </p>
+              ) : null}
+              รอการยืนยันตำแหน่งจากเจ้าหน้าที่
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      <CheckInOutForm
+        userData={userData}
+        onComplete={closeWindow}
+        {...attendanceProps}
+      />
+    </div>
+  );
 };
 
 export default React.memo(CheckInRouter);

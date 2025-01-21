@@ -13,6 +13,7 @@ import { HolidayService } from './HolidayService';
 import { NotificationService } from './NotificationService';
 import { createLeaveServiceServer } from './LeaveServiceServer';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
+import { LocationAssistanceService } from './location/LocationAssistanceService';
 
 export async function initializeServices(prisma: PrismaClient) {
   // Initialize supporting services first
@@ -88,6 +89,11 @@ export async function initializeServices(prisma: PrismaClient) {
     attendanceRecordService,
   );
 
+  const locationAssistanceService = new LocationAssistanceService(
+    prisma,
+    notificationService,
+  );
+
   return {
     shiftService,
     enhancementService,
@@ -100,5 +106,6 @@ export async function initializeServices(prisma: PrismaClient) {
     notificationService,
     leaveService,
     overtimeService,
+    locationAssistanceService,
   };
 }

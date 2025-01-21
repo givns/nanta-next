@@ -65,6 +65,53 @@ export interface LocationState {
   error: string | null;
 }
 
+export type LocationConfidence = 'high' | 'medium' | 'low' | 'manual';
+
+export type LocationStatus =
+  | 'initializing'
+  | 'loading'
+  | 'ready'
+  | 'error'
+  | 'pending_admin'
+  | 'waiting_admin';
+
+export type VerificationStatus =
+  | 'pending'
+  | 'verified'
+  | 'needs_verification'
+  | 'admin_pending';
+
+export interface BaseLocationState {
+  status: LocationStatus;
+  inPremises: boolean;
+  address: string;
+  confidence: LocationConfidence;
+  accuracy: number;
+  error: string | null;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+}
+
+export interface LocationVerificationState extends BaseLocationState {
+  verificationStatus: VerificationStatus;
+  lastVerifiedAt?: Date;
+  adminRequestId?: string;
+  triggerReason?: string;
+}
+
+export type LocationStateContextType = {
+  locationState: LocationVerificationState;
+  isLoading: boolean;
+  needsVerification: boolean;
+  isVerified: boolean;
+  isAdminPending: boolean;
+  triggerReason?: string;
+  verifyLocation: (force?: boolean) => Promise<boolean>;
+  requestAdminAssistance: () => Promise<void>;
+};
+
 export interface BaseStatus {
   state: AttendanceState;
   checkStatus: CheckStatus;

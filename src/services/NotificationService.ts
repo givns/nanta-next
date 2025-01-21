@@ -6,6 +6,7 @@ import {
   User,
   LeaveRequest,
   OvertimeRequest,
+  LocationAssistanceRequest,
 } from '@prisma/client';
 import { generateApprovalMessageForAdmins } from '../utils/generateApprovalMessage';
 import { generateDenialMessageForAdmins } from '../utils/generateDenialMessage';
@@ -48,6 +49,7 @@ export class NotificationService {
       | 'overtime'
       | 'overtime-digest'
       | 'overtime-batch-approval'
+      | 'location-assistance'
       | 'shift',
   ): Promise<boolean> {
     if (process.env.NODE_ENV === 'test') {
@@ -399,6 +401,112 @@ export class NotificationService {
       },
     };
   }
+
+  async sendLocationRequest(
+    employeeId: string,
+    lineUserId: string,
+    request: LocationAssistanceRequest,
+  ): Promise<boolean> {
+    const message: FlexMessage = {
+      type: 'flex',
+      altText: 'คำขอตรวจสอบตำแหน่ง',
+      contents: {
+        type: 'bubble',
+        header: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'คำขอตรวจสอบตำแหน่ง',
+              weight: 'bold',
+              size: 'xl',
+            },
+          ],
+          backgroundColor: '#f3f4f6',
+        },
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: `รหัสพนักงาน: ${request.employeeId}`,
+              size: 'sm',
+            },
+            {
+              type: 'text',
+              text: request.reason || 'ไม่ระบุเหตุผล',
+              wrap: true,
+              margin: 'md',
+            },
+            {
+              type: 'text',
+              text: `ที่อยู่: ${request.address || 'ไม่ระบุ'}`,
+              size: 'sm',
+              wrap: true,
+              margin: 'md',
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'horizontal',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'อนุมัติ',
+                data: `action=approve_location&requestId=${request.id}`,
+              },
+              style: 'primary',
+            },
+            {
+              type: 'button',
+              action: {
+                type: 'postback',
+                label: 'ไม่อนุมัติ',
+                data: `action=reject_location&requestId=${request.id}`,
+              },
+              style: 'secondary',
+            },
+          ],
+        },
+      },
+    };
+
+    return this.sendNotification(
+      employeeId,
+      lineUserId,
+      JSON.stringify(message),
+      'location-assistance',
+    );
+  }
+
+  async sendLocationVerificationResult(
+    employeeId: string,
+    lineUserId: string,
+    status: 'APPROVED' | 'REJECTED',
+    note?: string,
+  ): Promise<boolean> {
+    const message = {
+      type: 'text',
+      text:
+        status === 'APPROVED'
+          ? `✅ ตำแหน่งของคุณได้รับการอนุมัติ${note ? `\nหมายเหตุ: ${note}` : ''}`
+          : `❌ ตำแหน่งของคุณไม่ได้รับการอนุมัติ${note ? `\nเหตุผล: ${note}` : ''}\nกรุณาลองใหม่อีกครั้ง`,
+    };
+
+    return this.sendNotification(
+      employeeId,
+      lineUserId,
+      JSON.stringify(message),
+      'location-assistance',
+    );
+  }
+
   async sendOvertimeApprovalNotification(
     employeeId: string,
     lineUserId: string,

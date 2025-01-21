@@ -179,7 +179,6 @@ const CheckpointPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-4">Driver Checkpoints</h1>
-      <Map center={location} />
       <p className="my-4">Current Address: {address}</p>
       <div className="mb-4">
         <input

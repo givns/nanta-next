@@ -1,3 +1,5 @@
+//services/location/EnhancedLocationService.ts
+
 interface LocationPoint {
   lat: number;
   lng: number;

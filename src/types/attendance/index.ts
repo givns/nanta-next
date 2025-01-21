@@ -25,6 +25,8 @@ export * from './period';
 export * from './state';
 export * from './interface';
 export * from './context';
+export * from './location-assistance';
+export * from './notification';
 
 // Re-export common external types
 export type { UserData } from '../user';

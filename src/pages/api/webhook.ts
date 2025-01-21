@@ -203,10 +203,9 @@ async function handlePostback(event: WebhookEvent) {
   const params = new URLSearchParams(data);
   const action = params.get('action');
   const requestId = params.get('requestId');
-  // Remove approverId check from here since we get it from the user
 
-  if (!action || !requestId || !lineUserId) {
-    console.log('Invalid postback data:', { action, requestId, lineUserId });
+  if (!action || !requestId) {
+    console.log('Invalid postback data:', { action, requestId });
     return;
   }
 
@@ -217,31 +216,63 @@ async function handlePostback(event: WebhookEvent) {
       return;
     }
 
-    // Use the user's employeeId as the approverId
-    const approverId = user.employeeId;
+    // Handle different action types
+    switch (action) {
+      case 'approve_location':
+        await handleLocationApproval(
+          requestId,
+          lineUserId,
+          event.replyToken,
+          user.employeeId,
+        );
+        return;
 
-    // Determine the request type based on the request in the database
-    const leaveRequest = await prisma.leaveRequest.findUnique({
-      where: { id: requestId },
-    });
-    const overtimeRequest = await prisma.overtimeRequest.findUnique({
-      where: { id: requestId },
-    });
+      case 'reject_location': {
+        const reason = params.get('reason');
+        if (reason) {
+          await handleLocationRejection(
+            requestId,
+            lineUserId,
+            event.replyToken,
+            reason,
+            user.employeeId,
+          );
+        } else {
+          await promptLocationRejectionReason(requestId, event.replyToken);
+        }
+        return;
+      }
 
-    if (leaveRequest) {
-      await handleLeaveRequest(
-        action,
-        requestId,
-        approverId, // Pass the approverId from the user
-        event.replyToken,
-      );
-    } else if (overtimeRequest) {
-      await handleOvertimeRequest(action, requestId, approverId); // Pass the approverId
-    } else {
-      console.error('Request not found:', requestId);
+      // Handle leave and overtime requests
+      default: {
+        const leaveRequest = await prisma.leaveRequest.findUnique({
+          where: { id: requestId },
+        });
+        const overtimeRequest = await prisma.overtimeRequest.findUnique({
+          where: { id: requestId },
+        });
+
+        if (leaveRequest) {
+          await handleLeaveRequest(
+            action,
+            requestId,
+            user.employeeId,
+            event.replyToken,
+          );
+        } else if (overtimeRequest) {
+          await handleOvertimeRequest(action, requestId, user.employeeId);
+        } else {
+          console.error('Request not found:', requestId);
+        }
+      }
     }
   } catch (error) {
     console.error('Error processing postback action:', error);
+    // Send error message to user
+    await client.replyMessage(event.replyToken, {
+      type: 'text',
+      text: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+    });
   }
 }
 
@@ -319,6 +350,124 @@ async function handleLeaveRequest(
       }
     }
     throw error;
+  }
+}
+
+async function handleLocationApproval(
+  requestId: string,
+  lineUserId: string,
+  replyToken: string,
+  approverId: string,
+) {
+  try {
+    await services.locationAssistanceService.approveRequest(requestId, {
+      verificationNote: 'อนุมัติผ่าน LINE',
+      verifiedBy: approverId,
+    });
+
+    await client.replyMessage(replyToken, {
+      type: 'text',
+      text: '✅ อนุมัติคำขอแล้ว',
+    });
+  } catch (error) {
+    console.error('Location approval error:', error);
+    await client.replyMessage(replyToken, {
+      type: 'text',
+      text: 'เกิดข้อผิดพลาดในการอนุมัติ กรุณาลองใหม่อีกครั้ง',
+    });
+  }
+}
+
+async function handleLocationRejection(
+  requestId: string,
+  lineUserId: string,
+  replyToken: string,
+  reason: string,
+  rejectById: string,
+) {
+  try {
+    await services.locationAssistanceService.rejectRequest(requestId, {
+      rejectionReason: reason,
+      verifiedBy: rejectById,
+    });
+
+    await client.replyMessage(replyToken, {
+      type: 'text',
+      text: '❌ ปฏิเสธคำขอแล้ว',
+    });
+  } catch (error) {
+    console.error('Location rejection error:', error);
+    await client.replyMessage(replyToken, {
+      type: 'text',
+      text: 'เกิดข้อผิดพลาดในการปฏิเสธคำขอ กรุณาลองใหม่อีกครั้ง',
+    });
+  }
+}
+
+async function promptLocationRejectionReason(
+  requestId: string,
+  replyToken: string,
+) {
+  try {
+    await client.replyMessage(replyToken, {
+      type: 'flex',
+      altText: 'เลือกเหตุผลที่ไม่อนุมัติ',
+      contents: {
+        type: 'bubble',
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          contents: [
+            {
+              type: 'text',
+              text: 'กรุณาเลือกเหตุผลที่ไม่อนุมัติ',
+              weight: 'bold',
+              size: 'md',
+            },
+          ],
+        },
+        footer: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'postback',
+                label: 'ตำแหน่งไม่ถูกต้อง',
+                data: `action=reject_location&requestId=${requestId}&reason=ตำแหน่งไม่ถูกต้อง`,
+              },
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'postback',
+                label: 'อยู่นอกพื้นที่ที่กำหนด',
+                data: `action=reject_location&requestId=${requestId}&reason=อยู่นอกพื้นที่ที่กำหนด`,
+              },
+            },
+            {
+              type: 'button',
+              style: 'secondary',
+              action: {
+                type: 'postback',
+                label: 'ต้องการข้อมูลเพิ่มเติม',
+                data: `action=reject_location&requestId=${requestId}&reason=ต้องการข้อมูลเพิ่มเติม กรุณาติดต่อ HR`,
+              },
+            },
+          ],
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Error showing rejection reasons:', error);
+    await client.replyMessage(replyToken, {
+      type: 'text',
+      text: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+    });
   }
 }
 

@@ -1,7 +1,7 @@
 // hooks/useEnhancedLocation.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LocationState } from '@/types/attendance';
-import { EnhancedLocationService } from '@/services/EnhancedLocationService';
+import { EnhancedLocationService } from '@/services/location/EnhancedLocationService';
 import { LOCATION_CONSTANTS } from '@/types/attendance/base';
 
 export function useEnhancedLocation() {
