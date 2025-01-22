@@ -69,7 +69,7 @@ export function useEnhancedLocation() {
 
       return newLocationState;
     } catch (error) {
-      console.log('Location error:', error); // Add logging
+      console.log('Enhanced location error caught:', error); // Add this log
 
       // Handle GeolocationPositionError specifically first
       if (error instanceof GeolocationPositionError) {

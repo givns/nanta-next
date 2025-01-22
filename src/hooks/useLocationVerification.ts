@@ -8,6 +8,7 @@ import {
 import {
   LocationVerificationState,
   LocationStateContextType,
+  VerificationStatus,
 } from '../types/attendance';
 
 const DEFAULT_CONFIG: LocationTriggerConfig = {
@@ -53,13 +54,19 @@ export function useLocationVerification(
   useEffect(() => {
     console.log('Location state in verification:', locationState);
 
-    if (locationState.error || locationState.status === 'error') {
-      setVerificationState((prev) => ({
-        ...prev,
+    if (locationState.status === 'error' || locationState.error) {
+      const errorState: LocationVerificationState = {
         status: 'error',
+        verificationStatus: 'needs_verification' as VerificationStatus, // Type assertion
+        inPremises: false,
+        address: locationState.address,
+        confidence: locationState.confidence,
+        accuracy: locationState.accuracy,
         error: locationState.error,
-        verificationStatus: 'needs_verification',
-      }));
+        coordinates: locationState.coordinates,
+      };
+      console.log('Setting verification error state:', errorState);
+      setVerificationState(errorState);
     }
   }, [locationState]);
 
@@ -84,6 +91,22 @@ export function useLocationVerification(
     },
     [getCurrentLocation],
   );
+
+  const formatLocationState = (
+    state: LocationVerificationState,
+  ): LocationVerificationState => ({
+    status: state.status,
+    error: state.error,
+    address: state.address,
+    accuracy: state.accuracy,
+    coordinates: state.coordinates,
+    confidence: state.confidence,
+    inPremises: state.inPremises,
+    verificationStatus: state.verificationStatus,
+    lastVerifiedAt: state.lastVerifiedAt,
+    adminRequestId: state.adminRequestId,
+    triggerReason: state.triggerReason,
+  });
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
@@ -174,10 +197,7 @@ export function useLocationVerification(
   }, []);
 
   return {
-    locationState: {
-      ...verificationState,
-      error: locationState.error || verificationState.error, // Ensure error is passed through
-    },
+    locationState: verificationState, // Already has the correct type
     isLoading: locationLoading || verificationState.status === 'loading',
     needsVerification:
       verificationState.status === 'error' ||
