@@ -52,6 +52,7 @@ export function useEnhancedLocation() {
       locationRef.current.promise = locationPromise;
 
       const result = await locationPromise;
+
       const newLocationState: LocationState = {
         status: 'ready',
         inPremises: result.inPremises,
@@ -69,26 +70,30 @@ export function useEnhancedLocation() {
 
       return newLocationState;
     } catch (error) {
-      console.log('Enhanced location error caught:', error); // Add this log
+      console.log('Enhanced location error caught:', error);
 
-      // Handle GeolocationPositionError specifically first
-      if (error instanceof GeolocationPositionError) {
-        const errorState: LocationState = {
-          status: 'error',
-          inPremises: false,
-          address: '',
-          confidence: 'low',
-          accuracy: 0,
-          error:
-            error.code === 1
-              ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services'
-              : 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
-        };
-        setLocationState(errorState);
-        return errorState; // Return instead of throw to prevent retry
+      // Create error state immediately
+      const errorState: LocationState = {
+        status: 'error', // Change status to 'error'
+        inPremises: false,
+        address: '',
+        confidence: 'low',
+        accuracy: 0,
+        error:
+          error instanceof GeolocationPositionError && error.code === 1
+            ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services'
+            : 'Location error',
+      };
+
+      // Update state immediately
+      setLocationState(errorState);
+
+      // Don't retry if it's a permission denied error
+      if (error instanceof GeolocationPositionError && error.code === 1) {
+        return errorState;
       }
 
-      // For other errors, implement retry logic
+      // Only retry for other types of errors
       if (locationRef.current.retryCount < MAX_RETRIES) {
         locationRef.current.retryCount++;
         await new Promise((resolve) =>
@@ -97,17 +102,7 @@ export function useEnhancedLocation() {
         return getCurrentLocation(forceRefresh);
       }
 
-      // If retries exhausted, set error state
-      const errorState: LocationState = {
-        status: 'error',
-        inPremises: false,
-        address: '',
-        confidence: 'low',
-        accuracy: 0,
-        error: error instanceof Error ? error.message : 'Location error',
-      };
-      setLocationState(errorState);
-      return errorState; // Return instead of throw
+      return errorState;
     } finally {
       locationRef.current.promise = null;
     }
