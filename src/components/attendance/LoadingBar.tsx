@@ -80,7 +80,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
               <ol className="list-decimal list-inside space-y-1 text-left">
                 <li>เปิดการใช้งาน Location Services บนอุปกรณ์ของคุณ</li>
                 <li>อนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ</li>
-                <li>กดปุ่ม "ลองใหม่" เพื่อตรวจสอบตำแหน่งอีกครั้ง</li>
+                <li>กดปุ่ม ลองใหม่ เพื่อตรวจสอบตำแหน่งอีกครั้ง</li>
               </ol>
             </div>
           </div>
