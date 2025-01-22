@@ -53,19 +53,23 @@ export function useLocationVerification(
   useEffect(() => {
     console.log('Location state changed:', locationState);
 
-    if (locationState.error) {
-      setVerificationState((prev) => ({
-        ...prev,
+    if (locationState.status === 'error' || locationState.error) {
+      setVerificationState({
         status: 'error',
-        error: locationState.error,
         verificationStatus: 'needs_verification',
-      }));
+        inPremises: false,
+        address: '',
+        confidence: 'low',
+        accuracy: 0,
+        error: locationState.error,
+        coordinates: locationState.coordinates,
+        triggerReason: 'Location services denied',
+      });
     } else if (locationState.status === 'ready') {
       const { shouldTrigger, reason } =
         triggerRef.current?.shouldTriggerAdminAssistance(locationState) || {};
 
-      setVerificationState((prev) => ({
-        ...prev,
+      setVerificationState({
         ...locationState,
         verificationStatus: shouldTrigger
           ? 'needs_verification'
@@ -73,7 +77,8 @@ export function useLocationVerification(
             ? 'verified'
             : 'needs_verification',
         triggerReason: shouldTrigger ? reason : undefined,
-      }));
+        error: null,
+      });
     }
   }, [locationState]);
 
@@ -188,9 +193,13 @@ export function useLocationVerification(
   }, []);
 
   return {
-    locationState: verificationState,
+    locationState: {
+      ...verificationState,
+      error: locationState.error || verificationState.error, // Ensure error is passed through
+    },
     isLoading: locationLoading || verificationState.status === 'loading',
     needsVerification:
+      verificationState.status === 'error' ||
       verificationState.verificationStatus === 'needs_verification',
     isVerified: verificationState.verificationStatus === 'verified',
     isAdminPending: verificationState.verificationStatus === 'admin_pending',
