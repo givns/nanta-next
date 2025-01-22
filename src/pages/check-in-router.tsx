@@ -572,17 +572,21 @@ const CheckInRouter: React.FC = () => {
 
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
+    console.log('LoadingBar mounting conditions:', {
+      loadingPhase,
+      currentStep,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        needsVerification,
+        isAdminPending,
+      },
+      formattedLocationState,
+    });
+
     return (
       <>
-        {console.log('LoadingBar mounting conditions:', {
-          loadingPhase,
-          currentStep,
-          locationState: {
-            status: locationState.status,
-            error: locationState.error,
-            verificationStatus: locationState.verificationStatus,
-          },
-        })}
         <div
           className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
             loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
@@ -590,7 +594,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={formattedLocationState}
+            locationState={formattedLocationState} // Use formattedLocationState directly
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />
