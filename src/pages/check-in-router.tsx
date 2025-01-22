@@ -173,10 +173,10 @@ const CheckInRouter: React.FC = () => {
     if (!userData) {
       nextStep = 'user';
     } else if (
-      !isVerified &&
-      (needsVerification || locationLoading || locationState.error)
+      locationState.status === 'error' || // Check for error status
+      locationState.verificationStatus === 'needs_verification' || // Check verification status
+      (!isVerified && (needsVerification || locationLoading))
     ) {
-      // Add error condition here
       nextStep = 'location';
     } else {
       nextStep = 'ready';
@@ -191,7 +191,8 @@ const CheckInRouter: React.FC = () => {
     isVerified,
     needsVerification,
     locationLoading,
-    locationState.error,
+    locationState.status,
+    locationState.verificationStatus,
     currentStep,
   ]);
 
@@ -208,7 +209,14 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
-    if (currentStep === 'ready' && !attendanceLoading && userData) {
+    const shouldShowLoading =
+      currentStep === 'location' ||
+      locationState.status === 'error' ||
+      locationState.verificationStatus === 'needs_verification';
+
+    if (shouldShowLoading) {
+      setLoadingPhase('loading');
+    } else if (currentStep === 'ready' && !attendanceLoading && userData) {
       if (loadingPhase === 'loading') {
         setLoadingPhase('fadeOut');
       } else if (loadingPhase === 'fadeOut') {
@@ -219,7 +227,14 @@ const CheckInRouter: React.FC = () => {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [currentStep, attendanceLoading, userData, loadingPhase]);
+  }, [
+    currentStep,
+    attendanceLoading,
+    userData,
+    loadingPhase,
+    locationState.status,
+    locationState.verificationStatus,
+  ]);
 
   // Initial data fetch
   useEffect(() => {

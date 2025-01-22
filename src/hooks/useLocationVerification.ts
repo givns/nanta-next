@@ -45,6 +45,25 @@ export function useLocationVerification(
   } = useEnhancedLocation();
 
   useEffect(() => {
+    if (locationState.error) {
+      setVerificationState((prev) => ({
+        ...prev,
+        status: 'error',
+        error: locationState.error,
+        verificationStatus: 'needs_verification',
+      }));
+    } else if (locationState.status === 'ready') {
+      setVerificationState((prev) => ({
+        ...prev,
+        ...locationState,
+        verificationStatus: locationState.inPremises
+          ? 'verified'
+          : 'needs_verification',
+      }));
+    }
+  }, [locationState]);
+
+  useEffect(() => {
     triggerRef.current = new LocationVerificationTriggers(finalConfig);
   }, [finalConfig]);
 
