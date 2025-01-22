@@ -44,7 +44,15 @@ export function useLocationVerification(
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
+  // Initialize LocationVerificationTriggers
   useEffect(() => {
+    triggerRef.current = new LocationVerificationTriggers(finalConfig);
+  }, [finalConfig]);
+
+  // Sync locationState with verificationState
+  useEffect(() => {
+    console.log('Location state changed:', locationState);
+
     if (locationState.error) {
       setVerificationState((prev) => ({
         ...prev,
@@ -53,26 +61,27 @@ export function useLocationVerification(
         verificationStatus: 'needs_verification',
       }));
     } else if (locationState.status === 'ready') {
+      const { shouldTrigger, reason } =
+        triggerRef.current?.shouldTriggerAdminAssistance(locationState) || {};
+
       setVerificationState((prev) => ({
         ...prev,
         ...locationState,
-        verificationStatus: locationState.inPremises
-          ? 'verified'
-          : 'needs_verification',
+        verificationStatus: shouldTrigger
+          ? 'needs_verification'
+          : locationState.inPremises
+            ? 'verified'
+            : 'needs_verification',
+        triggerReason: shouldTrigger ? reason : undefined,
       }));
     }
   }, [locationState]);
-
-  useEffect(() => {
-    triggerRef.current = new LocationVerificationTriggers(finalConfig);
-  }, [finalConfig]);
 
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
 
       try {
-        // Set loading state first
         setVerificationState((prev) => ({
           ...prev,
           status: 'loading',
@@ -81,89 +90,9 @@ export function useLocationVerification(
         }));
 
         const location = await getCurrentLocation(force);
-
-        const { shouldTrigger, reason } =
-          triggerRef.current.shouldTriggerAdminAssistance(location);
-
-        if (shouldTrigger) {
-          setVerificationState((prev) => ({
-            ...prev,
-            ...location,
-            status: 'ready',
-            verificationStatus: 'needs_verification',
-            triggerReason: reason,
-          }));
-          return false;
-        }
-
-        setVerificationState((prev) => ({
-          ...prev,
-          ...location,
-          status: 'ready',
-          verificationStatus: location.inPremises
-            ? 'verified'
-            : 'needs_verification',
-          lastVerifiedAt: new Date(),
-          triggerReason: undefined,
-        }));
-
         return location.inPremises;
       } catch (error) {
-        triggerRef.current.incrementRetry();
-
-        // Handle specific Geolocation errors
-        if (error instanceof GeolocationPositionError) {
-          switch (error.code) {
-            case GeolocationPositionError.PERMISSION_DENIED:
-              setVerificationState((prev) => ({
-                ...prev,
-                status: 'error',
-                verificationStatus: 'needs_verification',
-                error:
-                  'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services',
-                triggerReason: 'Location permission denied',
-              }));
-              break;
-            case GeolocationPositionError.POSITION_UNAVAILABLE:
-              setVerificationState((prev) => ({
-                ...prev,
-                status: 'error',
-                verificationStatus: 'needs_verification',
-                error: 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
-                triggerReason: 'Location unavailable',
-              }));
-              break;
-            case GeolocationPositionError.TIMEOUT:
-              setVerificationState((prev) => ({
-                ...prev,
-                status: 'error',
-                verificationStatus: 'needs_verification',
-                error: 'หมดเวลาในการค้นหาตำแหน่ง กรุณาลองใหม่อีกครั้ง',
-                triggerReason: 'Location timeout',
-              }));
-              break;
-            default:
-              setVerificationState((prev) => ({
-                ...prev,
-                status: 'error',
-                verificationStatus: 'needs_verification',
-                error: 'เกิดข้อผิดพลาดในการระบุตำแหน่ง กรุณาลองใหม่อีกครั้ง',
-                triggerReason: 'Location error',
-              }));
-          }
-        } else {
-          // Handle other errors
-          setVerificationState((prev) => ({
-            ...prev,
-            status: 'error',
-            verificationStatus: 'needs_verification',
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Failed to verify location',
-            triggerReason: 'Location verification failed',
-          }));
-        }
+        // Error handling is now managed by useEnhancedLocation effect
         return false;
       }
     },
