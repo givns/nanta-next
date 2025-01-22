@@ -64,27 +64,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     if (step !== 'location' || !locationState) return null;
 
-    // Handle location permission denied specifically
-    if (
-      locationState.error?.includes('User denied Geolocation') ||
-      locationState.error?.includes('Permission denied')
-    ) {
+    if (locationState.status === 'loading' || !locationState.coordinates) {
+      return (
+        <div className="mt-6 text-sm">
+          <div className="text-gray-600 animate-pulse mb-2">
+            กำลังค้นหาตำแหน่งของคุณ...
+          </div>
+          <div className="text-gray-500">กรุณารอสักครู่</div>
+        </div>
+      );
+    }
+
+    if (locationState.error) {
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
-            <div className="font-medium mb-2">
-              ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น
-            </div>
-            <div className="text-gray-600 text-sm space-y-2">
-              <p>กรุณาทำตามขั้นตอนต่อไปนี้:</p>
-              <ol className="list-decimal list-inside space-y-1 text-left">
-                <li>เปิดการใช้งาน Location Services บนอุปกรณ์ของคุณ</li>
-                <li>อนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ</li>
-                <li>กดปุ่ม "ลองใหม่" เพื่อตรวจสอบตำแหน่งอีกครั้ง</li>
-              </ol>
-            </div>
+            <div className="font-medium mb-1">ไม่สามารถระบุตำแหน่งได้</div>
+            <div>{locationState.error}</div>
           </div>
-
           <div className="space-y-2">
             <button
               onClick={onLocationRetry}
@@ -102,8 +99,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
       );
     }
-
-    // Rest of the location status rendering...
 
     return (
       <div className="mt-6 text-sm">

@@ -11,6 +11,15 @@ export interface LocationTriggerConfig {
     lat: number;
     lng: number;
   }[]; // Array of valid workplace coordinates
+  errorHandling?: {
+    allowAdminOverride: boolean; // Allow admin to override location errors
+    retryOnError: boolean; // Auto retry on certain errors
+    deviceSpecific?: {
+      // Device-specific handling
+      ios: boolean; // Special handling for iOS devices
+      android: boolean; // Special handling for Android devices
+    };
+  };
 }
 
 export class LocationVerificationTriggers {
@@ -25,6 +34,15 @@ export class LocationVerificationTriggers {
     shouldTrigger: boolean;
     reason: string;
   } {
+    if (locationState instanceof GeolocationPositionError) {
+      return {
+        shouldTrigger: true,
+        reason:
+          locationState.code === GeolocationPositionError.PERMISSION_DENIED
+            ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
+            : 'ไม่สามารถระบุตำแหน่งได้',
+      };
+    }
     // No location services
     if (locationState.error?.includes('location services disabled')) {
       return {
