@@ -190,6 +190,15 @@ const CheckInRouter: React.FC = () => {
     currentStep,
   ]);
 
+  // Debug location state transitions
+  console.log('Location state transition:', {
+    isVerified,
+    needsVerification,
+    locationLoading,
+    currentStep,
+    locationState,
+  });
+
   // Loading phase management - single unified effect
   useEffect(() => {
     let timer: NodeJS.Timeout;

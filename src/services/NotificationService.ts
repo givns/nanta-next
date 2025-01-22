@@ -10,7 +10,7 @@ import {
 } from '@prisma/client';
 import { generateApprovalMessageForAdmins } from '../utils/generateApprovalMessage';
 import { generateDenialMessageForAdmins } from '../utils/generateDenialMessage';
-import { UseMappingService } from './useMappingService';
+import { UseMappingService } from './location/useMappingService';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 

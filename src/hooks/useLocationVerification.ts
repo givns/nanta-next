@@ -62,6 +62,7 @@ export function useLocationVerification(
         }));
 
         const location = await getCurrentLocation(force);
+
         const { shouldTrigger, reason } =
           triggerRef.current.shouldTriggerAdminAssistance(location);
 
