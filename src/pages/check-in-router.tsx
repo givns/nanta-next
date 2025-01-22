@@ -144,12 +144,15 @@ const CheckInRouter: React.FC = () => {
   }, [lineUserId, authLoading, isInitialized]);
 
   // Format location state for LoadingBar
+  // Update formattedLocationState memo
   const formattedLocationState = useMemo(
     () => ({
       status: locationState.status,
       error: locationState.error,
       address: locationState.address,
       accuracy: locationState.accuracy,
+      inPremises: locationState.inPremises,
+      verificationStatus: locationState.verificationStatus,
       coordinates: locationState.coordinates
         ? {
             latitude: locationState.coordinates.lat,
@@ -578,7 +581,6 @@ const CheckInRouter: React.FC = () => {
       locationState: {
         status: locationState.status,
         error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
         needsVerification,
         isAdminPending,
       },
@@ -594,7 +596,18 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={formattedLocationState} // Use formattedLocationState directly
+            locationState={{
+              status: locationState.status,
+              error: locationState.error,
+              address: locationState.address,
+              accuracy: locationState.accuracy,
+              coordinates: locationState.coordinates
+                ? {
+                    latitude: locationState.coordinates.lat,
+                    longitude: locationState.coordinates.lng,
+                  }
+                : undefined,
+            }}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />
