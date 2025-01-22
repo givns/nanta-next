@@ -42,7 +42,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     location: {
       message: 'ตรวจสอบตำแหน่ง',
       color: 'bg-orange-500',
-      icon: <i className="fi fi-br-mappin"></i>,
+      icon: <i className="fi fi-br-map-pin"></i>,
     },
     ready: {
       message: 'เตรียมระบบบันทึกเวลา',

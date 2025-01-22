@@ -165,14 +165,18 @@ const CheckInRouter: React.FC = () => {
     await verifyLocation(true);
   }, [verifyLocation]);
 
-  // Step management - single source of truth
+  // Step management effect
   useEffect(() => {
     if (authLoading) return;
 
     let nextStep: Step = 'auth';
     if (!userData) {
       nextStep = 'user';
-    } else if (!isVerified && (needsVerification || locationLoading)) {
+    } else if (
+      !isVerified &&
+      (needsVerification || locationLoading || locationState.error)
+    ) {
+      // Add error condition here
       nextStep = 'location';
     } else {
       nextStep = 'ready';
@@ -187,6 +191,7 @@ const CheckInRouter: React.FC = () => {
     isVerified,
     needsVerification,
     locationLoading,
+    locationState.error,
     currentStep,
   ]);
 
