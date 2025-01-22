@@ -1,4 +1,10 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
@@ -87,9 +93,11 @@ const CheckInRouter: React.FC = () => {
     null,
   );
 
-  const [debugInfo, setDebugInfo] = useState<Record<string, any>>({});
+  // Hooks
+  const { lineUserId, isInitialized } = useLiff();
+  const { isLoading: authLoading } = useAuth({ required: true });
 
-  // Enhanced location handling
+  // hooks
   const {
     locationState,
     isLoading: locationLoading,
@@ -101,31 +109,6 @@ const CheckInRouter: React.FC = () => {
     requestAdminAssistance,
   } = useLocationVerification(userData?.employeeId);
 
-  // Format location state for LoadingBar
-  const formattedLocationState = useMemo(
-    () => ({
-      status: locationState.status,
-      error: locationState.error,
-      address: locationState.address,
-      accuracy: locationState.accuracy,
-      coordinates: locationState.coordinates
-        ? {
-            latitude: locationState.coordinates.lat,
-            longitude: locationState.coordinates.lng,
-          }
-        : undefined,
-    }),
-    [locationState],
-  );
-
-  // Handle location retry with void return type
-  const handleLocationRetry = useCallback(async () => {
-    await verifyLocation(true);
-  }, [verifyLocation]);
-
-  // Hooks
-  const { lineUserId, isInitialized } = useLiff();
-  const { isLoading: authLoading } = useAuth({ required: true });
   const {
     isLoading: attendanceLoading,
     error: attendanceError,
@@ -160,31 +143,80 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
+  // Format location state for LoadingBar
+  const formattedLocationState = useMemo(
+    () => ({
+      status: locationState.status,
+      error: locationState.error,
+      address: locationState.address,
+      accuracy: locationState.accuracy,
+      coordinates: locationState.coordinates
+        ? {
+            latitude: locationState.coordinates.lat,
+            longitude: locationState.coordinates.lng,
+          }
+        : undefined,
+    }),
+    [locationState],
+  );
+
+  // Handle location retry with void return type
+  const handleLocationRetry = useCallback(async () => {
+    await verifyLocation(true);
+  }, [verifyLocation]);
+
+  // Step management - single source of truth
+  useEffect(() => {
+    if (authLoading) return;
+
+    let nextStep: Step = 'auth';
+    if (!userData) {
+      nextStep = 'user';
+    } else if (!isVerified && (needsVerification || locationLoading)) {
+      nextStep = 'location';
+    } else {
+      nextStep = 'ready';
+    }
+
+    if (nextStep !== currentStep) {
+      setCurrentStep(nextStep);
+    }
+  }, [
+    authLoading,
+    userData,
+    isVerified,
+    needsVerification,
+    locationLoading,
+    currentStep,
+  ]);
+
+  // Loading phase management - single unified effect
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    if (currentStep === 'ready' && !attendanceLoading && userData) {
+      if (loadingPhase === 'loading') {
+        setLoadingPhase('fadeOut');
+      } else if (loadingPhase === 'fadeOut') {
+        timer = setTimeout(() => setLoadingPhase('complete'), 500);
+      }
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [currentStep, attendanceLoading, userData, loadingPhase]);
+
+  // Initial data fetch
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Enhanced location handling in step management
-  useEffect(() => {
-    try {
-      let nextStep: Step = 'auth';
-
-      if (!userData) {
-        nextStep = 'user';
-      } else if (!isVerified && (needsVerification || locationLoading)) {
-        nextStep = 'location';
-      } else if (authLoading) {
-        nextStep = 'auth';
-      } else {
-        nextStep = 'ready';
-      }
-
-      setCurrentStep(nextStep);
-    } catch (error) {
-      console.error('Error updating step:', error);
-      setError('Error initializing application');
-    }
-  }, [authLoading, userData, isVerified, needsVerification, locationLoading]);
+  // Process attendance props
+  const safeAttendanceProps = useMemo(
+    () => (attendanceProps ? createSafeAttendance(attendanceProps) : null),
+    [attendanceProps],
+  );
 
   // Function to fetch next day data
   const fetchNextDayInfo = useCallback(async () => {
@@ -219,12 +251,6 @@ const CheckInRouter: React.FC = () => {
     setShowNextDay(true);
     fetchNextDayInfo();
   }, [fetchNextDayInfo]);
-
-  // Process attendance props
-  const safeAttendanceProps = useMemo(() => {
-    if (!attendanceProps) return null;
-    return createSafeAttendance(attendanceProps);
-  }, [attendanceProps]);
 
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
@@ -325,87 +351,6 @@ const CheckInRouter: React.FC = () => {
       return false;
     }
   }, [safeAttendanceProps?.base, dailyRecords]);
-
-  // System ready state
-  const isSystemReady = useMemo(() => {
-    const conditions = {
-      stepIsReady: currentStep === 'ready',
-      notLoading: !attendanceLoading,
-      locationVerified: isVerified,
-      hasUser: !!userData,
-      hasAttendanceState: !!safeAttendanceProps?.base?.state,
-    };
-
-    // Update debug info
-    setDebugInfo((prev) => ({
-      ...prev,
-      conditions,
-      currentStep,
-      loadingPhase,
-      userData: !!userData,
-      attendanceProps: !!attendanceProps.base,
-    }));
-
-    return Object.values(conditions).every(Boolean);
-  }, [
-    currentStep,
-    attendanceLoading,
-    locationState?.status,
-    userData,
-    safeAttendanceProps,
-  ]);
-
-  // Loading phase management with debug
-  useEffect(() => {
-    console.log('Loading phase update:', {
-      isSystemReady,
-      currentPhase: loadingPhase,
-      debugInfo,
-    });
-  }, []); // Fix: Replace the arrow function with an empty function declaration
-
-  // Loading phase management
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isSystemReady) {
-      if (loadingPhase === 'loading') {
-        setLoadingPhase('fadeOut');
-      } else if (loadingPhase === 'fadeOut') {
-        timer = setTimeout(() => {
-          setLoadingPhase('complete');
-        }, 500);
-      }
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [isSystemReady, loadingPhase]);
-
-  // Step management
-  useEffect(() => {
-    console.log('Step management:', {
-      authLoading,
-      userData: !!userData,
-      locationVerified: isVerified,
-      currentStep,
-    });
-    try {
-      let nextStep: Step = 'auth';
-      if (!userData) {
-        nextStep = 'user';
-      } else if (!isVerified && (needsVerification || locationLoading)) {
-        nextStep = 'location';
-      } else if (authLoading) {
-        nextStep = 'auth';
-      } else {
-        nextStep = 'ready';
-      }
-      setCurrentStep(nextStep);
-    } catch (error) {
-      console.error('Error updating step:', error);
-      setError('Error initializing application');
-    }
-  }, [authLoading, userData, isVerified, needsVerification, locationLoading]);
 
   const mainContent = useMemo(() => {
     console.log('MainContent render:', {
@@ -617,7 +562,13 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  // Ensure we have the required props
+  if (!safeAttendanceProps) {
+    return null;
+  }
+
   // Main content
+  console.log('Rendering main content');
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {isAdminPending && (
