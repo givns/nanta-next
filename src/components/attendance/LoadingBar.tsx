@@ -1,9 +1,8 @@
+// components/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
 import '@flaticon/flaticon-uicons/css/all/all.css';
+import { MapPin, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import LocationVerificationModal from './LocationVerificationModal';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
@@ -28,9 +27,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onRequestAdminAssistance,
 }) => {
   const [progress, setProgress] = useState(0);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [isRetrying, setIsRetrying] = useState(false);
-  const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
   const steps = {
     auth: {
@@ -63,98 +59,63 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return () => clearInterval(interval);
   }, [step]);
 
-  useEffect(() => {
-    // Show location modal automatically if there's a location error
-    if (step === 'location' && locationState?.error) {
-      setShowLocationModal(true);
-    }
-  }, [step, locationState?.error]);
-
-  const handleLocationRetry = async () => {
-    if (!onLocationRetry) return;
-
-    try {
-      setIsRetrying(true);
-      await onLocationRetry();
-    } finally {
-      setIsRetrying(false);
-    }
-  };
-
-  const handleRequestAssistance = async () => {
-    if (!onRequestAdminAssistance) return;
-
-    try {
-      setIsRequestingHelp(true);
-      await onRequestAdminAssistance();
-    } finally {
-      setIsRequestingHelp(false);
-    }
-  };
+  const currentStep = steps[step];
 
   const renderLocationStatus = () => {
     if (step !== 'location' || !locationState) return null;
 
-    return (
-      <div className="mt-4 text-sm max-w-md">
-        {locationState.status === 'loading' ? (
-          <div className="text-gray-600 animate-pulse">
+    switch (locationState.status) {
+      case 'loading':
+        return (
+          <div className="animate-pulse text-gray-600">
             กำลังค้นหาตำแหน่งของคุณ...
           </div>
-        ) : (
-          <>
-            {locationState.address && (
-              <div className="text-gray-600 mb-2">
-                <div className="font-medium mb-1">ที่อยู่ที่ตรวจพบ:</div>
-                <div>{locationState.address}</div>
-                {locationState.coordinates && (
-                  <div className="text-xs mt-1">
-                    ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
-                  </div>
-                )}
-              </div>
-            )}
+        );
 
-            {locationState.error && (
-              <>
-                <Alert variant="destructive" className="mt-2 mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{locationState.error}</AlertDescription>
-                </Alert>
-
-                <div className="flex flex-col gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={handleLocationRetry}
-                    disabled={isRetrying}
-                  >
-                    {isRetrying ? 'กำลังค้นหา...' : 'ค้นหาตำแหน่งอีกครั้ง'}
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    onClick={handleRequestAssistance}
-                    disabled={isRequestingHelp}
-                  >
-                    {isRequestingHelp
-                      ? 'กำลังส่งคำขอ...'
-                      : 'ขอความช่วยเหลือจากเจ้าหน้าที่'}
-                  </Button>
+      case 'ready':
+        return (
+          <div className="space-y-2">
+            <div className="text-sm text-gray-700">
+              <div className="font-medium">ตำแหน่งที่พบ:</div>
+              <div>{locationState.address || 'ไม่พบที่อยู่'}</div>
+              {locationState.accuracy && (
+                <div className="text-xs mt-1">
+                  ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
                 </div>
-              </>
-            )}
-          </>
-        )}
-      </div>
-    );
-  };
+              )}
+            </div>
+          </div>
+        );
 
-  const currentStep = steps[step];
+      case 'error':
+        return (
+          <div className="space-y-4">
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{locationState.error}</AlertDescription>
+            </Alert>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={onLocationRetry}
+                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                ค้นหาตำแหน่งอีกครั้ง
+              </button>
+              <button
+                onClick={onRequestAdminAssistance}
+                className="px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
+              >
+                ขอความช่วยเหลือจากเจ้าหน้าที่
+              </button>
+            </div>
+          </div>
+        );
+    }
+  };
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
-      <div className="text-center px-4">
+      <div className="text-center max-w-sm px-4">
         <div
           className={`text-6xl mb-6 text-center ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}
         >
@@ -172,24 +133,14 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
           />
         </div>
 
-        <div className="text-gray-700 font-medium">{currentStep.message}</div>
+        <div className="text-gray-700 font-medium mb-4">
+          {currentStep.message}
+        </div>
 
-        {renderLocationStatus()}
-
-        <LocationVerificationModal
-          isOpen={showLocationModal}
-          onClose={() => setShowLocationModal(false)}
-          locationState={
-            locationState || {
-              status: 'error',
-              error: null,
-              address: '',
-              accuracy: 0,
-            }
-          }
-          onRequestAdminAssistance={handleRequestAssistance}
-          onRetryLocation={handleLocationRetry}
-        />
+        {/* Location Status */}
+        <div className="mt-4 transition-all duration-300 ease-in-out">
+          {renderLocationStatus()}
+        </div>
       </div>
     </div>
   );
