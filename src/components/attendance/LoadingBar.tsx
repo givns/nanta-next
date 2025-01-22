@@ -1,4 +1,4 @@
-// components/LoadingBar.tsx
+// components/attendance/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
 import '@flaticon/flaticon-uicons/css/all/all.css';
 import { MapPin, AlertCircle } from 'lucide-react';
@@ -64,83 +64,87 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     if (step !== 'location' || !locationState) return null;
 
-    switch (locationState.status) {
-      case 'loading':
-        return (
-          <div className="animate-pulse text-gray-600">
+    if (locationState.status === 'loading' || !locationState.coordinates) {
+      return (
+        <div className="mt-6 text-sm">
+          <div className="text-gray-600 animate-pulse mb-2">
             กำลังค้นหาตำแหน่งของคุณ...
           </div>
-        );
-
-      case 'ready':
-        return (
-          <div className="space-y-2">
-            <div className="text-sm text-gray-700">
-              <div className="font-medium">ตำแหน่งที่พบ:</div>
-              <div>{locationState.address || 'ไม่พบที่อยู่'}</div>
-              {locationState.accuracy && (
-                <div className="text-xs mt-1">
-                  ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
-                </div>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'error':
-        return (
-          <div className="space-y-4">
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{locationState.error}</AlertDescription>
-            </Alert>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={onLocationRetry}
-                className="px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-              >
-                ค้นหาตำแหน่งอีกครั้ง
-              </button>
-              <button
-                onClick={onRequestAdminAssistance}
-                className="px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
-              >
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            </div>
-          </div>
-        );
+          <div className="text-gray-500">กรุณารอสักครู่</div>
+        </div>
+      );
     }
+
+    if (locationState.error) {
+      return (
+        <div className="mt-6 space-y-4">
+          <div className="text-red-600 text-sm">
+            <div className="font-medium mb-1">ไม่สามารถระบุตำแหน่งได้</div>
+            <div>{locationState.error}</div>
+          </div>
+          <div className="space-y-2">
+            <button
+              onClick={onLocationRetry}
+              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+            >
+              ลองใหม่อีกครั้ง
+            </button>
+            <button
+              onClick={onRequestAdminAssistance}
+              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
+            >
+              ขอความช่วยเหลือจากเจ้าหน้าที่
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-6 text-sm">
+        {locationState.address ? (
+          <>
+            <div className="text-green-600 font-medium mb-2">
+              ระบุตำแหน่งสำเร็จ
+            </div>
+            <div className="text-gray-700 mb-1">{locationState.address}</div>
+            {locationState.accuracy && (
+              <div className="text-gray-500 text-xs">
+                ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-gray-600 animate-pulse">กำลังระบุที่อยู่...</div>
+        )}
+      </div>
+    );
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-white z-50">
-      <div className="text-center max-w-sm px-4">
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
+      <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-6 text-center ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}
+          className={`text-6xl mb-8 ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}
         >
           {currentStep.icon}
         </div>
 
-        <div className="mb-4 text-xl font-semibold text-gray-700">
-          {progress}%
+        <div className="mb-4">
+          <div className="mb-2 text-xl font-semibold text-gray-700">
+            {progress}%
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${currentStep.color}`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
 
-        <div className="w-64 bg-gray-200 rounded-full h-2 overflow-hidden mb-4">
-          <div
-            className={`h-2 rounded-full transition-all duration-500 ${currentStep.color}`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        <div className="text-gray-700 font-medium">{currentStep.message}</div>
 
-        <div className="text-gray-700 font-medium mb-4">
-          {currentStep.message}
-        </div>
-
-        {/* Location Status */}
-        <div className="mt-4 transition-all duration-300 ease-in-out">
-          {renderLocationStatus()}
-        </div>
+        {renderLocationStatus()}
       </div>
     </div>
   );
