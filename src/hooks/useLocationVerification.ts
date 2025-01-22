@@ -51,34 +51,15 @@ export function useLocationVerification(
 
   // Sync locationState with verificationState
   useEffect(() => {
-    console.log('Location state changed:', locationState);
+    console.log('Location state in verification:', locationState);
 
-    if (locationState.status === 'error' || locationState.error) {
-      setVerificationState({
+    if (locationState.error || locationState.status === 'error') {
+      setVerificationState((prev) => ({
+        ...prev,
         status: 'error',
-        verificationStatus: 'needs_verification',
-        inPremises: false,
-        address: '',
-        confidence: 'low',
-        accuracy: 0,
         error: locationState.error,
-        coordinates: locationState.coordinates,
-        triggerReason: 'Location services denied',
-      });
-    } else if (locationState.status === 'ready') {
-      const { shouldTrigger, reason } =
-        triggerRef.current?.shouldTriggerAdminAssistance(locationState) || {};
-
-      setVerificationState({
-        ...locationState,
-        verificationStatus: shouldTrigger
-          ? 'needs_verification'
-          : locationState.inPremises
-            ? 'verified'
-            : 'needs_verification',
-        triggerReason: shouldTrigger ? reason : undefined,
-        error: null,
-      });
+        verificationStatus: 'needs_verification',
+      }));
     }
   }, [locationState]);
 
