@@ -1,6 +1,6 @@
 import { LeaveRequest, OvertimeRequest, User, Prisma } from '@prisma/client';
-import prisma from '../../lib/prisma';
-import { UserRole } from '../../types/enum';
+import prisma from '../lib/prisma';
+import { UserRole } from '../types/enum';
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
