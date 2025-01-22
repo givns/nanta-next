@@ -69,7 +69,26 @@ export function useEnhancedLocation() {
 
       return newLocationState;
     } catch (error) {
-      // Implement retry logic
+      console.log('Location error:', error); // Add logging
+
+      // Handle GeolocationPositionError specifically first
+      if (error instanceof GeolocationPositionError) {
+        const errorState: LocationState = {
+          status: 'error',
+          inPremises: false,
+          address: '',
+          confidence: 'low',
+          accuracy: 0,
+          error:
+            error.code === 1
+              ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services'
+              : 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
+        };
+        setLocationState(errorState);
+        return errorState; // Return instead of throw to prevent retry
+      }
+
+      // For other errors, implement retry logic
       if (locationRef.current.retryCount < MAX_RETRIES) {
         locationRef.current.retryCount++;
         await new Promise((resolve) =>
@@ -78,6 +97,7 @@ export function useEnhancedLocation() {
         return getCurrentLocation(forceRefresh);
       }
 
+      // If retries exhausted, set error state
       const errorState: LocationState = {
         status: 'error',
         inPremises: false,
@@ -87,7 +107,7 @@ export function useEnhancedLocation() {
         error: error instanceof Error ? error.message : 'Location error',
       };
       setLocationState(errorState);
-      throw error;
+      return errorState; // Return instead of throw
     } finally {
       locationRef.current.promise = null;
     }
