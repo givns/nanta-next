@@ -26,6 +26,13 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onLocationRetry,
   onRequestAdminAssistance,
 }) => {
+  console.log('LoadingBar rendered:', {
+    step,
+    locationState,
+    hasRetryHandler: !!onLocationRetry,
+    hasAssistHandler: !!onRequestAdminAssistance,
+  });
+
   const [progress, setProgress] = useState(0);
 
   const steps = {
@@ -62,29 +69,30 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const currentStep = steps[step];
 
   const renderLocationStatus = () => {
-    if (step !== 'location' || !locationState) return null;
+    console.log('renderLocationStatus called:', {
+      step,
+      isLocationStep: step === 'location',
+      hasLocationState: !!locationState,
+      locationStatus: locationState?.status,
+      locationError: locationState?.error,
+    });
 
-    // Handle location permission denied specifically
-    if (
-      locationState.error?.includes('User denied Geolocation') ||
-      locationState.error?.includes('Permission denied')
-    ) {
+    if (step !== 'location' || !locationState) {
+      console.log(
+        'Early return from renderLocationStatus - conditions not met',
+      );
+      return null;
+    }
+
+    if (locationState.status === 'error' || locationState.error) {
+      console.log('Rendering error UI in LoadingBar');
+
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
-            <div className="font-medium mb-2">
-              ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น
-            </div>
-            <div className="text-gray-600 text-sm space-y-2">
-              <p>กรุณาทำตามขั้นตอนต่อไปนี้:</p>
-              <ol className="list-decimal list-inside space-y-1 text-left">
-                <li>เปิดการใช้งาน Location Services บนอุปกรณ์ของคุณ</li>
-                <li>อนุญาตให้เว็บไซต์เข้าถึงตำแหน่งของคุณ</li>
-                <li>กดปุ่ม ลองใหม่ เพื่อตรวจสอบตำแหน่งอีกครั้ง</li>
-              </ol>
-            </div>
+            <div className="font-medium mb-1">ไม่สามารถระบุตำแหน่งได้</div>
+            <div>{locationState.error}</div>
           </div>
-
           <div className="space-y-2">
             <button
               onClick={onLocationRetry}
@@ -102,8 +110,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
       );
     }
-
-    // Rest of the location status rendering...
 
     return (
       <div className="mt-6 text-sm">

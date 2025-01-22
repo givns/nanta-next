@@ -574,6 +574,15 @@ const CheckInRouter: React.FC = () => {
   if (loadingPhase !== 'complete' || !userData) {
     return (
       <>
+        {console.log('LoadingBar mounting conditions:', {
+          loadingPhase,
+          currentStep,
+          locationState: {
+            status: locationState.status,
+            error: locationState.error,
+            verificationStatus: locationState.verificationStatus,
+          },
+        })}
         <div
           className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
             loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
