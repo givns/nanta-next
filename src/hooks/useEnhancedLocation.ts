@@ -48,12 +48,9 @@ export function useEnhancedLocation() {
 
     try {
       setLocationState((prev) => ({ ...prev, status: 'loading' }));
-      const locationPromise = locationService.current.getCurrentLocation();
-      locationRef.current.promise = locationPromise;
+      const result =
+        await locationService.current.getCurrentLocation(forceRefresh);
 
-      const result = await locationPromise;
-
-      // Handle error state from service
       if (result.error) {
         const errorState: LocationState = {
           status: 'error',
@@ -62,9 +59,10 @@ export function useEnhancedLocation() {
           confidence: 'low',
           accuracy: 0,
           error: result.error,
-          coordinates: result.coordinates || undefined,
+          coordinates: undefined, // Make sure this is undefined, not null
         };
         setLocationState(errorState);
+        locationRef.current.data = errorState; // Important: Update ref data
         return errorState;
       }
 
@@ -90,35 +88,21 @@ export function useEnhancedLocation() {
 
       return newLocationState;
     } catch (error) {
-      console.log('Enhanced location error caught:', error);
-
+      console.error('Location fetch error:', error);
       const errorState: LocationState = {
         status: 'error',
         inPremises: false,
         address: '',
         confidence: 'low',
         accuracy: 0,
+        coordinates: undefined,
         error:
           error instanceof GeolocationPositionError && error.code === 1
             ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services'
-            : 'Location error',
+            : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
       };
-
       setLocationState(errorState);
-
-      // Don't retry if it's a permission denied error
-      if (error instanceof GeolocationPositionError && error.code === 1) {
-        return errorState;
-      }
-
-      if (locationRef.current.retryCount < MAX_RETRIES) {
-        locationRef.current.retryCount++;
-        await new Promise((resolve) =>
-          setTimeout(resolve, RETRY_DELAY * locationRef.current.retryCount),
-        );
-        return getCurrentLocation(forceRefresh);
-      }
-
+      locationRef.current.data = errorState; // Important: Update ref data
       return errorState;
     } finally {
       locationRef.current.promise = null;
