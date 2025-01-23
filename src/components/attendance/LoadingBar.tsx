@@ -74,29 +74,26 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const currentStep = steps[step];
 
   const renderLocationStatus = () => {
-    console.log('renderLocationStatus state:', { locationState, step }); // Debug log
+    console.log('renderLocationStatus state:', { locationState, step });
 
+    // Always show error/verification UI regardless of step
     if (
       locationState?.status === 'error' ||
       locationState?.verificationStatus === 'needs_verification'
     ) {
       return (
         <div className="mt-6 space-y-4">
-          {locationState.error && (
-            <div className="text-red-600 text-sm">{locationState.error}</div>
-          )}
+          <div className="text-red-600 text-sm">{locationState.error}</div>
           <div className="space-y-2">
-            {/* Remove locationState.error check here */}
             <button
-              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
               onClick={onLocationRetry}
+              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
             >
               ลองใหม่อีกครั้ง
             </button>
-            {/* Remove verificationStatus check here */}
             <button
-              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
               onClick={onRequestAdminAssistance}
+              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
             >
               ขอความช่วยเหลือจากเจ้าหน้าที่
             </button>
@@ -105,23 +102,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    if (step !== 'location' || !locationState) return null;
+    // Only show location status for location step
+    if (step !== 'location') return null;
 
     return (
       <div className="mt-6 text-sm">
-        {locationState.address ? (
-          <>
-            <div className="text-green-600 font-medium mb-2">
-              ระบุตำแหน่งสำเร็จ
-            </div>
-            <div className="text-gray-700 mb-1">{locationState.address}</div>
-            {locationState.accuracy && (
-              <div className="text-gray-500 text-xs">
-                ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
-              </div>
-            )}
-          </>
-        ) : (
+        {locationState?.address ?? (
           <div className="text-gray-600 animate-pulse">กำลังระบุที่อยู่...</div>
         )}
       </div>
