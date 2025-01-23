@@ -76,12 +76,14 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
 
-    if (locationState?.status === 'error') {
+    // Handle error state regardless of step
+    if (
+      locationState?.status === 'error' ||
+      locationState?.verificationStatus === 'needs_verification'
+    ) {
       return (
         <div className="mt-6 space-y-4">
-          {locationState.error && (
-            <div className="text-red-600 text-sm">{locationState.error}</div>
-          )}
+          <div className="text-red-600 text-sm">{locationState.error}</div>
           <div className="space-y-2">
             <button
               onClick={onLocationRetry}
@@ -102,12 +104,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Only show location status for location step
-    if (step !== 'location') return null;
+    // Normal location status only for location step
+    if (step !== 'location' || !locationState) return null;
 
     return (
       <div className="mt-6 text-sm">
-        {locationState?.address ?? (
+        {locationState.address ? (
+          <>
+            <div className="text-green-600 font-medium mb-2">
+              ระบุตำแหน่งสำเร็จ
+            </div>
+            <div className="text-gray-700 mb-1">{locationState.address}</div>
+            {locationState.accuracy && (
+              <div className="text-gray-500 text-xs">
+                ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
+              </div>
+            )}
+          </>
+        ) : (
           <div className="text-gray-600 animate-pulse">กำลังระบุที่อยู่...</div>
         )}
       </div>
