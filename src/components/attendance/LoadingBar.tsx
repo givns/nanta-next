@@ -15,7 +15,7 @@ interface LoadingBarProps {
     error: string | null;
     address: string;
     accuracy: number;
-    verificationStatus?: string; // Add this
+    verificationStatus?: string;
     coordinates?: {
       latitude: number;
       longitude: number;
@@ -83,21 +83,14 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
-            <div>{locationState.error}</div>
-          </div>
-          <div className="space-y-2">
-            <button
-              onClick={onLocationRetry}
-              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
-            >
-              ลองใหม่อีกครั้ง
-            </button>
-            <button
-              onClick={onRequestAdminAssistance}
-              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
-            >
-              ขอความช่วยเหลือจากเจ้าหน้าที่
-            </button>
+            {locationState.error && (
+              <button onClick={onLocationRetry}>ลองใหม่อีกครั้ง</button>
+            )}
+            {locationState.verificationStatus === 'needs_verification' && (
+              <button onClick={onRequestAdminAssistance}>
+                ขอความช่วยเหลือจากเจ้าหน้าที่
+              </button>
+            )}
           </div>
         </div>
       );
