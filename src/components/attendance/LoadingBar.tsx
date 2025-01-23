@@ -77,39 +77,32 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationError: locationState?.error,
     });
 
-    if (locationState?.status === 'error' || locationState?.error) {
+    // Error state should take precedence
+    if (locationState?.status === 'error' && locationState?.error) {
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
-            <div className="font-medium mb-1">ไม่สามารถระบุตำแหน่งได้</div>
             <div>{locationState.error}</div>
           </div>
           <div className="space-y-2">
-            {onLocationRetry && (
-              <button
-                onClick={onLocationRetry}
-                className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-              >
-                ลองใหม่อีกครั้ง
-              </button>
-            )}
-            {onRequestAdminAssistance && (
-              <button
-                onClick={onRequestAdminAssistance}
-                className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
-              >
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            )}
+            <button
+              onClick={onLocationRetry}
+              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
+            >
+              ลองใหม่อีกครั้ง
+            </button>
+            <button
+              onClick={onRequestAdminAssistance}
+              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
+            >
+              ขอความช่วยเหลือจากเจ้าหน้าที่
+            </button>
           </div>
         </div>
       );
     }
 
-    // Otherwise, proceed with normal step-based rendering
-    if (step !== 'location' || !locationState) {
-      return null;
-    }
+    if (step !== 'location' || !locationState) return null;
 
     return (
       <div className="mt-6 text-sm">
