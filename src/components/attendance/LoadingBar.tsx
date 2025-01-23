@@ -82,9 +82,14 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     ) {
       return (
         <div className="mt-6 space-y-4">
-          <div className="text-red-600 text-sm">
-            <div>{locationState.error}</div>
-          </div>
+          {/* Error message */}
+          {locationState.error && (
+            <div className="text-red-600 text-sm">
+              <div>{locationState.error}</div>
+            </div>
+          )}
+
+          {/* Action buttons */}
           <div className="space-y-2">
             {locationState.error && (
               <button
