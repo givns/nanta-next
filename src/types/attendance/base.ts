@@ -98,7 +98,7 @@ export interface LocationVerificationState extends BaseLocationState {
   verificationStatus: VerificationStatus;
   lastVerifiedAt?: Date;
   adminRequestId?: string;
-  triggerReason?: string;
+  triggerReason?: string | null;
 }
 
 export type LocationStateContextType = {
@@ -107,7 +107,7 @@ export type LocationStateContextType = {
   needsVerification: boolean;
   isVerified: boolean;
   isAdminPending: boolean;
-  triggerReason?: string;
+  triggerReason?: string | null;
   verifyLocation: (force?: boolean) => Promise<boolean>;
   requestAdminAssistance: () => Promise<void>;
 };

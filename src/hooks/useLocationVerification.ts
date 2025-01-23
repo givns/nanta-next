@@ -51,23 +51,32 @@ export function useLocationVerification(
   }, [finalConfig]);
 
   // Sync locationState with verificationState needs to be fixed
+
   useEffect(() => {
     console.log('Location state in verification:', locationState);
 
     if (locationState.status === 'error' || locationState.error) {
-      const errorState: LocationVerificationState = {
+      const errorState = formatLocationState({
         status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus,
+        verificationStatus: 'needs_verification',
         inPremises: false,
         address: locationState.address,
         confidence: locationState.confidence,
         accuracy: locationState.accuracy,
         error: locationState.error,
         coordinates: locationState.coordinates,
-        triggerReason: locationState.error || undefined,
-      };
-      console.log('Setting verification error state:', errorState);
+        triggerReason: locationState.error,
+      });
       setVerificationState(errorState);
+    } else {
+      setVerificationState((prev) =>
+        formatLocationState({
+          ...prev,
+          ...locationState,
+          verificationStatus:
+            locationState.status === 'ready' ? 'verified' : 'pending',
+        }),
+      );
     }
   }, [locationState]);
 
