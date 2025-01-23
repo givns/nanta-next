@@ -76,14 +76,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
 
-    // Always show error/verification UI regardless of step
-    if (
-      locationState?.status === 'error' ||
-      locationState?.verificationStatus === 'needs_verification'
-    ) {
+    if (locationState?.status === 'error') {
       return (
         <div className="mt-6 space-y-4">
-          <div className="text-red-600 text-sm">{locationState.error}</div>
+          {locationState.error && (
+            <div className="text-red-600 text-sm">{locationState.error}</div>
+          )}
           <div className="space-y-2">
             <button
               onClick={onLocationRetry}
@@ -91,12 +89,14 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             >
               ลองใหม่อีกครั้ง
             </button>
-            <button
-              onClick={onRequestAdminAssistance}
-              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
-            >
-              ขอความช่วยเหลือจากเจ้าหน้าที่
-            </button>
+            {locationState.verificationStatus === 'needs_verification' && (
+              <button
+                onClick={onRequestAdminAssistance}
+                className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
+              >
+                ขอความช่วยเหลือจากเจ้าหน้าที่
+              </button>
+            )}
           </div>
         </div>
       );
