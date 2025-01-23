@@ -76,7 +76,10 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step }); // Debug log
 
-    if (locationState?.status === 'error') {
+    if (
+      locationState?.status === 'error' ||
+      locationState?.verificationStatus === 'needs_verification'
+    ) {
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
@@ -89,15 +92,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             >
               ลองใหม่อีกครั้ง
             </button>
-            {(locationState.verificationStatus === 'needs_verification' ||
-              locationState.verificationStatus === 'pending') && (
-              <button
-                onClick={onRequestAdminAssistance}
-                className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
-              >
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            )}
+            <button
+              onClick={onRequestAdminAssistance}
+              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
+            >
+              ขอความช่วยเหลือจากเจ้าหน้าที่
+            </button>
           </div>
         </div>
       );
