@@ -1,16 +1,21 @@
 // components/attendance/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
 import '@flaticon/flaticon-uicons/css/all/all.css';
-import { MapPin, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
   locationState?: {
-    status: string;
+    status:
+      | 'initializing'
+      | 'loading'
+      | 'ready'
+      | 'error'
+      | 'pending_admin'
+      | 'waiting_admin';
     error: string | null;
     address: string;
     accuracy: number;
+    verificationStatus?: string; // Add this
     coordinates?: {
       latitude: number;
       longitude: number;
@@ -78,7 +83,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     });
 
     // Error state should take precedence
-    if (locationState?.status === 'error' && locationState?.error) {
+    if (locationState?.status === 'error' || locationState?.error) {
+      // Remove AND, use OR
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">

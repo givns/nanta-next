@@ -600,6 +600,7 @@ const CheckInRouter: React.FC = () => {
               error: locationState.error,
               address: locationState.address,
               accuracy: locationState.accuracy,
+              verificationStatus: locationState.verificationStatus,
               coordinates: locationState.coordinates
                 ? {
                     latitude: locationState.coordinates.lat,
