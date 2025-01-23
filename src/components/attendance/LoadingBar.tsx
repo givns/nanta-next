@@ -82,31 +82,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     ) {
       return (
         <div className="mt-6 space-y-4">
-          {/* Error message */}
           {locationState.error && (
-            <div className="text-red-600 text-sm">
-              <div>{locationState.error}</div>
-            </div>
+            <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
-
-          {/* Action buttons */}
           <div className="space-y-2">
-            {locationState.error && (
-              <button
-                onClick={onLocationRetry}
-                className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
-              >
-                ลองใหม่อีกครั้ง
-              </button>
-            )}
-            {locationState.verificationStatus === 'needs_verification' && (
-              <button
-                onClick={onRequestAdminAssistance}
-                className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
-              >
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            )}
+            {/* Remove locationState.error check here */}
+            <button
+              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md"
+              onClick={onLocationRetry}
+            >
+              ลองใหม่อีกครั้ง
+            </button>
+            {/* Remove verificationStatus check here */}
+            <button
+              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md"
+              onClick={onRequestAdminAssistance}
+            >
+              ขอความช่วยเหลือจากเจ้าหน้าที่
+            </button>
           </div>
         </div>
       );
