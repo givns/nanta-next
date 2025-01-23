@@ -83,8 +83,9 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     });
 
     if (
-      locationState?.status === 'error' ||
-      locationState?.verificationStatus === 'needs_verification'
+      (locationState?.status === 'error' ||
+        locationState?.verificationStatus === 'needs_verification') &&
+      step === 'location'
     ) {
       return (
         <div className="mt-6 space-y-4">
