@@ -19,7 +19,8 @@ interface LocationResult {
   accuracy: number;
   timestamp: number;
   confidence: 'high' | 'medium' | 'low';
-  coordinates: LocationPoint;
+  coordinates: LocationPoint | null; // Make coordinates nullable
+  error?: string; // Add optional error property
 }
 
 interface LocationHistory {
@@ -77,24 +78,6 @@ export class EnhancedLocationService {
   private lastLocation: LocationResult | null = null;
   private locationHistory: LocationHistory[] = [];
 
-  private calculateDistance(
-    lat1: number,
-    lon1: number,
-    lat2: number,
-    lon2: number,
-  ): number {
-    const R = 6371e3;
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
   private analyzePremisesProbability(
     lat: number,
     lng: number,
@@ -107,7 +90,7 @@ export class EnhancedLocationService {
         premise.lat,
         premise.lng,
       );
-      const backupDistances = premise.backupPoints.map((point: LocationPoint) =>
+      const backupDistances = premise.backupPoints.map((point) =>
         this.calculateDistance(lat, lng, point.lat, point.lng),
       );
       const allDistances = [mainDistance, ...backupDistances];
@@ -116,13 +99,12 @@ export class EnhancedLocationService {
       let confidence: 'high' | 'medium' | 'low';
       let inPremises = false;
 
-      // Determine confidence and premises status
       if (minDistance <= premise.radius + Math.min(accuracy, 30)) {
         confidence = 'high';
         inPremises = true;
       } else if (minDistance <= premise.radius + Math.min(accuracy, 50)) {
         const backupConfirmations = backupDistances.filter(
-          (d: number) => d <= premise.radius + Math.min(accuracy, 50),
+          (d) => d <= premise.radius + Math.min(accuracy, 50),
         ).length;
         confidence = backupConfirmations >= 1 ? 'medium' : 'low';
         inPremises = backupConfirmations >= 1;
@@ -136,35 +118,25 @@ export class EnhancedLocationService {
         distance: minDistance,
         confidence,
         backupConfirmations: backupDistances.filter(
-          (d: number) => d <= premise.radius + accuracy,
+          (d) => d <= premise.radius + accuracy,
         ).length,
         inPremises,
       };
     });
 
-    results.sort((a, b) => {
-      if (a.confidence !== b.confidence) {
+    return results.reduce((best, current) => {
+      if (best.confidence !== current.confidence) {
         const confidenceMap = { high: 3, medium: 2, low: 1 };
-        return confidenceMap[b.confidence] - confidenceMap[a.confidence];
+        return confidenceMap[current.confidence] >
+          confidenceMap[best.confidence]
+          ? current
+          : best;
       }
-      if (a.inPremises !== b.inPremises) {
-        return b.inPremises ? 1 : -1;
+      if (best.inPremises !== current.inPremises) {
+        return current.inPremises ? current : best;
       }
-      return a.distance - b.distance;
+      return current.distance < best.distance ? current : best;
     });
-
-    return results[0];
-  }
-
-  private addToHistory(result: LocationResult) {
-    this.locationHistory.push({
-      timestamp: Date.now(),
-      result,
-    });
-
-    if (this.locationHistory.length > EnhancedLocationService.HISTORY_SIZE) {
-      this.locationHistory.shift();
-    }
   }
 
   private validateWithHistory(result: LocationResult): LocationResult {
@@ -190,7 +162,7 @@ export class EnhancedLocationService {
         return {
           ...result,
           inPremises: true,
-          confidence: 'medium', // Downgrade to medium when using history
+          confidence: 'medium',
           address: bestHistoricalResult.result.address,
         };
       }
@@ -198,9 +170,30 @@ export class EnhancedLocationService {
     return result;
   }
 
+  private addToHistory(result: LocationResult) {
+    this.locationHistory.push({
+      timestamp: Date.now(),
+      result,
+    });
+
+    if (this.locationHistory.length > EnhancedLocationService.HISTORY_SIZE) {
+      this.locationHistory.shift();
+    }
+  }
+
   async getCurrentLocation(forceRefresh = false): Promise<LocationResult> {
     let attempts = 0;
     let bestResult: LocationResult | null = null;
+
+    // Check cache first
+    if (
+      !forceRefresh &&
+      this.lastLocation &&
+      Date.now() - this.lastLocation.timestamp <
+        EnhancedLocationService.LOCATION_CACHE_TIME
+    ) {
+      return this.lastLocation;
+    }
 
     while (attempts < EnhancedLocationService.MAX_RETRIES) {
       try {
@@ -216,8 +209,24 @@ export class EnhancedLocationService {
 
         const { latitude, longitude, accuracy } = position.coords;
 
+        // Handle low accuracy
         if (accuracy > EnhancedLocationService.MIN_ACCURACY) {
-          throw new Error('Location accuracy too low');
+          if (attempts < EnhancedLocationService.MAX_RETRIES - 1) {
+            attempts++;
+            await new Promise((resolve) =>
+              setTimeout(resolve, EnhancedLocationService.RETRY_DELAY),
+            );
+            continue;
+          }
+          return {
+            inPremises: false,
+            address: '',
+            accuracy,
+            timestamp: Date.now(),
+            confidence: 'low',
+            coordinates: { lat: latitude, lng: longitude },
+            error: 'ความแม่นยำของตำแหน่งต่ำเกินไป กรุณาลองใหม่อีกครั้ง',
+          };
         }
 
         const analysis = this.analyzePremisesProbability(
@@ -239,9 +248,10 @@ export class EnhancedLocationService {
         }
 
         if (result.inPremises || result.accuracy < 30) {
-          this.lastLocation = result;
-          this.addToHistory(result);
-          return this.validateWithHistory(result);
+          const validatedResult = this.validateWithHistory(result);
+          this.lastLocation = validatedResult;
+          this.addToHistory(validatedResult);
+          return validatedResult;
         }
 
         attempts++;
@@ -251,14 +261,32 @@ export class EnhancedLocationService {
           );
         }
       } catch (error) {
-        attempts++;
-        if (attempts < EnhancedLocationService.MAX_RETRIES) {
+        console.error('Location fetch error:', error);
+
+        // Handle permission denied immediately
+        if (error instanceof GeolocationPositionError && error.code === 1) {
+          return {
+            inPremises: false,
+            address: '',
+            accuracy: 0,
+            timestamp: Date.now(),
+            confidence: 'low',
+            coordinates: null,
+            error:
+              'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services',
+          };
+        }
+
+        // For other errors, try to use cache or retry
+        if (attempts < EnhancedLocationService.MAX_RETRIES - 1) {
+          attempts++;
           await new Promise((resolve) =>
             setTimeout(resolve, EnhancedLocationService.RETRY_DELAY),
           );
           continue;
         }
 
+        // If we have recent cache, use it
         if (
           this.lastLocation &&
           Date.now() - this.lastLocation.timestamp < 5 * 60 * 1000
@@ -266,16 +294,54 @@ export class EnhancedLocationService {
           return this.lastLocation;
         }
 
-        throw error;
+        // Return error state
+        return {
+          inPremises: false,
+          address: '',
+          accuracy: 0,
+          timestamp: Date.now(),
+          confidence: 'low',
+          coordinates: null,
+          error: 'เกิดข้อผิดพลาดในการระบุตำแหน่ง กรุณาลองใหม่อีกครั้ง',
+        };
       }
     }
 
+    // If we have a best result after all attempts, use it
     if (bestResult) {
-      this.lastLocation = bestResult;
-      this.addToHistory(bestResult);
-      return this.validateWithHistory(bestResult);
+      const validatedResult = this.validateWithHistory(bestResult);
+      this.lastLocation = validatedResult;
+      this.addToHistory(validatedResult);
+      return validatedResult;
     }
 
-    throw new Error('Failed to get accurate location');
+    // Final fallback error
+    return {
+      inPremises: false,
+      address: '',
+      accuracy: 0,
+      timestamp: Date.now(),
+      confidence: 'low',
+      coordinates: null,
+      error: 'ไม่สามารถระบุตำแหน่งได้หลังจากลองหลายครั้ง กรุณาลองใหม่อีกครั้ง',
+    };
+  }
+
+  private calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+  ): number {
+    const R = 6371e3;
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   }
 }

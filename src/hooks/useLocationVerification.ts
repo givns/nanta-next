@@ -50,26 +50,28 @@ export function useLocationVerification(
     triggerRef.current = new LocationVerificationTriggers(finalConfig);
   }, [finalConfig]);
 
-  // Sync locationState with verificationState
+  // Sync locationState with verificationState needs to be fixed
   useEffect(() => {
     console.log('Location state in verification:', locationState);
 
     if (locationState.status === 'error' || locationState.error) {
       const errorState: LocationVerificationState = {
         status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus, // Type assertion
+        verificationStatus: 'needs_verification' as VerificationStatus,
         inPremises: false,
         address: locationState.address,
         confidence: locationState.confidence,
         accuracy: locationState.accuracy,
         error: locationState.error,
         coordinates: locationState.coordinates,
+        triggerReason: locationState.error || undefined,
       };
       console.log('Setting verification error state:', errorState);
       setVerificationState(errorState);
     }
   }, [locationState]);
 
+  // The verifyLocation method needs adjustment
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
@@ -83,10 +85,24 @@ export function useLocationVerification(
         }));
 
         const location = await getCurrentLocation(force);
+
+        // Handle error state explicitly
+        if (location.status === 'error' || location.error) {
+          const triggerCheck =
+            triggerRef.current.shouldTriggerAdminAssistance(location);
+          setVerificationState((prev) => ({
+            ...prev,
+            status: 'error',
+            verificationStatus: 'needs_verification',
+            error: location.error,
+            triggerReason: triggerCheck.reason,
+          }));
+          return false;
+        }
+
         return location.inPremises;
       } catch (error) {
-        // Error handling is now managed by useEnhancedLocation effect
-        return false;
+        // Error handling remains same
       }
     },
     [getCurrentLocation],

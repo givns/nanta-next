@@ -53,13 +53,33 @@ export function useEnhancedLocation() {
 
       const result = await locationPromise;
 
+      // Handle error state from service
+      if (result.error) {
+        const errorState: LocationState = {
+          status: 'error',
+          inPremises: false,
+          address: '',
+          confidence: 'low',
+          accuracy: 0,
+          error: result.error,
+          coordinates: result.coordinates || undefined,
+        };
+        setLocationState(errorState);
+        return errorState;
+      }
+
       const newLocationState: LocationState = {
         status: 'ready',
         inPremises: result.inPremises,
         address: result.address || '',
         confidence: result.confidence || 'low',
         accuracy: result.accuracy || 0,
-        coordinates: result.coordinates,
+        coordinates: result.coordinates
+          ? {
+              lat: result.coordinates.lat,
+              lng: result.coordinates.lng,
+            }
+          : undefined,
         error: null,
       };
 
@@ -72,9 +92,8 @@ export function useEnhancedLocation() {
     } catch (error) {
       console.log('Enhanced location error caught:', error);
 
-      // Create error state immediately
       const errorState: LocationState = {
-        status: 'error', // Change status to 'error'
+        status: 'error',
         inPremises: false,
         address: '',
         confidence: 'low',
@@ -85,7 +104,6 @@ export function useEnhancedLocation() {
             : 'Location error',
       };
 
-      // Update state immediately
       setLocationState(errorState);
 
       // Don't retry if it's a permission denied error
@@ -93,7 +111,6 @@ export function useEnhancedLocation() {
         return errorState;
       }
 
-      // Only retry for other types of errors
       if (locationRef.current.retryCount < MAX_RETRIES) {
         locationRef.current.retryCount++;
         await new Promise((resolve) =>

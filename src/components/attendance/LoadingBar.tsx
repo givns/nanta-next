@@ -84,6 +84,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       return null;
     }
 
+    // Explicitly handle error state first
     if (locationState.status === 'error' || locationState.error) {
       console.log('Rendering error UI in LoadingBar');
 
@@ -94,18 +95,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             <div>{locationState.error}</div>
           </div>
           <div className="space-y-2">
-            <button
-              onClick={onLocationRetry}
-              className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
-            >
-              ลองใหม่อีกครั้ง
-            </button>
-            <button
-              onClick={onRequestAdminAssistance}
-              className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
-            >
-              ขอความช่วยเหลือจากเจ้าหน้าที่
-            </button>
+            {onLocationRetry && (
+              <button
+                onClick={onLocationRetry}
+                className="w-full px-4 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-md transition-colors"
+              >
+                ลองใหม่อีกครั้ง
+              </button>
+            )}
+            {onRequestAdminAssistance && (
+              <button
+                onClick={onRequestAdminAssistance}
+                className="w-full px-4 py-2 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md transition-colors"
+              >
+                ขอความช่วยเหลือจากเจ้าหน้าที่
+              </button>
+            )}
           </div>
         </div>
       );
