@@ -82,9 +82,10 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationError: locationState?.error,
     });
 
-    // Error state should take precedence
-    if (locationState?.status === 'error' || locationState?.error) {
-      // Remove AND, use OR
+    if (
+      locationState?.status === 'error' ||
+      locationState?.verificationStatus === 'needs_verification'
+    ) {
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
