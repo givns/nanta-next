@@ -77,17 +77,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationError: locationState?.error,
     });
 
-    if (step !== 'location' || !locationState) {
-      console.log(
-        'Early return from renderLocationStatus - conditions not met',
-      );
-      return null;
-    }
-
-    // Explicitly handle error state first
-    if (locationState.status === 'error' || locationState.error) {
-      console.log('Rendering error UI in LoadingBar');
-
+    if (locationState?.status === 'error' || locationState?.error) {
       return (
         <div className="mt-6 space-y-4">
           <div className="text-red-600 text-sm">
@@ -114,6 +104,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
           </div>
         </div>
       );
+    }
+
+    // Otherwise, proceed with normal step-based rendering
+    if (step !== 'location' || !locationState) {
+      return null;
     }
 
     return (

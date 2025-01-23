@@ -173,21 +173,22 @@ const CheckInRouter: React.FC = () => {
     if (authLoading) return;
 
     let nextStep: Step = 'auth';
-    if (!userData) {
-      nextStep = 'user';
-    } else if (
-      locationState.status === 'error' || // Check for error status
-      locationState.verificationStatus === 'needs_verification' || // Check verification status
-      (!isVerified && (needsVerification || locationLoading))
+
+    // Handle location error first
+    if (
+      locationState.status === 'error' ||
+      locationState.verificationStatus === 'needs_verification'
     ) {
+      nextStep = 'location';
+    } else if (!userData) {
+      nextStep = 'user';
+    } else if (!isVerified && (needsVerification || locationLoading)) {
       nextStep = 'location';
     } else {
       nextStep = 'ready';
     }
 
-    if (nextStep !== currentStep) {
-      setCurrentStep(nextStep);
-    }
+    setCurrentStep(nextStep);
   }, [
     authLoading,
     userData,
@@ -196,7 +197,6 @@ const CheckInRouter: React.FC = () => {
     locationLoading,
     locationState.status,
     locationState.verificationStatus,
-    currentStep,
   ]);
 
   // Debug location state transitions
