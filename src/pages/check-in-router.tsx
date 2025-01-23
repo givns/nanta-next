@@ -595,19 +595,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={{
-              status: locationState.status,
-              error: locationState.error,
-              address: locationState.address,
-              accuracy: locationState.accuracy,
-              verificationStatus: locationState.verificationStatus,
-              coordinates: locationState.coordinates
-                ? {
-                    latitude: locationState.coordinates.lat,
-                    longitude: locationState.coordinates.lng,
-                  }
-                : undefined,
-            }}
+            locationState={formattedLocationState} // Use the already formatted state that includes verificationStatus
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />
