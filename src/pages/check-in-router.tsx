@@ -143,7 +143,6 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
-  // Format location state for LoadingBar
   // Update formattedLocationState memo
   const formattedLocationState = useMemo(
     () => ({
@@ -152,13 +151,13 @@ const CheckInRouter: React.FC = () => {
       address: locationState.address,
       accuracy: locationState.accuracy,
       inPremises: locationState.inPremises,
-      verificationStatus: locationState.verificationStatus,
       coordinates: locationState.coordinates
         ? {
             latitude: locationState.coordinates.lat,
             longitude: locationState.coordinates.lng,
           }
         : undefined,
+      verificationStatus: locationState.verificationStatus, // Add this
     }),
     [locationState],
   );
