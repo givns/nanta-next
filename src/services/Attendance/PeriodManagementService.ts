@@ -399,13 +399,9 @@ export class PeriodManagementService {
     const periodStart = this.parseTimeWithContext(period.startTime, now);
     let periodEnd = this.parseTimeWithContext(period.endTime, now);
 
-    // Adjust end time for overnight periods
+    // More precise overnight handling
     if (period.isOvernight) {
       if (periodEnd < periodStart) {
-        // Only add a day if the end time is truly earlier
-        periodEnd = addDays(periodEnd, 1);
-      } else if (periodEnd === periodStart) {
-        // Handle edge case of exactly 24-hour period
         periodEnd = addDays(periodEnd, 1);
       }
     }
@@ -1067,8 +1063,10 @@ export class PeriodManagementService {
     const [startHours, startMinutes] = start.split(':').map(Number);
     const [endHours, endMinutes] = end.split(':').map(Number);
 
-    // More explicit overnight check
-    return endHours * 60 + endMinutes < startHours * 60 + startMinutes;
+    const startTotalMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+
+    return endTotalMinutes < startTotalMinutes;
   }
 
   private parseTimeWithContext(timeString: string, referenceDate: Date): Date {
