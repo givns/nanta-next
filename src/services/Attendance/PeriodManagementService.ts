@@ -341,31 +341,26 @@ export class PeriodManagementService {
         if (currentPeriodEnd < currentPeriodStart) {
           currentPeriodEnd = addDays(currentPeriodEnd, 1);
         }
-        // If we're before midnight but period started yesterday
         if (now < currentPeriodStart) {
           currentPeriodStart = subDays(currentPeriodStart, 1);
           currentPeriodEnd = subDays(currentPeriodEnd, 1);
         }
       }
 
-      // Include early window in check
+      // Include early and late windows
       const earlyWindow = subMinutes(
         currentPeriodStart,
         VALIDATION_THRESHOLDS.EARLY_CHECKIN,
       );
+      const lateWindow = addMinutes(
+        currentPeriodEnd,
+        VALIDATION_THRESHOLDS.LATE_CHECKOUT,
+      );
 
-      if (
-        isWithinInterval(now, {
-          start: earlyWindow,
-          end: addMinutes(
-            currentPeriodEnd,
-            VALIDATION_THRESHOLDS.LATE_CHECKOUT,
-          ),
-        })
-      ) {
+      if (isWithinInterval(now, { start: earlyWindow, end: lateWindow })) {
         console.log('Found current period:', {
           type: period.type,
-          start: format(currentPeriodEnd, 'HH:mm:ss'),
+          start: format(currentPeriodStart, 'HH:mm:ss'),
           end: format(currentPeriodEnd, 'HH:mm:ss'),
         });
         return period;
@@ -385,7 +380,7 @@ export class PeriodManagementService {
       });
     }
 
-    return nextPeriod || null; // Ensure null instead of undefined
+    return nextPeriod || null;
   }
 
   /**
