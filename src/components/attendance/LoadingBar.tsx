@@ -86,14 +86,18 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
           <div className="space-y-2">
-            {isError && (
-              <button onClick={onLocationRetry}>ลองใหม่อีกครั้ง</button>
-            )}
-            {needsVerification && (
-              <button onClick={onRequestAdminAssistance}>
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            )}
+            <button
+              onClick={onLocationRetry}
+              className="px-4 py-2 bg-gray-200 rounded-lg mr-2"
+            >
+              ลองใหม่อีกครั้ง
+            </button>
+            <button
+              onClick={onRequestAdminAssistance}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+            >
+              ขอความช่วยเหลือจากเจ้าหน้าที่
+            </button>
           </div>
         </div>
       );
