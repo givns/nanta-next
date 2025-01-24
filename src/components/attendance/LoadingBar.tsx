@@ -17,8 +17,8 @@ interface LoadingBarProps {
     accuracy: number;
     verificationStatus?: string;
     coordinates?: {
-      latitude: number;
-      longitude: number;
+      lat: number;
+      lng: number;
     };
   };
   onLocationRetry?: () => Promise<void>;

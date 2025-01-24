@@ -143,25 +143,6 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
-  // Update formattedLocationState memo
-  const formattedLocationState = useMemo(
-    () => ({
-      status: locationState.status,
-      error: locationState.error,
-      address: locationState.address,
-      accuracy: locationState.accuracy,
-      inPremises: locationState.inPremises,
-      coordinates: locationState.coordinates
-        ? {
-            latitude: locationState.coordinates.lat,
-            longitude: locationState.coordinates.lng,
-          }
-        : undefined,
-      verificationStatus: locationState.verificationStatus, // Add this
-    }),
-    [locationState],
-  );
-
   // Handle location retry with void return type
   const handleLocationRetry = useCallback(async () => {
     await verifyLocation(true);
@@ -558,7 +539,7 @@ const CheckInRouter: React.FC = () => {
       userData: !!userData,
       error,
       attendanceProps: !!attendanceProps.base,
-      locationState: formattedLocationState,
+      locationState: locationState,
     });
   });
 
@@ -583,7 +564,6 @@ const CheckInRouter: React.FC = () => {
         needsVerification,
         isAdminPending,
       },
-      formattedLocationState,
     });
 
     return (
@@ -595,7 +575,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={formattedLocationState} // Use the already formatted state that includes verificationStatus
+            locationState={locationState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />

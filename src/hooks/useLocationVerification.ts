@@ -80,7 +80,6 @@ export function useLocationVerification(
     }
   }, [locationState]);
 
-  // The verifyLocation method needs adjustment
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
