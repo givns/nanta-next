@@ -75,11 +75,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
-    const isError = locationState?.status === 'error';
+    const isError = locationState?.status === 'error' || locationState?.error;
     const needsVerification =
       locationState?.verificationStatus === 'needs_verification';
+    const shouldShowButtons = isError || needsVerification;
 
-    if (isError || needsVerification) {
+    if (shouldShowButtons) {
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (
