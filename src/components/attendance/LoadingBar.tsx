@@ -31,13 +31,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onLocationRetry,
   onRequestAdminAssistance,
 }) => {
-  console.log('LoadingBar rendered:', {
-    step,
-    locationState,
-    hasRetryHandler: !!onLocationRetry,
-    hasAssistHandler: !!onRequestAdminAssistance,
-  });
-
   const [progress, setProgress] = useState(0);
 
   const steps = {
@@ -75,27 +68,27 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
-    const isError = locationState?.status === 'error' || locationState?.error;
+
+    const hasError = locationState?.status === 'error' || locationState?.error;
     const needsVerification =
       locationState?.verificationStatus === 'needs_verification';
-    const shouldShowButtons = isError || needsVerification;
 
-    if (shouldShowButtons) {
+    if (hasError || needsVerification) {
       return (
         <div className="mt-6 space-y-4">
-          {locationState.error && (
+          {locationState?.error && (
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
-          <div className="space-y-2">
+          <div className="flex flex-col space-y-2">
             <button
               onClick={onLocationRetry}
-              className="px-4 py-2 bg-gray-200 rounded-lg mr-2"
+              className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
             >
               ลองใหม่อีกครั้ง
             </button>
             <button
               onClick={onRequestAdminAssistance}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg"
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
             >
               ขอความช่วยเหลือจากเจ้าหน้าที่
             </button>
@@ -104,7 +97,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Normal location status only for location step
     if (step !== 'location' || !locationState) return null;
 
     return (
