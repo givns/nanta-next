@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LocationVerificationState } from '@/types/attendance/base';
+import { LocationVerificationState } from '@/types/attendance';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
@@ -49,12 +49,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
-  // Inside LoadingBar component
   const renderLocationStatus = () => {
-    // In case locationState is undefined or null
-    if (!locationState) return null;
-
-    // Log every state check
     console.log('LoadingBar status:', {
       step,
       state: locationState,
@@ -66,16 +61,14 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       hasAssist: !!onRequestAdminAssistance,
     });
 
-    const shouldShowErrorUI =
+    // Always show error UI if there's an error or needs verification
+    if (
       locationState.status === 'error' ||
-      Boolean(locationState.error) ||
-      locationState.verificationStatus === 'needs_verification';
-
-    // Always show error UI when conditions are met, regardless of step
-    if (shouldShowErrorUI) {
-      console.log('Rendering error UI');
+      locationState.error ||
+      locationState.verificationStatus === 'needs_verification'
+    ) {
       return (
-        <div className="mt-6 space-y-4" key={Date.now()}>
+        <div className="mt-6 space-y-4">
           {locationState.error && (
             <div className="text-red-600 text-sm font-medium">
               {locationState.error}
@@ -106,7 +99,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Show success state when we have an address
+    // Show location status only for location step
     if (step === 'location' && locationState.address) {
       return (
         <div className="mt-6 text-sm">
@@ -130,7 +123,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-8 ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}
+          className={`text-6xl mb-8 ${step === 'location' && locationState.status === 'loading' ? 'animate-bounce' : ''}`}
         >
           {currentStep.icon}
         </div>
