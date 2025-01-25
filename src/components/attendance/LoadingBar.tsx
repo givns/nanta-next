@@ -1,27 +1,18 @@
 // components/attendance/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
 import '@flaticon/flaticon-uicons/css/all/all.css';
+import { LocationVerificationState } from '@/types/attendance';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
-  locationState?: {
-    status:
-      | 'initializing'
-      | 'loading'
-      | 'ready'
-      | 'error'
-      | 'pending_admin'
-      | 'waiting_admin';
-    error: string | null;
-    address: string;
-    accuracy: number;
-    confidence: 'high' | 'medium' | 'low' | 'manual';
-    inPremises: boolean;
-    coordinates?: {
-      lat: number;
-      lng: number;
-    };
-  };
+  locationState: LocationVerificationState;
+  onLocationRetry?: () => Promise<void>;
+  onRequestAdminAssistance?: () => Promise<void>;
+}
+
+interface LoadingBarProps {
+  step: 'auth' | 'user' | 'location' | 'ready';
+  locationState: LocationVerificationState;
   onLocationRetry?: () => Promise<void>;
   onRequestAdminAssistance?: () => Promise<void>;
 }
@@ -78,7 +69,20 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     console.log('renderLocationStatus state:', { locationState, step });
 
     // Location error/issue cases
-    if (locationState?.status === 'error' || locationState?.error) {
+    const shouldShowErrorUI =
+      locationState?.error ||
+      locationState?.status === 'error' ||
+      locationState?.verificationStatus === 'needs_verification';
+
+    console.log('Error UI conditions:', {
+      hasError: Boolean(locationState?.error),
+      isErrorStatus: locationState?.status === 'error',
+      needsVerification:
+        locationState?.verificationStatus === 'needs_verification',
+      shouldShow: shouldShowErrorUI,
+    });
+
+    if (shouldShowErrorUI) {
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (
@@ -107,8 +111,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Normal location status (only show during location step)
-    if (step !== 'location' || !locationState) return null;
+    // Normal location status
+    if (step !== 'location') return null;
 
     return (
       <div className="mt-6 text-sm">
@@ -135,7 +139,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-8 ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}
+          className={`text-6xl mb-8 ${step === 'location' && locationState.status === 'loading' ? 'animate-bounce' : ''}`}
         >
           {currentStep.icon}
         </div>

@@ -119,6 +119,14 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
+  console.log('Location verification details:', {
+    hasError: Boolean(locationState.error),
+    status: locationState.status,
+    verificationStatus: locationState.verificationStatus,
+    triggerReason: locationState.triggerReason,
+    step: currentStep,
+  });
+
   // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
@@ -558,24 +566,10 @@ const CheckInRouter: React.FC = () => {
     console.log('LoadingBar mounting conditions:', {
       loadingPhase,
       currentStep,
-      locationState: {
-        status: locationState.status,
-        error: locationState.error,
-        needsVerification,
-        isAdminPending,
-      },
+      locationState,
     });
 
-    const simplifiedLocationState = {
-      status: locationState.status,
-      error: locationState.error,
-      address: locationState.address,
-      accuracy: locationState.accuracy,
-      confidence: locationState.confidence,
-      inPremises: locationState.inPremises,
-      coordinates: locationState.coordinates,
-    };
-
+    // Don't modify the original state, pass it directly
     return (
       <>
         <div
@@ -585,7 +579,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={simplifiedLocationState}
+            locationState={locationState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />
