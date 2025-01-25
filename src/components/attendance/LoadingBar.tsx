@@ -49,18 +49,33 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
+  // Inside LoadingBar component
   const renderLocationStatus = () => {
+    // In case locationState is undefined or null
     if (!locationState) return null;
 
-    // Show error UI if there's an error or needs verification
-    const hasError =
-      locationState.status === 'error' || Boolean(locationState.error);
-    const needsVerification =
+    // Log every state check
+    console.log('LoadingBar status:', {
+      step,
+      state: locationState,
+      errorState: locationState.status === 'error',
+      hasError: Boolean(locationState.error),
+      needsVerification:
+        locationState.verificationStatus === 'needs_verification',
+      hasRetry: !!onLocationRetry,
+      hasAssist: !!onRequestAdminAssistance,
+    });
+
+    const shouldShowErrorUI =
+      locationState.status === 'error' ||
+      Boolean(locationState.error) ||
       locationState.verificationStatus === 'needs_verification';
 
-    if (hasError || needsVerification) {
+    // Always show error UI when conditions are met, regardless of step
+    if (shouldShowErrorUI) {
+      console.log('Rendering error UI');
       return (
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4" key={Date.now()}>
           {locationState.error && (
             <div className="text-red-600 text-sm font-medium">
               {locationState.error}

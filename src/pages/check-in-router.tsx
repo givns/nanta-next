@@ -570,9 +570,29 @@ const CheckInRouter: React.FC = () => {
       </Alert>
     );
   }
+
+  useEffect(() => {
+    if (
+      locationState.status === 'error' ||
+      locationState.verificationStatus === 'needs_verification'
+    ) {
+      setCurrentStep('location');
+    }
+  }, [locationState.status, locationState.verificationStatus]);
+
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
-    // We directly pass locationState since it already matches the expected type
+    console.log('LoadingBar props:', {
+      step: currentStep,
+      status: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
+      handlers: {
+        retry: !!handleLocationRetry,
+        assist: !!requestAdminAssistance,
+      },
+    });
+
     return (
       <>
         <div
@@ -581,7 +601,7 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}`}
+            key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}-${Date.now()}`}
             step={currentStep}
             locationState={locationState}
             onLocationRetry={handleLocationRetry}
