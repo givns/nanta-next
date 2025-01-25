@@ -51,6 +51,18 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
+  console.log('LoadingBar state:', {
+    locationState, // Full state object
+    statusCheck: {
+      hasError: Boolean(
+        locationState.status === 'error' || locationState.error,
+      ),
+      needsVerification:
+        locationState.verificationStatus === 'needs_verification',
+      currentVerificationStatus: locationState.verificationStatus,
+    },
+  });
+
   // Add debug logging to LoadingBar
   const renderLocationStatus = () => {
     console.log('renderLocationStatus:', {

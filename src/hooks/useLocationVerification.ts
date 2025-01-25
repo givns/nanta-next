@@ -68,42 +68,40 @@ export function useLocationVerification(
 
   // Sync location state with verification state
   useEffect(() => {
-    console.log('Location state update:', locationState);
+    console.log('Raw location state update:', locationState);
 
-    // Handle permission denied case explicitly
+    // Explicitly handle location states
+    let newState: LocationVerificationState;
+
     if (
       locationState.error?.includes('permission denied') ||
       locationState.error?.includes('ถูกปิดกั้น')
     ) {
-      setVerificationState((prev) => ({
-        ...prev,
+      newState = {
+        ...locationState,
         status: 'error',
         verificationStatus: 'needs_verification',
         error: locationState.error,
         triggerReason: 'Location permission denied',
-      }));
-      return;
-    }
-
-    // Handle other error states
-    if (locationState.status === 'error' || locationState.error) {
-      setVerificationState((prev) => ({
-        ...prev,
+      };
+    } else if (locationState.status === 'error' || locationState.error) {
+      newState = {
+        ...locationState,
         status: 'error',
         verificationStatus: 'needs_verification',
         error: locationState.error,
         triggerReason: locationState.error,
-      }));
-      return;
+      };
+    } else {
+      newState = {
+        ...locationState,
+        verificationStatus:
+          locationState.status === 'ready' ? 'verified' : 'pending',
+      };
     }
 
-    // Update normal state
-    setVerificationState((prev) => ({
-      ...prev,
-      ...locationState,
-      verificationStatus:
-        locationState.status === 'ready' ? 'verified' : 'pending',
-    }));
+    console.log('Setting verification state:', newState);
+    setVerificationState(newState);
   }, [locationState]);
 
   const verifyLocation = useCallback(
