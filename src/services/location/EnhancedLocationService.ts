@@ -185,7 +185,7 @@ export class EnhancedLocationService {
     let attempts = 0;
     let bestResult: LocationResult | null = null;
 
-    // Check cache first
+    // Check cache first if not forcing refresh
     if (
       !forceRefresh &&
       this.lastLocation &&
@@ -263,9 +263,9 @@ export class EnhancedLocationService {
       } catch (error) {
         console.error('Location fetch error:', error);
 
-        // Handle permission denied immediately
+        // Handle permission denied case explicitly
         if (error instanceof GeolocationPositionError && error.code === 1) {
-          return {
+          const errorResult: LocationResult = {
             inPremises: false,
             address: '',
             accuracy: 0,
@@ -275,9 +275,11 @@ export class EnhancedLocationService {
             error:
               'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services',
           };
+          this.lastLocation = errorResult;
+          return errorResult;
         }
 
-        // For other errors, try to use cache or retry
+        // For other errors, try retry or use cache
         if (attempts < EnhancedLocationService.MAX_RETRIES - 1) {
           attempts++;
           await new Promise((resolve) =>
@@ -286,7 +288,7 @@ export class EnhancedLocationService {
           continue;
         }
 
-        // If we have recent cache, use it
+        // Return cached location if recent
         if (
           this.lastLocation &&
           Date.now() - this.lastLocation.timestamp < 5 * 60 * 1000
@@ -294,7 +296,7 @@ export class EnhancedLocationService {
           return this.lastLocation;
         }
 
-        // Return error state
+        // Final error state
         return {
           inPremises: false,
           address: '',
@@ -307,7 +309,6 @@ export class EnhancedLocationService {
       }
     }
 
-    // If we have a best result after all attempts, use it
     if (bestResult) {
       const validatedResult = this.validateWithHistory(bestResult);
       this.lastLocation = validatedResult;
@@ -315,7 +316,6 @@ export class EnhancedLocationService {
       return validatedResult;
     }
 
-    // Final fallback error
     return {
       inPremises: false,
       address: '',
