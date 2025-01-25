@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
@@ -17,11 +11,9 @@ import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
   AttendanceRecord,
-  NextDayInfoProps,
   NextDayScheduleInfo,
   SerializedAttendanceRecord,
 } from '@/types/attendance';
-import { useNextDayInfo } from '@/hooks/useNextDayInfo';
 import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
@@ -43,14 +35,12 @@ const createSafeAttendance = (props: any) => {
   });
 
   try {
-    // Only proceed if we have valid base data
     if (!props.base?.state || !props.context?.shift?.id) {
       console.log('Missing required base data');
       return null;
     }
 
-    // Create a copy of props without modification
-    const safeProps = {
+    return {
       state: props.state,
       checkStatus: props.checkStatus,
       isCheckingIn: props.isCheckingIn,
@@ -72,9 +62,6 @@ const createSafeAttendance = (props: any) => {
       refreshAttendanceStatus: props.refreshAttendanceStatus,
       getCurrentLocation: props.getCurrentLocation,
     };
-
-    console.log('Safe attendance created:', safeProps);
-    return safeProps;
   } catch (error) {
     console.error('Error creating safe attendance:', error);
     return null;
@@ -93,11 +80,9 @@ const CheckInRouter: React.FC = () => {
     null,
   );
 
-  // Hooks
+  // Core Hooks
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
-
-  // hooks
   const {
     locationState,
     isLoading: locationLoading,
@@ -117,14 +102,6 @@ const CheckInRouter: React.FC = () => {
     employeeId: userData?.employeeId,
     lineUserId: lineUserId || '',
     enabled: Boolean(userData?.employeeId && !authLoading),
-  });
-
-  console.log('Location verification details:', {
-    hasError: Boolean(locationState.error),
-    status: locationState.status,
-    verificationStatus: locationState.verificationStatus,
-    triggerReason: locationState.triggerReason,
-    step: currentStep,
   });
 
   // Fetch user data
@@ -151,38 +128,129 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
-  // Handle location retry with void return type
+  // Handle location retry
   const handleLocationRetry = useCallback(async () => {
     await verifyLocation(true);
   }, [verifyLocation]);
 
-  // Step management effect
+  // Next Day Data Handlers
+  const fetchNextDayInfo = useCallback(async () => {
+    if (!userData?.employeeId) return;
+
+    try {
+      setIsLoadingNextDay(true);
+      const response = await fetch(
+        `/api/attendance/next-day/${userData.employeeId}`,
+      );
+      if (!response.ok) throw new Error('Failed to fetch next day info');
+      const data = await response.json();
+      setNextDayData(data);
+    } catch (error) {
+      console.error('Error fetching next day info:', error);
+    } finally {
+      setIsLoadingNextDay(false);
+    }
+  }, [userData?.employeeId]);
+
+  const handleViewNextDay = useCallback(() => {
+    setShowNextDay(true);
+    fetchNextDayInfo();
+  }, [fetchNextDayInfo]);
+
+  // Process attendance props
+  const safeAttendanceProps = useMemo(
+    () => (attendanceProps ? createSafeAttendance(attendanceProps) : null),
+    [attendanceProps],
+  );
+
+  // Then the dailyRecords memo that uses it
+  const dailyRecords = useMemo(() => {
+    if (!safeAttendanceProps?.base) return [];
+
+    try {
+      const attendance = safeAttendanceProps.base.latestAttendance;
+      const additionalRecords =
+        safeAttendanceProps.base.additionalRecords || [];
+      const allRecords = [...additionalRecords];
+
+      if (
+        attendance &&
+        !additionalRecords.find(
+          (record: AttendanceRecord) => record.id === attendance.id,
+        )
+      ) {
+        allRecords.push(attendance);
+      }
+
+      const sortedRecords = allRecords.sort((a, b) => {
+        if (a.type !== b.type) return a.type === PeriodType.REGULAR ? -1 : 1;
+        return (
+          new Date(a.CheckInTime || 0).getTime() -
+          new Date(b.CheckInTime || 0).getTime()
+        );
+      });
+
+      return sortedRecords.map((record, index) => ({
+        record,
+        periodSequence: index + 1,
+      }));
+    } catch (error) {
+      console.error('Error processing daily records:', error);
+      return [];
+    }
+  }, [safeAttendanceProps?.base]);
+
+  // Check Period Completion
+  const isAllPeriodsCompleted = useMemo(() => {
+    if (!safeAttendanceProps?.base) return false;
+
+    try {
+      const regularRecord = dailyRecords.find(
+        ({ record }) =>
+          record.type === PeriodType.REGULAR &&
+          record.overtimeState === 'COMPLETED',
+      );
+      const overtimeRecord = dailyRecords.find(
+        ({ record }) =>
+          record.type === PeriodType.OVERTIME &&
+          record.overtimeState === 'COMPLETED',
+      );
+
+      return Boolean(
+        regularRecord?.record.CheckOutTime &&
+          regularRecord.record.state === 'PRESENT' &&
+          regularRecord.record.overtimeState === 'COMPLETED' &&
+          (!overtimeRecord ||
+            (overtimeRecord.record.CheckOutTime &&
+              overtimeRecord.record.state === 'PRESENT' &&
+              overtimeRecord.record.overtimeState === 'COMPLETED')),
+      );
+    } catch (error) {
+      console.error('Error checking period completion:', error);
+      return false;
+    }
+  }, [safeAttendanceProps?.base, dailyRecords]);
+
+  // Step Management
   useEffect(() => {
     if (authLoading) return;
 
-    let nextStep: Step = 'auth';
-
-    // Priority order for step determination
-    if (
-      locationState.status === 'error' ||
-      locationState.error ||
-      locationState.verificationStatus === 'needs_verification'
-    ) {
-      nextStep = 'location';
-    } else if (!userData) {
-      nextStep = 'user';
-    } else if (!isVerified && (needsVerification || locationLoading)) {
-      nextStep = 'location';
-    } else {
-      nextStep = 'ready';
-    }
+    const nextStep = (() => {
+      if (
+        locationState.status === 'error' ||
+        locationState.error ||
+        locationState.verificationStatus === 'needs_verification'
+      ) {
+        return 'location';
+      }
+      if (!userData) return 'user';
+      if (!isVerified && (needsVerification || locationLoading))
+        return 'location';
+      return 'ready';
+    })();
 
     if (nextStep !== currentStep) {
-      console.log('Step changing:', {
-        from: currentStep,
-        to: nextStep,
-        reason: 'status update',
-      });
+      console.log('Step changing:', { from: currentStep, to: nextStep });
       setCurrentStep(nextStep);
     }
   }, [
@@ -197,7 +265,7 @@ const CheckInRouter: React.FC = () => {
     currentStep,
   ]);
 
-  // Loading phase management - single unified effect
+  // Loading Phase Management
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
@@ -228,178 +296,13 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
-  // Debug location state transitions
-  console.log('Location state transition:', {
-    isVerified,
-    needsVerification,
-    locationLoading,
-    currentStep,
-    locationState,
-  });
-
   // Initial data fetch
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
 
-  // Process attendance props
-  const safeAttendanceProps = useMemo(
-    () => (attendanceProps ? createSafeAttendance(attendanceProps) : null),
-    [attendanceProps],
-  );
-
-  // Function to fetch next day data
-  const fetchNextDayInfo = useCallback(async () => {
-    if (!userData?.employeeId) return;
-
-    try {
-      setIsLoadingNextDay(true);
-      console.log('Fetching next day info for:', userData.employeeId);
-      const response = await fetch(
-        `/api/attendance/next-day/${userData.employeeId}`,
-      );
-      console.log('Next day API response:', {
-        ok: response.ok,
-        status: response.status,
-      });
-
-      if (!response.ok) throw new Error('Failed to fetch next day info');
-
-      const data = await response.json();
-      console.log('Next day data received:', data);
-
-      setNextDayData(data);
-    } catch (error) {
-      console.error('Error fetching next day info:', error);
-    } finally {
-      setIsLoadingNextDay(false);
-    }
-  }, [userData?.employeeId]);
-
-  // Handle next day button click
-  const handleViewNextDay = useCallback(() => {
-    setShowNextDay(true);
-    fetchNextDayInfo();
-  }, [fetchNextDayInfo]);
-
-  const dailyRecords = useMemo(() => {
-    if (!safeAttendanceProps?.base) return [];
-
-    try {
-      // Get latest and additional records
-      const attendance = safeAttendanceProps.base.latestAttendance;
-      const additionalRecords =
-        safeAttendanceProps.base.additionalRecords || [];
-
-      // Combine all records
-      const allRecords = [...additionalRecords];
-      if (
-        attendance &&
-        !additionalRecords.find(
-          (record: AttendanceRecord) => record.id === attendance.id,
-        )
-      ) {
-        allRecords.push(attendance);
-      }
-
-      // Sort regular period first, then overtime by sequence
-      const sortedRecords = allRecords.sort((a, b) => {
-        if (a.type !== b.type) {
-          return a.type === PeriodType.REGULAR ? -1 : 1;
-        }
-        return (
-          new Date(a.CheckInTime || 0).getTime() -
-          new Date(b.CheckInTime || 0).getTime()
-        );
-      });
-
-      // Map to final format
-      return sortedRecords.map((record, index) => ({
-        record,
-        periodSequence: index + 1,
-      }));
-    } catch (error) {
-      console.error('Error processing daily records:', error);
-      return [];
-    }
-  }, [safeAttendanceProps?.base]);
-
-  const isAllPeriodsCompleted = useMemo(() => {
-    if (!safeAttendanceProps?.base) return false;
-
-    try {
-      const base = safeAttendanceProps.base;
-
-      // Find both regular and overtime records
-      const regularRecord = dailyRecords.find(
-        ({ record }) =>
-          record.type === PeriodType.REGULAR &&
-          record.overtimeState === 'COMPLETED',
-      );
-      const overtimeRecord = dailyRecords.find(
-        ({ record }) =>
-          record.type === PeriodType.OVERTIME &&
-          record.overtimeState === 'COMPLETED',
-      );
-
-      // Debug logging
-      console.log('Completion check:', {
-        regularRecord: {
-          exists: !!regularRecord,
-          checkOut: regularRecord?.record.CheckOutTime,
-          state: regularRecord?.record.state,
-          overtimeState: regularRecord?.record.overtimeState,
-        },
-        overtimeRecord: {
-          exists: !!overtimeRecord,
-          checkOut: overtimeRecord?.record.CheckOutTime,
-          state: overtimeRecord?.record.state,
-          overtimeState: overtimeRecord?.record.overtimeState,
-        },
-        baseState: {
-          checkStatus: base.checkStatus,
-          state: base.state,
-        },
-      });
-
-      // Both periods must be complete
-      const isComplete = Boolean(
-        // Regular period completed
-        regularRecord?.record.CheckOutTime &&
-          regularRecord.record.state === 'PRESENT' &&
-          regularRecord.record.overtimeState === 'COMPLETED' &&
-          // Overtime period completed (if exists)
-          (!overtimeRecord ||
-            (overtimeRecord.record.CheckOutTime &&
-              overtimeRecord.record.state === 'PRESENT' &&
-              overtimeRecord.record.overtimeState === 'COMPLETED')),
-      );
-
-      return isComplete;
-    } catch (error) {
-      console.error('Error checking period completion:', error);
-      return false;
-    }
-  }, [safeAttendanceProps?.base, dailyRecords]);
-
   const mainContent = useMemo(() => {
-    console.log('MainContent render:', {
-      isAllPeriodsCompleted,
-      showNextDay,
-      isLoadingNextDay,
-      hasNextDayData: !!nextDayData,
-    });
-
     if (!userData || !safeAttendanceProps?.base?.state) return null;
-
-    console.log(
-      'Daily Records Raw:',
-      dailyRecords.map((r) => ({
-        dateType: typeof r.record.date,
-        checkInType: typeof r.record.CheckInTime,
-        shiftStartType: typeof r.record.shiftStartTime,
-      })),
-    );
 
     const serializeRecords = (
       records: Array<{
@@ -494,21 +397,12 @@ const CheckInRouter: React.FC = () => {
     if (isAllPeriodsCompleted) {
       if (showNextDay) {
         if (isLoadingNextDay || !nextDayData) {
-          console.log('Showing loading spinner because:', {
-            isLoadingNextDay,
-            hasNextDayData: !!nextDayData,
-          });
           return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
               <LoadingSpinner />
             </div>
           );
         }
-
-        console.log('Rendering NextDayInfo with:', {
-          hasOvertimes: Boolean(nextDayData.overtimes?.length),
-          overtimes: nextDayData.overtimes,
-        });
 
         return (
           <NextDayInfo
@@ -518,7 +412,6 @@ const CheckInRouter: React.FC = () => {
         );
       }
 
-      // Show today's summary
       return (
         <TodaySummary
           userData={userData}
@@ -529,7 +422,6 @@ const CheckInRouter: React.FC = () => {
       );
     }
 
-    // Show check-in form
     return (
       <div className="min-h-screen flex flex-col bg-gray-50">
         <CheckInOutForm
@@ -550,17 +442,6 @@ const CheckInRouter: React.FC = () => {
     handleViewNextDay,
   ]);
 
-  // Add debug output before rendering
-  useEffect(() => {
-    console.log('Render state:', {
-      loadingPhase,
-      userData: !!userData,
-      error,
-      attendanceProps: !!attendanceProps.base,
-      locationState: locationState,
-    });
-  });
-
   // Error state
   if (error || attendanceError) {
     return (
@@ -571,28 +452,8 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  useEffect(() => {
-    if (
-      locationState.status === 'error' ||
-      locationState.verificationStatus === 'needs_verification'
-    ) {
-      setCurrentStep('location');
-    }
-  }, [locationState.status, locationState.verificationStatus]);
-
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
-    console.log('LoadingBar props:', {
-      step: currentStep,
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      handlers: {
-        retry: !!handleLocationRetry,
-        assist: !!requestAdminAssistance,
-      },
-    });
-
     return (
       <>
         <div
@@ -601,7 +462,7 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}-${Date.now()}`}
+            key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}`}
             step={currentStep}
             locationState={locationState}
             onLocationRetry={handleLocationRetry}
@@ -618,8 +479,7 @@ const CheckInRouter: React.FC = () => {
     return null;
   }
 
-  // Main content
-  console.log('Rendering main content');
+  // Show check-in form (default view)
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       {isAdminPending && (
@@ -627,11 +487,11 @@ const CheckInRouter: React.FC = () => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {triggerReason ? (
+              {triggerReason && (
                 <p className="mb-1 text-sm font-medium">
                   เหตุผล: {triggerReason}
                 </p>
-              ) : null}
+              )}
               รอการยืนยันตำแหน่งจากเจ้าหน้าที่
             </AlertDescription>
           </Alert>

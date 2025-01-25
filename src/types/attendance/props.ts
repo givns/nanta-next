@@ -312,7 +312,7 @@ export interface TodaySummaryProps {
     periodSequence: number;
   }>;
   onViewNextDay: () => void;
-  onClose?: () => void;
+  onClose: () => void;
 }
 
 // For next day info
