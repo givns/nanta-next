@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LocationVerificationState } from '@/types/attendance';
+import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
@@ -50,29 +52,21 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const currentStep = steps[step];
 
   const renderLocationStatus = () => {
-    console.log('LoadingBar status:', {
-      step,
-      state: locationState,
-      errorState: locationState.status === 'error',
-      hasError: Boolean(locationState.error),
-      needsVerification:
-        locationState.verificationStatus === 'needs_verification',
-      hasRetry: !!onLocationRetry,
-      hasAssist: !!onRequestAdminAssistance,
-    });
+    // Check for errors or verification needs
+    const hasError = Boolean(
+      locationState.status === 'error' || locationState.error,
+    );
+    const needsVerification =
+      locationState.verificationStatus === 'needs_verification';
 
-    // Always show error UI if there's an error or needs verification
-    if (
-      locationState.status === 'error' ||
-      locationState.error ||
-      locationState.verificationStatus === 'needs_verification'
-    ) {
+    if (hasError || needsVerification) {
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (
-            <div className="text-red-600 text-sm font-medium">
-              {locationState.error}
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{locationState.error}</AlertDescription>
+            </Alert>
           )}
           <div className="flex flex-col space-y-2">
             {onLocationRetry && (
