@@ -566,6 +566,16 @@ const CheckInRouter: React.FC = () => {
       },
     });
 
+    const simplifiedLocationState = {
+      status: locationState.status,
+      error: locationState.error,
+      address: locationState.address,
+      accuracy: locationState.accuracy,
+      confidence: locationState.confidence,
+      inPremises: locationState.inPremises,
+      coordinates: locationState.coordinates,
+    };
+
     return (
       <>
         <div
@@ -575,7 +585,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={locationState}
+            locationState={simplifiedLocationState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />

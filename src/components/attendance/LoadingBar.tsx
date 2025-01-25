@@ -15,12 +15,8 @@ interface LoadingBarProps {
     error: string | null;
     address: string;
     accuracy: number;
-    verificationStatus?:
-      | 'pending'
-      | 'verified'
-      | 'needs_verification'
-      | 'admin_pending';
-    triggerReason?: string | null;
+    confidence: 'high' | 'medium' | 'low' | 'manual';
+    inPremises: boolean;
     coordinates?: {
       lat: number;
       lng: number;
@@ -36,6 +32,13 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onLocationRetry,
   onRequestAdminAssistance,
 }) => {
+  console.log('LoadingBar rendered:', {
+    step,
+    locationState,
+    hasRetryHandler: !!onLocationRetry,
+    hasAssistHandler: !!onRequestAdminAssistance,
+  });
+
   const [progress, setProgress] = useState(0);
 
   const steps = {
@@ -74,16 +77,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
 
-    const hasError =
-      Boolean(locationState?.error) || locationState?.status === 'error';
-    const needsVerification =
-      locationState?.verificationStatus === 'needs_verification';
-    const shouldShowButtons = hasError || needsVerification;
-
-    if (shouldShowButtons && (onLocationRetry || onRequestAdminAssistance)) {
+    // Location error/issue cases
+    if (locationState?.status === 'error' || locationState?.error) {
       return (
         <div className="mt-6 space-y-4">
-          {locationState?.error && (
+          {locationState.error && (
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
           <div className="flex flex-col space-y-2">
@@ -98,8 +96,9 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             {onRequestAdminAssistance && (
               <button
                 onClick={onRequestAdminAssistance}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
               >
+                <i className="fi fi-br-phone-call text-sm"></i>
                 ขอความช่วยเหลือจากเจ้าหน้าที่
               </button>
             )}
@@ -108,6 +107,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
+    // Normal location status (only show during location step)
     if (step !== 'location' || !locationState) return null;
 
     return (
