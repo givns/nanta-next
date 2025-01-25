@@ -51,8 +51,20 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
+  // Add debug logging to LoadingBar
   const renderLocationStatus = () => {
-    // Check for errors or verification needs
+    console.log('renderLocationStatus:', {
+      state: locationState,
+      hasError: Boolean(
+        locationState.status === 'error' || locationState.error,
+      ),
+      needsVerification:
+        locationState.verificationStatus === 'needs_verification',
+      hasRetry: !!onLocationRetry,
+      hasAssist: !!onRequestAdminAssistance,
+      step,
+    });
+
     const hasError = Boolean(
       locationState.status === 'error' || locationState.error,
     );
@@ -60,6 +72,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationState.verificationStatus === 'needs_verification';
 
     if (hasError || needsVerification) {
+      console.log('Rendering error UI with:', { hasError, needsVerification });
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (
