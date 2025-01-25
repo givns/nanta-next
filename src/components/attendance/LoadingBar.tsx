@@ -1,18 +1,18 @@
-// components/attendance/LoadingBar.tsx
 import React, { useState, useEffect } from 'react';
-import '@flaticon/flaticon-uicons/css/all/all.css';
-import { LocationVerificationState } from '@/types/attendance';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
-  locationState: LocationVerificationState;
-  onLocationRetry?: () => Promise<void>;
-  onRequestAdminAssistance?: () => Promise<void>;
-}
-
-interface LoadingBarProps {
-  step: 'auth' | 'user' | 'location' | 'ready';
-  locationState: LocationVerificationState;
+  locationState: {
+    status: string;
+    error: string | null;
+    address: string;
+    accuracy: number;
+    verificationStatus?: string;
+    coordinates?: {
+      lat: number;
+      lng: number;
+    };
+  };
   onLocationRetry?: () => Promise<void>;
   onRequestAdminAssistance?: () => Promise<void>;
 }
@@ -23,14 +23,19 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onLocationRetry,
   onRequestAdminAssistance,
 }) => {
-  console.log('LoadingBar rendered:', {
-    step,
-    locationState,
-    hasRetryHandler: !!onLocationRetry,
-    hasAssistHandler: !!onRequestAdminAssistance,
-  });
-
   const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    console.log('LoadingBar location update:', locationState);
+  }, [locationState]);
+
+  useEffect(() => {
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
+    const interval = setInterval(() => {
+      setProgress((prev) => (prev >= target ? target : prev + 1));
+    }, 30);
+    return () => clearInterval(interval);
+  }, [step]);
 
   const steps = {
     auth: {
@@ -55,53 +60,27 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     },
   };
 
-  useEffect(() => {
-    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
-    const interval = setInterval(() => {
-      setProgress((prev) => (prev >= target ? target : prev + 1));
-    }, 30);
-    return () => clearInterval(interval);
-  }, [step]);
-
   const currentStep = steps[step];
 
-  useEffect(() => {
-    console.log('LoadingBar state update:', {
-      status: locationState?.status,
-      error: locationState?.error,
-      verificationStatus: locationState?.verificationStatus,
-    });
-  }, [
-    locationState?.status,
-    locationState?.error,
-    locationState?.verificationStatus,
-  ]);
-
   const renderLocationStatus = () => {
-    // Ensure we have all required state before checking conditions
-    if (!locationState) return null;
-
-    const hasError = Boolean(locationState.error);
-    const isErrorStatus = locationState.status === 'error';
+    const hasError = Boolean(locationState?.error);
+    const isErrorStatus = locationState?.status === 'error';
     const needsVerification =
-      locationState.verificationStatus === 'needs_verification';
+      locationState?.verificationStatus === 'needs_verification';
     const shouldShowErrorUI = hasError || isErrorStatus || needsVerification;
 
-    console.log('LoadingBar renderLocation:', {
+    console.log('LoadingBar status check:', {
       hasError,
       isErrorStatus,
       needsVerification,
       shouldShowErrorUI,
-      raw: locationState,
-      step,
+      locationState,
     });
 
-    // Show error UI regardless of step when we have an error
     if (shouldShowErrorUI) {
-      console.log('Rendering error UI with buttons');
       return (
         <div className="mt-6 space-y-4">
-          {locationState.error && (
+          {locationState?.error && (
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
           <div className="flex flex-col space-y-2">
@@ -129,35 +108,34 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Normal location status
-    if (step !== 'location') return null;
-
-    return (
-      <div className="mt-6 text-sm">
-        {locationState.address ? (
-          <>
-            <div className="text-green-600 font-medium mb-2">
-              ระบุตำแหน่งสำเร็จ
+    // Only show location success message during location step
+    if (step === 'location' && locationState?.address) {
+      return (
+        <div className="mt-6 text-sm">
+          <div className="text-green-600 font-medium mb-2">
+            ระบุตำแหน่งสำเร็จ
+          </div>
+          <div className="text-gray-700 mb-1">{locationState.address}</div>
+          {locationState.accuracy && (
+            <div className="text-gray-500 text-xs">
+              ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
             </div>
-            <div className="text-gray-700 mb-1">{locationState.address}</div>
-            {locationState.accuracy && (
-              <div className="text-gray-500 text-xs">
-                ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-gray-600 animate-pulse">กำลังระบุที่อยู่...</div>
-        )}
-      </div>
-    );
+          )}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center bg-white"
+      key={`${step}-${locationState?.status}-${locationState?.error}`}
+    >
       <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-8 ${step === 'location' && locationState.status === 'loading' ? 'animate-bounce' : ''}`}
+          className={`text-6xl mb-8 ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}
         >
           {currentStep.icon}
         </div>
