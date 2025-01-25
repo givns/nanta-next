@@ -65,12 +65,23 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
+  useEffect(() => {
+    console.log('LoadingBar state update:', {
+      status: locationState?.status,
+      error: locationState?.error,
+      verificationStatus: locationState?.verificationStatus,
+    });
+  }, [
+    locationState?.status,
+    locationState?.error,
+    locationState?.verificationStatus,
+  ]);
+
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
 
-    // Location error/issue cases
     const shouldShowErrorUI =
-      locationState?.error ||
+      Boolean(locationState?.error) ||
       locationState?.status === 'error' ||
       locationState?.verificationStatus === 'needs_verification';
 
@@ -80,12 +91,13 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       needsVerification:
         locationState?.verificationStatus === 'needs_verification',
       shouldShow: shouldShowErrorUI,
+      locationState,
     });
 
-    if (shouldShowErrorUI) {
+    if (shouldShowErrorUI && (onLocationRetry || onRequestAdminAssistance)) {
       return (
         <div className="mt-6 space-y-4">
-          {locationState.error && (
+          {locationState?.error && (
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
           <div className="flex flex-col space-y-2">
