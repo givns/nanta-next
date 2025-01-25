@@ -570,29 +570,9 @@ const CheckInRouter: React.FC = () => {
       </Alert>
     );
   }
-
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
-    const locationUIState = {
-      status: locationState.status,
-      error: locationState.error,
-      address: locationState.address,
-      accuracy: locationState.accuracy,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      coordinates: locationState.coordinates,
-      needsVerification:
-        locationState.verificationStatus === 'needs_verification',
-      isError: locationState.status === 'error' || Boolean(locationState.error),
-    };
-
-    console.log('LoadingBar final props:', {
-      step: currentStep,
-      state: locationUIState,
-      hasRetry: !!handleLocationRetry,
-      hasAssist: !!requestAdminAssistance,
-    });
-
+    // We directly pass locationState since it already matches the expected type
     return (
       <>
         <div
@@ -601,9 +581,9 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${locationUIState.status}-${locationUIState.error}-${locationUIState.verificationStatus}`}
+            key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}`}
             step={currentStep}
-            locationState={locationUIState}
+            locationState={locationState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />

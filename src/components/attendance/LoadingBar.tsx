@@ -1,18 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { LocationVerificationState } from '@/types/attendance/base';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
-  locationState: {
-    status: string;
-    error: string | null;
-    address: string;
-    accuracy: number;
-    verificationStatus?: string;
-    coordinates?: {
-      lat: number;
-      lng: number;
-    };
-  };
+  locationState: LocationVerificationState;
   onLocationRetry?: () => Promise<void>;
   onRequestAdminAssistance?: () => Promise<void>;
 }
@@ -59,24 +50,15 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const currentStep = steps[step];
 
   const renderLocationStatus = () => {
-    // In case locationState is undefined or null
     if (!locationState) return null;
 
+    // Show error UI if there's an error or needs verification
     const hasError =
-      Boolean(locationState.error) || locationState.status === 'error';
+      locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
-    const shouldShowErrorUI = hasError || needsVerification;
 
-    console.log('LoadingBar renderStatus:', {
-      state: locationState,
-      shouldShowErrorUI,
-      step,
-      hasRetry: !!onLocationRetry,
-      hasAssist: !!onRequestAdminAssistance,
-    });
-
-    if (shouldShowErrorUI) {
+    if (hasError || needsVerification) {
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (
@@ -109,7 +91,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Only show location status when in location step
+    // Show success state when we have an address
     if (step === 'location' && locationState.address) {
       return (
         <div className="mt-6 text-sm">
