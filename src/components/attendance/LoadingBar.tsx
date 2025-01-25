@@ -15,7 +15,12 @@ interface LoadingBarProps {
     error: string | null;
     address: string;
     accuracy: number;
-    verificationStatus?: string;
+    verificationStatus?:
+      | 'pending'
+      | 'verified'
+      | 'needs_verification'
+      | 'admin_pending';
+    triggerReason?: string | null;
     coordinates?: {
       lat: number;
       lng: number;
@@ -69,29 +74,35 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const renderLocationStatus = () => {
     console.log('renderLocationStatus state:', { locationState, step });
 
-    const hasError = locationState?.status === 'error' || locationState?.error;
+    const hasError =
+      Boolean(locationState?.error) || locationState?.status === 'error';
     const needsVerification =
       locationState?.verificationStatus === 'needs_verification';
+    const shouldShowButtons = hasError || needsVerification;
 
-    if (hasError || needsVerification) {
+    if (shouldShowButtons && (onLocationRetry || onRequestAdminAssistance)) {
       return (
         <div className="mt-6 space-y-4">
           {locationState?.error && (
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
           <div className="flex flex-col space-y-2">
-            <button
-              onClick={onLocationRetry}
-              className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              ลองใหม่อีกครั้ง
-            </button>
-            <button
-              onClick={onRequestAdminAssistance}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-            >
-              ขอความช่วยเหลือจากเจ้าหน้าที่
-            </button>
+            {onLocationRetry && (
+              <button
+                onClick={onLocationRetry}
+                className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                ลองใหม่อีกครั้ง
+              </button>
+            )}
+            {onRequestAdminAssistance && (
+              <button
+                onClick={onRequestAdminAssistance}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                ขอความช่วยเหลือจากเจ้าหน้าที่
+              </button>
+            )}
           </div>
         </div>
       );
