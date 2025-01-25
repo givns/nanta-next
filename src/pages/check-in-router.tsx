@@ -218,6 +218,33 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
+  // Debug location state transitions
+  console.log('Location state transition:', {
+    isVerified,
+    needsVerification,
+    locationLoading,
+    currentStep,
+    locationState,
+  });
+
+  useEffect(() => {
+    if (locationState.status === 'error' || locationState.error) {
+      console.log('Location error detected:', {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        step: currentStep,
+      });
+
+      // Force step to location when there's an error
+      setCurrentStep('location');
+    }
+  }, [
+    locationState.status,
+    locationState.error,
+    locationState.verificationStatus,
+  ]);
+
   // Initial data fetch
   useEffect(() => {
     fetchUserData();
@@ -551,33 +578,6 @@ const CheckInRouter: React.FC = () => {
       </Alert>
     );
   }
-
-  // Debug location state transitions
-  console.log('Location state transition:', {
-    isVerified,
-    needsVerification,
-    locationLoading,
-    currentStep,
-    locationState,
-  });
-
-  useEffect(() => {
-    if (locationState.status === 'error' || locationState.error) {
-      console.log('Location error detected:', {
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-        step: currentStep,
-      });
-
-      // Force step to location when there's an error
-      setCurrentStep('location');
-    }
-  }, [
-    locationState.status,
-    locationState.error,
-    locationState.verificationStatus,
-  ]);
 
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
