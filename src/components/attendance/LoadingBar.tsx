@@ -26,10 +26,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    console.log('LoadingBar location update:', locationState);
-  }, [locationState]);
-
-  useEffect(() => {
     const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
       setProgress((prev) => (prev >= target ? target : prev + 1));
@@ -63,25 +59,30 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const currentStep = steps[step];
 
   const renderLocationStatus = () => {
-    const hasError = Boolean(locationState?.error);
-    const isErrorStatus = locationState?.status === 'error';
-    const needsVerification =
-      locationState?.verificationStatus === 'needs_verification';
-    const shouldShowErrorUI = hasError || isErrorStatus || needsVerification;
+    // In case locationState is undefined or null
+    if (!locationState) return null;
 
-    console.log('LoadingBar status check:', {
-      hasError,
-      isErrorStatus,
-      needsVerification,
+    const hasError =
+      Boolean(locationState.error) || locationState.status === 'error';
+    const needsVerification =
+      locationState.verificationStatus === 'needs_verification';
+    const shouldShowErrorUI = hasError || needsVerification;
+
+    console.log('LoadingBar renderStatus:', {
+      state: locationState,
       shouldShowErrorUI,
-      locationState,
+      step,
+      hasRetry: !!onLocationRetry,
+      hasAssist: !!onRequestAdminAssistance,
     });
 
     if (shouldShowErrorUI) {
       return (
         <div className="mt-6 space-y-4">
-          {locationState?.error && (
-            <div className="text-red-600 text-sm">{locationState.error}</div>
+          {locationState.error && (
+            <div className="text-red-600 text-sm font-medium">
+              {locationState.error}
+            </div>
           )}
           <div className="flex flex-col space-y-2">
             {onLocationRetry && (
@@ -108,8 +109,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Only show location success message during location step
-    if (step === 'location' && locationState?.address) {
+    // Only show location status when in location step
+    if (step === 'location' && locationState.address) {
       return (
         <div className="mt-6 text-sm">
           <div className="text-green-600 font-medium mb-2">
@@ -129,10 +130,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col items-center justify-center bg-white"
-      key={`${step}-${locationState?.status}-${locationState?.error}`}
-    >
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
           className={`text-6xl mb-8 ${step === 'location' && locationState?.status === 'loading' ? 'animate-bounce' : ''}`}

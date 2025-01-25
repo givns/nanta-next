@@ -573,27 +573,25 @@ const CheckInRouter: React.FC = () => {
 
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
-    console.log('LoadingBar mounting conditions:', {
-      loadingPhase,
-      currentStep,
-      locationState: {
-        ...locationState,
-        rawError: locationState.error, // Debug: show raw error
-        rawStatus: locationState.status, // Debug: show raw status
-      },
-    });
-
-    // Create stable location state object
-    const currentLocationState = {
+    const locationUIState = {
       status: locationState.status,
       error: locationState.error,
       address: locationState.address,
       accuracy: locationState.accuracy,
-      confidence: locationState.confidence,
-      inPremises: locationState.inPremises,
-      coordinates: locationState.coordinates,
       verificationStatus: locationState.verificationStatus,
+      triggerReason: locationState.triggerReason,
+      coordinates: locationState.coordinates,
+      needsVerification:
+        locationState.verificationStatus === 'needs_verification',
+      isError: locationState.status === 'error' || Boolean(locationState.error),
     };
+
+    console.log('LoadingBar final props:', {
+      step: currentStep,
+      state: locationUIState,
+      hasRetry: !!handleLocationRetry,
+      hasAssist: !!requestAdminAssistance,
+    });
 
     return (
       <>
@@ -603,8 +601,9 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
+            key={`${currentStep}-${locationUIState.status}-${locationUIState.error}-${locationUIState.verificationStatus}`}
             step={currentStep}
-            locationState={currentLocationState}
+            locationState={locationUIState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />
