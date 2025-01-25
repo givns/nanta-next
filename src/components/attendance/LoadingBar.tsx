@@ -78,24 +78,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   ]);
 
   const renderLocationStatus = () => {
-    console.log('renderLocationStatus state:', { locationState, step });
-
-    // More explicit error detection
-    const isError = locationState?.status === 'error';
-    const hasErrorMessage = Boolean(locationState?.error);
+    const hasError = Boolean(locationState?.error);
+    const isErrorStatus = locationState?.status === 'error';
     const needsVerification =
       locationState?.verificationStatus === 'needs_verification';
-    const shouldShowErrorUI = isError || hasErrorMessage || needsVerification;
+    const shouldShowErrorUI = hasError || isErrorStatus || needsVerification;
 
-    console.log('Error UI conditions:', {
-      isError,
-      hasErrorMessage,
+    console.log('LoadingBar renderLocation:', {
+      hasError,
+      isErrorStatus,
       needsVerification,
-      shouldShow: shouldShowErrorUI,
-      locationState,
+      shouldShowErrorUI,
+      currentState: locationState,
+      step,
     });
 
-    if (shouldShowErrorUI) {
+    // Priority check for error UI
+    if (shouldShowErrorUI && (onLocationRetry || onRequestAdminAssistance)) {
+      console.log('Rendering error UI with buttons');
       return (
         <div className="mt-6 space-y-4">
           {locationState?.error && (

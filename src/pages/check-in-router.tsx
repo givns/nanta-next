@@ -162,9 +162,10 @@ const CheckInRouter: React.FC = () => {
 
     let nextStep: Step = 'auth';
 
-    // Handle location error first
+    // Priority order for step determination
     if (
       locationState.status === 'error' ||
+      locationState.error ||
       locationState.verificationStatus === 'needs_verification'
     ) {
       nextStep = 'location';
@@ -176,7 +177,14 @@ const CheckInRouter: React.FC = () => {
       nextStep = 'ready';
     }
 
-    setCurrentStep(nextStep);
+    if (nextStep !== currentStep) {
+      console.log('Step changing:', {
+        from: currentStep,
+        to: nextStep,
+        reason: 'status update',
+      });
+      setCurrentStep(nextStep);
+    }
   }, [
     authLoading,
     userData,
@@ -184,7 +192,9 @@ const CheckInRouter: React.FC = () => {
     needsVerification,
     locationLoading,
     locationState.status,
+    locationState.error,
     locationState.verificationStatus,
+    currentStep,
   ]);
 
   // Loading phase management - single unified effect
@@ -226,24 +236,6 @@ const CheckInRouter: React.FC = () => {
     currentStep,
     locationState,
   });
-
-  useEffect(() => {
-    if (locationState.status === 'error' || locationState.error) {
-      console.log('Location error detected:', {
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-        step: currentStep,
-      });
-
-      // Force step to location when there's an error
-      setCurrentStep('location');
-    }
-  }, [
-    locationState.status,
-    locationState.error,
-    locationState.verificationStatus,
-  ]);
 
   // Initial data fetch
   useEffect(() => {
