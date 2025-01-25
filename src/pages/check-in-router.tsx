@@ -576,10 +576,24 @@ const CheckInRouter: React.FC = () => {
     console.log('LoadingBar mounting conditions:', {
       loadingPhase,
       currentStep,
-      locationState,
-      verificationStatus: locationState.verificationStatus,
-      error: locationState.error,
+      locationState: {
+        ...locationState,
+        rawError: locationState.error, // Debug: show raw error
+        rawStatus: locationState.status, // Debug: show raw status
+      },
     });
+
+    // Create stable location state object
+    const currentLocationState = {
+      status: locationState.status,
+      error: locationState.error,
+      address: locationState.address,
+      accuracy: locationState.accuracy,
+      confidence: locationState.confidence,
+      inPremises: locationState.inPremises,
+      coordinates: locationState.coordinates,
+      verificationStatus: locationState.verificationStatus,
+    };
 
     return (
       <>
@@ -590,7 +604,7 @@ const CheckInRouter: React.FC = () => {
         >
           <LoadingBar
             step={currentStep}
-            locationState={locationState}
+            locationState={currentLocationState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={requestAdminAssistance}
           />

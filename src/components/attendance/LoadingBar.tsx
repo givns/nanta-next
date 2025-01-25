@@ -78,10 +78,13 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   ]);
 
   const renderLocationStatus = () => {
-    const hasError = Boolean(locationState?.error);
-    const isErrorStatus = locationState?.status === 'error';
+    // Ensure we have all required state before checking conditions
+    if (!locationState) return null;
+
+    const hasError = Boolean(locationState.error);
+    const isErrorStatus = locationState.status === 'error';
     const needsVerification =
-      locationState?.verificationStatus === 'needs_verification';
+      locationState.verificationStatus === 'needs_verification';
     const shouldShowErrorUI = hasError || isErrorStatus || needsVerification;
 
     console.log('LoadingBar renderLocation:', {
@@ -89,21 +92,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       isErrorStatus,
       needsVerification,
       shouldShowErrorUI,
-      currentState: locationState,
+      raw: locationState,
       step,
     });
 
-    // Priority check for error UI
-    if (shouldShowErrorUI && (onLocationRetry || onRequestAdminAssistance)) {
+    // Show error UI regardless of step when we have an error
+    if (shouldShowErrorUI) {
       console.log('Rendering error UI with buttons');
       return (
         <div className="mt-6 space-y-4">
-          {locationState?.error && (
+          {locationState.error && (
             <div className="text-red-600 text-sm">{locationState.error}</div>
           )}
           <div className="flex flex-col space-y-2">
             {onLocationRetry && (
               <button
+                type="button"
                 onClick={onLocationRetry}
                 className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
               >
@@ -112,6 +116,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             )}
             {onRequestAdminAssistance && (
               <button
+                type="button"
                 onClick={onRequestAdminAssistance}
                 className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
               >
