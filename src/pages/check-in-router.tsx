@@ -187,15 +187,6 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
-  // Debug location state transitions
-  console.log('Location state transition:', {
-    isVerified,
-    needsVerification,
-    locationLoading,
-    currentStep,
-    locationState,
-  });
-
   // Loading phase management - single unified effect
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -561,15 +552,43 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  // Debug location state transitions
+  console.log('Location state transition:', {
+    isVerified,
+    needsVerification,
+    locationLoading,
+    currentStep,
+    locationState,
+  });
+
+  useEffect(() => {
+    if (locationState.status === 'error' || locationState.error) {
+      console.log('Location error detected:', {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        step: currentStep,
+      });
+
+      // Force step to location when there's an error
+      setCurrentStep('location');
+    }
+  }, [
+    locationState.status,
+    locationState.error,
+    locationState.verificationStatus,
+  ]);
+
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
     console.log('LoadingBar mounting conditions:', {
       loadingPhase,
       currentStep,
       locationState,
+      verificationStatus: locationState.verificationStatus,
+      error: locationState.error,
     });
 
-    // Don't modify the original state, pass it directly
     return (
       <>
         <div
