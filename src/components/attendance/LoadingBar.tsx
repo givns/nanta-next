@@ -18,6 +18,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
 
+  // Progress bar logic...
   useEffect(() => {
     const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
@@ -51,38 +52,26 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
-  console.log('LoadingBar state:', {
-    locationState, // Full state object
-    statusCheck: {
-      hasError: Boolean(
-        locationState.status === 'error' || locationState.error,
-      ),
-      needsVerification:
-        locationState.verificationStatus === 'needs_verification',
-      currentVerificationStatus: locationState.verificationStatus,
-    },
-  });
-
-  // Add debug logging to LoadingBar
-  // LoadingBar.tsx
   const renderLocationStatus = () => {
-    const hasError = Boolean(
-      locationState.status === 'error' || locationState.error,
-    );
+    // Direct state checks for error conditions
+    const hasError =
+      locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
 
-    console.log('LoadingBar render check:', {
-      rawState: locationState,
-      check: { hasError, needsVerification },
+    console.log('LoadingBar render conditions:', {
+      locationState,
+      checks: {
+        hasError,
+        needsVerification,
+        hasRetry: Boolean(onLocationRetry),
+        hasAssist: Boolean(onRequestAdminAssistance),
+      },
     });
 
-    // Verify state before rendering
-    if (
-      (hasError || needsVerification) &&
-      (onLocationRetry || onRequestAdminAssistance)
-    ) {
-      console.log('Rendering error UI with:', { hasError, needsVerification });
+    // Show error UI or verification needed UI
+    if (hasError || needsVerification) {
+      console.log('Rendering error UI');
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (
@@ -116,7 +105,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       );
     }
 
-    // Show location status only for location step
+    // Success state (only shown in location step)
     if (step === 'location' && locationState.address) {
       return (
         <div className="mt-6 text-sm">
