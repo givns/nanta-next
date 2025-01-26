@@ -18,6 +18,15 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
 
+  useEffect(() => {
+    console.log('LoadingBar props update:', {
+      step,
+      locationState,
+      hasRetry: !!onLocationRetry,
+      hasAssist: !!onRequestAdminAssistance,
+    });
+  }, [step, locationState, onLocationRetry, onRequestAdminAssistance]);
+
   // Progress bar logic...
   useEffect(() => {
     const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
@@ -53,25 +62,25 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const currentStep = steps[step];
 
   const renderLocationStatus = () => {
-    // Direct state checks for error conditions
     const hasError =
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
 
-    console.log('LoadingBar render conditions:', {
-      locationState,
-      checks: {
-        hasError,
-        needsVerification,
-        hasRetry: Boolean(onLocationRetry),
-        hasAssist: Boolean(onRequestAdminAssistance),
+    console.log('Render status check:', {
+      hasError,
+      needsVerification,
+      statusProps: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
       },
     });
 
     // Show error UI or verification needed UI
     if (hasError || needsVerification) {
       console.log('Rendering error UI');
+
       return (
         <div className="mt-6 space-y-4">
           {locationState.error && (

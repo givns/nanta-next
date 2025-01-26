@@ -59,18 +59,8 @@ export function useLocationVerification(
 
   // Initialize triggers with merged config
   useEffect(() => {
-    const mergedConfig = {
-      ...DEFAULT_CONFIG,
-      ...config,
-    };
-    triggerRef.current = new LocationVerificationTriggers(mergedConfig);
-  }, [config]);
-
-  // Sync location state with verification state
-  useEffect(() => {
     console.log('Raw location state update:', locationState);
 
-    // Explicitly handle location states
     let newState: LocationVerificationState;
 
     if (
@@ -92,16 +82,27 @@ export function useLocationVerification(
         error: locationState.error,
         triggerReason: locationState.error,
       };
+    } else if (locationState.status === 'ready') {
+      newState = {
+        ...locationState,
+        verificationStatus: 'verified',
+      };
     } else {
       newState = {
         ...locationState,
         verificationStatus:
-          locationState.status === 'ready' ? 'verified' : 'pending',
+          locationState.status === 'loading' ? 'pending' : 'needs_verification',
       };
     }
 
     console.log('Setting verification state:', newState);
-    setVerificationState(newState);
+    setVerificationState((prev) => {
+      // Only update if state actually changed
+      if (JSON.stringify(prev) === JSON.stringify(newState)) {
+        return prev;
+      }
+      return newState;
+    });
   }, [locationState]);
 
   const verifyLocation = useCallback(
