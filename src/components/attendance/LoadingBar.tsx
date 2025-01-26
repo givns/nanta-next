@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { LocationVerificationState } from '@/types/attendance';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -17,6 +17,34 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onRequestAdminAssistance,
 }) => {
   const [progress, setProgress] = useState(0);
+
+  // Add immediate state check on state change
+  useEffect(() => {
+    const isError =
+      locationState.status === 'error' || Boolean(locationState.error);
+    const needsVerification =
+      locationState.verificationStatus === 'needs_verification';
+    if (isError || needsVerification) {
+      console.log('Error condition met:', {
+        isError,
+        needsVerification,
+        locationState,
+      });
+    }
+  }, [locationState]);
+
+  // Memoized shouldShowError
+  const shouldShowError = useMemo(() => {
+    const isError =
+      locationState.status === 'error' || Boolean(locationState.error);
+    const needsVerification =
+      locationState.verificationStatus === 'needs_verification';
+    return isError || needsVerification;
+  }, [
+    locationState.status,
+    locationState.error,
+    locationState.verificationStatus,
+  ]);
 
   useEffect(() => {
     console.log('LoadingBar props update:', {
@@ -61,25 +89,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
-  const shouldShowError = () => {
-    const isError =
-      locationState.status === 'error' || Boolean(locationState.error);
-    const needsVerification =
-      locationState.verificationStatus === 'needs_verification';
-
-    console.log('Error check:', {
-      isError,
-      needsVerification,
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-    });
-
-    return isError || needsVerification;
-  };
-
   const renderLocationStatus = () => {
-    const hasError = shouldShowError();
+    const hasError = shouldShowError;
 
     console.log('Location status render:', {
       state: locationState,
