@@ -8,7 +8,6 @@ import {
 import {
   LocationVerificationState,
   LocationStateContextType,
-  VerificationStatus,
 } from '../types/attendance';
 
 const INITIAL_STATE: LocationVerificationState = {
@@ -22,23 +21,14 @@ const INITIAL_STATE: LocationVerificationState = {
 };
 
 const DEFAULT_CONFIG: LocationTriggerConfig = {
-  maxAccuracy: 100, // Maximum acceptable accuracy in meters
-  maxRetries: 3, // Maximum number of location fetch retries
-  maxWaitTime: 30000, // Maximum wait time in milliseconds
-  minDistance: 200, // Minimum distance from workplace in meters
+  maxAccuracy: 100,
+  maxRetries: 3,
+  maxWaitTime: 30000,
+  minDistance: 200,
   workplaceCoordinates: [
-    {
-      lat: 13.50821,
-      lng: 100.76405,
-    },
-    {
-      lat: 13.51444,
-      lng: 100.70922,
-    },
-    {
-      lat: 13.747920392683099,
-      lng: 100.63441771348242,
-    },
+    { lat: 13.50821, lng: 100.76405 },
+    { lat: 13.51444, lng: 100.70922 },
+    { lat: 13.747920392683099, lng: 100.63441771348242 },
   ],
 };
 
@@ -49,6 +39,7 @@ export function useLocationVerification(
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
+  const errorRef = useRef<boolean>(false);
 
   const {
     locationState,
@@ -57,23 +48,33 @@ export function useLocationVerification(
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
-  // Initialize triggers with merged config
+  // Initialize triggers with config
   useEffect(() => {
+    const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+    triggerRef.current = new LocationVerificationTriggers(mergedConfig);
+  }, [config]);
+
+  // Handle location state updates
+  useEffect(() => {
+    if (!triggerRef.current) return;
+
+    console.log('Location state update:', locationState);
+
     setVerificationState((prev) => {
-      // If we already have an error state, preserve it
-      if (
-        prev.status === 'error' &&
-        prev.verificationStatus === 'needs_verification'
-      ) {
+      // If we already have an error state, preserve it unless explicitly cleared
+      if (errorRef.current && locationState.status !== 'ready') {
         return prev;
       }
 
-      // Handle permission denied
+      let newState: LocationVerificationState;
+
+      // Handle permission denied or blocked
       if (
         locationState.error?.includes('permission denied') ||
         locationState.error?.includes('ถูกปิดกั้น')
       ) {
-        return {
+        errorRef.current = true;
+        newState = {
           ...locationState,
           status: 'error',
           verificationStatus: 'needs_verification',
@@ -81,24 +82,42 @@ export function useLocationVerification(
           triggerReason: 'Location permission denied',
         };
       }
-
       // Handle other errors
-      if (locationState.status === 'error' || locationState.error) {
-        return {
+      else if (locationState.status === 'error' || locationState.error) {
+        errorRef.current = true;
+        newState = {
           ...locationState,
           status: 'error',
           verificationStatus: 'needs_verification',
           error: locationState.error,
-          triggerReason: locationState.error,
+          triggerReason:
+            triggerRef.current?.shouldTriggerAdminAssistance(locationState)
+              ?.reason || locationState.error,
+        };
+      }
+      // Clear error state
+      else if (locationState.status === 'ready') {
+        errorRef.current = false;
+        newState = {
+          ...locationState,
+          verificationStatus: 'verified',
+          error: null,
+          triggerReason: null,
+        };
+      }
+      // Default case: preserve verification status during loading
+      else {
+        newState = {
+          ...locationState,
+          verificationStatus:
+            locationState.status === 'loading'
+              ? prev.verificationStatus
+              : 'pending',
         };
       }
 
-      // Default case
-      return {
-        ...locationState,
-        verificationStatus:
-          locationState.status === 'ready' ? 'verified' : 'pending',
-      };
+      console.log('Setting verification state:', newState);
+      return newState;
     });
   }, [locationState]);
 
@@ -116,7 +135,6 @@ export function useLocationVerification(
 
         const location = await getCurrentLocation(force);
 
-        // Handle error cases
         if (location.status === 'error' || location.error) {
           const triggerCheck =
             triggerRef.current.shouldTriggerAdminAssistance(location);
@@ -159,7 +177,6 @@ export function useLocationVerification(
         verificationStatus: 'admin_pending',
       }));
 
-      // Make the API call
       const response = await fetch('/api/admin/location-assistance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
