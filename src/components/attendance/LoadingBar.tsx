@@ -61,41 +61,17 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
-  // In LoadingBar.tsx
-  const renderLocationStatus = () => {
-    // Direct check for error state
-    const hasError = Boolean(
-      locationState.status === 'error' || locationState.error,
-    );
-    const needsVerification =
-      locationState.verificationStatus === 'needs_verification';
+  const renderError = () => {
+    if (!locationState.error) return null;
 
-    console.log('LoadingBar render conditions:', {
-      state: locationState,
-      conditions: {
-        hasError,
-        needsVerification,
-        statusCheck: locationState.status,
-        errorCheck: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-      },
-      callbacks: {
-        hasRetry: Boolean(onLocationRetry),
-        hasAssist: Boolean(onRequestAdminAssistance),
-      },
-    });
-
-    // Render error UI regardless of other conditions
-    if (hasError || needsVerification) {
-      return (
-        <div className="mt-6 space-y-4">
-          {locationState.error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{locationState.error}</AlertDescription>
-            </Alert>
-          )}
-          <div className="flex flex-col space-y-2">
+    return (
+      <div className="mt-6 space-y-4">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{locationState.error}</AlertDescription>
+        </Alert>
+        <div className="flex flex-col space-y-2">
+          {onLocationRetry && (
             <button
               type="button"
               onClick={onLocationRetry}
@@ -103,6 +79,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
             >
               ลองใหม่อีกครั้ง
             </button>
+          )}
+          {onRequestAdminAssistance && (
             <button
               type="button"
               onClick={onRequestAdminAssistance}
@@ -111,13 +89,26 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
               <i className="fi fi-br-phone-call text-sm"></i>
               ขอความช่วยเหลือจากเจ้าหน้าที่
             </button>
-          </div>
+          )}
         </div>
-      );
+      </div>
+    );
+  };
+
+  const renderLocationStatus = () => {
+    // Only show location status in location step
+    if (step !== 'location') return null;
+
+    // Show error if exists
+    if (
+      locationState.error ||
+      locationState.verificationStatus === 'needs_verification'
+    ) {
+      return renderError();
     }
 
-    // Success state (only shown in location step)
-    if (step === 'location' && locationState.address) {
+    // Show success state
+    if (locationState.address) {
       return (
         <div className="mt-6 text-sm">
           <div className="text-green-600 font-medium mb-2">
