@@ -61,6 +61,38 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
+  const ErrorUI = () => (
+    <div className="mt-6 space-y-4">
+      {locationState.error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{locationState.error}</AlertDescription>
+        </Alert>
+      )}
+      <div className="flex flex-col space-y-2">
+        {onLocationRetry && (
+          <button
+            type="button"
+            onClick={onLocationRetry}
+            className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            ลองใหม่อีกครั้ง
+          </button>
+        )}
+        {onRequestAdminAssistance && (
+          <button
+            type="button"
+            onClick={onRequestAdminAssistance}
+            className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+          >
+            <i className="fi fi-br-phone-call text-sm"></i>
+            ขอความช่วยเหลือจากเจ้าหน้าที่
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   const renderLocationStatus = () => {
     const hasError =
       locationState.status === 'error' || Boolean(locationState.error);
@@ -80,38 +112,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     // Show error UI or verification needed UI
     if (hasError || needsVerification) {
       console.log('Rendering error UI');
-
-      return (
-        <div className="mt-6 space-y-4">
-          {locationState.error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{locationState.error}</AlertDescription>
-            </Alert>
-          )}
-          <div className="flex flex-col space-y-2">
-            {onLocationRetry && (
-              <button
-                type="button"
-                onClick={onLocationRetry}
-                className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                ลองใหม่อีกครั้ง
-              </button>
-            )}
-            {onRequestAdminAssistance && (
-              <button
-                type="button"
-                onClick={onRequestAdminAssistance}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-              >
-                <i className="fi fi-br-phone-call text-sm"></i>
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            )}
-          </div>
-        </div>
-      );
+      return <ErrorUI />; 
     }
 
     // Success state (only shown in location step)
