@@ -59,49 +59,46 @@ export function useLocationVerification(
 
   // Initialize triggers with merged config
   useEffect(() => {
-    console.log('Raw location state update:', locationState);
-
-    let newState: LocationVerificationState;
-
-    if (
-      locationState.error?.includes('permission denied') ||
-      locationState.error?.includes('ถูกปิดกั้น')
-    ) {
-      newState = {
-        ...locationState,
-        status: 'error',
-        verificationStatus: 'needs_verification',
-        error: locationState.error,
-        triggerReason: 'Location permission denied',
-      };
-    } else if (locationState.status === 'error' || locationState.error) {
-      newState = {
-        ...locationState,
-        status: 'error',
-        verificationStatus: 'needs_verification',
-        error: locationState.error,
-        triggerReason: locationState.error,
-      };
-    } else if (locationState.status === 'ready') {
-      newState = {
-        ...locationState,
-        verificationStatus: 'verified',
-      };
-    } else {
-      newState = {
-        ...locationState,
-        verificationStatus:
-          locationState.status === 'loading' ? 'pending' : 'needs_verification',
-      };
-    }
-
-    console.log('Setting verification state:', newState);
     setVerificationState((prev) => {
-      // Only update if state actually changed
-      if (JSON.stringify(prev) === JSON.stringify(newState)) {
+      // If we already have an error state, preserve it
+      if (
+        prev.status === 'error' &&
+        prev.verificationStatus === 'needs_verification'
+      ) {
         return prev;
       }
-      return newState;
+
+      // Handle permission denied
+      if (
+        locationState.error?.includes('permission denied') ||
+        locationState.error?.includes('ถูกปิดกั้น')
+      ) {
+        return {
+          ...locationState,
+          status: 'error',
+          verificationStatus: 'needs_verification',
+          error: locationState.error,
+          triggerReason: 'Location permission denied',
+        };
+      }
+
+      // Handle other errors
+      if (locationState.status === 'error' || locationState.error) {
+        return {
+          ...locationState,
+          status: 'error',
+          verificationStatus: 'needs_verification',
+          error: locationState.error,
+          triggerReason: locationState.error,
+        };
+      }
+
+      // Default case
+      return {
+        ...locationState,
+        verificationStatus:
+          locationState.status === 'ready' ? 'verified' : 'pending',
+      };
     });
   }, [locationState]);
 
