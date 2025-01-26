@@ -1,8 +1,24 @@
 //services/location/EnhancedLocationService.ts
 
+import {
+  LocationConfidence,
+  LocationVerificationState,
+} from '@/types/attendance';
+
 interface LocationPoint {
   lat: number;
   lng: number;
+}
+
+interface LocationResult
+  extends Omit<LocationVerificationState, 'coordinates'> {
+  timestamp: number;
+  coordinates: LocationPoint | null;
+}
+
+interface LocationHistory {
+  timestamp: number;
+  result: LocationResult;
 }
 
 interface Premise {
@@ -11,21 +27,6 @@ interface Premise {
   lng: number;
   radius: number;
   backupPoints: LocationPoint[];
-}
-
-interface LocationResult {
-  inPremises: boolean;
-  address: string;
-  accuracy: number;
-  timestamp: number;
-  confidence: 'high' | 'medium' | 'low';
-  coordinates: LocationPoint | null; // Make coordinates nullable
-  error?: string; // Add optional error property
-}
-
-interface LocationHistory {
-  timestamp: number;
-  result: LocationResult;
 }
 
 interface PremiseAnalysis {
@@ -75,7 +76,7 @@ export class EnhancedLocationService {
     },
   ];
 
-  private lastLocation: LocationResult | null = null;
+  private lastLocation: LocationVerificationState | null = null;
   private locationHistory: LocationHistory[] = [];
 
   private analyzePremisesProbability(
@@ -139,38 +140,52 @@ export class EnhancedLocationService {
     });
   }
 
-  private validateWithHistory(result: LocationResult): LocationResult {
-    if (!result.inPremises && this.locationHistory.length >= 2) {
+  private validateWithHistory(
+    result: LocationVerificationState,
+  ): LocationVerificationState {
+    const locationResult = this.verificationStateToResult(result);
+    if (!locationResult.inPremises && this.locationHistory.length >= 2) {
       const recentHistory = this.locationHistory
         .slice(-3)
         .filter((h) => Date.now() - h.timestamp < 5 * 60 * 1000);
 
       const validLocations = recentHistory.filter(
-        (h) => h.result.inPremises && h.result.confidence !== 'low',
+        (h) =>
+          h.result.inPremises &&
+          h.result.confidence !== 'low' &&
+          h.result.confidence !== 'manual',
       );
 
       if (validLocations.length >= 2) {
+        const confidenceMap: Record<LocationConfidence, number> = {
+          high: 3,
+          medium: 2,
+          low: 1,
+          manual: 0,
+        };
+
         const bestHistoricalResult = validLocations.reduce((best, current) => {
           if (!best) return current;
-          const confidenceMap = { high: 3, medium: 2, low: 1 };
           return confidenceMap[current.result.confidence] >
             confidenceMap[best.result.confidence]
             ? current
             : best;
         });
 
-        return {
-          ...result,
+        const validatedResult = {
+          ...locationResult,
           inPremises: true,
-          confidence: 'medium',
+          confidence: 'medium' as const,
           address: bestHistoricalResult.result.address,
         };
+        return this.locationResultToVerificationState(validatedResult);
       }
     }
     return result;
   }
 
-  private addToHistory(result: LocationResult) {
+  private addToHistory(state: LocationVerificationState) {
+    const result = this.verificationStateToResult(state);
     this.locationHistory.push({
       timestamp: Date.now(),
       result,
@@ -181,15 +196,17 @@ export class EnhancedLocationService {
     }
   }
 
-  async getCurrentLocation(forceRefresh = false): Promise<LocationResult> {
+  async getCurrentLocation(
+    forceRefresh = false,
+  ): Promise<LocationVerificationState> {
     let attempts = 0;
-    let bestResult: LocationResult | null = null;
+    let bestResult: LocationVerificationState | null = null;
 
-    // Check cache first if not forcing refresh
+    // Check cache first
     if (
       !forceRefresh &&
       this.lastLocation &&
-      Date.now() - this.lastLocation.timestamp <
+      Date.now() - this.verificationStateToResult(this.lastLocation).timestamp <
         EnhancedLocationService.LOCATION_CACHE_TIME
     ) {
       return this.lastLocation;
@@ -218,15 +235,18 @@ export class EnhancedLocationService {
             );
             continue;
           }
-          return {
+          const lowAccuracyResult: LocationVerificationState = {
             inPremises: false,
             address: '',
             accuracy,
-            timestamp: Date.now(),
             confidence: 'low',
             coordinates: { lat: latitude, lng: longitude },
             error: 'ความแม่นยำของตำแหน่งต่ำเกินไป กรุณาลองใหม่อีกครั้ง',
+            status: 'error',
+            verificationStatus: 'needs_verification',
+            triggerReason: 'Low accuracy',
           };
+          return lowAccuracyResult;
         }
 
         const analysis = this.analyzePremisesProbability(
@@ -234,13 +254,18 @@ export class EnhancedLocationService {
           longitude,
           accuracy,
         );
-        const result: LocationResult = {
+        const result: LocationVerificationState = {
           inPremises: analysis.inPremises,
           address: analysis.premise.name,
           accuracy,
-          timestamp: Date.now(),
           confidence: analysis.confidence,
           coordinates: { lat: latitude, lng: longitude },
+          status: 'ready',
+          verificationStatus: analysis.inPremises
+            ? 'verified'
+            : 'needs_verification',
+          error: null,
+          triggerReason: null,
         };
 
         if (!bestResult || result.accuracy < bestResult.accuracy) {
@@ -263,17 +288,19 @@ export class EnhancedLocationService {
       } catch (error) {
         console.error('Location fetch error:', error);
 
-        // Handle permission denied case explicitly
+        // Handle permission denied immediately
         if (error instanceof GeolocationPositionError && error.code === 1) {
-          const errorResult: LocationResult = {
+          const errorResult: LocationVerificationState = {
             inPremises: false,
             address: '',
             accuracy: 0,
-            timestamp: Date.now(),
             confidence: 'low',
-            coordinates: null,
+            coordinates: undefined,
             error:
               'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services',
+            status: 'error',
+            verificationStatus: 'needs_verification',
+            triggerReason: 'Location permission denied',
           };
           this.lastLocation = errorResult;
           return errorResult;
@@ -291,7 +318,9 @@ export class EnhancedLocationService {
         // Return cached location if recent
         if (
           this.lastLocation &&
-          Date.now() - this.lastLocation.timestamp < 5 * 60 * 1000
+          Date.now() -
+            this.verificationStateToResult(this.lastLocation).timestamp <
+            5 * 60 * 1000
         ) {
           return this.lastLocation;
         }
@@ -301,10 +330,12 @@ export class EnhancedLocationService {
           inPremises: false,
           address: '',
           accuracy: 0,
-          timestamp: Date.now(),
           confidence: 'low',
-          coordinates: null,
+          coordinates: undefined,
           error: 'เกิดข้อผิดพลาดในการระบุตำแหน่ง กรุณาลองใหม่อีกครั้ง',
+          status: 'error',
+          verificationStatus: 'needs_verification',
+          triggerReason: 'Unknown error',
         };
       }
     }
@@ -320,10 +351,32 @@ export class EnhancedLocationService {
       inPremises: false,
       address: '',
       accuracy: 0,
-      timestamp: Date.now(),
       confidence: 'low',
-      coordinates: null,
+      coordinates: undefined,
       error: 'ไม่สามารถระบุตำแหน่งได้หลังจากลองหลายครั้ง กรุณาลองใหม่อีกครั้ง',
+      status: 'error',
+      verificationStatus: 'needs_verification',
+      triggerReason: 'Max retries exceeded',
+    };
+  }
+
+  private locationResultToVerificationState(
+    result: LocationResult,
+  ): LocationVerificationState {
+    const { timestamp, ...rest } = result;
+    return {
+      ...rest,
+      coordinates: result.coordinates || undefined,
+    };
+  }
+
+  private verificationStateToResult(
+    state: LocationVerificationState,
+  ): LocationResult {
+    return {
+      ...state,
+      timestamp: Date.now(),
+      coordinates: state.coordinates || null,
     };
   }
 

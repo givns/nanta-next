@@ -61,8 +61,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
-  // Explicit error and verification status check
-  const showError = useCallback(() => {
+  const shouldShowError = () => {
     const isError =
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
@@ -71,66 +70,76 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     console.log('Error check:', {
       isError,
       needsVerification,
-      state: locationState,
-      hasCallbacks: {
-        retry: !!onLocationRetry,
-        assist: !!onRequestAdminAssistance,
-      },
+      status: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
     });
 
     return isError || needsVerification;
-  }, [locationState, onLocationRetry, onRequestAdminAssistance]);
-
-  const renderError = () => {
-    if (!showError()) return null;
-
-    return (
-      <div className="mt-6 space-y-4">
-        {locationState.error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{locationState.error}</AlertDescription>
-          </Alert>
-        )}
-        <div className="flex flex-col space-y-2">
-          {onLocationRetry && (
-            <button
-              type="button"
-              onClick={onLocationRetry}
-              className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              ลองใหม่อีกครั้ง
-            </button>
-          )}
-          {onRequestAdminAssistance && (
-            <button
-              type="button"
-              onClick={onRequestAdminAssistance}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-            >
-              <i className="fi fi-br-phone-call text-sm"></i>
-              ขอความช่วยเหลือจากเจ้าหน้าที่
-            </button>
-          )}
-        </div>
-      </div>
-    );
   };
 
-  const renderSuccess = () => {
-    if (step !== 'location' || !locationState.address) return null;
+  const renderLocationStatus = () => {
+    const hasError = shouldShowError();
 
-    return (
-      <div className="mt-6 text-sm">
-        <div className="text-green-600 font-medium mb-2">ระบุตำแหน่งสำเร็จ</div>
-        <div className="text-gray-700 mb-1">{locationState.address}</div>
-        {locationState.accuracy && (
-          <div className="text-gray-500 text-xs">
-            ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
+    console.log('Location status render:', {
+      state: locationState,
+      hasError,
+      shouldShow: hasError || (step === 'location' && locationState.address),
+    });
+
+    // Show error if exists
+    if (hasError) {
+      return (
+        <div className="mt-6 space-y-4">
+          {locationState.error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{locationState.error}</AlertDescription>
+            </Alert>
+          )}
+          <div className="flex flex-col space-y-2">
+            {onLocationRetry && (
+              <button
+                type="button"
+                onClick={onLocationRetry}
+                className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                ลองใหม่อีกครั้ง
+              </button>
+            )}
+            {onRequestAdminAssistance && (
+              <button
+                type="button"
+                onClick={onRequestAdminAssistance}
+                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <i className="fi fi-br-phone-call text-sm"></i>
+                ขอความช่วยเหลือจากเจ้าหน้าที่
+              </button>
+            )}
           </div>
-        )}
-      </div>
-    );
+        </div>
+      );
+    }
+
+    // Show success state only in location step
+    if (step === 'location' && locationState.address) {
+      return (
+        <div className="mt-6 text-sm">
+          <div className="text-green-600 font-medium mb-2">
+            ระบุตำแหน่งสำเร็จ
+          </div>
+          <div className="text-gray-700 mb-1">{locationState.address}</div>
+          {locationState.accuracy && (
+            <div className="text-gray-500 text-xs">
+              ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -156,8 +165,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
         <div className="text-gray-700 font-medium">{currentStep.message}</div>
 
-        {/* Error takes precedence over success */}
-        {renderError() || renderSuccess()}
+        {renderLocationStatus()}
       </div>
     </div>
   );
