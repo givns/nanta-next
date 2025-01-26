@@ -53,23 +53,22 @@ export function useLocationVerification(
     triggerRef.current = new LocationVerificationTriggers(mergedConfig);
   }, [config]);
 
-  // Handle location state updates
   useEffect(() => {
-    // Skip if no location state
-    if (!locationState) return;
+    console.log('Raw location state update:', locationState);
 
-    // Handle permission denied and location errors
     if (
       locationState.error?.includes('permission denied') ||
       locationState.error?.includes('ถูกปิดกั้น')
     ) {
-      setVerificationState({
+      const errorState: LocationVerificationState = {
         ...locationState,
         status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus,
+        verificationStatus: 'needs_verification',
         error: locationState.error,
         triggerReason: 'Location permission denied',
-      });
+      };
+      console.log('Setting error state:', errorState);
+      setVerificationState(errorState);
       return;
     }
 
