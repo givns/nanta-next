@@ -112,7 +112,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     // Show error UI or verification needed UI
     if (hasError || needsVerification) {
       console.log('Rendering error UI');
-      return <ErrorUI />; 
+      return <ErrorUI />;
     }
 
     // Success state (only shown in location step)
