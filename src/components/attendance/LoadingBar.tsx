@@ -64,26 +64,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   });
 
   // Add debug logging to LoadingBar
+  // LoadingBar.tsx
   const renderLocationStatus = () => {
-    console.log('renderLocationStatus:', {
-      state: locationState,
-      hasError: Boolean(
-        locationState.status === 'error' || locationState.error,
-      ),
-      needsVerification:
-        locationState.verificationStatus === 'needs_verification',
-      hasRetry: !!onLocationRetry,
-      hasAssist: !!onRequestAdminAssistance,
-      step,
-    });
-
     const hasError = Boolean(
       locationState.status === 'error' || locationState.error,
     );
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
 
-    if (hasError || needsVerification) {
+    console.log('LoadingBar render check:', {
+      rawState: locationState,
+      check: { hasError, needsVerification },
+    });
+
+    // Verify state before rendering
+    if (
+      (hasError || needsVerification) &&
+      (onLocationRetry || onRequestAdminAssistance)
+    ) {
       console.log('Rendering error UI with:', { hasError, needsVerification });
       return (
         <div className="mt-6 space-y-4">
