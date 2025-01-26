@@ -199,9 +199,6 @@ export class EnhancedLocationService {
   async getCurrentLocation(
     forceRefresh = false,
   ): Promise<LocationVerificationState> {
-    let attempts = 0;
-    let bestResult: LocationVerificationState | null = null;
-
     // Check cache first
     if (
       !forceRefresh &&
@@ -211,6 +208,9 @@ export class EnhancedLocationService {
     ) {
       return this.lastLocation;
     }
+
+    let attempts = 0;
+    let bestResult: LocationVerificationState | null = null;
 
     while (attempts < EnhancedLocationService.MAX_RETRIES) {
       try {
@@ -229,58 +229,71 @@ export class EnhancedLocationService {
         // Handle low accuracy
         if (accuracy > EnhancedLocationService.MIN_ACCURACY) {
           if (attempts < EnhancedLocationService.MAX_RETRIES - 1) {
+            console.log('Low accuracy, retrying...', {
+              accuracy,
+              attempt: attempts + 1,
+            });
             attempts++;
             await new Promise((resolve) =>
               setTimeout(resolve, EnhancedLocationService.RETRY_DELAY),
             );
             continue;
           }
-          const lowAccuracyResult: LocationVerificationState = {
-            inPremises: false,
-            address: '',
-            accuracy,
-            confidence: 'low',
-            coordinates: { lat: latitude, lng: longitude },
-            error: 'ความแม่นยำของตำแหน่งต่ำเกินไป กรุณาลองใหม่อีกครั้ง',
+
+          const lowAccuracyState: LocationVerificationState = {
             status: 'error',
             verificationStatus: 'needs_verification',
+            inPremises: false,
+            address: '',
+            confidence: 'low',
+            accuracy,
+            coordinates: { lat: latitude, lng: longitude },
+            error: 'ความแม่นยำของตำแหน่งต่ำเกินไป กรุณาลองใหม่อีกครั้ง',
             triggerReason: 'Low accuracy',
           };
-          return lowAccuracyResult;
+
+          console.log('Low accuracy limit reached:', lowAccuracyState);
+          this.lastLocation = lowAccuracyState;
+          return lowAccuracyState;
         }
 
+        // Check location against premises
         const analysis = this.analyzePremisesProbability(
           latitude,
           longitude,
           accuracy,
         );
-        const result: LocationVerificationState = {
-          inPremises: analysis.inPremises,
-          address: analysis.premise.name,
-          accuracy,
-          confidence: analysis.confidence,
-          coordinates: { lat: latitude, lng: longitude },
+        const currentState: LocationVerificationState = {
           status: 'ready',
           verificationStatus: analysis.inPremises
             ? 'verified'
             : 'needs_verification',
+          inPremises: analysis.inPremises,
+          address: analysis.premise.name,
+          confidence: analysis.confidence,
+          accuracy,
+          coordinates: { lat: latitude, lng: longitude },
           error: null,
-          triggerReason: null,
+          triggerReason: analysis.inPremises ? null : 'Out of premises',
         };
 
-        if (!bestResult || result.accuracy < bestResult.accuracy) {
-          bestResult = result;
+        if (!bestResult || currentState.accuracy < bestResult.accuracy) {
+          bestResult = currentState;
         }
 
-        if (result.inPremises || result.accuracy < 30) {
-          const validatedResult = this.validateWithHistory(result);
-          this.lastLocation = validatedResult;
-          this.addToHistory(validatedResult);
-          return validatedResult;
+        if (currentState.inPremises || currentState.accuracy < 30) {
+          const validatedState = this.validateWithHistory(currentState);
+          this.lastLocation = validatedState;
+          this.addToHistory(validatedState);
+          console.log('Location verified:', validatedState);
+          return validatedState;
         }
 
         attempts++;
         if (attempts < EnhancedLocationService.MAX_RETRIES) {
+          console.log('Location not in premises, retrying...', {
+            attempt: attempts + 1,
+          });
           await new Promise((resolve) =>
             setTimeout(resolve, EnhancedLocationService.RETRY_DELAY),
           );
@@ -290,24 +303,30 @@ export class EnhancedLocationService {
 
         // Handle permission denied immediately
         if (error instanceof GeolocationPositionError && error.code === 1) {
-          const errorResult: LocationVerificationState = {
+          const permissionDeniedState: LocationVerificationState = {
+            status: 'error',
+            verificationStatus: 'needs_verification',
             inPremises: false,
             address: '',
-            accuracy: 0,
             confidence: 'low',
+            accuracy: 0,
             coordinates: undefined,
             error:
               'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services',
-            status: 'error',
-            verificationStatus: 'needs_verification',
             triggerReason: 'Location permission denied',
           };
-          this.lastLocation = errorResult;
-          return errorResult;
+
+          console.log('Permission denied:', permissionDeniedState);
+          this.lastLocation = permissionDeniedState;
+          return permissionDeniedState;
         }
 
-        // For other errors, try retry or use cache
+        // For other errors, try retry
         if (attempts < EnhancedLocationService.MAX_RETRIES - 1) {
+          console.log('Location error, retrying...', {
+            attempt: attempts + 1,
+            error,
+          });
           attempts++;
           await new Promise((resolve) =>
             setTimeout(resolve, EnhancedLocationService.RETRY_DELAY),
@@ -322,42 +341,54 @@ export class EnhancedLocationService {
             this.verificationStateToResult(this.lastLocation).timestamp <
             5 * 60 * 1000
         ) {
+          console.log('Using recent cached location:', this.lastLocation);
           return this.lastLocation;
         }
 
         // Final error state
-        return {
-          inPremises: false,
-          address: '',
-          accuracy: 0,
-          confidence: 'low',
-          coordinates: undefined,
-          error: 'เกิดข้อผิดพลาดในการระบุตำแหน่ง กรุณาลองใหม่อีกครั้ง',
+        const errorState: LocationVerificationState = {
           status: 'error',
           verificationStatus: 'needs_verification',
-          triggerReason: 'Unknown error',
+          inPremises: false,
+          address: '',
+          confidence: 'low',
+          accuracy: 0,
+          coordinates: undefined,
+          error: 'เกิดข้อผิดพลาดในการระบุตำแหน่ง กรุณาลองใหม่อีกครั้ง',
+          triggerReason: 'Maximum retries exceeded',
         };
+
+        console.log('Max retries reached with error:', errorState);
+        this.lastLocation = errorState;
+        return errorState;
       }
     }
 
+    // Use best result if available after all attempts
     if (bestResult) {
-      const validatedResult = this.validateWithHistory(bestResult);
-      this.lastLocation = validatedResult;
-      this.addToHistory(validatedResult);
-      return validatedResult;
+      const validatedState = this.validateWithHistory(bestResult);
+      this.lastLocation = validatedState;
+      this.addToHistory(validatedState);
+      console.log('Using best available result:', validatedState);
+      return validatedState;
     }
 
-    return {
-      inPremises: false,
-      address: '',
-      accuracy: 0,
-      confidence: 'low',
-      coordinates: undefined,
-      error: 'ไม่สามารถระบุตำแหน่งได้หลังจากลองหลายครั้ง กรุณาลองใหม่อีกครั้ง',
+    // Final fallback error state
+    const fallbackState: LocationVerificationState = {
       status: 'error',
       verificationStatus: 'needs_verification',
-      triggerReason: 'Max retries exceeded',
+      inPremises: false,
+      address: '',
+      confidence: 'low',
+      accuracy: 0,
+      coordinates: undefined,
+      error: 'ไม่สามารถระบุตำแหน่งได้หลังจากลองหลายครั้ง กรุณาลองใหม่อีกครั้ง',
+      triggerReason: 'No valid location found',
     };
+
+    console.log('No valid location found:', fallbackState);
+    this.lastLocation = fallbackState;
+    return fallbackState;
   }
 
   private locationResultToVerificationState(
