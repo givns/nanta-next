@@ -1,4 +1,3 @@
-// hooks/useLocationVerification.ts
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEnhancedLocation } from './useEnhancedLocation';
 import {
@@ -8,6 +7,7 @@ import {
 import {
   LocationVerificationState,
   LocationStateContextType,
+  VerificationStatus,
 } from '../types/attendance';
 
 const INITIAL_STATE: LocationVerificationState = {
@@ -39,7 +39,6 @@ export function useLocationVerification(
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
-  const errorRef = useRef<boolean>(false);
 
   const {
     locationState,
@@ -56,68 +55,64 @@ export function useLocationVerification(
 
   // Handle location state updates
   useEffect(() => {
-    if (!triggerRef.current) return;
-
     console.log('Location state update:', locationState);
 
+    // Handle permission denied first
+    if (
+      locationState.error?.includes('permission denied') ||
+      locationState.error?.includes('ถูกปิดกั้น')
+    ) {
+      const errorState: LocationVerificationState = {
+        ...locationState,
+        status: 'error',
+        verificationStatus: 'needs_verification' as VerificationStatus,
+        error: locationState.error,
+        triggerReason: 'Location permission denied',
+      };
+      console.log('Setting permission denied state:', errorState);
+      setVerificationState(errorState);
+      return;
+    }
+
+    // Skip if triggers not initialized
+    if (!triggerRef.current) {
+      console.log('Triggers not initialized yet');
+      return;
+    }
+
     setVerificationState((prev) => {
-      // If we already have an error state, preserve it unless explicitly cleared
-      if (errorRef.current && locationState.status !== 'ready') {
-        return prev;
-      }
-
-      let newState: LocationVerificationState;
-
-      // Handle permission denied or blocked
-      if (
-        locationState.error?.includes('permission denied') ||
-        locationState.error?.includes('ถูกปิดกั้น')
-      ) {
-        errorRef.current = true;
-        newState = {
-          ...locationState,
-          status: 'error',
-          verificationStatus: 'needs_verification',
-          error: locationState.error,
-          triggerReason: 'Location permission denied',
-        };
-      }
       // Handle other errors
-      else if (locationState.status === 'error' || locationState.error) {
-        errorRef.current = true;
-        newState = {
+      if (locationState.status === 'error' || locationState.error) {
+        const reason =
+          triggerRef.current?.shouldTriggerAdminAssistance(locationState)
+            ?.reason || locationState.error;
+        return {
           ...locationState,
           status: 'error',
           verificationStatus: 'needs_verification',
           error: locationState.error,
-          triggerReason:
-            triggerRef.current?.shouldTriggerAdminAssistance(locationState)
-              ?.reason || locationState.error,
+          triggerReason: reason,
         };
       }
-      // Clear error state
-      else if (locationState.status === 'ready') {
-        errorRef.current = false;
-        newState = {
+
+      // Clear error state on ready
+      if (locationState.status === 'ready') {
+        return {
           ...locationState,
           verificationStatus: 'verified',
           error: null,
           triggerReason: null,
         };
       }
-      // Default case: preserve verification status during loading
-      else {
-        newState = {
-          ...locationState,
-          verificationStatus:
-            locationState.status === 'loading'
-              ? prev.verificationStatus
-              : 'pending',
-        };
-      }
 
-      console.log('Setting verification state:', newState);
-      return newState;
+      // Default case: preserve verification status during loading
+      return {
+        ...locationState,
+        verificationStatus:
+          locationState.status === 'loading'
+            ? prev.verificationStatus
+            : 'pending',
+      };
     });
   }, [locationState]);
 
