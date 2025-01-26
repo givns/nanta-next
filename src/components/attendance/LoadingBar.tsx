@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { LocationVerificationState } from '@/types/attendance';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -61,15 +61,37 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const currentStep = steps[step];
 
+  // Explicit error and verification status check
+  const showError = useCallback(() => {
+    const isError =
+      locationState.status === 'error' || Boolean(locationState.error);
+    const needsVerification =
+      locationState.verificationStatus === 'needs_verification';
+
+    console.log('Error check:', {
+      isError,
+      needsVerification,
+      state: locationState,
+      hasCallbacks: {
+        retry: !!onLocationRetry,
+        assist: !!onRequestAdminAssistance,
+      },
+    });
+
+    return isError || needsVerification;
+  }, [locationState, onLocationRetry, onRequestAdminAssistance]);
+
   const renderError = () => {
-    if (!locationState.error) return null;
+    if (!showError()) return null;
 
     return (
       <div className="mt-6 space-y-4">
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{locationState.error}</AlertDescription>
-        </Alert>
+        {locationState.error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{locationState.error}</AlertDescription>
+          </Alert>
+        )}
         <div className="flex flex-col space-y-2">
           {onLocationRetry && (
             <button
@@ -95,36 +117,20 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     );
   };
 
-  const renderLocationStatus = () => {
-    // Only show location status in location step
-    if (step !== 'location') return null;
+  const renderSuccess = () => {
+    if (step !== 'location' || !locationState.address) return null;
 
-    // Show error if exists
-    if (
-      locationState.error ||
-      locationState.verificationStatus === 'needs_verification'
-    ) {
-      return renderError();
-    }
-
-    // Show success state
-    if (locationState.address) {
-      return (
-        <div className="mt-6 text-sm">
-          <div className="text-green-600 font-medium mb-2">
-            ระบุตำแหน่งสำเร็จ
+    return (
+      <div className="mt-6 text-sm">
+        <div className="text-green-600 font-medium mb-2">ระบุตำแหน่งสำเร็จ</div>
+        <div className="text-gray-700 mb-1">{locationState.address}</div>
+        {locationState.accuracy && (
+          <div className="text-gray-500 text-xs">
+            ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
           </div>
-          <div className="text-gray-700 mb-1">{locationState.address}</div>
-          {locationState.accuracy && (
-            <div className="text-gray-500 text-xs">
-              ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return null;
+        )}
+      </div>
+    );
   };
 
   return (
@@ -150,7 +156,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
         <div className="text-gray-700 font-medium">{currentStep.message}</div>
 
-        {renderLocationStatus()}
+        {/* Error takes precedence over success */}
+        {renderError() || renderSuccess()}
       </div>
     </div>
   );
