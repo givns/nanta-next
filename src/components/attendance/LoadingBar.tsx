@@ -19,7 +19,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  // State evaluation
+  // Memoized shouldShowError
   const shouldShowError = useMemo(() => {
     const isError =
       locationState.status === 'error' || Boolean(locationState.error);
@@ -32,6 +32,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return isError || needsVerification || isPermissionDenied;
   }, [locationState]);
 
+  // Memoized shouldShowAdminAssistance
   const shouldShowAdminAssistance = useMemo(() => {
     const needsHelp =
       locationState.verificationStatus === 'needs_verification' ||
@@ -62,6 +63,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     onRequestAdminAssistance,
   ]);
 
+  // Handle admin assistance request
   const handleRequestAssistance = async () => {
     if (!onRequestAdminAssistance) {
       console.warn('Admin assistance handler not provided');
@@ -78,6 +80,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }
   };
 
+  // Progress bar logic
   useEffect(() => {
     const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
@@ -86,6 +89,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return () => clearInterval(interval);
   }, [step]);
 
+  // Render error UI if shouldShowError is true
   const renderLocationStatus = () => {
     console.log('Rendering location status:', {
       shouldShowError,
@@ -131,6 +135,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     );
   };
 
+  // Steps configuration
   const steps = {
     auth: {
       message: 'ตรวจสอบสิทธิ์การเข้างาน',
