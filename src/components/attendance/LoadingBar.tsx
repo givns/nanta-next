@@ -17,33 +17,38 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   onRequestAdminAssistance,
 }) => {
   const [progress, setProgress] = useState(0);
+  const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  // Memoized shouldShowError - updated logic to handle verification states
   const shouldShowError = useMemo(() => {
-    const isError =
-      locationState.status === 'error' || Boolean(locationState.error);
-    const needsVerification =
-      locationState.verificationStatus === 'needs_verification';
-    const isPermissionDenied =
-      locationState.error?.includes('ถูกปิดกั้น') ||
-      locationState.error?.includes('permission denied');
-
-    return isError || needsVerification || isPermissionDenied;
-  }, [locationState]);
-
-  // Memoized shouldShowAdminAssistance
-  const shouldShowAdminAssistance = useMemo(() => {
-    return (
-      locationState.verificationStatus === 'needs_verification' ||
+    return Boolean(
       locationState.status === 'error' ||
-      locationState.triggerReason === 'Location permission denied'
+        locationState.error ||
+        locationState.verificationStatus === 'needs_verification',
     );
   }, [locationState]);
 
+  const shouldShowAdminAssistance = useMemo(() => {
+    return Boolean(
+      locationState.verificationStatus === 'needs_verification' ||
+        locationState.triggerReason === 'Location permission denied',
+    );
+  }, [locationState]);
+
+  const handleRequestAssistance = async () => {
+    if (!onRequestAdminAssistance) return;
+    try {
+      setIsRequestingHelp(true);
+      await onRequestAdminAssistance();
+    } finally {
+      setIsRequestingHelp(false);
+    }
+  };
+
   useEffect(() => {
-    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
+    const targets = { auth: 25, user: 50, location: 75, ready: 100 };
+    const target = targets[step];
     const interval = setInterval(() => {
-      setProgress((prev) => (prev >= target ? target : prev + 1));
+      setProgress((prev) => Math.min(prev + 1, target));
     }, 30);
     return () => clearInterval(interval);
   }, [step]);
@@ -69,14 +74,17 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
               ลองใหม่อีกครั้ง
             </button>
           )}
-          {shouldShowAdminAssistance && onRequestAdminAssistance && (
+          {shouldShowAdminAssistance && (
             <button
               type="button"
-              onClick={onRequestAdminAssistance}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+              onClick={handleRequestAssistance}
+              disabled={isRequestingHelp}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <i className="fi fi-br-phone-call text-sm"></i>
-              ขอความช่วยเหลือจากเจ้าหน้าที่
+              {isRequestingHelp
+                ? 'กำลังส่งคำขอ...'
+                : 'ขอความช่วยเหลือจากเจ้าหน้าที่'}
             </button>
           )}
         </div>
@@ -113,11 +121,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-8 ${
-            step === 'location' && locationState.status === 'loading'
-              ? 'animate-bounce'
-              : ''
-          }`}
+          className={`text-6xl mb-8 ${step === 'location' && locationState.status === 'loading' ? 'animate-bounce' : ''}`}
         >
           {currentStep.icon}
         </div>
@@ -135,7 +139,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
 
         <div className="text-gray-700 font-medium">{currentStep.message}</div>
-
         {renderLocationStatus()}
       </div>
     </div>
