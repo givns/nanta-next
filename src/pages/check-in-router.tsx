@@ -166,15 +166,6 @@ const CheckInRouter: React.FC = () => {
     }
   }, [userData?.employeeId]);
 
-  const mappedLocationState = useMemo(
-    () => ({
-      ...locationState,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-    }),
-    [locationState],
-  );
-
   const handleViewNextDay = useCallback(() => {
     setShowNextDay(true);
     fetchNextDayInfo();
@@ -474,6 +465,16 @@ const CheckInRouter: React.FC = () => {
       </Alert>
     );
   }
+
+  const mappedLocationState = useMemo(() => {
+    const verificationState = {
+      verificationStatus: locationState.verificationStatus || 'pending',
+      triggerReason: locationState.triggerReason,
+      status: locationState.status,
+      error: locationState.error,
+    };
+    return { ...locationState, ...verificationState };
+  }, [locationState]);
 
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
