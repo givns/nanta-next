@@ -310,14 +310,31 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
-  const mappedLocationState = useMemo(
-    () => ({
+  const mappedLocationState = useMemo(() => {
+    // Keep all original properties
+    const mapped = {
       ...locationState,
-      verificationStatus: locationState.verificationStatus || 'pending',
+      // Enforce required properties with correct values
+      status: locationState.status,
+      verificationStatus: locationState.verificationStatus,
       triggerReason: locationState.triggerReason,
-    }),
-    [locationState],
-  );
+      error: locationState.error,
+      // Location properties
+      inPremises: locationState.inPremises,
+      address: locationState.address,
+      confidence: locationState.confidence,
+      accuracy: locationState.accuracy,
+      coordinates: locationState.coordinates,
+    };
+
+    // Only set defaults if values are undefined (not null)
+    if (mapped.verificationStatus === undefined) {
+      mapped.verificationStatus = 'pending';
+    }
+
+    console.log('Mapped location state:', mapped);
+    return mapped;
+  }, [locationState]);
 
   // Initial data fetch
   useEffect(() => {
