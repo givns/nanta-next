@@ -169,14 +169,10 @@ const CheckInRouter: React.FC = () => {
   const mappedLocationState = useMemo(
     () => ({
       ...locationState,
-      verificationStatus: locationState.verificationStatus || 'pending',
-      triggerReason: locationState.triggerReason,
-      // Ensure these are always defined even if locationState changes
+      verification: locationState.verificationStatus,
+      trigger: locationState.triggerReason,
       status: locationState.status || 'initializing',
       error: locationState.error || null,
-      inPremises: locationState.inPremises || false,
-      confidence: locationState.confidence || 'low',
-      accuracy: locationState.accuracy || 0,
     }),
     [locationState],
   );
