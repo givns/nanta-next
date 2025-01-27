@@ -19,27 +19,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  console.log('LoadingBar props:', {
-    step,
-    locationState: {
-      status: locationState.status,
-      verification: locationState.verificationStatus,
-      trigger: locationState.triggerReason,
-    },
-  });
-
+  // Use correct property names from LocationVerificationState
   const shouldShowError = useMemo(() => {
-    return Boolean(
-      locationState.status === 'error' ||
-        locationState.error ||
-        locationState.verificationStatus === 'needs_verification',
-    );
+    const isError =
+      locationState.status === 'error' || Boolean(locationState.error);
+    const needsVerification =
+      locationState.verificationStatus === 'needs_verification';
+    const isPermissionDenied =
+      locationState.error?.includes('ถูกปิดกั้น') ||
+      locationState.triggerReason === 'Location permission denied';
+
+    return isError || needsVerification || isPermissionDenied;
   }, [locationState]);
 
   const shouldShowAdminAssistance = useMemo(() => {
-    return Boolean(
+    return (
       locationState.verificationStatus === 'needs_verification' ||
-        locationState.triggerReason === 'Location permission denied',
+      locationState.status === 'error' ||
+      locationState.triggerReason === 'Location permission denied'
     );
   }, [locationState]);
 
@@ -54,8 +51,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   };
 
   useEffect(() => {
-    const targets = { auth: 25, user: 50, location: 75, ready: 100 };
-    const target = targets[step];
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
       setProgress((prev) => Math.min(prev + 1, target));
     }, 30);
