@@ -39,11 +39,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
-    return isError || needsVerification;
+    const isPermissionDenied =
+      locationState.triggerReason === 'Location permission denied';
+
+    console.log('shouldShowError:', {
+      isError,
+      needsVerification,
+      isPermissionDenied,
+      locationState,
+    });
+
+    return isError || needsVerification || isPermissionDenied;
   }, [
     locationState.status,
     locationState.error,
     locationState.verificationStatus,
+    locationState.triggerReason,
   ]);
 
   useEffect(() => {
