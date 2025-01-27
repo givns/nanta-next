@@ -18,21 +18,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
 
-  // Add immediate state check on state change
-  useEffect(() => {
-    const isError =
-      locationState.status === 'error' || Boolean(locationState.error);
-    const needsVerification =
-      locationState.verificationStatus === 'needs_verification';
-    if (isError || needsVerification) {
-      console.log('Error condition met:', {
-        isError,
-        needsVerification,
-        locationState,
-      });
-    }
-  }, [locationState]);
-
   // Memoized shouldShowError
   const shouldShowError = useMemo(() => {
     const isError =
@@ -50,23 +35,9 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     });
 
     return isError || needsVerification || isPermissionDenied;
-  }, [
-    locationState.status,
-    locationState.error,
-    locationState.verificationStatus,
-    locationState.triggerReason,
-  ]);
+  }, [locationState]);
 
-  useEffect(() => {
-    console.log('LoadingBar props update:', {
-      step,
-      locationState,
-      hasRetry: !!onLocationRetry,
-      hasAssist: !!onRequestAdminAssistance,
-    });
-  }, [step, locationState, onLocationRetry, onRequestAdminAssistance]);
-
-  // Progress bar logic...
+  // Progress bar logic
   useEffect(() => {
     const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
@@ -75,6 +46,44 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return () => clearInterval(interval);
   }, [step]);
 
+  // Render error UI if shouldShowError is true
+  const renderLocationStatus = () => {
+    if (!shouldShowError) return null;
+
+    return (
+      <div className="mt-6 space-y-4">
+        {locationState.error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{locationState.error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="flex flex-col space-y-2">
+          {onLocationRetry && (
+            <button
+              type="button"
+              onClick={onLocationRetry}
+              className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              ลองใหม่อีกครั้ง
+            </button>
+          )}
+          {shouldShowError && onRequestAdminAssistance && (
+            <button
+              type="button"
+              onClick={onRequestAdminAssistance}
+              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+            >
+              <i className="fi fi-br-phone-call text-sm"></i>
+              ขอความช่วยเหลือจากเจ้าหน้าที่
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Steps configuration
   const steps = {
     auth: {
       message: 'ตรวจสอบสิทธิ์การเข้างาน',
@@ -99,70 +108,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   };
 
   const currentStep = steps[step];
-
-  const renderLocationStatus = () => {
-    const hasError = shouldShowError;
-
-    console.log('Location status render:', {
-      state: locationState,
-      hasError,
-      shouldShow: hasError || (step === 'location' && locationState.address),
-    });
-
-    // Show error if exists
-    if (hasError) {
-      return (
-        <div className="mt-6 space-y-4">
-          {locationState.error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{locationState.error}</AlertDescription>
-            </Alert>
-          )}
-          <div className="flex flex-col space-y-2">
-            {onLocationRetry && (
-              <button
-                type="button"
-                onClick={onLocationRetry}
-                className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                ลองใหม่อีกครั้ง
-              </button>
-            )}
-            {onRequestAdminAssistance && (
-              <button
-                type="button"
-                onClick={onRequestAdminAssistance}
-                className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
-              >
-                <i className="fi fi-br-phone-call text-sm"></i>
-                ขอความช่วยเหลือจากเจ้าหน้าที่
-              </button>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    // Show success state only in location step
-    if (step === 'location' && locationState.address) {
-      return (
-        <div className="mt-6 text-sm">
-          <div className="text-green-600 font-medium mb-2">
-            ระบุตำแหน่งสำเร็จ
-          </div>
-          <div className="text-gray-700 mb-1">{locationState.address}</div>
-          {locationState.accuracy && (
-            <div className="text-gray-500 text-xs">
-              ความแม่นยำ: ±{Math.round(locationState.accuracy)} เมตร
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    return null;
-  };
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
