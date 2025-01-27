@@ -310,19 +310,14 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
-  const mappedLocationState = useMemo(() => {
-    // Add null checks and explicit type assertion
-    const verification = locationState.verificationStatus || 'pending';
-    const trigger = locationState.triggerReason;
-
-    return {
+  const mappedLocationState = useMemo(
+    () => ({
       ...locationState,
-      verificationStatus: verification,
-      triggerReason: trigger,
-      verification: undefined,
-      trigger: undefined,
-    };
-  }, [locationState]);
+      verificationStatus: locationState.verificationStatus || 'pending',
+      triggerReason: locationState.triggerReason,
+    }),
+    [locationState],
+  );
 
   // Initial data fetch
   useEffect(() => {
@@ -490,7 +485,7 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${mappedLocationState.status}-${mappedLocationState.verificationStatus}`}
+            key={currentStep} // Only step changes should force remount
             step={currentStep}
             locationState={mappedLocationState}
             onLocationRetry={handleLocationRetry}
