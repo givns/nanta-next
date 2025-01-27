@@ -18,26 +18,28 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
 
-  // Memoized shouldShowError
+  // Memoized shouldShowError - updated logic to handle verification states
   const shouldShowError = useMemo(() => {
     const isError =
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
     const isPermissionDenied =
-      locationState.triggerReason === 'Location permission denied';
-
-    console.log('shouldShowError:', {
-      isError,
-      needsVerification,
-      isPermissionDenied,
-      locationState,
-    });
+      locationState.error?.includes('ถูกปิดกั้น') ||
+      locationState.error?.includes('permission denied');
 
     return isError || needsVerification || isPermissionDenied;
   }, [locationState]);
 
-  // Progress bar logic
+  // Memoized shouldShowAdminAssistance
+  const shouldShowAdminAssistance = useMemo(() => {
+    return (
+      locationState.verificationStatus === 'needs_verification' ||
+      locationState.status === 'error' ||
+      locationState.triggerReason === 'Location permission denied'
+    );
+  }, [locationState]);
+
   useEffect(() => {
     const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
@@ -46,7 +48,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return () => clearInterval(interval);
   }, [step]);
 
-  // Render error UI if shouldShowError is true
   const renderLocationStatus = () => {
     if (!shouldShowError) return null;
 
@@ -68,7 +69,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
               ลองใหม่อีกครั้ง
             </button>
           )}
-          {shouldShowError && onRequestAdminAssistance && (
+          {shouldShowAdminAssistance && onRequestAdminAssistance && (
             <button
               type="button"
               onClick={onRequestAdminAssistance}
@@ -83,7 +84,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     );
   };
 
-  // Steps configuration
   const steps = {
     auth: {
       message: 'ตรวจสอบสิทธิ์การเข้างาน',
@@ -113,7 +113,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-8 ${step === 'location' && locationState.status === 'loading' ? 'animate-bounce' : ''}`}
+          className={`text-6xl mb-8 ${
+            step === 'location' && locationState.status === 'loading'
+              ? 'animate-bounce'
+              : ''
+          }`}
         >
           {currentStep.icon}
         </div>
