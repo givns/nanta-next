@@ -11,8 +11,10 @@ import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
   AttendanceRecord,
+  LocationVerificationState,
   NextDayScheduleInfo,
   SerializedAttendanceRecord,
+  VerificationStatus,
 } from '@/types/attendance';
 import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
@@ -104,6 +106,31 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
+  const mappedLocationState = useMemo((): LocationVerificationState => {
+    console.log('Mapping location state:', locationState);
+
+    // Handle error states first
+    if (locationState.status === 'error' || locationState.error) {
+      return {
+        ...locationState,
+        status: 'error',
+        verificationStatus: 'needs_verification' as VerificationStatus,
+        triggerReason:
+          locationState.triggerReason || 'Location permission denied',
+        error: locationState.error,
+      };
+    }
+
+    // Normal state handling
+    return {
+      ...locationState,
+      status: locationState.status,
+      verificationStatus: (locationState.verificationStatus ||
+        'pending') as VerificationStatus,
+      triggerReason: locationState.triggerReason,
+    };
+  }, [locationState]);
+
   const handleRequestAdminAssistance = useCallback(async () => {
     if (!requestAdminAssistance) {
       console.warn('Admin assistance function is not available');
@@ -117,32 +144,6 @@ const CheckInRouter: React.FC = () => {
       console.error('Error requesting admin assistance:', error);
     }
   }, [requestAdminAssistance]);
-
-  const mappedLocationState = useMemo(() => {
-    // Keep all original properties
-    const mapped = {
-      ...locationState,
-      // Enforce required properties with correct values
-      status: locationState.status,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      error: locationState.error,
-      // Location properties
-      inPremises: locationState.inPremises,
-      address: locationState.address,
-      confidence: locationState.confidence,
-      accuracy: locationState.accuracy,
-      coordinates: locationState.coordinates,
-    };
-
-    // Only set defaults if values are undefined (not null)
-    if (mapped.verificationStatus === undefined) {
-      mapped.verificationStatus = 'pending';
-    }
-
-    console.log('Mapped location state:', mapped);
-    return mapped;
-  }, [locationState]);
 
   // Fetch user data
   const fetchUserData = useCallback(async () => {
@@ -502,7 +503,7 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={currentStep} // Only step changes should force remount
+            key={`${currentStep}-${mappedLocationState.verificationStatus}`}
             step={currentStep}
             locationState={mappedLocationState}
             onLocationRetry={handleLocationRetry}
