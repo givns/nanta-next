@@ -19,6 +19,15 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
+  console.log('LoadingBar props:', {
+    step,
+    locationState: {
+      status: locationState.status,
+      verification: locationState.verificationStatus,
+      trigger: locationState.triggerReason,
+    },
+  });
+
   const shouldShowError = useMemo(() => {
     return Boolean(
       locationState.status === 'error' ||
