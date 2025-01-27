@@ -319,7 +319,6 @@ const CheckInRouter: React.FC = () => {
       ...locationState,
       verificationStatus: verification,
       triggerReason: trigger,
-      // Remove these to prevent wrong property names
       verification: undefined,
       trigger: undefined,
     };

@@ -52,19 +52,6 @@ export interface GeoLocationJson extends Record<string, any> {
   provider?: string;
 }
 
-export interface LocationState {
-  status: 'initializing' | 'loading' | 'ready' | 'error';
-  inPremises: boolean;
-  address: string;
-  confidence: 'high' | 'medium' | 'low' | 'manual';
-  accuracy: number;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-  error: string | null;
-}
-
 export type LocationConfidence = 'high' | 'medium' | 'low' | 'manual';
 
 export type LocationStatus =
@@ -81,7 +68,7 @@ export type VerificationStatus =
   | 'needs_verification'
   | 'admin_pending';
 
-export interface BaseLocationState {
+export interface LocationState {
   status: LocationStatus;
   inPremises: boolean;
   address: string;
@@ -94,7 +81,7 @@ export interface BaseLocationState {
   };
 }
 
-export interface LocationVerificationState extends BaseLocationState {
+export interface LocationVerificationState extends LocationState {
   verificationStatus: VerificationStatus;
   lastVerifiedAt?: Date;
   adminRequestId?: string;
