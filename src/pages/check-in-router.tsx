@@ -503,7 +503,7 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${mappedLocationState.verificationStatus}`}
+            key={`${currentStep}-${mappedLocationState.status}-${mappedLocationState.verificationStatus}`}
             step={currentStep}
             locationState={mappedLocationState}
             onLocationRetry={handleLocationRetry}
