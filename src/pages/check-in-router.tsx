@@ -104,6 +104,20 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
+  const handleRequestAdminAssistance = useCallback(async () => {
+    if (!requestAdminAssistance) {
+      console.warn('Admin assistance function is not available');
+      return;
+    }
+
+    try {
+      console.log('Requesting admin assistance...');
+      await requestAdminAssistance();
+    } catch (error) {
+      console.error('Error requesting admin assistance:', error);
+    }
+  }, [requestAdminAssistance]);
+
   // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
@@ -466,7 +480,7 @@ const CheckInRouter: React.FC = () => {
             step={currentStep}
             locationState={locationState}
             onLocationRetry={handleLocationRetry}
-            onRequestAdminAssistance={requestAdminAssistance}
+            onRequestAdminAssistance={handleRequestAdminAssistance} // Pass the handler
           />
         </div>
         <div className="opacity-0">{mainContent}</div>
