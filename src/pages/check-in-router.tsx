@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
@@ -490,7 +490,22 @@ const CheckInRouter: React.FC = () => {
 
   // Ensure we have the required props
   if (!safeAttendanceProps) {
-    return null;
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="text-red-500 font-medium mb-4">
+            ข้อมูลไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง
+          </div>
+          <button
+            type="button"
+            onClick={fetchUserData}
+            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // Show check-in form (default view)
