@@ -166,6 +166,21 @@ const CheckInRouter: React.FC = () => {
     }
   }, [userData?.employeeId]);
 
+  const mappedLocationState = useMemo(
+    () => ({
+      ...locationState,
+      verificationStatus: locationState.verificationStatus || 'pending',
+      triggerReason: locationState.triggerReason,
+      // Ensure these are always defined even if locationState changes
+      status: locationState.status || 'initializing',
+      error: locationState.error || null,
+      inPremises: locationState.inPremises || false,
+      confidence: locationState.confidence || 'low',
+      accuracy: locationState.accuracy || 0,
+    }),
+    [locationState],
+  );
+
   const handleViewNextDay = useCallback(() => {
     setShowNextDay(true);
     fetchNextDayInfo();
@@ -476,11 +491,11 @@ const CheckInRouter: React.FC = () => {
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}`}
+            key={`${currentStep}-${mappedLocationState.status}-${mappedLocationState.verificationStatus}`}
             step={currentStep}
-            locationState={locationState}
+            locationState={mappedLocationState}
             onLocationRetry={handleLocationRetry}
-            onRequestAdminAssistance={handleRequestAdminAssistance} // Pass the handler
+            onRequestAdminAssistance={handleRequestAdminAssistance}
           />
         </div>
         <div className="opacity-0">{mainContent}</div>
