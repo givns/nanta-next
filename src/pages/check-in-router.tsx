@@ -310,16 +310,20 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
-  const mappedLocationState = useMemo(
-    () => ({
+  const mappedLocationState = useMemo(() => {
+    // Add null checks and explicit type assertion
+    const verification = locationState.verificationStatus || 'pending';
+    const trigger = locationState.triggerReason;
+
+    return {
       ...locationState,
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus || 'pending',
-      triggerReason: locationState.triggerReason,
-    }),
-    [locationState],
-  );
+      verificationStatus: verification,
+      triggerReason: trigger,
+      // Remove these to prevent wrong property names
+      verification: undefined,
+      trigger: undefined,
+    };
+  }, [locationState]);
 
   // Initial data fetch
   useEffect(() => {
