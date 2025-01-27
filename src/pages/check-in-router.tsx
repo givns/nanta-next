@@ -118,6 +118,32 @@ const CheckInRouter: React.FC = () => {
     }
   }, [requestAdminAssistance]);
 
+  const mappedLocationState = useMemo(() => {
+    // Keep all original properties
+    const mapped = {
+      ...locationState,
+      // Enforce required properties with correct values
+      status: locationState.status,
+      verificationStatus: locationState.verificationStatus,
+      triggerReason: locationState.triggerReason,
+      error: locationState.error,
+      // Location properties
+      inPremises: locationState.inPremises,
+      address: locationState.address,
+      confidence: locationState.confidence,
+      accuracy: locationState.accuracy,
+      coordinates: locationState.coordinates,
+    };
+
+    // Only set defaults if values are undefined (not null)
+    if (mapped.verificationStatus === undefined) {
+      mapped.verificationStatus = 'pending';
+    }
+
+    console.log('Mapped location state:', mapped);
+    return mapped;
+  }, [locationState]);
+
   // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
@@ -309,32 +335,6 @@ const CheckInRouter: React.FC = () => {
     locationState.status,
     locationState.verificationStatus,
   ]);
-
-  const mappedLocationState = useMemo(() => {
-    // Keep all original properties
-    const mapped = {
-      ...locationState,
-      // Enforce required properties with correct values
-      status: locationState.status,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      error: locationState.error,
-      // Location properties
-      inPremises: locationState.inPremises,
-      address: locationState.address,
-      confidence: locationState.confidence,
-      accuracy: locationState.accuracy,
-      coordinates: locationState.coordinates,
-    };
-
-    // Only set defaults if values are undefined (not null)
-    if (mapped.verificationStatus === undefined) {
-      mapped.verificationStatus = 'pending';
-    }
-
-    console.log('Mapped location state:', mapped);
-    return mapped;
-  }, [locationState]);
 
   // Initial data fetch
   useEffect(() => {
