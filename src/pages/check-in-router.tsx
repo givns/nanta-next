@@ -310,6 +310,16 @@ const CheckInRouter: React.FC = () => {
     locationState.verificationStatus,
   ]);
 
+  const mappedLocationState = useMemo(() => {
+    const verificationState = {
+      verificationStatus: locationState.verificationStatus || 'pending',
+      triggerReason: locationState.triggerReason,
+      status: locationState.status,
+      error: locationState.error,
+    };
+    return { ...locationState, ...verificationState };
+  }, [locationState]);
+
   // Initial data fetch
   useEffect(() => {
     fetchUserData();
@@ -465,16 +475,6 @@ const CheckInRouter: React.FC = () => {
       </Alert>
     );
   }
-
-  const mappedLocationState = useMemo(() => {
-    const verificationState = {
-      verificationStatus: locationState.verificationStatus || 'pending',
-      triggerReason: locationState.triggerReason,
-      status: locationState.status,
-      error: locationState.error,
-    };
-    return { ...locationState, ...verificationState };
-  }, [locationState]);
 
   // Loading state
   if (loadingPhase !== 'complete' || !userData) {
