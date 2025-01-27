@@ -19,7 +19,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  // Use correct property names from LocationVerificationState
+  // State evaluation
   const shouldShowError = useMemo(() => {
     const isError =
       locationState.status === 'error' || Boolean(locationState.error);
@@ -33,18 +33,46 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   }, [locationState]);
 
   const shouldShowAdminAssistance = useMemo(() => {
-    return (
+    const needsHelp =
       locationState.verificationStatus === 'needs_verification' ||
       locationState.status === 'error' ||
-      locationState.triggerReason === 'Location permission denied'
-    );
+      locationState.triggerReason === 'Location permission denied';
+    return needsHelp;
   }, [locationState]);
 
+  // Debug logging
+  useEffect(() => {
+    console.log('LoadingBar state update:', {
+      step,
+      locationStatus: locationState.status,
+      verificationStatus: locationState.verificationStatus,
+      triggerReason: locationState.triggerReason,
+      error: locationState.error,
+      shouldShowError,
+      shouldShowAdminAssistance,
+      hasErrorHandler: Boolean(onLocationRetry),
+      hasAdminHandler: Boolean(onRequestAdminAssistance),
+    });
+  }, [
+    step,
+    locationState,
+    shouldShowError,
+    shouldShowAdminAssistance,
+    onLocationRetry,
+    onRequestAdminAssistance,
+  ]);
+
   const handleRequestAssistance = async () => {
-    if (!onRequestAdminAssistance) return;
+    if (!onRequestAdminAssistance) {
+      console.warn('Admin assistance handler not provided');
+      return;
+    }
     try {
+      console.log('Requesting admin assistance...');
       setIsRequestingHelp(true);
       await onRequestAdminAssistance();
+    } catch (error) {
+      console.error('Admin assistance request failed:', error);
     } finally {
       setIsRequestingHelp(false);
     }
@@ -59,6 +87,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   }, [step]);
 
   const renderLocationStatus = () => {
+    console.log('Rendering location status:', {
+      shouldShowError,
+      shouldShowAdminAssistance,
+      error: locationState.error,
+    });
+
     if (!shouldShowError) return null;
 
     return (
@@ -79,7 +113,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
               ลองใหม่อีกครั้ง
             </button>
           )}
-          {shouldShowAdminAssistance && (
+          {shouldShowAdminAssistance && onRequestAdminAssistance && (
             <button
               type="button"
               onClick={handleRequestAssistance}
