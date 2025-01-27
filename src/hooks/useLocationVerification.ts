@@ -56,58 +56,58 @@ export function useLocationVerification(
   useEffect(() => {
     console.log('Raw location state update:', locationState);
 
-    if (
-      locationState.error?.includes('permission denied') ||
-      locationState.error?.includes('ถูกปิดกั้น')
-    ) {
-      const errorState: LocationVerificationState = {
-        ...locationState,
-        status: 'error',
-        verificationStatus: 'needs_verification',
-        error: locationState.error,
-        triggerReason: 'Location permission denied',
-      };
-      console.log('Setting error state:', errorState);
-      setVerificationState(errorState);
-      return;
-    }
+    setVerificationState((prev: LocationVerificationState) => {
+      // Permission denied
+      if (
+        locationState.error?.includes('permission denied') ||
+        locationState.error?.includes('ถูกปิดกั้น')
+      ) {
+        return {
+          ...locationState,
+          status: 'error',
+          verificationStatus: 'needs_verification' as VerificationStatus,
+          error: locationState.error,
+          triggerReason: 'Location permission denied',
+        } as LocationVerificationState;
+      }
 
-    // Handle other errors if triggers available
-    if (
-      triggerRef.current &&
-      (locationState.status === 'error' || locationState.error)
-    ) {
-      const trigger =
-        triggerRef.current.shouldTriggerAdminAssistance(locationState);
-      setVerificationState({
-        ...locationState,
-        status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus,
-        error: locationState.error,
-        triggerReason: trigger.reason,
-      });
-      return;
-    }
+      // Trigger errors
+      if (
+        triggerRef.current &&
+        (locationState.status === 'error' || locationState.error)
+      ) {
+        const trigger =
+          triggerRef.current.shouldTriggerAdminAssistance(locationState);
+        return {
+          ...locationState,
+          status: 'error',
+          verificationStatus: 'needs_verification' as VerificationStatus,
+          error: locationState.error,
+          triggerReason: trigger.reason,
+        } as LocationVerificationState;
+      }
 
-    // Handle success state
-    if (locationState.status === 'ready') {
-      setVerificationState({
-        ...locationState,
-        verificationStatus: 'verified' as VerificationStatus,
-        error: null,
-        triggerReason: null,
-      });
-      return;
-    }
+      // Success
+      if (locationState.status === 'ready') {
+        return {
+          ...locationState,
+          verificationStatus: 'verified' as VerificationStatus,
+          error: null,
+          triggerReason: null,
+        } as LocationVerificationState;
+      }
 
-    // Pass through loading state
-    setVerificationState((prev) => ({
-      ...locationState,
-      verificationStatus:
-        locationState.status === 'loading'
-          ? prev.verificationStatus
-          : ('pending' as VerificationStatus),
-    }));
+      // Loading/Other
+      return {
+        ...locationState,
+        verificationStatus:
+          locationState.status === 'loading'
+            ? prev.verificationStatus
+            : ((prev.verificationStatus || 'pending') as VerificationStatus),
+        triggerReason: prev.triggerReason,
+        error: locationState.error || prev.error,
+      } as LocationVerificationState;
+    });
   }, [locationState]);
 
   const verifyLocation = useCallback(
