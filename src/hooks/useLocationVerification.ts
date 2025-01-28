@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useEnhancedLocation } from './useEnhancedLocation';
 import {
   LocationTriggerConfig,
@@ -47,17 +47,22 @@ export function useLocationVerification(
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
-  // Initialize triggers with config
   useEffect(() => {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
     triggerRef.current = new LocationVerificationTriggers(mergedConfig);
   }, [config]);
 
+  // Track verification state changes
+  useEffect(() => {
+    console.log('Verification state changed:', verificationState);
+  }, [verificationState]);
+
+  // Location state change handler with improved state preservation
   useEffect(() => {
     console.log('Raw location state update:', locationState);
 
-    setVerificationState((prev: LocationVerificationState) => {
-      // Permission denied
+    setVerificationState((prev) => {
+      // Handle permission denied errors with state preservation
       if (
         locationState.error?.includes('permission denied') ||
         locationState.error?.includes('ถูกปิดกั้น')
@@ -65,13 +70,18 @@ export function useLocationVerification(
         return {
           ...locationState,
           status: 'error',
-          verificationStatus: 'needs_verification' as VerificationStatus,
+          verificationStatus: 'needs_verification',
           error: locationState.error,
           triggerReason: 'Location permission denied',
-        } as LocationVerificationState;
+          // Preserve previous verification state if needed
+          ...(prev.verificationStatus === 'admin_pending' && {
+            verificationStatus: prev.verificationStatus,
+            adminRequestId: prev.adminRequestId,
+          }),
+        };
       }
 
-      // Trigger errors
+      // Handle other errors with triggers and state preservation
       if (
         triggerRef.current &&
         (locationState.status === 'error' || locationState.error)
@@ -81,32 +91,37 @@ export function useLocationVerification(
         return {
           ...locationState,
           status: 'error',
-          verificationStatus: 'needs_verification' as VerificationStatus,
+          verificationStatus: 'needs_verification',
           error: locationState.error,
           triggerReason: trigger.reason,
-        } as LocationVerificationState;
+          // Preserve admin state if exists
+          ...(prev.verificationStatus === 'admin_pending' && {
+            verificationStatus: prev.verificationStatus,
+            adminRequestId: prev.adminRequestId,
+          }),
+        };
       }
 
-      // Success
+      // Handle success state
       if (locationState.status === 'ready') {
         return {
           ...locationState,
-          verificationStatus: 'verified' as VerificationStatus,
+          verificationStatus: 'verified',
           error: null,
           triggerReason: null,
-        } as LocationVerificationState;
+        };
       }
 
-      // Loading/Other
+      // Default state handling - preserve verification status
       return {
         ...locationState,
         verificationStatus:
           locationState.status === 'loading'
             ? prev.verificationStatus
-            : ((prev.verificationStatus || 'pending') as VerificationStatus),
+            : prev.verificationStatus || 'pending',
         triggerReason: prev.triggerReason,
-        error: locationState.error || prev.error,
-      } as LocationVerificationState;
+        adminRequestId: prev.adminRequestId,
+      };
     });
   }, [locationState]);
 
@@ -119,7 +134,7 @@ export function useLocationVerification(
           ...prev,
           status: 'loading',
           error: null,
-          verificationStatus: 'pending' as VerificationStatus,
+          verificationStatus: 'pending',
         }));
 
         const location = await getCurrentLocation(force);
@@ -130,7 +145,7 @@ export function useLocationVerification(
           setVerificationState((prev) => ({
             ...prev,
             status: 'error',
-            verificationStatus: 'needs_verification' as VerificationStatus,
+            verificationStatus: 'needs_verification',
             error: location.error,
             triggerReason: trigger.reason,
           }));
@@ -143,7 +158,7 @@ export function useLocationVerification(
         setVerificationState((prev) => ({
           ...prev,
           status: 'error',
-          verificationStatus: 'needs_verification' as VerificationStatus,
+          verificationStatus: 'needs_verification',
           error:
             error instanceof Error
               ? error.message
@@ -163,7 +178,7 @@ export function useLocationVerification(
       setVerificationState((prev) => ({
         ...prev,
         status: 'pending_admin',
-        verificationStatus: 'admin_pending' as VerificationStatus,
+        verificationStatus: 'admin_pending',
       }));
 
       const response = await fetch('/api/admin/location-assistance', {
@@ -188,30 +203,37 @@ export function useLocationVerification(
       setVerificationState((prev) => ({
         ...prev,
         status: 'waiting_admin',
-        verificationStatus: 'admin_pending' as VerificationStatus,
+        verificationStatus: 'admin_pending',
         adminRequestId: data.requestId,
       }));
     } catch (error) {
       setVerificationState((prev) => ({
         ...prev,
         status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus,
+        verificationStatus: 'needs_verification',
         error: 'Failed to request admin assistance',
       }));
       throw error;
     }
   }, [employeeId, verificationState]);
 
-  return {
-    locationState: verificationState,
-    isLoading: locationLoading || verificationState.status === 'loading',
-    needsVerification:
-      verificationState.status === 'error' ||
-      verificationState.verificationStatus === 'needs_verification',
-    isVerified: verificationState.verificationStatus === 'verified',
-    isAdminPending: verificationState.verificationStatus === 'admin_pending',
-    triggerReason: verificationState.triggerReason,
-    verifyLocation,
-    requestAdminAssistance,
-  };
+  return useMemo(
+    () => ({
+      locationState: verificationState,
+      isLoading: locationLoading || verificationState.status === 'loading',
+      needsVerification:
+        verificationState.verificationStatus === 'needs_verification',
+      isVerified: verificationState.verificationStatus === 'verified',
+      isAdminPending: verificationState.verificationStatus === 'admin_pending',
+      triggerReason: verificationState.triggerReason,
+      verifyLocation,
+      requestAdminAssistance,
+    }),
+    [
+      verificationState,
+      locationLoading,
+      verifyLocation,
+      requestAdminAssistance,
+    ],
+  );
 }
