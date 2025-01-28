@@ -19,6 +19,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
+  console.log('LoadingBar render with:', {
+    receivedState: locationState,
+    step,
+    handlers: {
+      hasRetry: !!onLocationRetry,
+      hasAdmin: !!onRequestAdminAssistance,
+    },
+  });
+
+  useEffect(() => {
+    console.log('LoadingBar state dependencies changed:', {
+      step,
+      locationState,
+    });
+  }, [step, locationState]);
+
   const shouldShowError = useMemo(() => {
     // Force memo refresh on full locationState changes
     const hasError =
