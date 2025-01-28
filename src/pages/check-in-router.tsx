@@ -252,16 +252,16 @@ const CheckInRouter: React.FC = () => {
     if (authLoading) return;
 
     const nextStep = (() => {
+      if (!userData) return 'user';
       if (
         locationState.status === 'error' ||
         locationState.error ||
-        locationState.verificationStatus === 'needs_verification'
+        !isVerified ||
+        needsVerification ||
+        locationLoading
       ) {
         return 'location';
       }
-      if (!userData) return 'user';
-      if (!isVerified && (needsVerification || locationLoading))
-        return 'location';
       return 'ready';
     })();
 
@@ -272,12 +272,11 @@ const CheckInRouter: React.FC = () => {
   }, [
     authLoading,
     userData,
+    locationState.status,
+    locationState.error,
     isVerified,
     needsVerification,
     locationLoading,
-    locationState.status,
-    locationState.error,
-    locationState.verificationStatus,
     currentStep,
   ]);
 
@@ -316,40 +315,6 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
-
-  const mappedLocationState = useMemo((): LocationVerificationState => {
-    console.log('Mapping location state:', locationState);
-
-    // Explicitly preserve triggerReason
-    const preservedTriggerReason =
-      locationState.triggerReason ||
-      (locationState.status === 'error'
-        ? 'Location permission denied'
-        : undefined);
-
-    if (locationState.status === 'error' || locationState.error) {
-      return {
-        ...locationState,
-        status: 'error',
-        verificationStatus: 'needs_verification',
-        triggerReason: preservedTriggerReason,
-        error: locationState.error,
-      } as LocationVerificationState;
-    }
-
-    return {
-      ...locationState,
-      verificationStatus: locationState.verificationStatus || 'pending',
-      triggerReason: preservedTriggerReason,
-    } as LocationVerificationState;
-  }, [locationState]);
-
-  useEffect(() => {
-    console.log('LocationState changed:', {
-      original: locationState,
-      mapped: mappedLocationState,
-    });
-  }, [locationState, mappedLocationState]);
 
   const mainContent = useMemo(() => {
     if (!userData || !safeAttendanceProps?.base?.state) return null;
@@ -507,14 +472,14 @@ const CheckInRouter: React.FC = () => {
     return (
       <>
         <div
-          key={`${currentStep}-${mappedLocationState.status}-${mappedLocationState.verificationStatus}`}
+          key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}`}
           className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
             loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
           }`}
         >
           <LoadingBar
             step={currentStep}
-            locationState={mappedLocationState}
+            locationState={locationState}
             onLocationRetry={handleLocationRetry}
             onRequestAdminAssistance={handleRequestAdminAssistance}
           />

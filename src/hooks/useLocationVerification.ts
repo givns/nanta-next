@@ -90,9 +90,23 @@ export function useLocationVerification(
       if (!isMounted.current) return;
 
       setVerificationState((prev) => {
+        // Force needs_verification for error states
+        const nextUpdates = {
+          ...updates,
+          ...(updates.status === 'error' && {
+            verificationStatus: 'needs_verification' as const, // Explicitly type as VerificationStatus
+          }),
+        };
+
         // Validate state transition if status is changing
-        if (updates.status && updates.status !== prev.status) {
-          if (!validateStateTransition(prev.status, updates.status, updates)) {
+        if (nextUpdates.status && nextUpdates.status !== prev.status) {
+          if (
+            !validateStateTransition(
+              prev.status,
+              nextUpdates.status,
+              nextUpdates,
+            )
+          ) {
             console.warn(
               'Invalid state transition attempted, keeping previous state',
             );
@@ -100,43 +114,32 @@ export function useLocationVerification(
           }
         }
 
-        console.group(`🔍 Location State Update: ${source}`);
-        console.log('Previous State:', {
-          triggerReason: prev.triggerReason,
-          status: prev.status,
-          verificationStatus: prev.verificationStatus,
-          error: prev.error,
-        });
-
-        console.log('Update Details:', {
-          triggerReason: updates.triggerReason,
-          status: updates.status,
-          verificationStatus: updates.verificationStatus,
-          error: updates.error,
-        });
-
-        // Create next state
-        const next = {
+        // Create typed next state
+        const next: LocationVerificationState = {
           ...prev,
-          ...updates,
+          ...nextUpdates,
           // Preserve admin state if needed
           ...(prev.verificationStatus === 'admin_pending' &&
-            !updates.verificationStatus && {
+            !nextUpdates.verificationStatus && {
               verificationStatus: prev.verificationStatus,
               adminRequestId: prev.adminRequestId,
             }),
         };
 
-        if (prev.triggerReason !== next.triggerReason) {
-          console.log('Trigger Reason Changes:', {
-            from: prev.triggerReason,
-            to: next.triggerReason,
-          });
-        }
-
+        // Log state changes
+        console.group(`🔍 Location State Update: ${source}`);
+        console.log('Previous State:', {
+          status: prev.status,
+          verificationStatus: prev.verificationStatus,
+          triggerReason: prev.triggerReason,
+        });
+        console.log('Next State:', {
+          status: next.status,
+          verificationStatus: next.verificationStatus,
+          triggerReason: next.triggerReason,
+        });
         console.groupEnd();
 
-        // Update refs
         stateRef.current = next;
         previousStateRef.current = prev;
         return next;
