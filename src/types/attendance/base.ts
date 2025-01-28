@@ -52,6 +52,8 @@ export interface GeoLocationJson extends Record<string, any> {
   provider?: string;
 }
 
+// types/location.ts
+
 export type LocationConfidence = 'high' | 'medium' | 'low' | 'manual';
 
 export type LocationStatus =
@@ -68,6 +70,11 @@ export type VerificationStatus =
   | 'needs_verification'
   | 'admin_pending';
 
+export interface LocationPoint {
+  lat: number;
+  lng: number;
+}
+
 export interface LocationState {
   status: LocationStatus;
   verificationStatus: VerificationStatus;
@@ -75,15 +82,26 @@ export interface LocationState {
   address: string;
   confidence: LocationConfidence;
   accuracy: number;
-  coordinates?: { lat: number; lng: number };
+  coordinates?: LocationPoint;
   error: string | null;
-  triggerReason?: string | null;
+  triggerReason: string | null;
   adminRequestId?: string;
 }
 
 export interface LocationVerificationState extends LocationState {
   lastVerifiedAt?: Date;
 }
+
+// Define what fields can be required
+export type RequiredFields = keyof LocationVerificationState;
+
+// Define valid state transitions
+export type ValidStateTransition = {
+  [K in LocationStatus]: {
+    to: LocationStatus[];
+    requiredFields: Partial<Record<RequiredFields, boolean>>;
+  };
+};
 
 export type LocationStateContextType = {
   locationState: LocationVerificationState;
@@ -94,6 +112,64 @@ export type LocationStateContextType = {
   triggerReason?: string | null;
   verifyLocation: (force?: boolean) => Promise<boolean>;
   requestAdminAssistance: () => Promise<void>;
+};
+
+export interface LocationTriggerConfig {
+  maxAccuracy: number;
+  maxRetries: number;
+  maxWaitTime: number;
+  minDistance: number;
+  workplaceCoordinates: LocationPoint[];
+}
+
+export const STATE_TRANSITIONS: ValidStateTransition = {
+  initializing: {
+    to: ['loading', 'error'],
+    requiredFields: {},
+  },
+  loading: {
+    to: ['ready', 'error', 'pending_admin'],
+    requiredFields: {
+      accuracy: true,
+    },
+  },
+  ready: {
+    to: ['loading', 'error', 'pending_admin'],
+    requiredFields: {
+      confidence: true,
+      inPremises: true,
+    },
+  },
+  error: {
+    to: ['loading', 'pending_admin'],
+    requiredFields: {
+      error: true,
+      triggerReason: true,
+    },
+  },
+  pending_admin: {
+    to: ['waiting_admin', 'error'],
+    requiredFields: {
+      triggerReason: true,
+    },
+  },
+  waiting_admin: {
+    to: ['ready', 'error'],
+    requiredFields: {
+      adminRequestId: true,
+    },
+  },
+};
+
+export const INITIAL_STATE: LocationVerificationState = {
+  status: 'initializing',
+  verificationStatus: 'pending',
+  inPremises: false,
+  address: '',
+  confidence: 'low',
+  accuracy: 0,
+  error: null,
+  triggerReason: null,
 };
 
 export interface BaseStatus {

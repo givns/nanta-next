@@ -35,35 +35,34 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     });
   }, [step, locationState]);
 
-  // Consolidated error state evaluation
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
     const hasError =
       locationState.status === 'error' || Boolean(locationState.error);
-
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
-
     const isPermissionDenied =
-      locationState.triggerReason === 'Location permission denied' ||
-      locationState.error?.includes('ถูกปิดกั้น') ||
-      false;
-
-    console.log('Detailed error evaluation:', {
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      hasError,
-      needsVerification,
-      isPermissionDenied,
-    });
+      locationState.triggerReason === 'Location permission denied';
 
     return {
-      shouldShowError: hasError || needsVerification || isPermissionDenied,
-      shouldShowAdminAssistance:
-        needsVerification || isPermissionDenied || hasError,
+      shouldShowError: hasError || needsVerification,
+      shouldShowAdminAssistance: needsVerification || isPermissionDenied,
     };
   }, [locationState]);
+
+  // Update progress bar logic
+  useEffect(() => {
+    if (locationState.status === 'error') {
+      setProgress(0);
+      return;
+    }
+
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
+    const interval = setInterval(() => {
+      setProgress((prev) => Math.min(prev + 1, target));
+    }, 30);
+
+    return () => clearInterval(interval);
+  }, [step, locationState.status]);
 
   // Debug logging
   useEffect(() => {

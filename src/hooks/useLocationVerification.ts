@@ -1,23 +1,14 @@
+// hooks/useLocationVerification.ts
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useEnhancedLocation } from './useEnhancedLocation';
-import {
-  LocationTriggerConfig,
-  LocationVerificationTriggers,
-} from '../services/location/LocationVerificationTriggers';
+import { LocationVerificationTriggers } from '@/services/location/LocationVerificationTriggers';
 import {
   LocationStateContextType,
   LocationVerificationState,
-} from '../types/attendance';
-
-const INITIAL_STATE: LocationVerificationState = {
-  status: 'initializing',
-  verificationStatus: 'pending',
-  inPremises: false,
-  address: '',
-  confidence: 'low',
-  accuracy: 0,
-  error: null,
-};
+  LocationTriggerConfig,
+  INITIAL_STATE,
+  STATE_TRANSITIONS,
+} from '@/types/attendance';
 
 const DEFAULT_CONFIG: LocationTriggerConfig = {
   maxAccuracy: 100,
@@ -40,6 +31,7 @@ export function useLocationVerification(
   const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
+  const isMounted = useRef(true);
 
   const {
     locationState,
@@ -48,43 +40,86 @@ export function useLocationVerification(
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
-  // Initialize triggers with config
   useEffect(() => {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
     triggerRef.current = new LocationVerificationTriggers(mergedConfig);
+    return () => {
+      isMounted.current = false;
+    };
   }, [config]);
 
-  // Consolidated state update function
+  const validateStateTransition = useCallback(
+    (
+      from: LocationVerificationState['status'],
+      to: LocationVerificationState['status'],
+      payload: Partial<LocationVerificationState>,
+    ): boolean => {
+      const transition = STATE_TRANSITIONS[from];
+      if (!transition?.to.includes(to)) {
+        console.warn(`Invalid transition from ${from} to ${to}`);
+        return false;
+      }
+
+      const { requiredFields } = transition;
+      const isValid = Object.entries(requiredFields).every(
+        ([field, required]) =>
+          !required ||
+          payload[field as keyof LocationVerificationState] !== undefined,
+      );
+
+      if (!isValid) {
+        console.warn(
+          `Missing required fields for transition from ${from} to ${to}`,
+          {
+            required: requiredFields,
+            provided: payload,
+          },
+        );
+      }
+
+      return isValid;
+    },
+    [],
+  );
+
   const updateVerificationState = useCallback(
     (
       updates: Partial<LocationVerificationState>,
       source: 'location' | 'verification' | 'admin',
     ) => {
+      if (!isMounted.current) return;
+
       setVerificationState((prev) => {
-        // Prepare detailed log object
-        const logEntry = {
-          timestamp: new Date().toISOString(),
-          source,
-          previous: {
-            triggerReason: prev.triggerReason,
-            status: prev.status,
-            verificationStatus: prev.verificationStatus,
-            error: prev.error,
-          },
-          updates: {
-            triggerReason: updates.triggerReason,
-            status: updates.status,
-            verificationStatus: updates.verificationStatus,
-            error: updates.error,
-          },
-          stack: new Error().stack, // Capture call stack
-        };
+        // Validate state transition if status is changing
+        if (updates.status && updates.status !== prev.status) {
+          if (!validateStateTransition(prev.status, updates.status, updates)) {
+            console.warn(
+              'Invalid state transition attempted, keeping previous state',
+            );
+            return prev;
+          }
+        }
+
+        console.group(`🔍 Location State Update: ${source}`);
+        console.log('Previous State:', {
+          triggerReason: prev.triggerReason,
+          status: prev.status,
+          verificationStatus: prev.verificationStatus,
+          error: prev.error,
+        });
+
+        console.log('Update Details:', {
+          triggerReason: updates.triggerReason,
+          status: updates.status,
+          verificationStatus: updates.verificationStatus,
+          error: updates.error,
+        });
 
         // Create next state
         const next = {
           ...prev,
           ...updates,
-          // Preserve admin state if it exists and we're not explicitly updating it
+          // Preserve admin state if needed
           ...(prev.verificationStatus === 'admin_pending' &&
             !updates.verificationStatus && {
               verificationStatus: prev.verificationStatus,
@@ -92,61 +127,38 @@ export function useLocationVerification(
             }),
         };
 
-        // Extended logging
-        console.group(`🔍 Location State Update: ${source}`);
-        console.log('Previous State:', logEntry.previous);
-        console.log('Update Details:', logEntry.updates);
-        console.log('Trigger Reason Changes:', {
-          from: prev.triggerReason,
-          to: next.triggerReason,
-        });
-
-        // Log stack trace to understand where the update is coming from
         if (prev.triggerReason !== next.triggerReason) {
-          console.trace('Trigger Reason Stack Trace');
+          console.log('Trigger Reason Changes:', {
+            from: prev.triggerReason,
+            to: next.triggerReason,
+          });
         }
 
         console.groupEnd();
 
-        // Optional: Add to a debug log if needed
-        try {
-          window.localStorage.setItem(
-            'locationStateUpdateLog',
-            JSON.stringify(logEntry),
-          );
-        } catch (e) {
-          console.warn('Could not log to localStorage', e);
-        }
-
+        // Update refs
         stateRef.current = next;
         previousStateRef.current = prev;
         return next;
       });
     },
-    [],
+    [validateStateTransition],
   );
 
-  // Enhanced location state handler
-  // Enhanced location state handler
   useEffect(() => {
     if (!locationState || locationState === previousStateRef.current) return;
 
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
-    // GeolocationPositionError handling
+    // Handle GeolocationPositionError
     if (locationState instanceof GeolocationPositionError) {
-      console.log('🚨 GeolocationPositionError Detected', {
-        code: locationState.code,
-        message: locationState.message,
-      });
-
       updateVerificationState(
         {
           status: 'error',
           verificationStatus: 'needs_verification',
           error:
-            locationState.code === GeolocationPositionError.PERMISSION_DENIED
+            locationState.code === 1
               ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
               : 'ไม่สามารถระบุตำแหน่งได้',
           triggerReason: 'Location permission denied',
@@ -157,22 +169,10 @@ export function useLocationVerification(
       return;
     }
 
-    // In the error state handling section
+    // Handle error state
     if (locationState.status === 'error' || locationState.error) {
       const trigger =
         triggerRef.current?.shouldTriggerAdminAssistance(locationState);
-
-      console.log('🔴 Error State Detected', {
-        status: locationState.status,
-        error: locationState.error,
-        adminTrigger: trigger,
-      });
-
-      const specificTriggerReason = locationState.error?.includes('ถูกปิดกั้น')
-        ? 'Location permission denied'
-        : trigger?.reason ||
-          locationState.triggerReason ||
-          'Location verification failed';
 
       updateVerificationState(
         {
@@ -180,7 +180,9 @@ export function useLocationVerification(
           status: 'error',
           verificationStatus: 'needs_verification',
           error: locationState.error,
-          triggerReason: specificTriggerReason,
+          triggerReason: locationState.error?.includes('ถูกปิดกั้น')
+            ? 'Location permission denied'
+            : trigger?.reason || 'Location verification failed',
         },
         'location',
       );
@@ -188,12 +190,8 @@ export function useLocationVerification(
       return;
     }
 
-    // Success state handling
+    // Handle ready state
     if (locationState.status === 'ready') {
-      console.log('✅ Location Ready State', {
-        inPremises: locationState.inPremises,
-      });
-
       updateVerificationState(
         {
           ...locationState,
@@ -209,8 +207,7 @@ export function useLocationVerification(
       return;
     }
 
-    // Default state handling
-    console.log('⏳ Default State Handling', locationState);
+    // Handle default state
     updateVerificationState(
       {
         ...locationState,
@@ -221,7 +218,6 @@ export function useLocationVerification(
     console.groupEnd();
   }, [locationState, updateVerificationState]);
 
-  // Verification handler
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
@@ -285,7 +281,6 @@ export function useLocationVerification(
     [getCurrentLocation, updateVerificationState],
   );
 
-  // Admin assistance handler
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
 
