@@ -505,12 +505,12 @@ const CheckInRouter: React.FC = () => {
     return (
       <>
         <div
+          key={`${currentStep}-${mappedLocationState.status}-${mappedLocationState.verificationStatus}`}
           className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
             loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
           }`}
         >
           <LoadingBar
-            key={`${currentStep}-${mappedLocationState.status}-${mappedLocationState.verificationStatus}`}
             step={currentStep}
             locationState={mappedLocationState}
             onLocationRetry={handleLocationRetry}
