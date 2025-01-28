@@ -20,6 +20,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
   const shouldShowError = useMemo(() => {
+    // Force memo refresh on full locationState changes
     const hasError =
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
@@ -28,17 +29,15 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationState.error?.includes('ถูกปิดกั้น') ||
       locationState.triggerReason === 'Location permission denied';
 
-    const result = hasError || needsVerification || isPermissionDenied;
-
-    console.log('Error evaluation:', {
+    console.log('Error state evaluation:', {
+      locationState, // Log full state
       hasError,
       needsVerification,
       isPermissionDenied,
-      result,
     });
 
-    return result;
-  }, [locationState]);
+    return hasError || needsVerification || isPermissionDenied;
+  }, [JSON.stringify(locationState)]); // Force refresh on any state change
 
   const shouldShowAdminAssistance = useMemo(() => {
     const needsAssistance =
