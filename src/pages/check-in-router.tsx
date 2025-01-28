@@ -106,31 +106,6 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  const mappedLocationState = useMemo((): LocationVerificationState => {
-    console.log('Mapping location state:', locationState);
-
-    // Handle error states first
-    if (locationState.status === 'error' || locationState.error) {
-      return {
-        ...locationState,
-        status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus,
-        triggerReason:
-          locationState.triggerReason || 'Location permission denied',
-        error: locationState.error,
-      };
-    }
-
-    // Normal state handling
-    return {
-      ...locationState,
-      status: locationState.status,
-      verificationStatus: (locationState.verificationStatus ||
-        'pending') as VerificationStatus,
-      triggerReason: locationState.triggerReason,
-    };
-  }, [locationState]);
-
   const handleRequestAdminAssistance = useCallback(async () => {
     if (!requestAdminAssistance) {
       console.warn('Admin assistance function is not available');
@@ -341,6 +316,38 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
+
+  const mappedLocationState = useMemo((): LocationVerificationState => {
+    console.log('Mapping location state:', locationState);
+
+    // Handle error states first
+    if (locationState.status === 'error' || locationState.error) {
+      return {
+        ...locationState,
+        status: 'error',
+        verificationStatus: 'needs_verification' as VerificationStatus,
+        triggerReason:
+          locationState.triggerReason || 'Location permission denied',
+        error: locationState.error,
+      };
+    }
+
+    // Normal state handling
+    return {
+      ...locationState,
+      status: locationState.status,
+      verificationStatus: (locationState.verificationStatus ||
+        'pending') as VerificationStatus,
+      triggerReason: locationState.triggerReason,
+    };
+  }, [locationState]);
+
+  useEffect(() => {
+    console.log('LocationState changed:', {
+      original: locationState,
+      mapped: mappedLocationState,
+    });
+  }, [locationState, mappedLocationState]);
 
   const mainContent = useMemo(() => {
     if (!userData || !safeAttendanceProps?.base?.state) return null;
