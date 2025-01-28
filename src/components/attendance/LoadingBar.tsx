@@ -19,9 +19,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  // Memoized shouldShowError
   const shouldShowError = useMemo(() => {
-    const isError =
+    const hasError =
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
@@ -29,16 +28,30 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       locationState.error?.includes('ถูกปิดกั้น') ||
       locationState.triggerReason === 'Location permission denied';
 
-    return isError || needsVerification || isPermissionDenied;
+    const result = hasError || needsVerification || isPermissionDenied;
+
+    console.log('Error evaluation:', {
+      hasError,
+      needsVerification,
+      isPermissionDenied,
+      result,
+    });
+
+    return result;
   }, [locationState]);
 
-  // Memoized shouldShowAdminAssistance
   const shouldShowAdminAssistance = useMemo(() => {
-    const needsHelp =
+    const needsAssistance =
       locationState.verificationStatus === 'needs_verification' ||
-      locationState.status === 'error' ||
       locationState.triggerReason === 'Location permission denied';
-    return needsHelp;
+
+    console.log('Admin assistance evaluation:', {
+      verificationStatus: locationState.verificationStatus,
+      triggerReason: locationState.triggerReason,
+      needsAssistance,
+    });
+
+    return needsAssistance;
   }, [locationState]);
 
   // Debug logging
@@ -91,10 +104,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Render error UI if shouldShowError is true
   const renderLocationStatus = () => {
-    console.log('Rendering location status:', {
+    console.log('Rendering status:', {
       shouldShowError,
       shouldShowAdminAssistance,
       error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
     });
 
     if (!shouldShowError) return null;
