@@ -320,26 +320,24 @@ const CheckInRouter: React.FC = () => {
   const mappedLocationState = useMemo((): LocationVerificationState => {
     console.log('Mapping location state:', locationState);
 
-    // Handle error states first
+    // When we get an error state
     if (locationState.status === 'error' || locationState.error) {
       return {
-        ...locationState,
+        ...locationState, // Keep original state
         status: 'error',
-        verificationStatus: 'needs_verification' as VerificationStatus,
+        verificationStatus: 'needs_verification',
         triggerReason:
           locationState.triggerReason || 'Location permission denied',
         error: locationState.error,
-      };
+      } as LocationVerificationState;
     }
 
-    // Normal state handling
+    // For all other states, preserve current state
     return {
       ...locationState,
-      status: locationState.status,
-      verificationStatus: (locationState.verificationStatus ||
-        'pending') as VerificationStatus,
+      verificationStatus: locationState.verificationStatus || 'pending',
       triggerReason: locationState.triggerReason,
-    };
+    } as LocationVerificationState;
   }, [locationState]);
 
   useEffect(() => {
