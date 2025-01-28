@@ -2,7 +2,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LocationState } from '@/types/attendance';
 import { EnhancedLocationService } from '@/services/location/EnhancedLocationService';
-import { LOCATION_CONSTANTS } from '@/types/attendance/base';
+import {
+  LOCATION_CONSTANTS,
+  VerificationStatus,
+} from '@/types/attendance/base';
 
 export function useEnhancedLocation() {
   const locationService = useRef(new EnhancedLocationService());
@@ -13,6 +16,7 @@ export function useEnhancedLocation() {
     confidence: 'low',
     accuracy: 0,
     error: null,
+    verificationStatus: 'pending',
   });
 
   const locationRef = useRef<{
@@ -60,6 +64,7 @@ export function useEnhancedLocation() {
           accuracy: 0,
           error: result.error,
           coordinates: undefined, // Make sure this is undefined, not null
+          verificationStatus: 'pending',
         };
         setLocationState(errorState);
         locationRef.current.data = errorState; // Important: Update ref data
@@ -79,6 +84,9 @@ export function useEnhancedLocation() {
             }
           : undefined,
         error: null,
+        verificationStatus: result.inPremises
+          ? 'verified'
+          : 'needs_verification',
       };
 
       setLocationState(newLocationState);
@@ -100,6 +108,7 @@ export function useEnhancedLocation() {
           error instanceof GeolocationPositionError && error.code === 1
             ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น กรุณาเปิดการใช้งาน Location Services'
             : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
+        verificationStatus: 'pending',
       };
       setLocationState(errorState);
       locationRef.current.data = errorState; // Important: Update ref data

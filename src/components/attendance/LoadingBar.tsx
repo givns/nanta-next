@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { LocationVerificationState } from '@/types/attendance';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { LocationState } from '@/types/attendance';
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
-  locationState: LocationVerificationState;
+  locationState: LocationState;
   onLocationRetry?: () => Promise<void>;
   onRequestAdminAssistance?: () => Promise<void>;
 }
@@ -35,38 +35,27 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     });
   }, [step, locationState]);
 
-  const shouldShowError = useMemo(() => {
-    // Force memo refresh on full locationState changes
+  // Consolidated error state evaluation
+  const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
     const hasError =
       locationState.status === 'error' || Boolean(locationState.error);
     const needsVerification =
       locationState.verificationStatus === 'needs_verification';
     const isPermissionDenied =
-      locationState.error?.includes('ถูกปิดกั้น') ||
-      locationState.triggerReason === 'Location permission denied';
+      locationState.triggerReason === 'Location permission denied' ||
+      locationState.error?.includes('ถูกปิดกั้น');
 
     console.log('Error state evaluation:', {
-      locationState, // Log full state
+      locationState,
       hasError,
       needsVerification,
       isPermissionDenied,
     });
 
-    return hasError || needsVerification || isPermissionDenied;
-  }, [JSON.stringify(locationState)]); // Force refresh on any state change
-
-  const shouldShowAdminAssistance = useMemo(() => {
-    const needsAssistance =
-      locationState.verificationStatus === 'needs_verification' ||
-      locationState.triggerReason === 'Location permission denied';
-
-    console.log('Admin assistance evaluation:', {
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      needsAssistance,
-    });
-
-    return needsAssistance;
+    return {
+      shouldShowError: hasError || needsVerification || isPermissionDenied,
+      shouldShowAdminAssistance: needsVerification || isPermissionDenied,
+    };
   }, [locationState]);
 
   // Debug logging
@@ -97,8 +86,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       console.warn('Admin assistance handler not provided');
       return;
     }
+
     try {
-      console.log('Requesting admin assistance...');
       setIsRequestingHelp(true);
       await onRequestAdminAssistance();
     } catch (error) {

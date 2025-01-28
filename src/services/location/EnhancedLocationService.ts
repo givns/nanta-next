@@ -199,14 +199,29 @@ export class EnhancedLocationService {
   async getCurrentLocation(
     forceRefresh = false,
   ): Promise<LocationVerificationState> {
-    // Check cache first
-    if (
-      !forceRefresh &&
-      this.lastLocation &&
-      Date.now() - this.verificationStateToResult(this.lastLocation).timestamp <
-        EnhancedLocationService.LOCATION_CACHE_TIME
-    ) {
-      return this.lastLocation;
+    // Add state transition logging
+    console.log('Getting current location:', {
+      forceRefresh,
+      hasLastLocation: !!this.lastLocation,
+      cacheValid:
+        this.lastLocation &&
+        Date.now() -
+          this.verificationStateToResult(this.lastLocation).timestamp <
+          EnhancedLocationService.LOCATION_CACHE_TIME,
+    });
+
+    // Check cache with proper state preservation
+    if (!forceRefresh && this.lastLocation) {
+      const cacheAge =
+        Date.now() -
+        this.verificationStateToResult(this.lastLocation).timestamp;
+      if (cacheAge < EnhancedLocationService.LOCATION_CACHE_TIME) {
+        console.log('Using cached location:', {
+          cacheAge,
+          location: this.lastLocation,
+        });
+        return this.lastLocation;
+      }
     }
 
     let attempts = 0;

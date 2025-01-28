@@ -70,22 +70,19 @@ export type VerificationStatus =
 
 export interface LocationState {
   status: LocationStatus;
+  verificationStatus: VerificationStatus;
   inPremises: boolean;
   address: string;
   confidence: LocationConfidence;
   accuracy: number;
+  coordinates?: { lat: number; lng: number };
   error: string | null;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
+  triggerReason?: string | null;
+  adminRequestId?: string;
 }
 
 export interface LocationVerificationState extends LocationState {
-  verificationStatus: VerificationStatus;
   lastVerifiedAt?: Date;
-  adminRequestId?: string;
-  triggerReason?: string | null;
 }
 
 export type LocationStateContextType = {
