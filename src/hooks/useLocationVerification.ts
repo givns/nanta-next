@@ -61,6 +61,26 @@ export function useLocationVerification(
       source: 'location' | 'verification' | 'admin',
     ) => {
       setVerificationState((prev) => {
+        // Prepare detailed log object
+        const logEntry = {
+          timestamp: new Date().toISOString(),
+          source,
+          previous: {
+            triggerReason: prev.triggerReason,
+            status: prev.status,
+            verificationStatus: prev.verificationStatus,
+            error: prev.error,
+          },
+          updates: {
+            triggerReason: updates.triggerReason,
+            status: updates.status,
+            verificationStatus: updates.verificationStatus,
+            error: updates.error,
+          },
+          stack: new Error().stack, // Capture call stack
+        };
+
+        // Create next state
         const next = {
           ...prev,
           ...updates,
@@ -72,13 +92,30 @@ export function useLocationVerification(
             }),
         };
 
-        // Log state transition if significant changes occurred
-        if (JSON.stringify(prev) !== JSON.stringify(next)) {
-          console.log(`State update from ${source}:`, {
-            previous: prev,
-            next,
-            updates,
-          });
+        // Extended logging
+        console.group(`🔍 Location State Update: ${source}`);
+        console.log('Previous State:', logEntry.previous);
+        console.log('Update Details:', logEntry.updates);
+        console.log('Trigger Reason Changes:', {
+          from: prev.triggerReason,
+          to: next.triggerReason,
+        });
+
+        // Log stack trace to understand where the update is coming from
+        if (prev.triggerReason !== next.triggerReason) {
+          console.trace('Trigger Reason Stack Trace');
+        }
+
+        console.groupEnd();
+
+        // Optional: Add to a debug log if needed
+        try {
+          window.localStorage.setItem(
+            'locationStateUpdateLog',
+            JSON.stringify(logEntry),
+          );
+        } catch (e) {
+          console.warn('Could not log to localStorage', e);
         }
 
         stateRef.current = next;
@@ -90,12 +127,20 @@ export function useLocationVerification(
   );
 
   // Enhanced location state handler
+  // Enhanced location state handler
   useEffect(() => {
     if (!locationState || locationState === previousStateRef.current) return;
 
-    console.log('Processing location state update:', locationState);
+    console.group('📍 Location State Processing');
+    console.log('Raw Location State:', locationState);
 
+    // GeolocationPositionError handling
     if (locationState instanceof GeolocationPositionError) {
+      console.log('🚨 GeolocationPositionError Detected', {
+        code: locationState.code,
+        message: locationState.message,
+      });
+
       updateVerificationState(
         {
           status: 'error',
@@ -108,28 +153,44 @@ export function useLocationVerification(
         },
         'location',
       );
+      console.groupEnd();
       return;
     }
 
-    // Handle error states
+    // Error state handling
     if (locationState.status === 'error' || locationState.error) {
       const trigger =
         triggerRef.current?.shouldTriggerAdminAssistance(locationState);
+
+      console.log('🔴 Error State Detected', {
+        status: locationState.status,
+        error: locationState.error,
+        adminTrigger: trigger,
+      });
+
       updateVerificationState(
         {
           ...locationState,
           status: 'error',
           verificationStatus: 'needs_verification',
           error: locationState.error,
-          triggerReason: trigger?.reason || locationState.triggerReason,
+          triggerReason:
+            trigger?.reason ||
+            locationState.triggerReason ||
+            'Unspecified error',
         },
         'location',
       );
+      console.groupEnd();
       return;
     }
 
-    // Handle success states
+    // Success state handling
     if (locationState.status === 'ready') {
+      console.log('✅ Location Ready State', {
+        inPremises: locationState.inPremises,
+      });
+
       updateVerificationState(
         {
           ...locationState,
@@ -141,10 +202,12 @@ export function useLocationVerification(
         },
         'location',
       );
+      console.groupEnd();
       return;
     }
 
-    // Handle all other states
+    // Default state handling
+    console.log('⏳ Default State Handling', locationState);
     updateVerificationState(
       {
         ...locationState,
@@ -152,6 +215,7 @@ export function useLocationVerification(
       },
       'location',
     );
+    console.groupEnd();
   }, [locationState, updateVerificationState]);
 
   // Verification handler
