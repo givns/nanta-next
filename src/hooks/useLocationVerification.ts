@@ -157,7 +157,7 @@ export function useLocationVerification(
       return;
     }
 
-    // Error state handling
+    // In the error state handling section
     if (locationState.status === 'error' || locationState.error) {
       const trigger =
         triggerRef.current?.shouldTriggerAdminAssistance(locationState);
@@ -168,16 +168,19 @@ export function useLocationVerification(
         adminTrigger: trigger,
       });
 
+      const specificTriggerReason = locationState.error?.includes('ถูกปิดกั้น')
+        ? 'Location permission denied'
+        : trigger?.reason ||
+          locationState.triggerReason ||
+          'Location verification failed';
+
       updateVerificationState(
         {
           ...locationState,
           status: 'error',
           verificationStatus: 'needs_verification',
           error: locationState.error,
-          triggerReason:
-            trigger?.reason ||
-            locationState.triggerReason ||
-            'Unspecified error',
+          triggerReason: specificTriggerReason,
         },
         'location',
       );
