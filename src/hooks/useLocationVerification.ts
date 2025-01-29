@@ -58,15 +58,20 @@ const useLocationVerification = (
       if (!isMounted.current) return;
 
       setVerificationState((prev) => {
-        // Force verification status based on state
+        // Ensure error states always have needs_verification
         const nextState: LocationVerificationState = {
           ...prev,
           ...updates,
           verificationStatus: (() => {
-            if (updates.status === 'error') return 'needs_verification';
-            if (updates.verificationStatus) return updates.verificationStatus;
-            if (prev.verificationStatus === 'admin_pending')
-              return 'admin_pending';
+            if (updates.status === 'error' || updates.error) {
+              return 'needs_verification' as const;
+            }
+            if (updates.verificationStatus) {
+              return updates.verificationStatus;
+            }
+            if (prev.verificationStatus === 'admin_pending') {
+              return 'admin_pending' as const;
+            }
             return prev.verificationStatus;
           })(),
           // Preserve admin state if needed
@@ -82,6 +87,7 @@ const useLocationVerification = (
           next: nextState,
         });
 
+        // Update refs immediately
         stateRef.current = nextState;
         previousStateRef.current = prev;
         return nextState;
@@ -97,28 +103,26 @@ const useLocationVerification = (
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
-    // Handle error states
     if (
       locationState instanceof GeolocationPositionError ||
       locationState.status === 'error' ||
       locationState.error
     ) {
-      updateVerificationState(
-        {
-          status: 'error',
-          verificationStatus: 'needs_verification',
-          inPremises: false,
-          address: locationState.address || '',
-          confidence: locationState.confidence || 'low',
-          accuracy: locationState.accuracy || 0,
-          coordinates: locationState.coordinates,
-          error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
-          triggerReason: locationState.error?.includes('ถูกปิดกั้น')
-            ? 'Location permission denied'
-            : locationState.triggerReason || 'Unknown error',
-        },
-        'location',
-      );
+      const errorState = {
+        status: 'error' as const,
+        verificationStatus: 'needs_verification' as const,
+        inPremises: false,
+        address: locationState.address || '',
+        confidence: locationState.confidence || 'low',
+        accuracy: locationState.accuracy || 0,
+        coordinates: locationState.coordinates,
+        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
+        triggerReason: locationState.error?.includes('ถูกปิดกั้น')
+          ? 'Location permission denied'
+          : locationState.triggerReason || 'Unknown error',
+      };
+
+      updateVerificationState(errorState, 'location');
       console.groupEnd();
       return;
     }
@@ -275,25 +279,29 @@ const useLocationVerification = (
     }
   }, [employeeId, updateVerificationState]);
 
-  return useMemo(
-    () => ({
-      locationState: stateRef.current,
-      isLoading: locationLoading || verificationState.status === 'loading',
+  // Return values with proper state reflection
+  return useMemo(() => {
+    const currentState = stateRef.current;
+    const isError =
+      currentState.status === 'error' || Boolean(currentState.error);
+
+    return {
+      locationState: currentState,
+      isLoading: locationLoading || currentState.status === 'loading',
       needsVerification:
-        verificationState.verificationStatus === 'needs_verification',
-      isVerified: verificationState.verificationStatus === 'verified',
-      isAdminPending: verificationState.verificationStatus === 'admin_pending',
-      triggerReason: verificationState.triggerReason,
+        currentState.verificationStatus === 'needs_verification' || isError,
+      isVerified: currentState.verificationStatus === 'verified',
+      isAdminPending: currentState.verificationStatus === 'admin_pending',
+      triggerReason: currentState.triggerReason,
       verifyLocation,
       requestAdminAssistance,
-    }),
-    [
-      locationLoading,
-      verificationState,
-      verifyLocation,
-      requestAdminAssistance,
-    ],
-  );
+    };
+  }, [
+    locationLoading,
+    stateRef.current, // Add ref to dependencies
+    verifyLocation,
+    requestAdminAssistance,
+  ]);
 };
 
 export default useLocationVerification;
