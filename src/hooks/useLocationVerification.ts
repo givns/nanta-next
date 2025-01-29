@@ -101,27 +101,28 @@ const useLocationVerification = (
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
+    // For error states, update immediately
     if (
-      locationState instanceof GeolocationPositionError ||
       locationState.status === 'error' ||
-      locationState.error
+      locationState.error ||
+      locationState instanceof GeolocationPositionError
     ) {
-      const errorState = {
-        status: 'error' as const,
-        verificationStatus: 'needs_verification' as const,
+      const errorState: LocationVerificationState = {
+        status: 'error',
+        verificationStatus: 'needs_verification',
+        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
+        triggerReason: locationState.triggerReason || 'Unknown error',
         inPremises: false,
         address: locationState.address || '',
         confidence: locationState.confidence || 'low',
         accuracy: locationState.accuracy || 0,
         coordinates: locationState.coordinates,
-        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
-        triggerReason: locationState.error?.includes('ถูกปิดกั้น')
-          ? 'Location permission denied'
-          : locationState.triggerReason || 'Unknown error',
       };
 
-      updateVerificationState(errorState, 'location');
-      console.groupEnd();
+      // Update both state and ref immediately
+      setVerificationState(errorState);
+      stateRef.current = errorState;
+      previousStateRef.current = locationState;
       return;
     }
 
@@ -297,15 +298,13 @@ const useLocationVerification = (
 
   // Return values with proper state reflection
   return useMemo(() => {
-    const currentState = stateRef.current;
-    const isError =
-      currentState.status === 'error' || Boolean(currentState.error);
-
+    const currentState = verificationState;
     return {
       locationState: currentState,
       isLoading: locationLoading || currentState.status === 'loading',
       needsVerification:
-        currentState.verificationStatus === 'needs_verification' || isError,
+        currentState.status === 'error' ||
+        currentState.verificationStatus === 'needs_verification',
       isVerified: currentState.verificationStatus === 'verified',
       isAdminPending: currentState.verificationStatus === 'admin_pending',
       triggerReason: currentState.triggerReason,
@@ -313,8 +312,8 @@ const useLocationVerification = (
       requestAdminAssistance,
     };
   }, [
+    verificationState,
     locationLoading,
-    stateRef.current, // Add ref to dependencies
     verifyLocation,
     requestAdminAssistance,
   ]);
