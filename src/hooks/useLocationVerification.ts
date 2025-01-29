@@ -7,8 +7,6 @@ import {
   LocationVerificationState,
   LocationTriggerConfig,
   INITIAL_STATE,
-  STATE_TRANSITIONS,
-  VerificationStatus,
 } from '@/types/attendance';
 
 const DEFAULT_CONFIG: LocationTriggerConfig = {
