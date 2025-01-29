@@ -20,6 +20,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  console.log('LoadingBar receiving props:', locationState);
+
   useEffect(() => {
     if (locationState.status !== 'initializing') {
       setIsInitialized(true);
@@ -50,7 +52,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
     };
-  }, [isInitialized, locationState]);
+  }, [isInitialized, JSON.stringify(locationState)]);
 
   // Single progress bar logic with error handling
   useEffect(() => {
