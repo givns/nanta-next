@@ -137,6 +137,7 @@ export function useLocationVerification(
     console.log('Raw Location State:', locationState);
 
     // Immediately handle GeolocationPositionError or error state
+    // Handle all error cases
     if (
       locationState instanceof GeolocationPositionError ||
       locationState.status === 'error' ||
@@ -144,7 +145,7 @@ export function useLocationVerification(
     ) {
       const errorState: LocationVerificationState = {
         status: 'error',
-        verificationStatus: 'needs_verification', // Force this
+        verificationStatus: 'needs_verification',
         inPremises: false,
         address: locationState.address || '',
         confidence: locationState.confidence || 'low',

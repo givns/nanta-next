@@ -247,21 +247,22 @@ const CheckInRouter: React.FC = () => {
     }
   }, [safeAttendanceProps?.base, dailyRecords]);
 
-  // Step Management
+  // Step management
   useEffect(() => {
     if (authLoading) return;
 
     const nextStep = (() => {
-      if (!userData) return 'user';
+      // Check location error states first
       if (
         locationState.status === 'error' ||
         locationState.error ||
-        !isVerified ||
-        needsVerification ||
-        locationLoading
+        needsVerification
       ) {
         return 'location';
       }
+
+      if (!userData) return 'user';
+      if (!isVerified || locationLoading) return 'location';
       return 'ready';
     })();
 
@@ -272,8 +273,7 @@ const CheckInRouter: React.FC = () => {
   }, [
     authLoading,
     userData,
-    locationState.status,
-    locationState.error,
+    locationState,
     isVerified,
     needsVerification,
     locationLoading,
