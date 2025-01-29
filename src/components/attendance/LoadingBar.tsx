@@ -19,17 +19,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  console.log('LoadingBar receiving props:', {
-    step,
-    locationState: {
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-    },
-  });
+  useEffect(() => {
+    console.log('LoadingBar props updated:', {
+      step,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        triggerReason: locationState.triggerReason,
+      },
+    });
+  }, [step, locationState]);
 
+  // Force evaluation on every locationState change
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
+    console.log('Evaluating LoadingBar state:', locationState);
+
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -37,20 +42,16 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
-    console.log('Error state evaluation:', {
+    console.log('LoadingBar evaluation result:', {
       hasError,
       state: locationState,
-      result: {
-        shouldShowError: hasError,
-        shouldShowAdminAssistance: hasError,
-      },
     });
 
     return {
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
     };
-  }, [locationState]);
+  }, [JSON.stringify(locationState)]); // Force re-evaluation on any locationState change
 
   // Single progress bar logic with error handling
   useEffect(() => {
