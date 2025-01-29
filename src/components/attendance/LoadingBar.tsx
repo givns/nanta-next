@@ -37,37 +37,36 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
     // Need to ensure explicit boolean values
-    const isError =
+    const isError = Boolean(
       locationState.status === 'error' ||
-      Boolean(locationState.error) ||
-      Boolean(locationState.triggerReason === 'Location permission denied');
+        locationState.error ||
+        locationState.triggerReason === 'Location permission denied',
+    );
 
-    const needsVerification =
-      locationState.verificationStatus === 'needs_verification' || isError; // Any error implies needs verification
+    const needsVerification = Boolean(
+      locationState.verificationStatus === 'needs_verification' || isError,
+    );
 
     const isPermissionDenied = Boolean(
       locationState.triggerReason === 'Location permission denied' ||
         locationState.error?.includes('ถูกปิดกั้น'),
     );
 
+    const evaluation = {
+      shouldShowError: isError || needsVerification || isPermissionDenied,
+      shouldShowAdminAssistance:
+        isError || needsVerification || isPermissionDenied,
+    };
+
     console.log('Error state evaluation:', {
+      state: locationState,
       isError,
       needsVerification,
       isPermissionDenied,
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
+      evaluation,
     });
 
-    return {
-      shouldShowError: Boolean(
-        isError || needsVerification || isPermissionDenied,
-      ),
-      shouldShowAdminAssistance: Boolean(
-        isError || needsVerification || isPermissionDenied,
-      ),
-    };
+    return evaluation;
   }, [locationState]);
 
   // Update progress bar logic

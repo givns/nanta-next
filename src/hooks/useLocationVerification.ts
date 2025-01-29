@@ -151,23 +151,28 @@ export function useLocationVerification(
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
-    // Handle error state
-    if (locationState.status === 'error' || locationState.error) {
-      updateVerificationState(
-        {
-          status: 'error',
-          verificationStatus: 'needs_verification',
-          inPremises: false,
-          address: locationState.address || '',
-          confidence: locationState.confidence || 'low',
-          accuracy: locationState.accuracy || 0,
-          coordinates: locationState.coordinates,
-          error: locationState.error,
-          triggerReason:
-            locationState.triggerReason || 'Location verification failed',
-        },
-        'location',
-      );
+    // Immediately handle GeolocationPositionError or error state
+    if (
+      locationState instanceof GeolocationPositionError ||
+      locationState.status === 'error' ||
+      locationState.error
+    ) {
+      const errorState: LocationVerificationState = {
+        status: 'error',
+        verificationStatus: 'needs_verification', // Force this
+        inPremises: false,
+        address: locationState.address || '',
+        confidence: locationState.confidence || 'low',
+        accuracy: locationState.accuracy || 0,
+        coordinates: locationState.coordinates,
+        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
+        triggerReason: locationState.error?.includes('ถูกปิดกั้น')
+          ? 'Location permission denied'
+          : locationState.triggerReason || 'Unknown error',
+      };
+
+      console.log('Processing error state:', errorState);
+      updateVerificationState(errorState, 'location');
       console.groupEnd();
       return;
     }
