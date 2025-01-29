@@ -40,7 +40,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Force evaluation on every locationState change
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
-    if (!isInitialized) {
+    if (!locationInitialized) {
       return { shouldShowError: false, shouldShowAdminAssistance: false };
     }
 
@@ -62,7 +62,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
     };
-  }, [isInitialized, JSON.stringify(locationState)]);
+  }, [locationInitialized, JSON.stringify(locationState)]);
 
   // Single progress bar logic with error handling
   useEffect(() => {
