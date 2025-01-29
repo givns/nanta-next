@@ -21,51 +21,37 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Evaluate error states
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
-    const evaluateState = () => {
-      // Log state before evaluation
-      console.log('Evaluating state:', locationState);
+    console.log('LoadingBar re-evaluating state:', locationState);
 
-      // Check error conditions explicitly in order
-      if (locationState.status === 'error') {
-        console.log('Error status detected');
-        return true;
-      }
-      if (locationState.error) {
-        console.log('Error message detected:', locationState.error);
-        return true;
-      }
-      if (locationState.verificationStatus === 'needs_verification') {
-        console.log('Needs verification detected');
-        return true;
-      }
-      if (locationState.triggerReason === 'Location permission denied') {
-        console.log('Permission denied detected');
-        return true;
-      }
+    // Evaluate error state immediately
+    const hasError = Boolean(
+      locationState.status === 'error' ||
+        locationState.error ||
+        locationState.verificationStatus === 'needs_verification' ||
+        locationState.triggerReason === 'Location permission denied',
+    );
 
-      // Log final evaluation
-      console.log('No error conditions met');
-      return false;
-    };
-
-    const shouldShow = evaluateState();
-
-    console.log('Error state evaluation:', {
+    console.log('Error evaluation:', {
+      hasError,
       state: locationState,
-      evaluation: {
-        shouldShow,
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-        triggerReason: locationState.triggerReason,
-      },
+      step,
     });
 
     return {
-      shouldShowError: shouldShow,
-      shouldShowAdminAssistance: shouldShow,
+      shouldShowError: hasError,
+      shouldShowAdminAssistance: hasError,
     };
-  }, [locationState]);
+  }, [locationState, step]); // Add step to dependencies
+
+  // Add state logging
+  useEffect(() => {
+    console.log('LoadingBar updated:', {
+      step,
+      locationState,
+      shouldShowError,
+      shouldShowAdminAssistance,
+    });
+  }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
 
   // Single progress bar logic
   useEffect(() => {
