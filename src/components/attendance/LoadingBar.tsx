@@ -19,14 +19,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [locationInitialized, setLocationInitialized] = useState(false);
 
   console.log('LoadingBar receiving props:', locationState);
 
+  // Location processing initialization check
   useEffect(() => {
+    if (!locationState) return;
+
+    // Wait for first location processing to complete
     if (locationState.status !== 'initializing') {
-      setIsInitialized(true);
+      setLocationInitialized(true);
     }
-  }, [locationState.status]);
+  }, [locationState]);
+
+  // Don't render anything until location is initialized
+  if (!locationInitialized) {
+    return <div>กำลังโหลด...</div>;
+  }
 
   // Force evaluation on every locationState change
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
