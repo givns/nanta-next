@@ -19,59 +19,43 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
 
-  console.log('LoadingBar render with:', {
-    receivedState: locationState,
-    step,
-    handlers: {
-      hasRetry: !!onLocationRetry,
-      hasAdmin: !!onRequestAdminAssistance,
-    },
-  });
-
-  useEffect(() => {
-    console.log('LoadingBar state dependencies changed:', {
-      step,
-      locationState,
-    });
-  }, [step, locationState]);
-
+  // Evaluate error states
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
-    // Need to ensure explicit boolean values
-    const isError = Boolean(
-      locationState.status === 'error' ||
-        locationState.error ||
-        locationState.triggerReason === 'Location permission denied',
-    );
-
-    const needsVerification = Boolean(
-      locationState.verificationStatus === 'needs_verification' || isError,
-    );
-
-    const isPermissionDenied = Boolean(
-      locationState.triggerReason === 'Location permission denied' ||
-        locationState.error?.includes('ถูกปิดกั้น'),
-    );
-
-    const evaluation = {
-      shouldShowError: isError || needsVerification || isPermissionDenied,
-      shouldShowAdminAssistance:
-        isError || needsVerification || isPermissionDenied,
+    const evaluateState = () => {
+      // Check error conditions explicitly
+      if (locationState.status === 'error') return true;
+      if (locationState.error) return true;
+      if (locationState.verificationStatus === 'needs_verification')
+        return true;
+      if (locationState.triggerReason === 'Location permission denied')
+        return true;
+      if (locationState.error?.includes('ถูกปิดกั้น')) return true;
+      return false;
     };
+
+    const shouldShow = evaluateState();
 
     console.log('Error state evaluation:', {
       state: locationState,
-      isError,
-      needsVerification,
-      isPermissionDenied,
-      evaluation,
+      evaluation: {
+        shouldShow,
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        triggerReason: locationState.triggerReason,
+      },
     });
 
-    return evaluation;
+    return {
+      shouldShowError: shouldShow,
+      shouldShowAdminAssistance: shouldShow,
+    };
   }, [locationState]);
 
-  // Update progress bar logic
+  // Single progress bar logic
   useEffect(() => {
-    if (locationState.status === 'error') {
+    // Reset progress on error
+    if (locationState.status === 'error' || shouldShowError) {
       setProgress(0);
       return;
     }
@@ -82,28 +66,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }, 30);
 
     return () => clearInterval(interval);
-  }, [step, locationState.status]);
+  }, [step, locationState.status, shouldShowError]);
 
-  // Debug logging
   useEffect(() => {
     console.log('LoadingBar state update:', {
       step,
       locationStatus: locationState.status,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      error: locationState.error,
+      progress,
       shouldShowError,
       shouldShowAdminAssistance,
-      hasErrorHandler: Boolean(onLocationRetry),
-      hasAdminHandler: Boolean(onRequestAdminAssistance),
     });
   }, [
     step,
-    locationState,
+    locationState.status,
+    progress,
     shouldShowError,
     shouldShowAdminAssistance,
-    onLocationRetry,
-    onRequestAdminAssistance,
   ]);
 
   // Handle admin assistance request
@@ -122,15 +100,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       setIsRequestingHelp(false);
     }
   };
-
-  // Progress bar logic
-  useEffect(() => {
-    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
-    const interval = setInterval(() => {
-      setProgress((prev) => Math.min(prev + 1, target));
-    }, 30);
-    return () => clearInterval(interval);
-  }, [step]);
 
   // Render error UI if shouldShowError is true
   const renderLocationStatus = () => {
