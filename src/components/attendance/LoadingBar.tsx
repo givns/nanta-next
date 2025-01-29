@@ -18,12 +18,18 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
-
-  // Evaluate error states
   const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
-    console.log('LoadingBar re-evaluating state:', locationState);
+    // Track when memo is re-evaluated
+    console.log('LoadingBar receiving props:', {
+      step,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        triggerReason: locationState.triggerReason,
+      },
+    });
 
-    // Evaluate error state immediately
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -31,46 +37,18 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
-    console.log('Error evaluation:', {
-      hasError,
-      state: locationState,
-      step,
-    });
+    // Log evaluation result immediately
+    console.log('Error state result:', { hasError, locationState });
 
     return {
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
     };
-  }, [locationState, step]); // Add step to dependencies
+  }, [locationState]); // Remove step from dependencies as it doesn't affect error state
 
-  // Add state logging
+  // Debug and track component updates
   useEffect(() => {
-    console.log('LoadingBar updated:', {
-      step,
-      locationState,
-      shouldShowError,
-      shouldShowAdminAssistance,
-    });
-  }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
-
-  // Single progress bar logic
-  useEffect(() => {
-    // Reset progress on error
-    if (locationState.status === 'error' || shouldShowError) {
-      setProgress(0);
-      return;
-    }
-
-    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
-    const interval = setInterval(() => {
-      setProgress((prev) => Math.min(prev + 1, target));
-    }, 30);
-
-    return () => clearInterval(interval);
-  }, [step, locationState.status, shouldShowError]);
-
-  useEffect(() => {
-    console.log('LoadingBar State:', {
+    console.log('LoadingBar effect triggered:', {
       step,
       locationState: {
         status: locationState.status,
