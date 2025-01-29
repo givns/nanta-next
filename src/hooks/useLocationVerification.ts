@@ -23,10 +23,10 @@ const DEFAULT_CONFIG: LocationTriggerConfig = {
   ],
 };
 
-export function useLocationVerification(
+const useLocationVerification = (
   employeeId?: string,
   config: Partial<LocationTriggerConfig> = {},
-): LocationStateContextType {
+): LocationStateContextType => {
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
@@ -41,6 +41,7 @@ export function useLocationVerification(
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
+  // Initialization effect remains same
   useEffect(() => {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
     triggerRef.current = new LocationVerificationTriggers(mergedConfig);
@@ -49,40 +50,89 @@ export function useLocationVerification(
     };
   }, [config]);
 
-  const validateStateTransition = useCallback(
-    (
-      from: LocationVerificationState['status'],
-      to: LocationVerificationState['status'],
-      payload: Partial<LocationVerificationState>,
-    ): boolean => {
-      const transition = STATE_TRANSITIONS[from];
-      if (!transition?.to.includes(to)) {
-        console.warn(`Invalid transition from ${from} to ${to}`);
-        return false;
+  // Main state processing effect
+  useEffect(() => {
+    if (!locationState || locationState === previousStateRef.current) return;
+
+    console.group('📍 Location State Processing');
+    console.log('Raw Location State:', locationState);
+
+    const nextState = (() => {
+      // Handle error states first (GeolocationPositionError and regular errors)
+      if (
+        locationState instanceof GeolocationPositionError ||
+        locationState.status === 'error' ||
+        locationState.error
+      ) {
+        return {
+          status: 'error' as const,
+          verificationStatus: 'needs_verification' as const,
+          inPremises: false,
+          address: locationState.address || '',
+          confidence: locationState.confidence || 'low',
+          accuracy: locationState.accuracy || 0,
+          coordinates: locationState.coordinates,
+          error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
+          triggerReason: locationState.error?.includes('ถูกปิดกั้น')
+            ? 'Location permission denied'
+            : locationState.triggerReason || 'Unknown error',
+        } as const;
       }
 
-      const { requiredFields } = transition;
-      const isValid = Object.entries(requiredFields).every(
-        ([field, required]) =>
-          !required ||
-          payload[field as keyof LocationVerificationState] !== undefined,
-      );
-
-      if (!isValid) {
-        console.warn(
-          `Missing required fields for transition from ${from} to ${to}`,
-          {
-            required: requiredFields,
-            provided: payload,
-          },
-        );
+      // Handle ready state
+      if (locationState.status === 'ready') {
+        const isInPremises = Boolean(locationState.inPremises);
+        return {
+          status: 'ready' as const,
+          verificationStatus: isInPremises
+            ? ('verified' as const)
+            : ('needs_verification' as const),
+          inPremises: isInPremises,
+          address: locationState.address || '',
+          confidence: locationState.confidence || 'low',
+          accuracy: locationState.accuracy || 0,
+          coordinates: locationState.coordinates,
+          error: null,
+          triggerReason: isInPremises ? null : 'Out of premises',
+        } as const;
       }
 
-      return isValid;
-    },
-    [],
-  );
+      // Handle intermediate states (loading, initializing)
+      return {
+        status: locationState.status,
+        verificationStatus: 'pending' as const,
+        inPremises: false,
+        address: locationState.address || '',
+        confidence: locationState.confidence || 'low',
+        accuracy: locationState.accuracy || 0,
+        coordinates: locationState.coordinates,
+        error: null,
+        triggerReason: null,
+      } as const;
+    })();
 
+    // Handle admin state preservation
+    const finalState =
+      previousStateRef.current.verificationStatus === 'admin_pending'
+        ? {
+            ...nextState,
+            verificationStatus: 'admin_pending' as const,
+            adminRequestId: previousStateRef.current.adminRequestId,
+          }
+        : nextState;
+
+    console.log('Setting next state:', finalState);
+
+    if (isMounted.current) {
+      setVerificationState(finalState);
+      stateRef.current = finalState;
+      previousStateRef.current = locationState;
+    }
+
+    console.groupEnd();
+  }, [locationState]);
+
+  // Update verification function
   const updateVerificationState = useCallback(
     (
       updates: Partial<LocationVerificationState>,
@@ -91,35 +141,28 @@ export function useLocationVerification(
       if (!isMounted.current) return;
 
       setVerificationState((prev) => {
-        // Build the complete next state first
+        // Force verification status based on state
         const nextState: LocationVerificationState = {
-          ...prev, // Start with previous state
-          ...updates, // Apply updates
-          // Force verification status based on conditions
+          ...prev,
+          ...updates,
           verificationStatus: (() => {
-            if (updates.status === 'error' || updates.error) {
-              return 'needs_verification' as const;
-            }
-            if (updates.verificationStatus) {
-              return updates.verificationStatus;
-            }
-            if (prev.verificationStatus === 'admin_pending') {
-              return 'admin_pending' as const;
-            }
+            if (updates.status === 'error') return 'needs_verification';
+            if (updates.verificationStatus) return updates.verificationStatus;
+            if (prev.verificationStatus === 'admin_pending')
+              return 'admin_pending';
             return prev.verificationStatus;
           })(),
-          // Ensure admin state is preserved correctly
-          adminRequestId:
-            prev.verificationStatus === 'admin_pending'
-              ? prev.adminRequestId
-              : updates.adminRequestId,
+          // Preserve admin state if needed
+          ...(prev.verificationStatus === 'admin_pending' && {
+            adminRequestId: prev.adminRequestId,
+          }),
         };
 
-        console.log('State Update Details:', {
+        console.log('State Update:', {
           source,
           previous: prev,
           updates,
-          result: nextState,
+          next: nextState,
         });
 
         stateRef.current = nextState;
@@ -129,78 +172,6 @@ export function useLocationVerification(
     },
     [],
   );
-
-  useEffect(() => {
-    if (!locationState || locationState === previousStateRef.current) return;
-
-    console.group('📍 Location State Processing');
-    console.log('Raw Location State:', locationState);
-
-    // Immediately handle GeolocationPositionError or error state
-    // Handle all error cases
-    if (
-      locationState instanceof GeolocationPositionError ||
-      locationState.status === 'error' ||
-      locationState.error
-    ) {
-      const errorState: LocationVerificationState = {
-        status: 'error',
-        verificationStatus: 'needs_verification',
-        inPremises: false,
-        address: locationState.address || '',
-        confidence: locationState.confidence || 'low',
-        accuracy: locationState.accuracy || 0,
-        coordinates: locationState.coordinates,
-        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
-        triggerReason: locationState.error?.includes('ถูกปิดกั้น')
-          ? 'Location permission denied'
-          : locationState.triggerReason || 'Unknown error',
-      };
-
-      console.log('Processing error state:', errorState);
-      updateVerificationState(errorState, 'location');
-      console.groupEnd();
-      return;
-    }
-
-    // Handle ready state
-    if (locationState.status === 'ready') {
-      const isInPremises = Boolean(locationState.inPremises);
-      updateVerificationState(
-        {
-          status: 'ready',
-          verificationStatus: isInPremises ? 'verified' : 'needs_verification',
-          inPremises: isInPremises,
-          address: locationState.address || '',
-          confidence: locationState.confidence || 'low',
-          accuracy: locationState.accuracy || 0,
-          coordinates: locationState.coordinates,
-          error: null,
-          triggerReason: isInPremises ? null : 'Out of premises',
-        },
-        'location',
-      );
-      console.groupEnd();
-      return;
-    }
-
-    // Handle intermediate states (loading, initializing)
-    updateVerificationState(
-      {
-        status: locationState.status,
-        verificationStatus: 'pending',
-        inPremises: false,
-        address: locationState.address || '',
-        confidence: locationState.confidence || 'low',
-        accuracy: locationState.accuracy || 0,
-        coordinates: locationState.coordinates,
-        error: null,
-        triggerReason: null,
-      },
-      'location',
-    );
-    console.groupEnd();
-  }, [locationState, updateVerificationState]);
 
   const verifyLocation = useCallback(
     async (force = false) => {
@@ -316,27 +287,13 @@ export function useLocationVerification(
 
   return useMemo(
     () => ({
-      locationState: {
-        ...stateRef.current,
-        // Ensure these fields are always present
-        status: stateRef.current.status,
-        verificationStatus: stateRef.current.verificationStatus,
-        error: stateRef.current.error || null,
-        triggerReason: stateRef.current.triggerReason || null,
-        inPremises: stateRef.current.inPremises || false,
-        address: stateRef.current.address || '',
-        confidence: stateRef.current.confidence || 'low',
-        accuracy: stateRef.current.accuracy || 0,
-        coordinates: stateRef.current.coordinates,
-      },
+      locationState: stateRef.current,
       isLoading: locationLoading || verificationState.status === 'loading',
-      needsVerification: Boolean(
-        verificationState.verificationStatus === 'needs_verification' ||
-          verificationState.status === 'error',
-      ),
+      needsVerification:
+        verificationState.verificationStatus === 'needs_verification',
       isVerified: verificationState.verificationStatus === 'verified',
       isAdminPending: verificationState.verificationStatus === 'admin_pending',
-      triggerReason: verificationState.triggerReason || null,
+      triggerReason: verificationState.triggerReason,
       verifyLocation,
       requestAdminAssistance,
     }),
@@ -347,4 +304,6 @@ export function useLocationVerification(
       requestAdminAssistance,
     ],
   );
-}
+};
+
+export default useLocationVerification;

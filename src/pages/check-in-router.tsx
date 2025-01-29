@@ -19,7 +19,7 @@ import {
 import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
-import { useLocationVerification } from '@/hooks/useLocationVerification';
+import useLocationVerification from '@/hooks/useLocationVerification';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -252,22 +252,25 @@ const CheckInRouter: React.FC = () => {
     if (authLoading) return;
 
     const nextStep = (() => {
-      // Check location error states first
-      if (
-        locationState.status === 'error' ||
-        locationState.error ||
-        needsVerification
-      ) {
+      // Only proceed if we have a valid locationState
+      if (!locationState) return currentStep;
+
+      if (locationState.status === 'error' || locationState.error) {
         return 'location';
       }
-
       if (!userData) return 'user';
-      if (!isVerified || locationLoading) return 'location';
+      if (locationState.status === 'loading') return currentStep; // Don't change during loading
+      if (!isVerified || needsVerification) return 'location';
       return 'ready';
     })();
 
     if (nextStep !== currentStep) {
-      console.log('Step changing:', { from: currentStep, to: nextStep });
+      console.log('Step changing:', {
+        from: currentStep,
+        to: nextStep,
+        locationState,
+        needsVerification,
+      });
       setCurrentStep(nextStep);
     }
   }, [
@@ -276,7 +279,6 @@ const CheckInRouter: React.FC = () => {
     locationState,
     isVerified,
     needsVerification,
-    locationLoading,
     currentStep,
   ]);
 
