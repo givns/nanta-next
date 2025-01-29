@@ -154,38 +154,20 @@ export function useLocationVerification(
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
-    // Handle GeolocationPositionError
-    if (locationState instanceof GeolocationPositionError) {
-      updateVerificationState(
-        {
-          status: 'error',
-          verificationStatus: 'needs_verification',
-          error:
-            locationState.code === 1
-              ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
-              : 'ไม่สามารถระบุตำแหน่งได้',
-          triggerReason: 'Location permission denied',
-        },
-        'location',
-      );
-      console.groupEnd();
-      return;
-    }
-
     // Handle error state
     if (locationState.status === 'error' || locationState.error) {
-      const trigger =
-        triggerRef.current?.shouldTriggerAdminAssistance(locationState);
-
       updateVerificationState(
         {
-          ...locationState,
           status: 'error',
           verificationStatus: 'needs_verification',
+          inPremises: false,
+          address: locationState.address || '',
+          confidence: locationState.confidence || 'low',
+          accuracy: locationState.accuracy || 0,
+          coordinates: locationState.coordinates,
           error: locationState.error,
-          triggerReason: locationState.error?.includes('ถูกปิดกั้น')
-            ? 'Location permission denied'
-            : trigger?.reason || 'Location verification failed',
+          triggerReason:
+            locationState.triggerReason || 'Location verification failed',
         },
         'location',
       );
@@ -195,14 +177,18 @@ export function useLocationVerification(
 
     // Handle ready state
     if (locationState.status === 'ready') {
+      const isInPremises = Boolean(locationState.inPremises);
       updateVerificationState(
         {
-          ...locationState,
-          verificationStatus: locationState.inPremises
-            ? 'verified'
-            : 'needs_verification',
+          status: 'ready',
+          verificationStatus: isInPremises ? 'verified' : 'needs_verification',
+          inPremises: isInPremises,
+          address: locationState.address || '',
+          confidence: locationState.confidence || 'low',
+          accuracy: locationState.accuracy || 0,
+          coordinates: locationState.coordinates,
           error: null,
-          triggerReason: locationState.inPremises ? null : 'Out of premises',
+          triggerReason: isInPremises ? null : 'Out of premises',
         },
         'location',
       );
@@ -210,11 +196,18 @@ export function useLocationVerification(
       return;
     }
 
-    // Handle default state
+    // Handle intermediate states (loading, initializing)
     updateVerificationState(
       {
-        ...locationState,
-        verificationStatus: locationState.verificationStatus || 'pending',
+        status: locationState.status,
+        verificationStatus: 'pending',
+        inPremises: false,
+        address: locationState.address || '',
+        confidence: locationState.confidence || 'low',
+        accuracy: locationState.accuracy || 0,
+        coordinates: locationState.coordinates,
+        error: null,
+        triggerReason: null,
       },
       'location',
     );
