@@ -325,13 +325,27 @@ export function useLocationVerification(
 
   return useMemo(
     () => ({
-      locationState: stateRef.current,
+      locationState: {
+        ...stateRef.current,
+        // Ensure these fields are always present
+        status: stateRef.current.status,
+        verificationStatus: stateRef.current.verificationStatus,
+        error: stateRef.current.error || null,
+        triggerReason: stateRef.current.triggerReason || null,
+        inPremises: stateRef.current.inPremises || false,
+        address: stateRef.current.address || '',
+        confidence: stateRef.current.confidence || 'low',
+        accuracy: stateRef.current.accuracy || 0,
+        coordinates: stateRef.current.coordinates,
+      },
       isLoading: locationLoading || verificationState.status === 'loading',
-      needsVerification:
-        verificationState.verificationStatus === 'needs_verification',
+      needsVerification: Boolean(
+        verificationState.verificationStatus === 'needs_verification' ||
+          verificationState.status === 'error',
+      ),
       isVerified: verificationState.verificationStatus === 'verified',
       isAdminPending: verificationState.verificationStatus === 'admin_pending',
-      triggerReason: verificationState.triggerReason,
+      triggerReason: verificationState.triggerReason || null,
       verifyLocation,
       requestAdminAssistance,
     }),
