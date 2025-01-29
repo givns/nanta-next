@@ -320,6 +320,18 @@ const CheckInRouter: React.FC = () => {
     fetchUserData();
   }, [fetchUserData]);
 
+  useEffect(() => {
+    console.log('Router State:', {
+      currentStep,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+      },
+      needsVerification,
+    });
+  }, [currentStep, locationState, needsVerification]);
+
   const mainContent = useMemo(() => {
     if (!userData || !safeAttendanceProps?.base?.state) return null;
 

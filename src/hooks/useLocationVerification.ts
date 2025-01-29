@@ -165,6 +165,24 @@ const useLocationVerification = (
     console.groupEnd();
   }, [locationState, updateVerificationState]);
 
+  const stateDebugger = useCallback(
+    (state: LocationVerificationState, label: string) => {
+      console.group(`🔍 Location State Debug: ${label}`);
+      console.log('Current State:', {
+        status: state.status,
+        error: state.error,
+        verificationStatus: state.verificationStatus,
+        triggerReason: state.triggerReason,
+      });
+      console.groupEnd();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    stateDebugger(stateRef.current, 'StateRef Update');
+  }, [stateRef.current, stateDebugger]);
+
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;

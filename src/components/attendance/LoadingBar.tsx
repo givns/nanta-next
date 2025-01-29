@@ -84,20 +84,17 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   }, [step, locationState.status, shouldShowError]);
 
   useEffect(() => {
-    console.log('LoadingBar state update:', {
+    console.log('LoadingBar State:', {
       step,
-      locationStatus: locationState.status,
-      progress,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+      },
       shouldShowError,
       shouldShowAdminAssistance,
     });
-  }, [
-    step,
-    locationState.status,
-    progress,
-    shouldShowError,
-    shouldShowAdminAssistance,
-  ]);
+  }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
 
   // Handle admin assistance request
   const handleRequestAssistance = async () => {
