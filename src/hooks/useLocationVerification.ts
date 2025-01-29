@@ -48,6 +48,7 @@ const useLocationVerification = (
     };
   }, [config]);
 
+  // State update handler - consolidate all state updates here
   const updateVerificationState = useCallback(
     (
       updates: Partial<LocationVerificationState>,
@@ -56,10 +57,10 @@ const useLocationVerification = (
       if (!isMounted.current) return;
 
       setVerificationState((prev) => {
-        // Ensure error states always have needs_verification
         const nextState: LocationVerificationState = {
           ...prev,
           ...updates,
+          // Force verification status for error states
           verificationStatus: (() => {
             if (updates.status === 'error' || updates.error) {
               return 'needs_verification' as const;
@@ -72,7 +73,7 @@ const useLocationVerification = (
             }
             return prev.verificationStatus;
           })(),
-          // Preserve admin state if needed
+          // Preserve admin state
           ...(prev.verificationStatus === 'admin_pending' && {
             adminRequestId: prev.adminRequestId,
           }),
@@ -85,7 +86,7 @@ const useLocationVerification = (
           next: nextState,
         });
 
-        // Update refs immediately
+        // Update refs synchronously
         stateRef.current = nextState;
         previousStateRef.current = prev;
         return nextState;
@@ -94,75 +95,55 @@ const useLocationVerification = (
     [],
   );
 
-  // Main state processing effect
+  // Location state handler
   useEffect(() => {
     if (!locationState || locationState === previousStateRef.current) return;
 
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
-    // For error states, update immediately
+    // Handle error states first and synchronously
     if (
+      locationState instanceof GeolocationPositionError ||
       locationState.status === 'error' ||
-      locationState.error ||
-      locationState instanceof GeolocationPositionError
+      locationState.error
     ) {
       const errorState: LocationVerificationState = {
         status: 'error',
         verificationStatus: 'needs_verification',
-        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
-        triggerReason: locationState.triggerReason || 'Unknown error',
         inPremises: false,
         address: locationState.address || '',
         confidence: locationState.confidence || 'low',
         accuracy: locationState.accuracy || 0,
         coordinates: locationState.coordinates,
+        error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
+        triggerReason: locationState.error?.includes('ถูกปิดกั้น')
+          ? 'Location permission denied'
+          : locationState.triggerReason || 'Unknown error',
       };
 
-      // Update both state and ref immediately
       setVerificationState(errorState);
       stateRef.current = errorState;
       previousStateRef.current = locationState;
-      return;
-    }
 
-    // Handle ready state
-    if (locationState.status === 'ready') {
-      const isInPremises = Boolean(locationState.inPremises);
-      updateVerificationState(
-        {
-          status: 'ready',
-          verificationStatus: isInPremises ? 'verified' : 'needs_verification',
-          inPremises: isInPremises,
-          address: locationState.address || '',
-          confidence: locationState.confidence || 'low',
-          accuracy: locationState.accuracy || 0,
-          coordinates: locationState.coordinates,
-          error: null,
-          triggerReason: isInPremises ? null : 'Out of premises',
-        },
-        'location',
-      );
+      console.log('Error State Set:', errorState);
       console.groupEnd();
       return;
     }
 
-    // Handle intermediate states
+    // Other state updates
     updateVerificationState(
       {
-        status: locationState.status,
-        verificationStatus: 'pending',
-        inPremises: false,
-        address: locationState.address || '',
-        confidence: locationState.confidence || 'low',
-        accuracy: locationState.accuracy || 0,
-        coordinates: locationState.coordinates,
-        error: null,
-        triggerReason: null,
+        ...locationState,
+        verificationStatus:
+          locationState.status === 'ready' && locationState.inPremises
+            ? 'verified'
+            : locationState.status === 'ready'
+              ? 'needs_verification'
+              : 'pending',
       },
       'location',
     );
-
     console.groupEnd();
   }, [locationState, updateVerificationState]);
 
@@ -298,7 +279,7 @@ const useLocationVerification = (
 
   // Return values with proper state reflection
   return useMemo(() => {
-    const currentState = verificationState;
+    const currentState = stateRef.current;
     return {
       locationState: currentState,
       isLoading: locationLoading || currentState.status === 'loading',
@@ -312,8 +293,8 @@ const useLocationVerification = (
       requestAdminAssistance,
     };
   }, [
-    verificationState,
     locationLoading,
+    stateRef.current,
     verifyLocation,
     requestAdminAssistance,
   ]);
