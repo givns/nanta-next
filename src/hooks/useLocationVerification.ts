@@ -8,6 +8,7 @@ import {
   LocationTriggerConfig,
   INITIAL_STATE,
   STATE_TRANSITIONS,
+  VerificationStatus,
 } from '@/types/attendance';
 
 const DEFAULT_CONFIG: LocationTriggerConfig = {
@@ -90,59 +91,55 @@ export function useLocationVerification(
       if (!isMounted.current) return;
 
       setVerificationState((prev) => {
-        // Force needs_verification for error states
-        const nextUpdates = {
+        // Determine the verification status with proper type handling
+        let verificationStatus: VerificationStatus = 'pending'; // Default value
+
+        if (updates.status === 'error') {
+          verificationStatus = 'needs_verification';
+        } else if (updates.verificationStatus) {
+          verificationStatus = updates.verificationStatus;
+        } else if (prev.verificationStatus === 'admin_pending') {
+          verificationStatus = 'admin_pending';
+        }
+
+        // Create the next state with explicit verification status
+        const nextState: LocationVerificationState = {
+          ...prev,
           ...updates,
-          ...(updates.status === 'error' && {
-            verificationStatus: 'needs_verification' as const, // Explicitly type as VerificationStatus
+          verificationStatus, // Now this is guaranteed to be VerificationStatus
+          // Preserve admin ID if needed
+          ...(verificationStatus === 'admin_pending' && {
+            adminRequestId: prev.adminRequestId,
           }),
         };
 
-        // Validate state transition if status is changing
-        if (nextUpdates.status && nextUpdates.status !== prev.status) {
+        // Rest of the function remains the same...
+        if (updates.status && updates.status !== prev.status) {
           if (
-            !validateStateTransition(
-              prev.status,
-              nextUpdates.status,
-              nextUpdates,
-            )
+            !validateStateTransition(prev.status, updates.status, nextState)
           ) {
-            console.warn(
-              'Invalid state transition attempted, keeping previous state',
-            );
+            console.warn('Invalid state transition, keeping previous state');
             return prev;
           }
         }
 
-        // Create typed next state
-        const next: LocationVerificationState = {
-          ...prev,
-          ...nextUpdates,
-          // Preserve admin state if needed
-          ...(prev.verificationStatus === 'admin_pending' &&
-            !nextUpdates.verificationStatus && {
-              verificationStatus: prev.verificationStatus,
-              adminRequestId: prev.adminRequestId,
-            }),
-        };
-
-        // Log state changes
         console.group(`🔍 Location State Update: ${source}`);
         console.log('Previous State:', {
           status: prev.status,
           verificationStatus: prev.verificationStatus,
           triggerReason: prev.triggerReason,
         });
+        console.log('Updates:', updates);
         console.log('Next State:', {
-          status: next.status,
-          verificationStatus: next.verificationStatus,
-          triggerReason: next.triggerReason,
+          status: nextState.status,
+          verificationStatus: nextState.verificationStatus,
+          triggerReason: nextState.triggerReason,
         });
         console.groupEnd();
 
-        stateRef.current = next;
+        stateRef.current = nextState;
         previousStateRef.current = prev;
-        return next;
+        return nextState;
       });
     },
     [validateStateTransition],
