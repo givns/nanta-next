@@ -279,22 +279,21 @@ const useLocationVerification = (
 
   // Return values with proper state reflection
   return useMemo(() => {
-    const currentState = stateRef.current;
     return {
-      locationState: currentState,
-      isLoading: locationLoading || currentState.status === 'loading',
+      locationState: verificationState, // Use state directly
+      isLoading: locationLoading || verificationState.status === 'loading',
       needsVerification:
-        currentState.status === 'error' ||
-        currentState.verificationStatus === 'needs_verification',
-      isVerified: currentState.verificationStatus === 'verified',
-      isAdminPending: currentState.verificationStatus === 'admin_pending',
-      triggerReason: currentState.triggerReason,
+        verificationState.status === 'error' ||
+        verificationState.verificationStatus === 'needs_verification',
+      isVerified: verificationState.verificationStatus === 'verified',
+      isAdminPending: verificationState.verificationStatus === 'admin_pending',
+      triggerReason: verificationState.triggerReason,
       verifyLocation,
       requestAdminAssistance,
     };
   }, [
     locationLoading,
-    stateRef.current,
+    verificationState,
     verifyLocation,
     requestAdminAssistance,
   ]);
