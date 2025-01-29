@@ -91,58 +91,43 @@ export function useLocationVerification(
       if (!isMounted.current) return;
 
       setVerificationState((prev) => {
-        // Determine the verification status with proper type handling
-        let verificationStatus: VerificationStatus = 'pending'; // Default value
-
-        if (updates.status === 'error') {
-          verificationStatus = 'needs_verification';
-        } else if (updates.verificationStatus) {
-          verificationStatus = updates.verificationStatus;
-        } else if (prev.verificationStatus === 'admin_pending') {
-          verificationStatus = 'admin_pending';
-        }
-
-        // Create the next state with explicit verification status
+        // Build the complete next state first
         const nextState: LocationVerificationState = {
-          ...prev,
-          ...updates,
-          verificationStatus, // Now this is guaranteed to be VerificationStatus
-          // Preserve admin ID if needed
-          ...(verificationStatus === 'admin_pending' && {
-            adminRequestId: prev.adminRequestId,
-          }),
+          ...prev, // Start with previous state
+          ...updates, // Apply updates
+          // Force verification status based on conditions
+          verificationStatus: (() => {
+            if (updates.status === 'error' || updates.error) {
+              return 'needs_verification' as const;
+            }
+            if (updates.verificationStatus) {
+              return updates.verificationStatus;
+            }
+            if (prev.verificationStatus === 'admin_pending') {
+              return 'admin_pending' as const;
+            }
+            return prev.verificationStatus;
+          })(),
+          // Ensure admin state is preserved correctly
+          adminRequestId:
+            prev.verificationStatus === 'admin_pending'
+              ? prev.adminRequestId
+              : updates.adminRequestId,
         };
 
-        // Rest of the function remains the same...
-        if (updates.status && updates.status !== prev.status) {
-          if (
-            !validateStateTransition(prev.status, updates.status, nextState)
-          ) {
-            console.warn('Invalid state transition, keeping previous state');
-            return prev;
-          }
-        }
-
-        console.group(`🔍 Location State Update: ${source}`);
-        console.log('Previous State:', {
-          status: prev.status,
-          verificationStatus: prev.verificationStatus,
-          triggerReason: prev.triggerReason,
+        console.log('State Update Details:', {
+          source,
+          previous: prev,
+          updates,
+          result: nextState,
         });
-        console.log('Updates:', updates);
-        console.log('Next State:', {
-          status: nextState.status,
-          verificationStatus: nextState.verificationStatus,
-          triggerReason: nextState.triggerReason,
-        });
-        console.groupEnd();
 
         stateRef.current = nextState;
         previousStateRef.current = prev;
         return nextState;
       });
     },
-    [validateStateTransition],
+    [],
   );
 
   useEffect(() => {
