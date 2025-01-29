@@ -50,89 +50,6 @@ const useLocationVerification = (
     };
   }, [config]);
 
-  // Main state processing effect
-  useEffect(() => {
-    if (!locationState || locationState === previousStateRef.current) return;
-
-    console.group('📍 Location State Processing');
-    console.log('Raw Location State:', locationState);
-
-    const nextState = (() => {
-      // Handle error states first (GeolocationPositionError and regular errors)
-      if (
-        locationState instanceof GeolocationPositionError ||
-        locationState.status === 'error' ||
-        locationState.error
-      ) {
-        return {
-          status: 'error' as const,
-          verificationStatus: 'needs_verification' as const,
-          inPremises: false,
-          address: locationState.address || '',
-          confidence: locationState.confidence || 'low',
-          accuracy: locationState.accuracy || 0,
-          coordinates: locationState.coordinates,
-          error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
-          triggerReason: locationState.error?.includes('ถูกปิดกั้น')
-            ? 'Location permission denied'
-            : locationState.triggerReason || 'Unknown error',
-        } as const;
-      }
-
-      // Handle ready state
-      if (locationState.status === 'ready') {
-        const isInPremises = Boolean(locationState.inPremises);
-        return {
-          status: 'ready' as const,
-          verificationStatus: isInPremises
-            ? ('verified' as const)
-            : ('needs_verification' as const),
-          inPremises: isInPremises,
-          address: locationState.address || '',
-          confidence: locationState.confidence || 'low',
-          accuracy: locationState.accuracy || 0,
-          coordinates: locationState.coordinates,
-          error: null,
-          triggerReason: isInPremises ? null : 'Out of premises',
-        } as const;
-      }
-
-      // Handle intermediate states (loading, initializing)
-      return {
-        status: locationState.status,
-        verificationStatus: 'pending' as const,
-        inPremises: false,
-        address: locationState.address || '',
-        confidence: locationState.confidence || 'low',
-        accuracy: locationState.accuracy || 0,
-        coordinates: locationState.coordinates,
-        error: null,
-        triggerReason: null,
-      } as const;
-    })();
-
-    // Handle admin state preservation
-    const finalState =
-      previousStateRef.current.verificationStatus === 'admin_pending'
-        ? {
-            ...nextState,
-            verificationStatus: 'admin_pending' as const,
-            adminRequestId: previousStateRef.current.adminRequestId,
-          }
-        : nextState;
-
-    console.log('Setting next state:', finalState);
-
-    if (isMounted.current) {
-      setVerificationState(finalState);
-      stateRef.current = finalState;
-      previousStateRef.current = locationState;
-    }
-
-    console.groupEnd();
-  }, [locationState]);
-
-  // Update verification function
   const updateVerificationState = useCallback(
     (
       updates: Partial<LocationVerificationState>,
@@ -172,6 +89,79 @@ const useLocationVerification = (
     },
     [],
   );
+
+  // Main state processing effect
+  useEffect(() => {
+    if (!locationState || locationState === previousStateRef.current) return;
+
+    console.group('📍 Location State Processing');
+    console.log('Raw Location State:', locationState);
+
+    // Handle error states
+    if (
+      locationState instanceof GeolocationPositionError ||
+      locationState.status === 'error' ||
+      locationState.error
+    ) {
+      updateVerificationState(
+        {
+          status: 'error',
+          verificationStatus: 'needs_verification',
+          inPremises: false,
+          address: locationState.address || '',
+          confidence: locationState.confidence || 'low',
+          accuracy: locationState.accuracy || 0,
+          coordinates: locationState.coordinates,
+          error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
+          triggerReason: locationState.error?.includes('ถูกปิดกั้น')
+            ? 'Location permission denied'
+            : locationState.triggerReason || 'Unknown error',
+        },
+        'location',
+      );
+      console.groupEnd();
+      return;
+    }
+
+    // Handle ready state
+    if (locationState.status === 'ready') {
+      const isInPremises = Boolean(locationState.inPremises);
+      updateVerificationState(
+        {
+          status: 'ready',
+          verificationStatus: isInPremises ? 'verified' : 'needs_verification',
+          inPremises: isInPremises,
+          address: locationState.address || '',
+          confidence: locationState.confidence || 'low',
+          accuracy: locationState.accuracy || 0,
+          coordinates: locationState.coordinates,
+          error: null,
+          triggerReason: isInPremises ? null : 'Out of premises',
+        },
+        'location',
+      );
+      console.groupEnd();
+      return;
+    }
+
+    // Handle intermediate states
+    updateVerificationState(
+      {
+        status: locationState.status,
+        verificationStatus: 'pending',
+        inPremises: false,
+        address: locationState.address || '',
+        confidence: locationState.confidence || 'low',
+        accuracy: locationState.accuracy || 0,
+        coordinates: locationState.coordinates,
+        error: null,
+        triggerReason: null,
+      },
+      'location',
+    );
+
+    console.groupEnd();
+  }, [locationState, updateVerificationState]);
 
   const verifyLocation = useCallback(
     async (force = false) => {
