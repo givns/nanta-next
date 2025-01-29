@@ -18,18 +18,18 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
-  const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
-    // Track when memo is re-evaluated
-    console.log('LoadingBar receiving props:', {
-      step,
-      locationState: {
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-        triggerReason: locationState.triggerReason,
-      },
-    });
 
+  console.log('LoadingBar receiving props:', {
+    step,
+    locationState: {
+      status: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
+      triggerReason: locationState.triggerReason,
+    },
+  });
+
+  const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -37,28 +37,35 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
-    // Log evaluation result immediately
-    console.log('Error state result:', { hasError, locationState });
+    console.log('Error state evaluation:', {
+      hasError,
+      state: locationState,
+      result: {
+        shouldShowError: hasError,
+        shouldShowAdminAssistance: hasError,
+      },
+    });
 
     return {
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
     };
-  }, [locationState]); // Remove step from dependencies as it doesn't affect error state
+  }, [locationState]);
 
-  // Debug and track component updates
+  // Single progress bar logic with error handling
   useEffect(() => {
-    console.log('LoadingBar effect triggered:', {
-      step,
-      locationState: {
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-      },
-      shouldShowError,
-      shouldShowAdminAssistance,
-    });
-  }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
+    if (locationState.status === 'error' || shouldShowError) {
+      setProgress(0);
+      return;
+    }
+
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
+    const interval = setInterval(() => {
+      setProgress((prev) => Math.min(prev + 1, target));
+    }, 30);
+
+    return () => clearInterval(interval);
+  }, [step, locationState.status, shouldShowError]);
 
   // Handle admin assistance request
   const handleRequestAssistance = async () => {
@@ -76,6 +83,21 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       setIsRequestingHelp(false);
     }
   };
+
+  // Debug state updates
+  useEffect(() => {
+    console.log('LoadingBar state update:', {
+      step,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+        triggerReason: locationState.triggerReason,
+      },
+      shouldShowError,
+      shouldShowAdminAssistance,
+    });
+  }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
 
   // Render error UI if shouldShowError is true
   const renderLocationStatus = () => {
