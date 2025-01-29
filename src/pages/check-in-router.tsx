@@ -253,14 +253,17 @@ const CheckInRouter: React.FC = () => {
 
     // Wait for state updates to complete
     const nextStep = (() => {
-      const hasError =
-        locationState.status === 'error' ||
-        Boolean(locationState.error) ||
-        Boolean(locationState.triggerReason);
-
-      if (hasError) return 'location';
-      if (locationState.status === 'loading') return currentStep;
       if (!userData) return 'user';
+      if (
+        locationState.status === 'error' ||
+        locationState.error ||
+        locationState.verificationStatus === 'needs_verification' ||
+        needsVerification
+      ) {
+        return 'location';
+      }
+      if (locationState.status === 'loading') return currentStep;
+      if (!isVerified) return 'location';
       return 'ready';
     })();
 
@@ -284,8 +287,10 @@ const CheckInRouter: React.FC = () => {
 
     const shouldShowLoading =
       currentStep === 'location' ||
+      currentStep === 'user' || // Add this
       locationState.status === 'error' ||
-      locationState.verificationStatus === 'needs_verification';
+      locationState.verificationStatus === 'needs_verification' ||
+      isAdminPending; // Add this
 
     if (shouldShowLoading) {
       setLoadingPhase('loading');
@@ -307,6 +312,7 @@ const CheckInRouter: React.FC = () => {
     loadingPhase,
     locationState.status,
     locationState.verificationStatus,
+    isAdminPending, // Add this
   ]);
 
   // Initial data fetch
@@ -470,7 +476,7 @@ const CheckInRouter: React.FC = () => {
     return (
       <>
         <div
-          key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}`}
+          key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}-${isAdminPending}`}
           className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
             loadingPhase === 'fadeOut' ? 'opacity-0' : 'opacity-100'
           }`}
