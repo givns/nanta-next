@@ -47,7 +47,10 @@ export function useAttendanceData({
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
 
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
-    enabled && employeeId && locationState.status === 'ready'
+    enabled &&
+      employeeId &&
+      (locationState.status === 'ready' ||
+        locationState.verificationStatus === 'verified')
       ? [
           '/api/attendance/status/[employeeId]',
           employeeId,
@@ -59,16 +62,21 @@ export function useAttendanceData({
       console.log('Fetching attendance data for:', {
         employeeId: id,
         lastOperation,
+        locationState,
         timestamp: new Date().toISOString(),
       });
 
       try {
         const response = await axios.get(`/api/attendance/status/${id}`, {
           params: {
-            inPremises: locationState.inPremises,
+            inPremises:
+              locationState.verificationStatus === 'verified'
+                ? true
+                : locationState.inPremises,
             address: locationState.address,
             confidence: locationState.confidence,
             coordinates: locationState.coordinates,
+            adminVerified: locationState.verificationStatus === 'verified',
             _t: new Date().getTime(),
           },
           timeout: REQUEST_TIMEOUT,
