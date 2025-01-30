@@ -106,6 +106,104 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
+  // Step evaluation logic
+  const evaluateStep = useCallback(() => {
+    if (authLoading) return 'auth';
+    if (!userData) return 'auth';
+
+    // Check for any location issues that require attention
+    const hasLocationIssue = Boolean(
+      locationState.status === 'error' ||
+        locationState.error ||
+        locationState.verificationStatus === 'needs_verification' ||
+        locationState.triggerReason === 'Location permission denied',
+    );
+
+    if (hasLocationIssue || needsVerification || !isVerified) {
+      return 'location';
+    }
+
+    // Check location initialization
+    if (
+      locationState.status === 'loading' ||
+      locationState.status === 'initializing'
+    ) {
+      return 'location';
+    }
+
+    // Check data loading
+    if (!userData.employeeId) {
+      return 'user';
+    }
+
+    return 'ready';
+  }, [authLoading, userData, locationState, needsVerification, isVerified]);
+
+  // Unified step management
+  useEffect(() => {
+    const nextStep = evaluateStep();
+    if (nextStep !== currentStep) {
+      console.log('Step Transition:', {
+        from: currentStep,
+        to: nextStep,
+        locationState: {
+          status: locationState.status,
+          error: locationState.error,
+          verificationStatus: locationState.verificationStatus,
+        },
+        needsVerification,
+        isVerified,
+        userData: Boolean(userData),
+      });
+      setCurrentStep(nextStep);
+    }
+  }, [
+    evaluateStep,
+    currentStep,
+    locationState,
+    needsVerification,
+    isVerified,
+    userData,
+  ]);
+
+  // Loading phase management
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    const shouldShowLoading =
+      currentStep === 'auth' ||
+      currentStep === 'user' ||
+      currentStep === 'location' ||
+      locationState.status === 'error' ||
+      locationState.verificationStatus === 'needs_verification' ||
+      isAdminPending;
+
+    if (shouldShowLoading) {
+      setLoadingPhase('loading');
+    } else if (currentStep === 'ready' && !attendanceLoading && userData) {
+      if (loadingPhase === 'loading') {
+        setLoadingPhase('fadeOut');
+      } else if (loadingPhase === 'fadeOut') {
+        timer = setTimeout(() => setLoadingPhase('complete'), 500);
+      }
+    }
+
+    return () => timer && clearTimeout(timer);
+  }, [
+    currentStep,
+    attendanceLoading,
+    userData,
+    loadingPhase,
+    locationState.status,
+    locationState.verificationStatus,
+    isAdminPending,
+  ]);
+
+  // Handlers
+  const handleLocationRetry = useCallback(async () => {
+    await verifyLocation(true);
+  }, [verifyLocation]);
+
   const handleRequestAdminAssistance = useCallback(async () => {
     if (!requestAdminAssistance) {
       console.warn('Admin assistance function is not available');
@@ -113,19 +211,16 @@ const CheckInRouter: React.FC = () => {
     }
 
     try {
-      console.log('Requesting admin assistance...');
       await requestAdminAssistance();
     } catch (error) {
       console.error('Error requesting admin assistance:', error);
     }
   }, [requestAdminAssistance]);
 
-  // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
 
     try {
-      setCurrentStep('user');
       const response = await fetch('/api/user-data', {
         headers: { 'x-line-userid': lineUserId },
       });
@@ -144,12 +239,6 @@ const CheckInRouter: React.FC = () => {
     }
   }, [lineUserId, authLoading, isInitialized]);
 
-  // Handle location retry
-  const handleLocationRetry = useCallback(async () => {
-    await verifyLocation(true);
-  }, [verifyLocation]);
-
-  // Next Day Data Handlers
   const fetchNextDayInfo = useCallback(async () => {
     if (!userData?.employeeId) return;
 
@@ -179,7 +268,7 @@ const CheckInRouter: React.FC = () => {
     [attendanceProps],
   );
 
-  // Then the dailyRecords memo that uses it
+  // Process daily records
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
 
@@ -216,7 +305,7 @@ const CheckInRouter: React.FC = () => {
     }
   }, [safeAttendanceProps?.base]);
 
-  // Check Period Completion
+  // Check period completion
   const isAllPeriodsCompleted = useMemo(() => {
     if (!safeAttendanceProps?.base) return false;
 
@@ -247,258 +336,97 @@ const CheckInRouter: React.FC = () => {
     }
   }, [safeAttendanceProps?.base, dailyRecords]);
 
-  // Location state effect
-  useEffect(() => {
-    console.log('Location state updated:', locationState);
-  }, [locationState]);
-
-  // Step management
-  const evaluateStep = useCallback(() => {
-    if (authLoading) return 'auth';
-    if (!userData) return 'user';
-
-    // Enhanced location error check
-    const hasLocationError = Boolean(
-      locationState.status === 'error' ||
-        locationState.error ||
-        locationState.verificationStatus === 'needs_verification' ||
-        locationState.triggerReason === 'Location permission denied',
-    );
-
-    // If we have a location error, ensure we stay on location step
-    if (hasLocationError || needsVerification || !isVerified) {
-      return 'location';
-    }
-
-    if (
-      locationState.status === 'loading' ||
-      locationState.status === 'initializing'
-    ) {
-      return 'location';
-    }
-
-    return 'ready';
-  }, [authLoading, userData, locationState, needsVerification, isVerified]);
-
-  // Add effect to log state changes
-  useEffect(() => {
-    console.log('Location State Change:', {
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      currentStep,
-      hasError: Boolean(
-        locationState.status === 'error' ||
-          locationState.error ||
-          locationState.verificationStatus === 'needs_verification',
-      ),
-      needsVerification,
-    });
-  }, [locationState, currentStep, needsVerification]);
-
-  // Loading Phase Management
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-
-    const shouldShowLoading =
-      currentStep === 'auth' ||
-      currentStep === 'user' ||
-      currentStep === 'location' ||
-      locationState.status === 'error' ||
-      locationState.verificationStatus === 'needs_verification' ||
-      isAdminPending;
-
-    if (shouldShowLoading) {
-      setLoadingPhase('loading');
-    } else if (currentStep === 'ready' && !attendanceLoading && userData) {
-      if (loadingPhase === 'loading') {
-        setLoadingPhase('fadeOut');
-      } else if (loadingPhase === 'fadeOut') {
-        timer = setTimeout(() => setLoadingPhase('complete'), 500);
-      }
-    }
-
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
-  }, [
-    currentStep,
-    attendanceLoading,
-    userData,
-    loadingPhase,
-    locationState.status,
-    locationState.verificationStatus,
-    isAdminPending,
-  ]);
-
   // Initial data fetch
   useEffect(() => {
     fetchUserData();
   }, [fetchUserData]);
 
-  useEffect(() => {
-    console.log('Router State:', {
-      currentStep,
-      locationState: {
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-      },
-      needsVerification,
-    });
-  }, [currentStep, locationState, needsVerification]);
-
-  const mainContent = useMemo(() => {
-    if (!userData || !safeAttendanceProps?.base?.state) return null;
-
-    const serializeRecords = (
-      records: Array<{
-        record: AttendanceRecord;
-        periodSequence: number;
-      }>,
-    ): Array<{
-      record: SerializedAttendanceRecord;
+  const serializeRecords = (
+    records: Array<{
+      record: AttendanceRecord;
       periodSequence: number;
-    }> => {
-      return records.map(({ record, periodSequence }) => ({
-        record: {
-          ...record,
-          date:
-            record.date instanceof Date
-              ? record.date.toISOString()
-              : record.date,
-          shiftStartTime:
-            record.shiftStartTime instanceof Date
-              ? record.shiftStartTime.toISOString()
-              : record.shiftStartTime,
-          shiftEndTime:
-            record.shiftEndTime instanceof Date
-              ? record.shiftEndTime.toISOString()
-              : record.shiftEndTime,
-          CheckInTime:
-            record.CheckInTime instanceof Date
-              ? record.CheckInTime.toISOString()
-              : record.CheckInTime,
-          CheckOutTime:
-            record.CheckOutTime instanceof Date
-              ? record.CheckOutTime.toISOString()
-              : record.CheckOutTime,
-          metadata: {
-            ...record.metadata,
-            createdAt:
-              record.metadata.createdAt instanceof Date
-                ? record.metadata.createdAt.toISOString()
-                : record.metadata.createdAt,
-            updatedAt:
-              record.metadata.updatedAt instanceof Date
-                ? record.metadata.updatedAt.toISOString()
-                : record.metadata.updatedAt,
-          },
-          overtimeEntries: record.overtimeEntries.map((entry) => ({
-            ...entry,
-            actualStartTime:
-              entry.actualStartTime instanceof Date
-                ? entry.actualStartTime.toISOString()
-                : entry.actualStartTime,
-            actualEndTime:
-              entry.actualEndTime instanceof Date
-                ? entry.actualEndTime.toISOString()
-                : entry.actualEndTime,
-            createdAt:
-              entry.createdAt instanceof Date
-                ? entry.createdAt.toISOString()
-                : entry.createdAt,
-            updatedAt:
-              entry.updatedAt instanceof Date
-                ? entry.updatedAt.toISOString()
-                : entry.updatedAt,
-          })),
-          timeEntries: record.timeEntries.map((entry) => ({
-            ...entry,
-            startTime:
-              entry.startTime instanceof Date
-                ? entry.startTime.toISOString()
-                : entry.startTime,
-            endTime:
-              entry.endTime instanceof Date
-                ? entry.endTime.toISOString()
-                : entry.endTime,
-            metadata: {
-              ...entry.metadata,
-              createdAt:
-                entry.metadata.createdAt instanceof Date
-                  ? entry.metadata.createdAt.toISOString()
-                  : entry.metadata.createdAt,
-              updatedAt:
-                entry.metadata.updatedAt instanceof Date
-                  ? entry.metadata.updatedAt.toISOString()
-                  : entry.metadata.updatedAt,
-            },
-          })),
+    }>,
+  ): Array<{
+    record: SerializedAttendanceRecord;
+    periodSequence: number;
+  }> => {
+    return records.map(({ record, periodSequence }) => ({
+      record: {
+        ...record,
+        date:
+          record.date instanceof Date ? record.date.toISOString() : record.date,
+        shiftStartTime:
+          record.shiftStartTime instanceof Date
+            ? record.shiftStartTime.toISOString()
+            : record.shiftStartTime,
+        shiftEndTime:
+          record.shiftEndTime instanceof Date
+            ? record.shiftEndTime.toISOString()
+            : record.shiftEndTime,
+        CheckInTime:
+          record.CheckInTime instanceof Date
+            ? record.CheckInTime.toISOString()
+            : record.CheckInTime,
+        CheckOutTime:
+          record.CheckOutTime instanceof Date
+            ? record.CheckOutTime.toISOString()
+            : record.CheckOutTime,
+        metadata: {
+          ...record.metadata,
+          createdAt:
+            record.metadata.createdAt instanceof Date
+              ? record.metadata.createdAt.toISOString()
+              : record.metadata.createdAt,
+          updatedAt:
+            record.metadata.updatedAt instanceof Date
+              ? record.metadata.updatedAt.toISOString()
+              : record.metadata.updatedAt,
         },
-        periodSequence,
-      }));
-    };
-
-    return (
-      <div className="min-h-screen flex flex-col bg-gray-50">
-        {isAdminPending && (
-          <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                {triggerReason && (
-                  <p className="mb-1 text-sm font-medium">
-                    เหตุผล: {triggerReason}
-                  </p>
-                )}
-                รอการยืนยันตำแหน่งจากเจ้าหน้าที่
-              </AlertDescription>
-            </Alert>
-          </div>
-        )}
-
-        {isAllPeriodsCompleted ? (
-          showNextDay ? (
-            isLoadingNextDay || !nextDayData ? (
-              <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-                <LoadingSpinner />
-              </div>
-            ) : (
-              <NextDayInfo
-                nextDayInfo={nextDayData}
-                onClose={() => setShowNextDay(false)}
-              />
-            )
-          ) : (
-            <TodaySummary
-              userData={userData}
-              records={serializeRecords(dailyRecords)}
-              onViewNextDay={handleViewNextDay}
-              onClose={closeWindow}
-            />
-          )
-        ) : (
-          <CheckInOutForm
-            userData={userData}
-            onComplete={closeWindow}
-            {...safeAttendanceProps}
-          />
-        )}
-      </div>
-    );
-  }, [
-    userData,
-    safeAttendanceProps,
-    dailyRecords,
-    isAllPeriodsCompleted,
-    showNextDay,
-    nextDayData,
-    isLoadingNextDay,
-    handleViewNextDay,
-    triggerReason,
-    isAdminPending,
-  ]);
+        overtimeEntries: record.overtimeEntries.map((entry) => ({
+          ...entry,
+          actualStartTime:
+            entry.actualStartTime instanceof Date
+              ? entry.actualStartTime.toISOString()
+              : entry.actualStartTime,
+          actualEndTime:
+            entry.actualEndTime instanceof Date
+              ? entry.actualEndTime.toISOString()
+              : entry.actualEndTime,
+          createdAt:
+            entry.createdAt instanceof Date
+              ? entry.createdAt.toISOString()
+              : entry.createdAt,
+          updatedAt:
+            entry.updatedAt instanceof Date
+              ? entry.updatedAt.toISOString()
+              : entry.updatedAt,
+        })),
+        timeEntries: record.timeEntries.map((entry) => ({
+          ...entry,
+          startTime:
+            entry.startTime instanceof Date
+              ? entry.startTime.toISOString()
+              : entry.startTime,
+          endTime:
+            entry.endTime instanceof Date
+              ? entry.endTime.toISOString()
+              : entry.endTime,
+          metadata: {
+            ...entry.metadata,
+            createdAt:
+              entry.metadata.createdAt instanceof Date
+                ? entry.metadata.createdAt.toISOString()
+                : entry.metadata.createdAt,
+            updatedAt:
+              entry.metadata.updatedAt instanceof Date
+                ? entry.metadata.updatedAt.toISOString()
+                : entry.metadata.updatedAt,
+          },
+        })),
+      },
+      periodSequence,
+    }));
+  };
 
   // Error state
   if (error || attendanceError) {
@@ -510,8 +438,10 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
+  // Main layout
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+      {/* Loading UI */}
       {loadingPhase !== 'complete' && (
         <div
           key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}-${isAdminPending}`}
@@ -528,6 +458,7 @@ const CheckInRouter: React.FC = () => {
         </div>
       )}
 
+      {/* Error recovery UI */}
       {loadingPhase === 'complete' && !safeAttendanceProps ? (
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
           <div className="text-center">
@@ -544,7 +475,54 @@ const CheckInRouter: React.FC = () => {
           </div>
         </div>
       ) : (
-        mainContent
+        /* Main content */
+        <div className="min-h-screen flex flex-col bg-gray-50">
+          {/* Admin pending notification */}
+          {isAdminPending && (
+            <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  {triggerReason && (
+                    <p className="mb-1 text-sm font-medium">
+                      เหตุผล: {triggerReason}
+                    </p>
+                  )}
+                  รอการยืนยันตำแหน่งจากเจ้าหน้าที่
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
+
+          {/* Content based on completion status */}
+          {isAllPeriodsCompleted ? (
+            showNextDay ? (
+              isLoadingNextDay || !nextDayData ? (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <NextDayInfo
+                  nextDayInfo={nextDayData}
+                  onClose={() => setShowNextDay(false)}
+                />
+              )
+            ) : (
+              <TodaySummary
+                userData={userData!}
+                records={serializeRecords(dailyRecords)}
+                onViewNextDay={handleViewNextDay}
+                onClose={closeWindow}
+              />
+            )
+          ) : (
+            <CheckInOutForm
+              userData={userData!}
+              onComplete={closeWindow}
+              {...safeAttendanceProps}
+            />
+          )}
+        </div>
       )}
     </div>
   );
