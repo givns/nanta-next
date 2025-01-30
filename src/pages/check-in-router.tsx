@@ -86,6 +86,16 @@ const CheckInRouter: React.FC = () => {
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
   const {
+    isLoading: attendanceLoading,
+    error: attendanceError,
+    refreshAttendanceStatus,
+    ...attendanceProps
+  } = useSimpleAttendance({
+    employeeId: userData?.employeeId,
+    lineUserId: lineUserId || '',
+    enabled: Boolean(userData?.employeeId && !authLoading),
+  });
+  const {
     locationState,
     isLoading: locationLoading,
     needsVerification,
@@ -94,20 +104,11 @@ const CheckInRouter: React.FC = () => {
     triggerReason,
     verifyLocation,
     requestAdminAssistance,
-  } = useLocationVerification(userData?.employeeId);
-
-  const {
-    isLoading: attendanceLoading,
-    error: attendanceError,
-    ...attendanceProps
-  } = useSimpleAttendance({
-    employeeId: userData?.employeeId,
-    lineUserId: lineUserId || '',
-    enabled: Boolean(userData?.employeeId && !authLoading),
+  } = useLocationVerification(userData?.employeeId, {
+    onAdminApproval: refreshAttendanceStatus, // Add this prop
   });
 
   // Step management
-  // Step evaluation logic
   const evaluateStep = useCallback(() => {
     // 1. First check auth
     if (authLoading) {

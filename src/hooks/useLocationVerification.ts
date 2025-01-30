@@ -8,6 +8,11 @@ import {
   LocationTriggerConfig,
   INITIAL_STATE,
 } from '@/types/attendance';
+import { mutate } from 'swr';
+
+interface LocationVerificationOptions extends Partial<LocationTriggerConfig> {
+  onAdminApproval?: () => Promise<void>;
+}
 
 const DEFAULT_CONFIG: LocationTriggerConfig = {
   maxAccuracy: 100,
@@ -23,7 +28,7 @@ const DEFAULT_CONFIG: LocationTriggerConfig = {
 
 const useLocationVerification = (
   employeeId?: string,
-  config: Partial<LocationTriggerConfig> = {},
+  options: LocationVerificationOptions = {},
 ): LocationStateContextType => {
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
@@ -39,12 +44,12 @@ const useLocationVerification = (
 
   // Initialize triggers
   useEffect(() => {
-    const mergedConfig = { ...DEFAULT_CONFIG, ...config };
+    const mergedConfig = { ...DEFAULT_CONFIG, ...options };
     triggerRef.current = new LocationVerificationTriggers(mergedConfig);
     return () => {
       isMounted.current = false;
     };
-  }, [config]);
+  }, [options]);
 
   // Immediate location state update handler
   useEffect(() => {
@@ -138,10 +143,7 @@ const useLocationVerification = (
         const response = await fetch(
           `/api/admin/location-assistance?requestId=${verificationState.adminRequestId}`,
         );
-        if (!response.ok) {
-          console.error('Failed to check admin request status');
-          return;
-        }
+        if (!response.ok) return;
 
         const data = await response.json();
         console.log('Admin request status check:', data);
@@ -151,17 +153,20 @@ const useLocationVerification = (
             'Location request approved by admin, proceeding with attendance',
           );
 
-          // Set state to verified since admin has confirmed user's presence
           setVerificationState((prev) => ({
             ...prev,
             status: 'ready',
-            verificationStatus: 'verified', // Mark as verified by admin
-            inPremises: true, // User is confirmed to be in premises
+            verificationStatus: 'verified',
+            inPremises: true,
             error: null,
             adminRequestId: undefined,
             triggerReason: null,
-            // Keep other location data as is since they were approved by admin
           }));
+
+          // Call the callback after state update
+          if (options.onAdminApproval) {
+            await options.onAdminApproval();
+          }
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
