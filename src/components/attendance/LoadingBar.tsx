@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LocationState } from '@/types/attendance';
@@ -83,21 +83,28 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   }, [step, locationState]);
 
   // Enhanced loading and error state management
+  // Track location state changes
+  const previousLocationState = useRef(locationState);
+
   useEffect(() => {
+    if (locationState === previousLocationState.current) return;
+
     console.log('LoadingBar State Update:', {
       status: locationState.status,
       error: locationState.error,
       verificationStatus: locationState.verificationStatus,
       step,
+      previousStatus: previousLocationState.current.status,
     });
 
-    // Don't set as not loading if we have an error or need verification
+    previousLocationState.current = locationState;
+
+    // Update loading state based on combined conditions
     const shouldBeLoading =
-      locationState.status === 'initializing' ||
-      locationState.status === 'loading' ||
-      (step === 'location' &&
-        !locationState.error &&
-        locationState.verificationStatus === 'pending');
+      (locationState.status === 'initializing' ||
+        locationState.status === 'loading') &&
+      !locationState.error &&
+      locationState.verificationStatus === 'pending';
 
     setIsLoading(shouldBeLoading);
   }, [locationState, step]);

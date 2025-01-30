@@ -28,8 +28,8 @@ const useLocationVerification = (
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
-  const triggerRef = useRef<LocationVerificationTriggers>();
   const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
+  const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
 
   const {
@@ -39,7 +39,7 @@ const useLocationVerification = (
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
-  // Initialization effect remains same
+  // Initialize triggers
   useEffect(() => {
     const mergedConfig = { ...DEFAULT_CONFIG, ...config };
     triggerRef.current = new LocationVerificationTriggers(mergedConfig);
@@ -48,7 +48,7 @@ const useLocationVerification = (
     };
   }, [config]);
 
-  // State update handler - consolidate all state updates here
+  // Synchronous state update handler
   const updateVerificationState = useCallback(
     (
       updates: Partial<LocationVerificationState>,
@@ -56,46 +56,47 @@ const useLocationVerification = (
     ) => {
       if (!isMounted.current) return;
 
-      setVerificationState((prev) => {
-        const nextState: LocationVerificationState = {
-          ...prev,
-          ...updates,
-          // Force verification status for error states
-          verificationStatus: (() => {
-            if (updates.status === 'error' || updates.error) {
-              return 'needs_verification' as const;
-            }
-            if (updates.verificationStatus) {
-              return updates.verificationStatus;
-            }
-            if (prev.verificationStatus === 'admin_pending') {
-              return 'admin_pending' as const;
-            }
-            return prev.verificationStatus;
-          })(),
-          // Preserve admin state
-          ...(prev.verificationStatus === 'admin_pending' && {
-            adminRequestId: prev.adminRequestId,
-          }),
-        };
+      // Create next state with proper verification status
+      const nextState: LocationVerificationState = {
+        ...stateRef.current,
+        ...updates,
+        // Determine verification status
+        verificationStatus: (() => {
+          if (updates.status === 'error' || updates.error) {
+            return 'needs_verification' as const;
+          }
+          if (updates.verificationStatus) {
+            return updates.verificationStatus;
+          }
+          if (stateRef.current.verificationStatus === 'admin_pending') {
+            return 'admin_pending' as const;
+          }
+          return stateRef.current.verificationStatus;
+        })(),
+        // Preserve admin state
+        ...(stateRef.current.verificationStatus === 'admin_pending' && {
+          adminRequestId: stateRef.current.adminRequestId,
+        }),
+      };
 
-        console.log('State Update:', {
-          source,
-          previous: prev,
-          updates,
-          next: nextState,
-        });
+      // Update refs immediately
+      stateRef.current = nextState;
+      previousStateRef.current = stateRef.current;
 
-        // Update refs synchronously
-        stateRef.current = nextState;
-        previousStateRef.current = prev;
-        return nextState;
+      // Then update React state
+      setVerificationState(nextState);
+
+      console.log('Verification State Update:', {
+        source,
+        previous: previousStateRef.current,
+        updates,
+        next: nextState,
       });
     },
     [],
   );
 
-  // Location state handler
+  // Enhanced location state handler
   useEffect(() => {
     if (!locationState || locationState === previousStateRef.current) return;
 
@@ -119,19 +120,17 @@ const useLocationVerification = (
         error: locationState.error || 'ไม่สามารถระบุตำแหน่งได้',
         triggerReason: locationState.error?.includes('ถูกปิดกั้น')
           ? 'Location permission denied'
-          : locationState.triggerReason || 'Unknown error',
+          : locationState.triggerReason || 'Location error',
       };
 
-      setVerificationState(errorState);
-      stateRef.current = errorState;
-      previousStateRef.current = locationState;
-
+      // Update state synchronously
+      updateVerificationState(errorState, 'location');
       console.log('Error State Set:', errorState);
       console.groupEnd();
       return;
     }
 
-    // Other state updates
+    // Handle other state updates
     updateVerificationState(
       {
         ...locationState,
@@ -144,27 +143,21 @@ const useLocationVerification = (
       },
       'location',
     );
+
     console.groupEnd();
   }, [locationState, updateVerificationState]);
 
-  const stateDebugger = useCallback(
-    (state: LocationVerificationState, label: string) => {
-      console.group(`🔍 Location State Debug: ${label}`);
-      console.log('Current State:', {
-        status: state.status,
-        error: state.error,
-        verificationStatus: state.verificationStatus,
-        triggerReason: state.triggerReason,
-      });
-      console.groupEnd();
-    },
-    [],
-  );
-
+  // Debug logging
   useEffect(() => {
-    stateDebugger(stateRef.current, 'StateRef Update');
-  }, [stateRef.current, stateDebugger]);
+    console.log('Location State Change:', {
+      status: stateRef.current.status,
+      error: stateRef.current.error,
+      verificationStatus: stateRef.current.verificationStatus,
+      triggerReason: stateRef.current.triggerReason,
+    });
+  }, [stateRef.current]);
 
+  // Verify location handler
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
@@ -228,6 +221,7 @@ const useLocationVerification = (
     [getCurrentLocation, updateVerificationState],
   );
 
+  // Admin assistance handler
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
 
@@ -277,26 +271,22 @@ const useLocationVerification = (
     }
   }, [employeeId, updateVerificationState]);
 
-  // Return values with proper state reflection
-  return useMemo(() => {
-    return {
-      locationState: verificationState, // Use state directly
-      isLoading: locationLoading || verificationState.status === 'loading',
+  // Return memoized state context
+  return useMemo(
+    () => ({
+      locationState: stateRef.current, // Use ref for immediate updates
+      isLoading: locationLoading || stateRef.current.status === 'loading',
       needsVerification:
-        verificationState.status === 'error' ||
-        verificationState.verificationStatus === 'needs_verification',
-      isVerified: verificationState.verificationStatus === 'verified',
-      isAdminPending: verificationState.verificationStatus === 'admin_pending',
-      triggerReason: verificationState.triggerReason,
+        stateRef.current.status === 'error' ||
+        stateRef.current.verificationStatus === 'needs_verification',
+      isVerified: stateRef.current.verificationStatus === 'verified',
+      isAdminPending: stateRef.current.verificationStatus === 'admin_pending',
+      triggerReason: stateRef.current.triggerReason,
       verifyLocation,
       requestAdminAssistance,
-    };
-  }, [
-    locationLoading,
-    verificationState,
-    verifyLocation,
-    requestAdminAssistance,
-  ]);
+    }),
+    [locationLoading, stateRef.current, verifyLocation, requestAdminAssistance],
+  );
 };
 
 export default useLocationVerification;
