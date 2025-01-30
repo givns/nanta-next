@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LocationState } from '@/types/attendance';
@@ -20,12 +20,8 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  console.log('LoadingBar receiving props:', locationState);
-
-  // Force evaluation on every locationState change
-  const { shouldShowError, shouldShowAdminAssistance } = useMemo(() => {
-    console.log('Evaluating LoadingBar state:', locationState);
-
+  // Function to calculate error state based on locationState
+  const getErrorState = (locationState: LocationState) => {
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -33,24 +29,21 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
-    console.log('LoadingBar evaluation result:', {
-      hasError,
-      state: locationState,
-    });
-
     return {
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
     };
-  }, [
-    locationState.status,
-    locationState.error,
-    locationState.verificationStatus,
-    locationState.triggerReason,
-  ]);
+  };
 
-  // Single progress bar logic with error handling
+  // Log locationState whenever it changes
   useEffect(() => {
+    console.log('LoadingBar locationState updated:', locationState);
+  }, [locationState]);
+
+  // Update progress bar when step or locationState changes
+  useEffect(() => {
+    const { shouldShowError } = getErrorState(locationState);
+
     if (locationState.status === 'error' || shouldShowError) {
       setProgress(0);
       return;
@@ -62,7 +55,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }, 30);
 
     return () => clearInterval(interval);
-  }, [step, locationState.status, shouldShowError]);
+  }, [step, locationState]);
 
   // Set loading state based on locationState
   useEffect(() => {
@@ -86,23 +79,16 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }
   };
 
-  // Debug state updates
-  useEffect(() => {
-    console.log('LoadingBar state update:', {
-      step,
-      locationState: {
-        status: locationState.status,
-        error: locationState.error,
-        verificationStatus: locationState.verificationStatus,
-        triggerReason: locationState.triggerReason,
-      },
-      shouldShowError,
-      shouldShowAdminAssistance,
-    });
-  }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
+  // Render loading state if still initializing
+  if (isLoading) {
+    return <div>กำลังโหลด...</div>;
+  }
+
+  const { shouldShowError, shouldShowAdminAssistance } =
+    getErrorState(locationState);
 
   // Render error UI if shouldShowError is true
-  const renderLocationStatus = useMemo(() => {
+  const renderLocationStatus = () => {
     if (!shouldShowError) return null;
 
     return (
@@ -139,23 +125,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
       </div>
     );
-  }, [
-    shouldShowError,
-    shouldShowAdminAssistance,
-    locationState.error,
-    onLocationRetry,
-    onRequestAdminAssistance,
-    isRequestingHelp,
-  ]);
-
-  // Render loading state if still initializing
-  useEffect(() => {
-    setIsLoading(locationState.status === 'initializing');
-  }, [locationState.status]);
-
-  if (isLoading) {
-    return <div>กำลังโหลด...</div>;
-  }
+  };
 
   // Steps configuration
   const steps = {
@@ -187,7 +157,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
-          className={`text-6xl mb-8 ${step === 'location' && locationState.status === 'loading' ? 'animate-bounce' : ''}`}
+          className={`text-6xl mb-8 ${
+            step === 'location' && locationState.status === 'loading'
+              ? 'animate-bounce'
+              : ''
+          }`}
         >
           {currentStep.icon}
         </div>
@@ -205,7 +179,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
 
         <div className="text-gray-700 font-medium">{currentStep.message}</div>
-        {renderLocationStatus}
+        {renderLocationStatus()}
       </div>
     </div>
   );
