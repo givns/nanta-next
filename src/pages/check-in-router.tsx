@@ -107,11 +107,19 @@ const CheckInRouter: React.FC = () => {
   });
 
   // Step management
+  // Step evaluation logic
   const evaluateStep = useCallback(() => {
-    if (authLoading) return 'auth';
-    if (!userData) return 'user';
+    // 1. First check auth
+    if (authLoading) {
+      return 'auth';
+    }
 
-    // If location is in error state or needs verification, immediately go to location step
+    // 2. Then check user data
+    if (!userData?.employeeId) {
+      return 'user';
+    }
+
+    // 3. Finally handle location states
     const hasLocationIssue = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -119,21 +127,20 @@ const CheckInRouter: React.FC = () => {
         locationState.triggerReason === 'Location permission denied',
     );
 
-    if (hasLocationIssue) {
+    if (hasLocationIssue || needsVerification || !isVerified) {
       return 'location';
     }
 
-    // Continue with normal flow
+    // 4. Only proceed to location checks if we have user data
     if (
       locationState.status === 'loading' ||
       locationState.status === 'initializing'
     ) {
       return 'location';
     }
-    if (!isVerified) return 'location';
 
     return 'ready';
-  }, [authLoading, userData, locationState, isVerified]);
+  }, [authLoading, userData, locationState, needsVerification, isVerified]);
 
   // Debug effect to track state changes
   useEffect(() => {
@@ -250,7 +257,6 @@ const CheckInRouter: React.FC = () => {
     if (!lineUserId || authLoading || !isInitialized) return;
 
     try {
-      setCurrentStep('user');
       const response = await fetch('/api/user-data', {
         headers: { 'x-line-userid': lineUserId },
       });
@@ -267,7 +273,7 @@ const CheckInRouter: React.FC = () => {
         error instanceof Error ? error.message : 'Failed to fetch user data',
       );
     }
-  }, [lineUserId, authLoading, isInitialized, evaluateStep]);
+  }, [lineUserId, authLoading, isInitialized]); // Remove locationState dependency
 
   // Next Day Data Handlers
   const fetchNextDayInfo = useCallback(async () => {

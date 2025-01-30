@@ -21,7 +21,15 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Function to calculate error state based on locationState
   const getErrorState = (locationState: LocationState) => {
-    // Check for any error condition explicitly
+    // Only show location errors when we're on location step
+    if (step !== 'location') {
+      return {
+        shouldShowError: false,
+        shouldShowAdminAssistance: false,
+        errorMessage: null,
+      };
+    }
+
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -30,7 +38,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     );
 
     let errorMessage = locationState.error;
-    if (!errorMessage) {
+    if (!errorMessage && hasError) {
       if (locationState.status === 'error') {
         errorMessage = 'เกิดข้อผิดพลาดในการระบุตำแหน่ง';
       } else if (locationState.verificationStatus === 'needs_verification') {
@@ -42,23 +50,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
     return {
       shouldShowError: hasError,
-      shouldShowAdminAssistance: hasError && step === 'location',
+      shouldShowAdminAssistance: hasError,
       errorMessage,
     };
   };
 
-  // Update progress bar and handle error states
+  // Update progress bar based on step sequence
   useEffect(() => {
     const { shouldShowError } = getErrorState(locationState);
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
 
-    // If we have an error or are in the location step with verification needed,
-    // set progress based on error state
+    // Reset progress if we have a location error
     if (shouldShowError && step === 'location') {
       setProgress(0);
       return;
     }
 
-    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
     const interval = setInterval(() => {
       setProgress((prev) => Math.min(prev + 1, target));
     }, 30);
@@ -86,9 +93,34 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const { shouldShowError, shouldShowAdminAssistance, errorMessage } =
     getErrorState(locationState);
 
-  // Enhanced error UI rendering
+  // Steps configuration - matches the sequence
+  const steps = {
+    auth: {
+      message: 'ตรวจสอบสิทธิ์การเข้างาน',
+      color: 'bg-yellow-500',
+      icon: <i className="fi fi-rs-key"></i>,
+    },
+    user: {
+      message: 'โหลดข้อมูลพนักงาน',
+      color: 'bg-yellow-500',
+      icon: <i className="fi fi-br-user"></i>,
+    },
+    location: {
+      message: 'ตรวจสอบตำแหน่ง',
+      color: 'bg-orange-500',
+      icon: <i className="fi fi-br-map-pin"></i>,
+    },
+    ready: {
+      message: 'เตรียมระบบบันทึกเวลา',
+      color: 'bg-red-500',
+      icon: <i className="fi fi-br-time-check"></i>,
+    },
+  };
+
+  const currentStep = steps[step];
+
+  // Enhanced error UI rendering - only show on location step
   const renderLocationStatus = () => {
-    // Always show error if it exists and we're in the location step
     if (!shouldShowError || step !== 'location') return null;
 
     return (
@@ -126,32 +158,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       </div>
     );
   };
-
-  // Steps configuration
-  const steps = {
-    auth: {
-      message: 'ตรวจสอบสิทธิ์การเข้างาน',
-      color: 'bg-yellow-500',
-      icon: <i className="fi fi-rs-key"></i>,
-    },
-    user: {
-      message: 'โหลดข้อมูลพนักงาน',
-      color: 'bg-yellow-500',
-      icon: <i className="fi fi-br-user"></i>,
-    },
-    location: {
-      message: 'ตรวจสอบตำแหน่ง',
-      color: 'bg-orange-500',
-      icon: <i className="fi fi-br-map-pin"></i>,
-    },
-    ready: {
-      message: 'เตรียมระบบบันทึกเวลา',
-      color: 'bg-red-500',
-      icon: <i className="fi fi-br-time-check"></i>,
-    },
-  };
-
-  const currentStep = steps[step];
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
