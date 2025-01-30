@@ -146,21 +146,26 @@ const useLocationVerification = (
         console.log('Admin request status check:', data);
 
         if (data.status === 'APPROVED') {
-          console.log('Location request approved, resetting state');
+          console.log(
+            'Location request approved, transitioning to loading state',
+          );
 
-          // Reset verification state
+          // First transition to loading state
           setVerificationState((prev) => ({
             ...prev,
-            status: 'initializing',
+            status: 'loading',
             verificationStatus: 'pending',
             error: null,
             adminRequestId: undefined,
             triggerReason: null,
+            accuracy: 0, // Reset accuracy for proper transition
           }));
 
-          // Trigger new location check after a short delay
+          // Then after a short delay, try location verification
           setTimeout(() => {
-            verifyLocation(true);
+            verifyLocation(true).catch((error) => {
+              console.error('Error retrying location verification:', error);
+            });
           }, 1000);
         }
       } catch (error) {
