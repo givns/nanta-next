@@ -18,6 +18,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   console.log('LoadingBar receiving props:', locationState);
 
@@ -63,6 +64,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return () => clearInterval(interval);
   }, [step, locationState.status, shouldShowError]);
 
+  // Set loading state based on locationState
+  useEffect(() => {
+    setIsLoading(locationState.status === 'initializing');
+  }, [locationState.status]);
+
   // Handle admin assistance request
   const handleRequestAssistance = async () => {
     if (!onRequestAdminAssistance) {
@@ -96,14 +102,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   }, [step, locationState, shouldShowError, shouldShowAdminAssistance]);
 
   // Render error UI if shouldShowError is true
-  const renderLocationStatus = () => {
-    console.log('Rendering status:', {
-      shouldShowError,
-      shouldShowAdminAssistance,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-    });
-
+  const renderLocationStatus = useMemo(() => {
     if (!shouldShowError) return null;
 
     return (
@@ -140,7 +139,19 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
       </div>
     );
-  };
+  }, [
+    shouldShowError,
+    shouldShowAdminAssistance,
+    locationState.error,
+    onLocationRetry,
+    onRequestAdminAssistance,
+    isRequestingHelp,
+  ]);
+
+  // Render loading state if still initializing
+  if (isLoading) {
+    return <div>กำลังโหลด...</div>;
+  }
 
   // Steps configuration
   const steps = {
@@ -190,7 +201,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         </div>
 
         <div className="text-gray-700 font-medium">{currentStep.message}</div>
-        {renderLocationStatus()}
+        {renderLocationStatus}
       </div>
     </div>
   );
