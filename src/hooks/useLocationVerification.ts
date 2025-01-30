@@ -25,10 +25,8 @@ const useLocationVerification = (
   employeeId?: string,
   config: Partial<LocationTriggerConfig> = {},
 ): LocationStateContextType => {
-  // Keep both state and ref for different purposes
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
-  const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
 
@@ -48,42 +46,14 @@ const useLocationVerification = (
     };
   }, [config]);
 
-  // Synchronous state update handler
-  const updateVerificationState = useCallback(
-    (
-      updates: Partial<LocationVerificationState>,
-      source: 'location' | 'verification' | 'admin',
-    ) => {
-      if (!isMounted.current) return;
-
-      const nextState: LocationVerificationState = {
-        ...stateRef.current,
-        ...updates,
-        verificationStatus:
-          updates.status === 'error' || updates.error
-            ? 'needs_verification'
-            : updates.verificationStatus || stateRef.current.verificationStatus,
-      };
-
-      // Important: Update both ref and state
-      stateRef.current = nextState;
-      setVerificationState(nextState);
-
-      console.log('Verification State Update:', {
-        source,
-        nextState,
-      });
-    },
-    [],
-  );
-
-  // Location state handler
+  // Immediate location state update handler
   useEffect(() => {
     if (!locationState) return;
 
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
+    // Handle error states immediately
     if (locationState.status === 'error' || locationState.error) {
       const errorState: LocationVerificationState = {
         status: 'error',
@@ -99,14 +69,14 @@ const useLocationVerification = (
           : locationState.triggerReason || 'Location error',
       };
 
-      updateVerificationState(errorState, 'location');
+      setVerificationState(errorState);
       console.log('Error State Set:', errorState);
       console.groupEnd();
       return;
     }
 
-    // For non-error states, update with current location state
-    const newState: LocationVerificationState = {
+    // For non-error states
+    setVerificationState({
       ...locationState,
       verificationStatus:
         locationState.status === 'ready' && locationState.inPremises
@@ -114,11 +84,10 @@ const useLocationVerification = (
           : locationState.status === 'ready'
             ? 'needs_verification'
             : 'pending',
-    };
+    });
 
-    updateVerificationState(newState, 'location');
     console.groupEnd();
-  }, [locationState, updateVerificationState]);
+  }, [locationState]);
 
   // Verify location handler
   const verifyLocation = useCallback(
@@ -126,117 +95,82 @@ const useLocationVerification = (
       if (!triggerRef.current) return false;
 
       try {
-        updateVerificationState(
-          {
-            status: 'loading',
-            error: null,
-            verificationStatus: 'pending',
-          },
-          'verification',
-        );
+        setVerificationState((prev) => ({
+          ...prev,
+          status: 'loading',
+          error: null,
+          verificationStatus: 'pending',
+        }));
 
         const location = await getCurrentLocation(force);
-
-        if (location.status === 'error' || location.error) {
-          const trigger =
-            triggerRef.current.shouldTriggerAdminAssistance(location);
-          updateVerificationState(
-            {
-              ...location,
-              status: 'error',
-              verificationStatus: 'needs_verification',
-              triggerReason: trigger.reason,
-            },
-            'verification',
-          );
-          return false;
-        }
-
-        updateVerificationState(
-          {
-            ...location,
-            status: 'ready',
-            verificationStatus: location.inPremises
-              ? 'verified'
-              : 'needs_verification',
-          },
-          'verification',
-        );
-
         return location.inPremises;
       } catch (error) {
         console.error('Location verification error:', error);
-        updateVerificationState(
-          {
-            status: 'error',
-            verificationStatus: 'needs_verification',
-            error:
-              error instanceof Error
-                ? error.message
-                : 'Location verification failed',
-            triggerReason: 'Unexpected error during verification',
-          },
-          'verification',
-        );
+        setVerificationState({
+          status: 'error',
+          verificationStatus: 'needs_verification',
+          inPremises: false,
+          address: '',
+          confidence: 'low',
+          accuracy: 0,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Location verification failed',
+          triggerReason: 'Unexpected error during verification',
+        });
         return false;
       }
     },
-    [getCurrentLocation, updateVerificationState],
+    [getCurrentLocation],
   );
 
-  // Request admin assistance
+  // Request admin assistance handler
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
 
     try {
-      updateVerificationState(
-        {
-          status: 'pending_admin',
-          verificationStatus: 'admin_pending',
-        },
-        'admin',
-      );
+      setVerificationState((prev) => ({
+        ...prev,
+        status: 'pending_admin',
+        verificationStatus: 'admin_pending',
+      }));
 
       const response = await fetch('/api/admin/location-assistance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId,
-          coordinates: stateRef.current.coordinates,
-          address: stateRef.current.address,
-          accuracy: stateRef.current.accuracy,
+          coordinates: verificationState.coordinates,
+          address: verificationState.address,
+          accuracy: verificationState.accuracy,
           timestamp: new Date().toISOString(),
-          reason: stateRef.current.triggerReason,
+          reason: verificationState.triggerReason,
         }),
       });
 
       if (!response.ok) throw new Error('Failed to request admin assistance');
 
       const data = await response.json();
-      updateVerificationState(
-        {
-          status: 'waiting_admin',
-          verificationStatus: 'admin_pending',
-          adminRequestId: data.requestId,
-        },
-        'admin',
-      );
+      setVerificationState((prev) => ({
+        ...prev,
+        status: 'waiting_admin',
+        verificationStatus: 'admin_pending',
+        adminRequestId: data.requestId,
+      }));
     } catch (error) {
-      updateVerificationState(
-        {
-          status: 'error',
-          verificationStatus: 'needs_verification',
-          error: 'Failed to request admin assistance',
-        },
-        'admin',
-      );
+      setVerificationState((prev) => ({
+        ...prev,
+        status: 'error',
+        verificationStatus: 'needs_verification',
+        error: 'Failed to request admin assistance',
+      }));
       throw error;
     }
-  }, [employeeId, updateVerificationState]);
+  }, [employeeId, verificationState]);
 
-  // Return the verification state context
   return {
-    locationState: verificationState, // Important: Return state, not ref
+    locationState: verificationState,
     isLoading: locationLoading || verificationState.status === 'loading',
     needsVerification:
       verificationState.status === 'error' ||
