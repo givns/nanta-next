@@ -1,9 +1,5 @@
 // schemas/location-assistance.ts
 import { z } from 'zod';
-import {
-  LocationRequestSource,
-  LocationAssistanceStatus,
-} from '@/types/attendance';
 
 export const LocationCoordinatesSchema = z.object({
   lat: z.number(),

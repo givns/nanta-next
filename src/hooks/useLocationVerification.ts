@@ -125,33 +125,70 @@ const useLocationVerification = (
     [getCurrentLocation],
   );
 
-  // Request admin assistance handler
   const requestAdminAssistance = useCallback(async () => {
-    if (!employeeId) return;
+    if (!employeeId) {
+      console.error('Cannot request admin assistance without employeeId');
+      return;
+    }
 
     try {
+      // Update initial state
       setVerificationState((prev) => ({
         ...prev,
         status: 'pending_admin',
         verificationStatus: 'admin_pending',
       }));
 
+      // Format coordinates according to schema
+      const coordinates = verificationState.coordinates
+        ? {
+            lat: verificationState.coordinates.lat,
+            lng: verificationState.coordinates.lng,
+            accuracy: verificationState.accuracy,
+          }
+        : undefined;
+
+      console.log('Requesting admin assistance:', {
+        employeeId,
+        coordinates,
+        reason: verificationState.triggerReason,
+      });
+
       const response = await fetch('/api/admin/location-assistance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId,
-          coordinates: verificationState.coordinates,
-          address: verificationState.address,
-          accuracy: verificationState.accuracy,
+          coordinates,
+          address: verificationState.address || undefined,
+          accuracy: verificationState.accuracy || 0,
           timestamp: new Date().toISOString(),
-          reason: verificationState.triggerReason,
+          reason:
+            verificationState.error ||
+            verificationState.triggerReason ||
+            'Location verification needed',
+          source: 'web' as const,
+          metadata: {
+            source: 'web' as const,
+            version: '1.0',
+            device: {
+              platform: 'web',
+            },
+          },
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to request admin assistance');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message || 'Failed to request admin assistance',
+        );
+      }
 
       const data = await response.json();
+      console.log('Admin assistance response:', data);
+
+      // Update with request ID on success
       setVerificationState((prev) => ({
         ...prev,
         status: 'waiting_admin',
@@ -159,11 +196,15 @@ const useLocationVerification = (
         adminRequestId: data.requestId,
       }));
     } catch (error) {
+      console.error('Error requesting admin assistance:', error);
       setVerificationState((prev) => ({
         ...prev,
         status: 'error',
         verificationStatus: 'needs_verification',
-        error: 'Failed to request admin assistance',
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to request admin assistance',
       }));
       throw error;
     }
