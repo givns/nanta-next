@@ -106,12 +106,13 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  // Step evaluation logic
+  // Inside CheckInRouter component
+
   const evaluateStep = useCallback(() => {
     if (authLoading) return 'auth';
-    if (!userData) return 'auth';
+    if (!userData) return 'user';
 
-    // Check for any location issues that require attention
+    // If location is in error state or needs verification, immediately go to location step
     const hasLocationIssue = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -119,25 +120,38 @@ const CheckInRouter: React.FC = () => {
         locationState.triggerReason === 'Location permission denied',
     );
 
-    if (hasLocationIssue || needsVerification || !isVerified) {
+    if (hasLocationIssue) {
       return 'location';
     }
 
-    // Check location initialization
+    // Continue with normal flow
     if (
       locationState.status === 'loading' ||
       locationState.status === 'initializing'
     ) {
       return 'location';
     }
-
-    // Check data loading
-    if (!userData.employeeId) {
-      return 'user';
-    }
+    if (!isVerified) return 'location';
 
     return 'ready';
-  }, [authLoading, userData, locationState, needsVerification, isVerified]);
+  }, [authLoading, userData, locationState, isVerified]);
+
+  // Debug effect to track state changes
+  useEffect(() => {
+    console.log('Step Evaluation State:', {
+      locationStatus: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
+      currentStep,
+      hasError: Boolean(
+        locationState.status === 'error' ||
+          locationState.error ||
+          locationState.verificationStatus === 'needs_verification',
+      ),
+      needsVerification,
+      isVerified,
+    });
+  }, [locationState, currentStep, needsVerification, isVerified]);
 
   // Unified step management
   useEffect(() => {
