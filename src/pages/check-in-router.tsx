@@ -256,33 +256,45 @@ const CheckInRouter: React.FC = () => {
   const evaluateStep = useCallback(() => {
     if (authLoading) return 'auth';
     if (!userData) return 'user';
-    if (
+
+    // Enhanced location error check
+    const hasLocationError = Boolean(
       locationState.status === 'error' ||
-      locationState.error ||
-      locationState.verificationStatus === 'needs_verification' ||
-      needsVerification
+        locationState.error ||
+        locationState.verificationStatus === 'needs_verification' ||
+        locationState.triggerReason === 'Location permission denied',
+    );
+
+    // If we have a location error, ensure we stay on location step
+    if (hasLocationError || needsVerification || !isVerified) {
+      return 'location';
+    }
+
+    if (
+      locationState.status === 'loading' ||
+      locationState.status === 'initializing'
     ) {
       return 'location';
     }
-    if (locationState.status === 'loading') return 'location';
-    if (!isVerified) return 'location';
+
     return 'ready';
   }, [authLoading, userData, locationState, needsVerification, isVerified]);
 
+  // Add effect to log state changes
   useEffect(() => {
-    const nextStep = evaluateStep();
-
-    console.log('Step Evaluation:', {
-      current: currentStep,
-      next: nextStep,
-      state: locationState,
-      hasError: locationState.status === 'error',
-      needsVerification:
-        locationState.verificationStatus === 'needs_verification',
+    console.log('Location State Change:', {
+      status: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
+      currentStep,
+      hasError: Boolean(
+        locationState.status === 'error' ||
+          locationState.error ||
+          locationState.verificationStatus === 'needs_verification',
+      ),
+      needsVerification,
     });
-
-    setCurrentStep(nextStep);
-  }, [evaluateStep, currentStep, locationState]);
+  }, [locationState, currentStep, needsVerification]);
 
   // Loading Phase Management
   useEffect(() => {

@@ -22,12 +22,22 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Enhanced error state evaluation
   const getErrorState = (locationState: LocationState) => {
+    // Ensure this matches the router's error check logic
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
         locationState.verificationStatus === 'needs_verification' ||
         locationState.triggerReason === 'Location permission denied',
     );
+
+    // Log state evaluation for debugging
+    console.log('LoadingBar Error Evaluation:', {
+      status: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
+      triggerReason: locationState.triggerReason,
+      hasError,
+    });
 
     // Determine error message based on state
     let errorMessage = locationState.error;
