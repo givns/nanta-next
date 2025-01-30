@@ -25,10 +25,10 @@ const useLocationVerification = (
   employeeId?: string,
   config: Partial<LocationTriggerConfig> = {},
 ): LocationStateContextType => {
+  // Keep both state and ref for different purposes
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
-  const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
 
@@ -56,59 +56,35 @@ const useLocationVerification = (
     ) => {
       if (!isMounted.current) return;
 
-      // Create next state with proper verification status
       const nextState: LocationVerificationState = {
         ...stateRef.current,
         ...updates,
-        // Determine verification status
-        verificationStatus: (() => {
-          if (updates.status === 'error' || updates.error) {
-            return 'needs_verification' as const;
-          }
-          if (updates.verificationStatus) {
-            return updates.verificationStatus;
-          }
-          if (stateRef.current.verificationStatus === 'admin_pending') {
-            return 'admin_pending' as const;
-          }
-          return stateRef.current.verificationStatus;
-        })(),
-        // Preserve admin state
-        ...(stateRef.current.verificationStatus === 'admin_pending' && {
-          adminRequestId: stateRef.current.adminRequestId,
-        }),
+        verificationStatus:
+          updates.status === 'error' || updates.error
+            ? 'needs_verification'
+            : updates.verificationStatus || stateRef.current.verificationStatus,
       };
 
-      // Update refs immediately
+      // Important: Update both ref and state
       stateRef.current = nextState;
-      previousStateRef.current = stateRef.current;
-
-      // Then update React state
       setVerificationState(nextState);
 
       console.log('Verification State Update:', {
         source,
-        previous: previousStateRef.current,
-        updates,
-        next: nextState,
+        nextState,
       });
     },
     [],
   );
 
-  // Enhanced location state handler
+  // Location state handler
   useEffect(() => {
-    if (!locationState || locationState === previousStateRef.current) return;
+    if (!locationState) return;
 
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
-    // Handle error states first and synchronously
-    if (
-      locationState instanceof GeolocationPositionError ||
-      locationState.status === 'error' ||
-      locationState.error
-    ) {
+    if (locationState.status === 'error' || locationState.error) {
       const errorState: LocationVerificationState = {
         status: 'error',
         verificationStatus: 'needs_verification',
@@ -123,39 +99,26 @@ const useLocationVerification = (
           : locationState.triggerReason || 'Location error',
       };
 
-      // Update state synchronously
       updateVerificationState(errorState, 'location');
       console.log('Error State Set:', errorState);
       console.groupEnd();
       return;
     }
 
-    // Handle other state updates
-    updateVerificationState(
-      {
-        ...locationState,
-        verificationStatus:
-          locationState.status === 'ready' && locationState.inPremises
-            ? 'verified'
-            : locationState.status === 'ready'
-              ? 'needs_verification'
-              : 'pending',
-      },
-      'location',
-    );
+    // For non-error states, update with current location state
+    const newState: LocationVerificationState = {
+      ...locationState,
+      verificationStatus:
+        locationState.status === 'ready' && locationState.inPremises
+          ? 'verified'
+          : locationState.status === 'ready'
+            ? 'needs_verification'
+            : 'pending',
+    };
 
+    updateVerificationState(newState, 'location');
     console.groupEnd();
   }, [locationState, updateVerificationState]);
-
-  // Debug logging
-  useEffect(() => {
-    console.log('Location State Change:', {
-      status: stateRef.current.status,
-      error: stateRef.current.error,
-      verificationStatus: stateRef.current.verificationStatus,
-      triggerReason: stateRef.current.triggerReason,
-    });
-  }, [stateRef.current]);
 
   // Verify location handler
   const verifyLocation = useCallback(
@@ -221,7 +184,7 @@ const useLocationVerification = (
     [getCurrentLocation, updateVerificationState],
   );
 
-  // Admin assistance handler
+  // Request admin assistance
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
 
@@ -271,22 +234,19 @@ const useLocationVerification = (
     }
   }, [employeeId, updateVerificationState]);
 
-  // Return memoized state context
-  return useMemo(
-    () => ({
-      locationState: stateRef.current, // Use ref for immediate updates
-      isLoading: locationLoading || stateRef.current.status === 'loading',
-      needsVerification:
-        stateRef.current.status === 'error' ||
-        stateRef.current.verificationStatus === 'needs_verification',
-      isVerified: stateRef.current.verificationStatus === 'verified',
-      isAdminPending: stateRef.current.verificationStatus === 'admin_pending',
-      triggerReason: stateRef.current.triggerReason,
-      verifyLocation,
-      requestAdminAssistance,
-    }),
-    [locationLoading, stateRef.current, verifyLocation, requestAdminAssistance],
-  );
+  // Return the verification state context
+  return {
+    locationState: verificationState, // Important: Return state, not ref
+    isLoading: locationLoading || verificationState.status === 'loading',
+    needsVerification:
+      verificationState.status === 'error' ||
+      verificationState.verificationStatus === 'needs_verification',
+    isVerified: verificationState.verificationStatus === 'verified',
+    isAdminPending: verificationState.verificationStatus === 'admin_pending',
+    triggerReason: verificationState.triggerReason,
+    verifyLocation,
+    requestAdminAssistance,
+  };
 };
 
 export default useLocationVerification;
