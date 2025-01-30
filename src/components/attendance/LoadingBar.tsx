@@ -22,7 +22,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Enhanced error state evaluation
   const getErrorState = (locationState: LocationState) => {
-    // Ensure this matches the router's error check logic
+    // Enhanced error state evaluation that considers step transitions
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -30,13 +30,20 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
-    // Log state evaluation for debugging
+    // Determine if we should force show error UI
+    const forceShowError =
+      step === 'location' &&
+      (locationState.status === 'error' ||
+        locationState.verificationStatus === 'needs_verification');
+
     console.log('LoadingBar Error Evaluation:', {
       status: locationState.status,
       error: locationState.error,
       verificationStatus: locationState.verificationStatus,
       triggerReason: locationState.triggerReason,
+      step,
       hasError,
+      forceShowError,
     });
 
     // Determine error message based on state
@@ -75,10 +82,25 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return () => clearInterval(interval);
   }, [step, locationState]);
 
-  // Set loading state based on locationState
+  // Enhanced loading and error state management
   useEffect(() => {
-    setIsLoading(locationState.status === 'initializing');
-  }, [locationState.status]);
+    console.log('LoadingBar State Update:', {
+      status: locationState.status,
+      error: locationState.error,
+      verificationStatus: locationState.verificationStatus,
+      step,
+    });
+
+    // Don't set as not loading if we have an error or need verification
+    const shouldBeLoading =
+      locationState.status === 'initializing' ||
+      locationState.status === 'loading' ||
+      (step === 'location' &&
+        !locationState.error &&
+        locationState.verificationStatus === 'pending');
+
+    setIsLoading(shouldBeLoading);
+  }, [locationState, step]);
 
   // Handle admin assistance request
   const handleRequestAssistance = async () => {
@@ -97,8 +119,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }
   };
 
-  // Render loading state if still initializing
-  if (isLoading) {
+  // Don't show loading placeholder when we have an error
+  if (
+    isLoading &&
+    !locationState.error &&
+    locationState.verificationStatus !== 'needs_verification'
+  ) {
     return <div>กำลังโหลด...</div>;
   }
 
