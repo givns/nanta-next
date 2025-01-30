@@ -129,8 +129,9 @@ const useLocationVerification = (
   useEffect(() => {
     let pollTimer: NodeJS.Timeout;
 
+    // Inside useLocationVerification hook
+
     const checkAdminRequestStatus = async () => {
-      // Only check if we have an adminRequestId
       if (!verificationState.adminRequestId) return;
 
       try {
@@ -147,26 +148,20 @@ const useLocationVerification = (
 
         if (data.status === 'APPROVED') {
           console.log(
-            'Location request approved, transitioning to loading state',
+            'Location request approved by admin, proceeding with attendance',
           );
 
-          // First transition to loading state
+          // Set state to verified since admin has confirmed user's presence
           setVerificationState((prev) => ({
             ...prev,
-            status: 'loading',
-            verificationStatus: 'pending',
+            status: 'ready',
+            verificationStatus: 'verified', // Mark as verified by admin
+            inPremises: true, // User is confirmed to be in premises
             error: null,
             adminRequestId: undefined,
             triggerReason: null,
-            accuracy: 0, // Reset accuracy for proper transition
+            // Keep other location data as is since they were approved by admin
           }));
-
-          // Then after a short delay, try location verification
-          setTimeout(() => {
-            verifyLocation(true).catch((error) => {
-              console.error('Error retrying location verification:', error);
-            });
-          }, 1000);
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
