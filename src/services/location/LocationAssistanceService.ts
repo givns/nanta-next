@@ -93,8 +93,21 @@ export class LocationAssistanceService {
         },
       });
 
+      console.log(
+        'Found admins:',
+        admins.map((a) => ({
+          id: a.id,
+          role: a.role,
+          hasLineId: Boolean(a.lineUserId),
+        })),
+      );
+
       // Send notifications to all admins
       for (const admin of admins) {
+        console.log('Sending notification to admin:', {
+          adminId: admin.id,
+          lineUserId: admin.lineUserId,
+        });
         if (admin.lineUserId) {
           const notificationRequest = {
             ...transformedRequest,
@@ -103,11 +116,15 @@ export class LocationAssistanceService {
             ),
           };
 
-          await this.notificationService.sendLocationRequest(
+          const result = await this.notificationService.sendLocationRequest(
             transformedRequest.employeeId,
             admin.lineUserId,
             notificationRequest,
           );
+          console.log('Notification result for admin:', {
+            adminId: admin.id,
+            result,
+          });
         }
       }
     }

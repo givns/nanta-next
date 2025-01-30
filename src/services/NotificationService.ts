@@ -52,16 +52,6 @@ export class NotificationService {
       | 'location-assistance'
       | 'shift',
   ): Promise<boolean> {
-    if (process.env.NODE_ENV === 'test') {
-      console.log('Test mode: Would send notification:', {
-        employeeId,
-        lineUserId,
-        message,
-        type,
-      });
-      return true;
-    }
-
     if (!this.lineClient) {
       console.warn('LINE client not initialized. Skipping notification.');
       return false;
@@ -477,12 +467,17 @@ export class NotificationService {
       },
     };
 
-    return this.sendNotification(
+    console.log('Sending flex message:', JSON.stringify(message));
+
+    const result = await this.sendNotification(
       employeeId,
       lineUserId,
       JSON.stringify(message),
       'location-assistance',
     );
+
+    console.log('Location request notification result:', result);
+    return result;
   }
 
   async sendLocationVerificationResult(
