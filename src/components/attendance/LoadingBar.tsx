@@ -20,7 +20,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Function to calculate error state based on locationState
+  // Enhanced error state evaluation
   const getErrorState = (locationState: LocationState) => {
     const hasError = Boolean(
       locationState.status === 'error' ||
@@ -29,16 +29,24 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
+    // Determine error message based on state
+    let errorMessage = locationState.error;
+    if (!errorMessage) {
+      if (locationState.status === 'error') {
+        errorMessage = 'เกิดข้อผิดพลาดในการระบุตำแหน่ง';
+      } else if (locationState.verificationStatus === 'needs_verification') {
+        errorMessage = 'ต้องการการยืนยันตำแหน่ง';
+      } else if (locationState.triggerReason === 'Location permission denied') {
+        errorMessage = 'ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาเปิดการใช้งานตำแหน่ง';
+      }
+    }
+
     return {
       shouldShowError: hasError,
       shouldShowAdminAssistance: hasError,
+      errorMessage,
     };
   };
-
-  // Log locationState whenever it changes
-  useEffect(() => {
-    console.log('LoadingBar locationState updated:', locationState);
-  }, [locationState]);
 
   // Update progress bar when step or locationState changes
   useEffect(() => {
@@ -84,19 +92,19 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     return <div>กำลังโหลด...</div>;
   }
 
-  const { shouldShowError, shouldShowAdminAssistance } =
+  const { shouldShowError, shouldShowAdminAssistance, errorMessage } =
     getErrorState(locationState);
 
-  // Render error UI if shouldShowError is true
+  // Enhanced error UI rendering
   const renderLocationStatus = () => {
     if (!shouldShowError) return null;
 
     return (
       <div className="mt-6 space-y-4">
-        {locationState.error && (
+        {errorMessage && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{locationState.error}</AlertDescription>
+            <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
         )}
         <div className="flex flex-col space-y-2">
