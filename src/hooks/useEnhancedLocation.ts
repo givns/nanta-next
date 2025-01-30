@@ -156,9 +156,8 @@ export function useEnhancedLocation() {
 
   return {
     locationState,
-    locationReady:
-      locationState.status === 'ready' ||
-      locationState.verificationStatus === 'verified',
+    locationReady: locationState.status === 'ready',
+    locationVerified: locationState.verificationStatus === 'verified',
     locationError: locationState.error,
     getCurrentLocation,
     isLoading:

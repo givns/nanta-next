@@ -39,6 +39,8 @@ export function useAttendanceData({
   employeeId,
   lineUserId,
   locationState,
+  locationReady,
+  locationVerified,
   initialAttendanceStatus,
   enabled = true,
 }: UseAttendanceDataProps) {
@@ -54,13 +56,11 @@ export function useAttendanceData({
       verificationStatus: locationState.verificationStatus,
       inPremises: locationState.inPremises,
     },
+    shouldFetch: enabled && employeeId && locationReady && locationVerified,
   });
 
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
-    enabled &&
-      employeeId &&
-      (locationState.status === 'ready' ||
-        locationState.verificationStatus === 'verified')
+    enabled && locationReady && locationVerified
       ? [
           '/api/attendance/status/[employeeId]',
           employeeId,

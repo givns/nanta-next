@@ -24,6 +24,7 @@ export function useSimpleAttendance({
   const {
     locationState,
     locationReady,
+    locationVerified,
     locationError,
     getCurrentLocation,
     isLoading: locationLoading,
@@ -40,8 +41,10 @@ export function useSimpleAttendance({
     employeeId,
     lineUserId: lineUserId ?? undefined,
     locationState,
+    locationReady,
+    locationVerified,
     initialAttendanceStatus,
-    enabled: enabled && locationReady,
+    enabled: enabled && locationReady && locationVerified,
   });
 
   // Debug effects to track data flow

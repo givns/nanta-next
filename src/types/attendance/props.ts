@@ -161,6 +161,8 @@ export interface UseAttendanceDataProps {
   employeeId?: string;
   lineUserId?: string;
   locationState: LocationState;
+  locationReady: boolean;
+  locationVerified: boolean;
   initialAttendanceStatus?: AttendanceStatusResponse;
   enabled?: boolean;
 }
