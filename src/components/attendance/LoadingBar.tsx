@@ -149,6 +149,10 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   ]);
 
   // Render loading state if still initializing
+  useEffect(() => {
+    setIsLoading(locationState.status === 'initializing');
+  }, [locationState.status]);
+
   if (isLoading) {
     return <div>กำลังโหลด...</div>;
   }
