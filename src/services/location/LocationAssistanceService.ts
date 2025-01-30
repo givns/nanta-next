@@ -88,7 +88,7 @@ export class LocationAssistanceService {
       const admins = await this.prisma.user.findMany({
         where: {
           role: {
-            in: ['ADMIN', 'SUPERADMIN'],
+            in: ['Admin', 'SuperAdmin'],
           },
         },
       });
