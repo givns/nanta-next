@@ -26,6 +26,7 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       return {
         shouldShowError: false,
         shouldShowAdminAssistance: false,
+        shouldShowAdminPending: false,
         errorMessage: null,
       };
     }
@@ -36,6 +37,11 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.verificationStatus === 'needs_verification' ||
         locationState.triggerReason === 'Location permission denied',
     );
+
+    const isAdminPending =
+      locationState.verificationStatus === 'admin_pending' ||
+      locationState.status === 'waiting_admin' ||
+      locationState.status === 'pending_admin';
 
     let errorMessage = locationState.error;
     if (!errorMessage && hasError) {
@@ -49,9 +55,10 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }
 
     return {
-      shouldShowError: hasError,
-      shouldShowAdminAssistance: hasError,
-      errorMessage,
+      shouldShowError: hasError && !isAdminPending,
+      shouldShowAdminAssistance: hasError && !isAdminPending,
+      shouldShowAdminPending: isAdminPending,
+      errorMessage: isAdminPending ? null : errorMessage,
     };
   };
 
@@ -90,9 +97,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }
   };
 
-  const { shouldShowError, shouldShowAdminAssistance, errorMessage } =
-    getErrorState(locationState);
-
   // Steps configuration - matches the sequence
   const steps = {
     auth: {
@@ -106,7 +110,12 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       icon: <i className="fi fi-br-user"></i>,
     },
     location: {
-      message: 'ตรวจสอบตำแหน่ง',
+      message:
+        locationState.verificationStatus === 'admin_pending' ||
+        locationState.status === 'waiting_admin' ||
+        locationState.status === 'pending_admin'
+          ? 'รอการยืนยันตำแหน่ง'
+          : 'ตรวจสอบตำแหน่ง',
       color: 'bg-orange-500',
       icon: <i className="fi fi-br-map-pin"></i>,
     },
@@ -121,7 +130,34 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
   // Enhanced error UI rendering - only show on location step
   const renderLocationStatus = () => {
-    if (!shouldShowError || step !== 'location') return null;
+    const {
+      shouldShowError,
+      shouldShowAdminAssistance,
+      shouldShowAdminPending,
+      errorMessage,
+    } = getErrorState(locationState);
+
+    if (step !== 'location') return null;
+
+    if (shouldShowAdminPending) {
+      return (
+        <div className="mt-6 space-y-4">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              รอการยืนยันจากเจ้าหน้าที่
+              {locationState.triggerReason && (
+                <p className="text-sm mt-1 text-gray-600">
+                  เหตุผล: {locationState.triggerReason}
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
+        </div>
+      );
+    }
+
+    if (!shouldShowError) return null;
 
     return (
       <div className="mt-6 space-y-4">
