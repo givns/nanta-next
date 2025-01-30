@@ -251,8 +251,7 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     if (authLoading) return;
 
-    // Wait for state updates to complete
-    const nextStep = (() => {
+    const evaluateStep = () => {
       if (!userData) return 'user';
       if (
         locationState.status === 'error' ||
@@ -262,10 +261,12 @@ const CheckInRouter: React.FC = () => {
       ) {
         return 'location';
       }
-      if (locationState.status === 'loading') return currentStep;
+      if (locationState.status === 'loading') return 'location';
       if (!isVerified) return 'location';
       return 'ready';
-    })();
+    };
+
+    const nextStep = evaluateStep();
 
     console.log('Step Evaluation:', {
       current: currentStep,
@@ -276,10 +277,8 @@ const CheckInRouter: React.FC = () => {
         locationState.verificationStatus === 'needs_verification',
     });
 
-    if (nextStep !== currentStep) {
-      setCurrentStep(nextStep);
-    }
-  }, [authLoading, userData, locationState, currentStep]);
+    setCurrentStep(nextStep);
+  }, [authLoading, userData, locationState, needsVerification, isVerified]);
 
   // Loading Phase Management
   useEffect(() => {
