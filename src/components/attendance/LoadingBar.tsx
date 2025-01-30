@@ -18,11 +18,10 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Enhanced error state evaluation
+  // Function to calculate error state based on locationState
   const getErrorState = (locationState: LocationState) => {
-    // Enhanced error state evaluation that considers step transitions
+    // Check for any error condition explicitly
     const hasError = Boolean(
       locationState.status === 'error' ||
         locationState.error ||
@@ -30,23 +29,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
         locationState.triggerReason === 'Location permission denied',
     );
 
-    // Determine if we should force show error UI
-    const forceShowError =
-      step === 'location' &&
-      (locationState.status === 'error' ||
-        locationState.verificationStatus === 'needs_verification');
-
-    console.log('LoadingBar Error Evaluation:', {
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      triggerReason: locationState.triggerReason,
-      step,
-      hasError,
-      forceShowError,
-    });
-
-    // Determine error message based on state
     let errorMessage = locationState.error;
     if (!errorMessage) {
       if (locationState.status === 'error') {
@@ -60,16 +42,18 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
     return {
       shouldShowError: hasError,
-      shouldShowAdminAssistance: hasError,
+      shouldShowAdminAssistance: hasError && step === 'location',
       errorMessage,
     };
   };
 
-  // Update progress bar when step or locationState changes
+  // Update progress bar and handle error states
   useEffect(() => {
     const { shouldShowError } = getErrorState(locationState);
 
-    if (locationState.status === 'error' || shouldShowError) {
+    // If we have an error or are in the location step with verification needed,
+    // set progress based on error state
+    if (shouldShowError && step === 'location') {
       setProgress(0);
       return;
     }
@@ -81,33 +65,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 
     return () => clearInterval(interval);
   }, [step, locationState]);
-
-  // Enhanced loading and error state management
-  // Track location state changes
-  const previousLocationState = useRef(locationState);
-
-  useEffect(() => {
-    if (locationState === previousLocationState.current) return;
-
-    console.log('LoadingBar State Update:', {
-      status: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      step,
-      previousStatus: previousLocationState.current.status,
-    });
-
-    previousLocationState.current = locationState;
-
-    // Update loading state based on combined conditions
-    const shouldBeLoading =
-      (locationState.status === 'initializing' ||
-        locationState.status === 'loading') &&
-      !locationState.error &&
-      locationState.verificationStatus === 'pending';
-
-    setIsLoading(shouldBeLoading);
-  }, [locationState, step]);
 
   // Handle admin assistance request
   const handleRequestAssistance = async () => {
@@ -126,21 +83,13 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
     }
   };
 
-  // Don't show loading placeholder when we have an error
-  if (
-    isLoading &&
-    !locationState.error &&
-    locationState.verificationStatus !== 'needs_verification'
-  ) {
-    return <div>กำลังโหลด...</div>;
-  }
-
   const { shouldShowError, shouldShowAdminAssistance, errorMessage } =
     getErrorState(locationState);
 
   // Enhanced error UI rendering
   const renderLocationStatus = () => {
-    if (!shouldShowError) return null;
+    // Always show error if it exists and we're in the location step
+    if (!shouldShowError || step !== 'location') return null;
 
     return (
       <div className="mt-6 space-y-4">
