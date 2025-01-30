@@ -46,17 +46,14 @@ export function useAttendanceData({
   const [lastOperation, setLastOperation] = useState<string>('');
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
 
-  const shouldFetch =
-    enabled &&
-    employeeId &&
-    (locationState.status === 'ready' ||
-      locationState.verificationStatus === 'verified');
-  console.log('Attendance data fetch condition:', {
+  console.log('Attendance data hook state:', {
     enabled,
     employeeId,
-    locationStatus: locationState.status,
-    verificationStatus: locationState.verificationStatus,
-    shouldFetch,
+    locationState: {
+      status: locationState.status,
+      verificationStatus: locationState.verificationStatus,
+      inPremises: locationState.inPremises,
+    },
   });
 
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
