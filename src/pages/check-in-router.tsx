@@ -119,25 +119,21 @@ const CheckInRouter: React.FC = () => {
         locationState.triggerReason === 'Location permission denied',
     );
 
-    if (hasLocationIssue || needsVerification || !isVerified) {
+    if (hasLocationIssue) {
       return 'location';
     }
 
-    // Check location initialization
+    // Continue with normal flow
     if (
       locationState.status === 'loading' ||
       locationState.status === 'initializing'
     ) {
       return 'location';
     }
-
-    // Check data loading
-    if (!userData.employeeId) {
-      return 'user';
-    }
+    if (!isVerified) return 'location';
 
     return 'ready';
-  }, [authLoading, userData, locationState, needsVerification, isVerified]);
+  }, [authLoading, userData, locationState, isVerified]);
 
   // Debug effect to track state changes
   useEffect(() => {
