@@ -247,25 +247,29 @@ const CheckInRouter: React.FC = () => {
     }
   }, [safeAttendanceProps?.base, dailyRecords]);
 
-  // Step management
+  // Location state effect
   useEffect(() => {
-    if (authLoading) return;
+    console.log('Location state updated:', locationState);
+  }, [locationState]);
 
-    const evaluateStep = () => {
-      if (!userData) return 'user';
-      if (
-        locationState.status === 'error' ||
-        locationState.error ||
-        locationState.verificationStatus === 'needs_verification' ||
-        needsVerification
-      ) {
-        return 'location';
-      }
-      if (locationState.status === 'loading') return 'location';
-      if (!isVerified) return 'location';
-      return 'ready';
-    };
+  // Step management
+  const evaluateStep = useCallback(() => {
+    if (authLoading) return 'auth';
+    if (!userData) return 'user';
+    if (
+      locationState.status === 'error' ||
+      locationState.error ||
+      locationState.verificationStatus === 'needs_verification' ||
+      needsVerification
+    ) {
+      return 'location';
+    }
+    if (locationState.status === 'loading') return 'location';
+    if (!isVerified) return 'location';
+    return 'ready';
+  }, [authLoading, userData, locationState, needsVerification, isVerified]);
 
+  useEffect(() => {
     const nextStep = evaluateStep();
 
     console.log('Step Evaluation:', {
@@ -278,18 +282,19 @@ const CheckInRouter: React.FC = () => {
     });
 
     setCurrentStep(nextStep);
-  }, [authLoading, userData, locationState, needsVerification, isVerified]);
+  }, [evaluateStep, currentStep, locationState]);
 
   // Loading Phase Management
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
     const shouldShowLoading =
+      currentStep === 'auth' ||
+      currentStep === 'user' ||
       currentStep === 'location' ||
-      currentStep === 'user' || // Add this
       locationState.status === 'error' ||
       locationState.verificationStatus === 'needs_verification' ||
-      isAdminPending; // Add this
+      isAdminPending;
 
     if (shouldShowLoading) {
       setLoadingPhase('loading');
@@ -311,7 +316,7 @@ const CheckInRouter: React.FC = () => {
     loadingPhase,
     locationState.status,
     locationState.verificationStatus,
-    isAdminPending, // Add this
+    isAdminPending,
   ]);
 
   // Initial data fetch
@@ -423,42 +428,51 @@ const CheckInRouter: React.FC = () => {
       }));
     };
 
-    // Show summary if all periods completed
-    if (isAllPeriodsCompleted) {
-      if (showNextDay) {
-        if (isLoadingNextDay || !nextDayData) {
-          return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-              <LoadingSpinner />
-            </div>
-          );
-        }
-
-        return (
-          <NextDayInfo
-            nextDayInfo={nextDayData}
-            onClose={() => setShowNextDay(false)}
-          />
-        );
-      }
-
-      return (
-        <TodaySummary
-          userData={userData}
-          records={serializeRecords(dailyRecords)}
-          onViewNextDay={handleViewNextDay}
-          onClose={closeWindow}
-        />
-      );
-    }
-
     return (
       <div className="min-h-screen flex flex-col bg-gray-50">
-        <CheckInOutForm
-          userData={userData}
-          onComplete={closeWindow}
-          {...safeAttendanceProps}
-        />
+        {isAdminPending && (
+          <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {triggerReason && (
+                  <p className="mb-1 text-sm font-medium">
+                    เหตุผล: {triggerReason}
+                  </p>
+                )}
+                รอการยืนยันตำแหน่งจากเจ้าหน้าที่
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {isAllPeriodsCompleted ? (
+          showNextDay ? (
+            isLoadingNextDay || !nextDayData ? (
+              <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <NextDayInfo
+                nextDayInfo={nextDayData}
+                onClose={() => setShowNextDay(false)}
+              />
+            )
+          ) : (
+            <TodaySummary
+              userData={userData}
+              records={serializeRecords(dailyRecords)}
+              onViewNextDay={handleViewNextDay}
+              onClose={closeWindow}
+            />
+          )
+        ) : (
+          <CheckInOutForm
+            userData={userData}
+            onComplete={closeWindow}
+            {...safeAttendanceProps}
+          />
+        )}
       </div>
     );
   }, [
@@ -470,6 +484,8 @@ const CheckInRouter: React.FC = () => {
     nextDayData,
     isLoadingNextDay,
     handleViewNextDay,
+    triggerReason,
+    isAdminPending,
   ]);
 
   // Error state
@@ -482,10 +498,9 @@ const CheckInRouter: React.FC = () => {
     );
   }
 
-  // Loading state
-  if (loadingPhase !== 'complete' || !userData) {
-    return (
-      <>
+  return (
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      {loadingPhase !== 'complete' && (
         <div
           key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}-${isAdminPending}`}
           className={`fixed inset-0 z-50 bg-white transition-opacity duration-500 ${
@@ -499,55 +514,26 @@ const CheckInRouter: React.FC = () => {
             onRequestAdminAssistance={handleRequestAdminAssistance}
           />
         </div>
-        <div className="opacity-0">{mainContent}</div>
-      </>
-    );
-  }
-
-  // Ensure we have the required props
-  if (!safeAttendanceProps) {
-    return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="text-red-500 font-medium mb-4">
-            ข้อมูลไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง
-          </div>
-          <button
-            type="button"
-            onClick={fetchUserData}
-            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-          >
-            ลองใหม่อีกครั้ง
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Show check-in form (default view)
-  return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      {isAdminPending && (
-        <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {triggerReason && (
-                <p className="mb-1 text-sm font-medium">
-                  เหตุผล: {triggerReason}
-                </p>
-              )}
-              รอการยืนยันตำแหน่งจากเจ้าหน้าที่
-            </AlertDescription>
-          </Alert>
-        </div>
       )}
 
-      <CheckInOutForm
-        userData={userData}
-        onComplete={closeWindow}
-        {...attendanceProps}
-      />
+      {loadingPhase === 'complete' && !safeAttendanceProps ? (
+        <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
+          <div className="text-center">
+            <div className="text-red-500 font-medium mb-4">
+              ข้อมูลไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง
+            </div>
+            <button
+              type="button"
+              onClick={fetchUserData}
+              className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              ลองใหม่อีกครั้ง
+            </button>
+          </div>
+        </div>
+      ) : (
+        mainContent
+      )}
     </div>
   );
 };
