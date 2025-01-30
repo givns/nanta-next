@@ -377,97 +377,162 @@ const CheckInRouter: React.FC = () => {
     fetchUserData();
   }, [fetchUserData]);
 
-  const serializeRecords = (
-    records: Array<{
-      record: AttendanceRecord;
-      periodSequence: number;
-    }>,
-  ): Array<{
-    record: SerializedAttendanceRecord;
-    periodSequence: number;
-  }> => {
-    return records.map(({ record, periodSequence }) => ({
-      record: {
-        ...record,
-        date:
-          record.date instanceof Date ? record.date.toISOString() : record.date,
-        shiftStartTime:
-          record.shiftStartTime instanceof Date
-            ? record.shiftStartTime.toISOString()
-            : record.shiftStartTime,
-        shiftEndTime:
-          record.shiftEndTime instanceof Date
-            ? record.shiftEndTime.toISOString()
-            : record.shiftEndTime,
-        CheckInTime:
-          record.CheckInTime instanceof Date
-            ? record.CheckInTime.toISOString()
-            : record.CheckInTime,
-        CheckOutTime:
-          record.CheckOutTime instanceof Date
-            ? record.CheckOutTime.toISOString()
-            : record.CheckOutTime,
-        metadata: {
-          ...record.metadata,
-          createdAt:
-            record.metadata.createdAt instanceof Date
-              ? record.metadata.createdAt.toISOString()
-              : record.metadata.createdAt,
-          updatedAt:
-            record.metadata.updatedAt instanceof Date
-              ? record.metadata.updatedAt.toISOString()
-              : record.metadata.updatedAt,
-        },
-        overtimeEntries: record.overtimeEntries.map((entry) => ({
-          ...entry,
-          actualStartTime:
-            entry.actualStartTime instanceof Date
-              ? entry.actualStartTime.toISOString()
-              : entry.actualStartTime,
-          actualEndTime:
-            entry.actualEndTime instanceof Date
-              ? entry.actualEndTime.toISOString()
-              : entry.actualEndTime,
-          createdAt:
-            entry.createdAt instanceof Date
-              ? entry.createdAt.toISOString()
-              : entry.createdAt,
-          updatedAt:
-            entry.updatedAt instanceof Date
-              ? entry.updatedAt.toISOString()
-              : entry.updatedAt,
-        })),
-        timeEntries: record.timeEntries.map((entry) => ({
-          ...entry,
-          startTime:
-            entry.startTime instanceof Date
-              ? entry.startTime.toISOString()
-              : entry.startTime,
-          endTime:
-            entry.endTime instanceof Date
-              ? entry.endTime.toISOString()
-              : entry.endTime,
-          metadata: {
-            ...entry.metadata,
-            createdAt:
-              entry.metadata.createdAt instanceof Date
-                ? entry.metadata.createdAt.toISOString()
-                : entry.metadata.createdAt,
-            updatedAt:
-              entry.metadata.updatedAt instanceof Date
-                ? entry.metadata.updatedAt.toISOString()
-                : entry.metadata.updatedAt,
-          },
-        })),
-      },
-      periodSequence,
-    }));
-  };
+  const mainContent = useMemo(() => {
+    // Early return if we don't have required data
+    if (!userData?.employeeId) return null;
+    if (!safeAttendanceProps?.base?.state) return null;
 
-  // Main layout
+    const serializeRecords = (
+      records: Array<{
+        record: AttendanceRecord;
+        periodSequence: number;
+      }>,
+    ): Array<{
+      record: SerializedAttendanceRecord;
+      periodSequence: number;
+    }> => {
+      return records.map(({ record, periodSequence }) => ({
+        record: {
+          ...record,
+          date:
+            record.date instanceof Date
+              ? record.date.toISOString()
+              : record.date,
+          shiftStartTime:
+            record.shiftStartTime instanceof Date
+              ? record.shiftStartTime.toISOString()
+              : record.shiftStartTime,
+          shiftEndTime:
+            record.shiftEndTime instanceof Date
+              ? record.shiftEndTime.toISOString()
+              : record.shiftEndTime,
+          CheckInTime:
+            record.CheckInTime instanceof Date
+              ? record.CheckInTime.toISOString()
+              : record.CheckInTime,
+          CheckOutTime:
+            record.CheckOutTime instanceof Date
+              ? record.CheckOutTime.toISOString()
+              : record.CheckOutTime,
+          metadata: {
+            ...record.metadata,
+            createdAt:
+              record.metadata.createdAt instanceof Date
+                ? record.metadata.createdAt.toISOString()
+                : record.metadata.createdAt,
+            updatedAt:
+              record.metadata.updatedAt instanceof Date
+                ? record.metadata.updatedAt.toISOString()
+                : record.metadata.updatedAt,
+          },
+          overtimeEntries: record.overtimeEntries.map((entry) => ({
+            ...entry,
+            actualStartTime:
+              entry.actualStartTime instanceof Date
+                ? entry.actualStartTime.toISOString()
+                : entry.actualStartTime,
+            actualEndTime:
+              entry.actualEndTime instanceof Date
+                ? entry.actualEndTime.toISOString()
+                : entry.actualEndTime,
+            createdAt:
+              entry.createdAt instanceof Date
+                ? entry.createdAt.toISOString()
+                : entry.createdAt,
+            updatedAt:
+              entry.updatedAt instanceof Date
+                ? entry.updatedAt.toISOString()
+                : entry.updatedAt,
+          })),
+          timeEntries: record.timeEntries.map((entry) => ({
+            ...entry,
+            startTime:
+              entry.startTime instanceof Date
+                ? entry.startTime.toISOString()
+                : entry.startTime,
+            endTime:
+              entry.endTime instanceof Date
+                ? entry.endTime.toISOString()
+                : entry.endTime,
+            metadata: {
+              ...entry.metadata,
+              createdAt:
+                entry.metadata.createdAt instanceof Date
+                  ? entry.metadata.createdAt.toISOString()
+                  : entry.metadata.createdAt,
+              updatedAt:
+                entry.metadata.updatedAt instanceof Date
+                  ? entry.metadata.updatedAt.toISOString()
+                  : entry.metadata.updatedAt,
+            },
+          })),
+        },
+        periodSequence,
+      }));
+    };
+
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        {isAdminPending && (
+          <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {triggerReason && (
+                  <p className="mb-1 text-sm font-medium">
+                    เหตุผล: {triggerReason}
+                  </p>
+                )}
+                รอการยืนยันตำแหน่งจากเจ้าหน้าที่
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {isAllPeriodsCompleted ? (
+          showNextDay ? (
+            isLoadingNextDay || !nextDayData ? (
+              <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <NextDayInfo
+                nextDayInfo={nextDayData}
+                onClose={() => setShowNextDay(false)}
+              />
+            )
+          ) : (
+            <TodaySummary
+              userData={userData}
+              records={serializeRecords(dailyRecords)}
+              onViewNextDay={handleViewNextDay}
+              onClose={closeWindow}
+            />
+          )
+        ) : (
+          <CheckInOutForm
+            userData={userData}
+            onComplete={closeWindow}
+            {...safeAttendanceProps}
+          />
+        )}
+      </div>
+    );
+  }, [
+    userData,
+    safeAttendanceProps,
+    dailyRecords,
+    isAllPeriodsCompleted,
+    showNextDay,
+    nextDayData,
+    isLoadingNextDay,
+    handleViewNextDay,
+    triggerReason,
+    isAdminPending,
+  ]);
+
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      {/* Loading UI */}
       {loadingPhase !== 'complete' && (
         <div
           key={`${currentStep}-${locationState.status}-${locationState.verificationStatus}-${isAdminPending}`}
@@ -484,8 +549,8 @@ const CheckInRouter: React.FC = () => {
         </div>
       )}
 
-      {/* Error recovery UI */}
-      {loadingPhase === 'complete' && !safeAttendanceProps ? (
+      {loadingPhase === 'complete' &&
+      (!userData?.employeeId || !safeAttendanceProps) ? (
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
           <div className="text-center">
             <div className="text-red-500 font-medium mb-4">
@@ -501,54 +566,7 @@ const CheckInRouter: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Main content */
-        <div className="min-h-screen flex flex-col bg-gray-50">
-          {/* Admin pending notification */}
-          {isAdminPending && (
-            <div className="fixed top-0 left-0 right-0 bg-yellow-50 p-4 z-50">
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {triggerReason && (
-                    <p className="mb-1 text-sm font-medium">
-                      เหตุผล: {triggerReason}
-                    </p>
-                  )}
-                  รอการยืนยันตำแหน่งจากเจ้าหน้าที่
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-
-          {/* Content based on completion status */}
-          {isAllPeriodsCompleted ? (
-            showNextDay ? (
-              isLoadingNextDay || !nextDayData ? (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                <NextDayInfo
-                  nextDayInfo={nextDayData}
-                  onClose={() => setShowNextDay(false)}
-                />
-              )
-            ) : (
-              <TodaySummary
-                userData={userData!}
-                records={serializeRecords(dailyRecords)}
-                onViewNextDay={handleViewNextDay}
-                onClose={closeWindow}
-              />
-            )
-          ) : (
-            <CheckInOutForm
-              userData={userData!}
-              onComplete={closeWindow}
-              {...safeAttendanceProps}
-            />
-          )}
-        </div>
+        mainContent
       )}
     </div>
   );
