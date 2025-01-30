@@ -106,8 +106,7 @@ const CheckInRouter: React.FC = () => {
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
 
-  // Inside CheckInRouter component
-
+  // Step management
   const evaluateStep = useCallback(() => {
     if (authLoading) return 'auth';
     if (!userData) return 'user';
@@ -120,21 +119,25 @@ const CheckInRouter: React.FC = () => {
         locationState.triggerReason === 'Location permission denied',
     );
 
-    if (hasLocationIssue) {
+    if (hasLocationIssue || needsVerification || !isVerified) {
       return 'location';
     }
 
-    // Continue with normal flow
+    // Check location initialization
     if (
       locationState.status === 'loading' ||
       locationState.status === 'initializing'
     ) {
       return 'location';
     }
-    if (!isVerified) return 'location';
+
+    // Check data loading
+    if (!userData.employeeId) {
+      return 'user';
+    }
 
     return 'ready';
-  }, [authLoading, userData, locationState, isVerified]);
+  }, [authLoading, userData, locationState, needsVerification, isVerified]);
 
   // Debug effect to track state changes
   useEffect(() => {
@@ -180,7 +183,7 @@ const CheckInRouter: React.FC = () => {
     userData,
   ]);
 
-  // Loading phase management
+  // Loading Phase Management
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
@@ -202,7 +205,9 @@ const CheckInRouter: React.FC = () => {
       }
     }
 
-    return () => timer && clearTimeout(timer);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [
     currentStep,
     attendanceLoading,
@@ -213,7 +218,19 @@ const CheckInRouter: React.FC = () => {
     isAdminPending,
   ]);
 
-  // Handlers
+  useEffect(() => {
+    console.log('Router State:', {
+      currentStep,
+      locationState: {
+        status: locationState.status,
+        error: locationState.error,
+        verificationStatus: locationState.verificationStatus,
+      },
+      needsVerification,
+    });
+  }, [currentStep, locationState, needsVerification]);
+
+  // Handle location retry
   const handleLocationRetry = useCallback(async () => {
     await verifyLocation(true);
   }, [verifyLocation]);
@@ -225,16 +242,19 @@ const CheckInRouter: React.FC = () => {
     }
 
     try {
+      console.log('Requesting admin assistance...');
       await requestAdminAssistance();
     } catch (error) {
       console.error('Error requesting admin assistance:', error);
     }
   }, [requestAdminAssistance]);
 
+  // Fetch user data
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
 
     try {
+      setCurrentStep('user');
       const response = await fetch('/api/user-data', {
         headers: { 'x-line-userid': lineUserId },
       });
@@ -251,8 +271,9 @@ const CheckInRouter: React.FC = () => {
         error instanceof Error ? error.message : 'Failed to fetch user data',
       );
     }
-  }, [lineUserId, authLoading, isInitialized]);
+  }, [lineUserId, authLoading, isInitialized, evaluateStep]);
 
+  // Next Day Data Handlers
   const fetchNextDayInfo = useCallback(async () => {
     if (!userData?.employeeId) return;
 
@@ -282,7 +303,7 @@ const CheckInRouter: React.FC = () => {
     [attendanceProps],
   );
 
-  // Process daily records
+  // Then the dailyRecords memo that uses it
   const dailyRecords = useMemo(() => {
     if (!safeAttendanceProps?.base) return [];
 
@@ -319,7 +340,7 @@ const CheckInRouter: React.FC = () => {
     }
   }, [safeAttendanceProps?.base]);
 
-  // Check period completion
+  // Check Period Completion
   const isAllPeriodsCompleted = useMemo(() => {
     if (!safeAttendanceProps?.base) return false;
 
@@ -349,6 +370,11 @@ const CheckInRouter: React.FC = () => {
       return false;
     }
   }, [safeAttendanceProps?.base, dailyRecords]);
+
+  // Location state effect
+  useEffect(() => {
+    console.log('Location state updated:', locationState);
+  }, [locationState]);
 
   // Initial data fetch
   useEffect(() => {
@@ -442,16 +468,6 @@ const CheckInRouter: React.FC = () => {
     }));
   };
 
-  // Error state
-  if (error || attendanceError) {
-    return (
-      <Alert variant="destructive">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>{error || attendanceError}</AlertDescription>
-      </Alert>
-    );
-  }
-
   // Main layout
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -541,5 +557,4 @@ const CheckInRouter: React.FC = () => {
     </div>
   );
 };
-
 export default React.memo(CheckInRouter);
