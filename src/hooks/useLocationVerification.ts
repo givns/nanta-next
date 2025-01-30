@@ -25,6 +25,7 @@ const useLocationVerification = (
   employeeId?: string,
   config: Partial<LocationTriggerConfig> = {},
 ): LocationStateContextType => {
+  const requestIdRef = useRef<string | null>(null);
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
@@ -125,6 +126,52 @@ const useLocationVerification = (
     [getCurrentLocation],
   );
 
+  // Add polling effect
+  useEffect(() => {
+    let pollTimer: NodeJS.Timeout;
+
+    const checkRequestStatus = async () => {
+      if (!employeeId || !requestIdRef.current) return;
+
+      try {
+        const response = await fetch(
+          `/api/admin/location-assistance?requestId=${requestIdRef.current}`,
+        );
+        if (!response.ok) return;
+
+        const data = await response.json();
+        console.log('Location assistance status:', data);
+
+        if (data.status === 'APPROVED') {
+          console.log('Location request approved, triggering reverification');
+          setVerificationState((prev) => ({
+            ...prev,
+            status: 'initializing',
+            verificationStatus: 'pending',
+            error: null,
+            adminRequestId: undefined,
+          }));
+          // Trigger new location check
+          await verifyLocation(true);
+          // Clear request ID
+          requestIdRef.current = null;
+        }
+      } catch (error) {
+        console.error('Error checking request status:', error);
+      }
+    };
+
+    if (requestIdRef.current) {
+      pollTimer = setInterval(checkRequestStatus, 5000); // Poll every 5 seconds
+      checkRequestStatus(); // Check immediately
+    }
+
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [employeeId, verifyLocation]);
+
+  // Modify requestAdminAssistance to store request ID
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) {
       console.error('Cannot request admin assistance without employeeId');
@@ -132,25 +179,15 @@ const useLocationVerification = (
     }
 
     try {
-      // Update initial state
       setVerificationState((prev) => ({
         ...prev,
         status: 'pending_admin',
         verificationStatus: 'admin_pending',
       }));
 
-      // Format coordinates according to schema
-      const coordinates = verificationState.coordinates
-        ? {
-            lat: verificationState.coordinates.lat,
-            lng: verificationState.coordinates.lng,
-            accuracy: verificationState.accuracy,
-          }
-        : undefined;
-
       console.log('Requesting admin assistance:', {
         employeeId,
-        coordinates,
+        coordinates: verificationState.coordinates,
         reason: verificationState.triggerReason,
       });
 
@@ -159,17 +196,14 @@ const useLocationVerification = (
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId,
-          coordinates,
-          address: verificationState.address || undefined,
-          accuracy: verificationState.accuracy || 0,
+          coordinates: verificationState.coordinates,
+          address: verificationState.address,
+          accuracy: verificationState.accuracy,
           timestamp: new Date().toISOString(),
-          reason:
-            verificationState.error ||
-            verificationState.triggerReason ||
-            'Location verification needed',
-          source: 'web' as const,
+          reason: verificationState.error || verificationState.triggerReason,
+          source: 'web',
           metadata: {
-            source: 'web' as const,
+            source: 'web',
             version: '1.0',
             device: {
               platform: 'web',
@@ -179,21 +213,21 @@ const useLocationVerification = (
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || 'Failed to request admin assistance',
-        );
+        throw new Error('Failed to request admin assistance');
       }
 
       const data = await response.json();
       console.log('Admin assistance response:', data);
 
-      // Update with request ID on success
+      // Store request ID for polling
+      requestIdRef.current = data.id;
+
+      // Update state with request ID
       setVerificationState((prev) => ({
         ...prev,
         status: 'waiting_admin',
         verificationStatus: 'admin_pending',
-        adminRequestId: data.requestId,
+        adminRequestId: data.id,
       }));
     } catch (error) {
       console.error('Error requesting admin assistance:', error);
