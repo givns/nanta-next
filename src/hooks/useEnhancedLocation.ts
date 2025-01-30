@@ -15,13 +15,14 @@ const INITIAL_STATE: LocationState = {
   triggerReason: null,
 };
 
+// hooks/useEnhancedLocation.ts
 export function useEnhancedLocation() {
   const locationService = useRef(new EnhancedLocationService());
   const [locationState, setLocationState] =
     useState<LocationState>(INITIAL_STATE);
   const isMounted = useRef(true);
 
-  // Track ongoing location requests
+  // Track location requests
   const locationRef = useRef<{
     promise: Promise<any> | null;
     timestamp: number;
@@ -59,10 +60,13 @@ export function useEnhancedLocation() {
     }
 
     try {
-      // Update loading state
-      if (isMounted.current) {
-        setLocationState((prev) => ({ ...prev, status: 'loading' }));
-      }
+      // Update loading state synchronously
+      const loadingState: LocationState = {
+        ...(locationRef.current.data || INITIAL_STATE),
+        status: 'loading',
+      };
+      locationRef.current.data = loadingState;
+      setLocationState(loadingState);
 
       // Get location
       const result =
@@ -80,11 +84,12 @@ export function useEnhancedLocation() {
           accuracy: 0,
           error: result.error,
           coordinates: undefined,
-          verificationStatus: 'pending',
+          verificationStatus: 'needs_verification',
           triggerReason: result.triggerReason || 'Unknown error',
         };
-        setLocationState(errorState);
+        // Update both ref and state synchronously
         locationRef.current.data = errorState;
+        setLocationState(errorState);
         return errorState;
       }
 
@@ -102,11 +107,12 @@ export function useEnhancedLocation() {
         triggerReason: result.inPremises ? null : 'Out of premises',
       };
 
+      // Update both ref and state synchronously
       if (isMounted.current) {
-        setLocationState(newLocationState);
         locationRef.current.data = newLocationState;
         locationRef.current.timestamp = now;
         locationRef.current.retryCount = 0;
+        setLocationState(newLocationState);
       }
 
       return newLocationState;
@@ -124,16 +130,17 @@ export function useEnhancedLocation() {
           error instanceof GeolocationPositionError && error.code === 1
             ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
             : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
-        verificationStatus: 'pending',
+        verificationStatus: 'needs_verification',
         triggerReason:
           error instanceof GeolocationPositionError && error.code === 1
             ? 'Location permission denied'
             : 'Location error',
       };
 
+      // Update both ref and state synchronously
       if (isMounted.current) {
-        setLocationState(errorState);
         locationRef.current.data = errorState;
+        setLocationState(errorState);
       }
 
       return errorState;
