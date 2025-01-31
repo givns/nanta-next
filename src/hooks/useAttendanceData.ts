@@ -48,6 +48,9 @@ export function useAttendanceData({
   const [lastOperation, setLastOperation] = useState<string>('');
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
 
+  const shouldFetch =
+    enabled && employeeId && locationReady && locationVerified;
+
   console.log('Attendance data hook state:', {
     enabled,
     employeeId,
@@ -56,11 +59,11 @@ export function useAttendanceData({
       verificationStatus: locationState.verificationStatus,
       inPremises: locationState.inPremises,
     },
-    shouldFetch: enabled && employeeId && locationReady && locationVerified,
+    shouldFetch,
   });
 
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
-    enabled && locationReady && locationVerified
+    shouldFetch
       ? [
           '/api/attendance/status/[employeeId]',
           employeeId,
@@ -68,6 +71,7 @@ export function useAttendanceData({
           lastOperation,
         ]
       : null,
+
     async ([_, id]): Promise<AttendanceStatusResponse> => {
       console.log('Fetching attendance data for:', {
         employeeId: id,
@@ -133,11 +137,11 @@ export function useAttendanceData({
   );
 
   useEffect(() => {
-    if (locationState.status === 'ready' && !data) {
-      console.log('Location ready, triggering data refresh');
+    if (shouldFetch && !data) {
+      console.log('Conditions met, triggering data refresh');
       mutate();
     }
-  }, [locationState.status, data, mutate]);
+  }, [shouldFetch, data, mutate]);
 
   useEffect(() => {
     console.log('Attendance data changed:', {
