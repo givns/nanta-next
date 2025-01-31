@@ -1,5 +1,5 @@
 // hooks/useEnhancedLocation.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LocationState } from '@/types/attendance';
 import { EnhancedLocationService } from '@/services/location/EnhancedLocationService';
 import { LOCATION_CONSTANTS } from '@/types/attendance/base';
@@ -15,13 +15,11 @@ const INITIAL_STATE: LocationState = {
   triggerReason: null,
 };
 
-// hooks/useEnhancedLocation.ts
 export function useEnhancedLocation() {
   const locationService = useRef(new EnhancedLocationService());
   const [locationState, setLocationState] =
     useState<LocationState>(INITIAL_STATE);
   const isMounted = useRef(true);
-  const stateRef = useRef<LocationState>(locationState);
 
   // Track location requests
   const locationRef = useRef<{
@@ -43,156 +41,144 @@ export function useEnhancedLocation() {
     };
   }, []);
 
-  const getCurrentLocation = useCallback(async (forceRefresh = false) => {
-    const now = Date.now();
+  const updateLocationState = useCallback((newState: LocationState) => {
+    if (isMounted.current) {
+      console.log('Updating location state:', {
+        from: locationRef.current.data,
+        to: newState,
+        changed: {
+          status: locationRef.current.data?.status !== newState.status,
+          verification:
+            locationRef.current.data?.verificationStatus !==
+            newState.verificationStatus,
+        },
+      });
 
-    // Return cached location if valid and not forcing refresh
-    if (
-      !forceRefresh &&
-      locationRef.current.data &&
-      now - locationRef.current.timestamp < LOCATION_CONSTANTS.CACHE_TIME
-    ) {
-      return locationRef.current.data;
+      locationRef.current.data = newState;
+      setLocationState(newState);
     }
+  }, []);
 
-    // Prevent multiple concurrent requests
-    if (locationRef.current.promise) {
-      return locationRef.current.promise;
-    }
+  const getCurrentLocation = useCallback(
+    async (forceRefresh = false) => {
+      const now = Date.now();
 
-    try {
-      // Update loading state synchronously
-      const loadingState: LocationState = {
-        ...(locationRef.current.data || INITIAL_STATE),
-        status: 'loading',
-      };
-      locationRef.current.data = loadingState;
-      setLocationState(loadingState);
+      // Return cached location if valid and not forcing refresh
+      if (
+        !forceRefresh &&
+        locationRef.current.data &&
+        now - locationRef.current.timestamp < LOCATION_CONSTANTS.CACHE_TIME
+      ) {
+        return locationRef.current.data;
+      }
 
-      // Get location
-      const result =
-        await locationService.current.getCurrentLocation(forceRefresh);
+      // Prevent multiple concurrent requests
+      if (locationRef.current.promise) {
+        return locationRef.current.promise;
+      }
 
-      // Handle unmounted component
-      if (!isMounted.current) return result;
+      try {
+        // Update loading state synchronously
+        const loadingState: LocationState = {
+          ...(locationRef.current.data || INITIAL_STATE),
+          status: 'loading',
+        };
+        updateLocationState(loadingState);
 
-      if (result.error) {
+        // Get location
+        const result =
+          await locationService.current.getCurrentLocation(forceRefresh);
+
+        // Handle unmounted component
+        if (!isMounted.current) return result;
+
+        if (result.error) {
+          const errorState: LocationState = {
+            status: 'error',
+            inPremises: false,
+            address: '',
+            confidence: 'low',
+            accuracy: 0,
+            error: result.error,
+            coordinates: undefined,
+            verificationStatus: 'needs_verification',
+            triggerReason: result.triggerReason || 'Unknown error',
+          };
+          updateLocationState(errorState);
+          return errorState;
+        }
+
+        const newLocationState: LocationState = {
+          status: 'ready',
+          inPremises: result.inPremises,
+          address: result.address || '',
+          confidence: result.confidence || 'low',
+          accuracy: result.accuracy || 0,
+          coordinates: result.coordinates,
+          error: null,
+          verificationStatus: result.inPremises
+            ? 'verified'
+            : 'needs_verification',
+          triggerReason: result.inPremises ? null : 'Out of premises',
+        };
+
+        if (isMounted.current) {
+          locationRef.current.timestamp = now;
+          locationRef.current.retryCount = 0;
+          updateLocationState(newLocationState);
+        }
+
+        return newLocationState;
+      } catch (error) {
+        console.error('Location fetch error:', error);
+
         const errorState: LocationState = {
           status: 'error',
           inPremises: false,
           address: '',
           confidence: 'low',
           accuracy: 0,
-          error: result.error,
           coordinates: undefined,
+          error:
+            error instanceof GeolocationPositionError && error.code === 1
+              ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
+              : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
           verificationStatus: 'needs_verification',
-          triggerReason: result.triggerReason || 'Unknown error',
+          triggerReason:
+            error instanceof GeolocationPositionError && error.code === 1
+              ? 'Location permission denied'
+              : 'Location error',
         };
-        // Update both ref and state synchronously
-        locationRef.current.data = errorState;
-        setLocationState(errorState);
+
+        if (isMounted.current) {
+          updateLocationState(errorState);
+        }
+
         return errorState;
+      } finally {
+        locationRef.current.promise = null;
       }
-
-      const newLocationState: LocationState = {
-        status: 'ready',
-        inPremises: result.inPremises,
-        address: result.address || '',
-        confidence: result.confidence || 'low',
-        accuracy: result.accuracy || 0,
-        coordinates: result.coordinates,
-        error: null,
-        verificationStatus: result.inPremises
-          ? 'verified'
-          : 'needs_verification',
-        triggerReason: result.inPremises ? null : 'Out of premises',
-      };
-
-      // Update both ref and state synchronously
-      if (isMounted.current) {
-        locationRef.current.data = newLocationState;
-        locationRef.current.timestamp = now;
-        locationRef.current.retryCount = 0;
-        setLocationState(newLocationState);
-      }
-
-      return newLocationState;
-    } catch (error) {
-      console.error('Location fetch error:', error);
-
-      const errorState: LocationState = {
-        status: 'error',
-        inPremises: false,
-        address: '',
-        confidence: 'low',
-        accuracy: 0,
-        coordinates: undefined,
-        error:
-          error instanceof GeolocationPositionError && error.code === 1
-            ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
-            : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
-        verificationStatus: 'needs_verification',
-        triggerReason:
-          error instanceof GeolocationPositionError && error.code === 1
-            ? 'Location permission denied'
-            : 'Location error',
-      };
-
-      // Update both ref and state synchronously
-      if (isMounted.current) {
-        locationRef.current.data = errorState;
-        setLocationState(errorState);
-      }
-
-      return errorState;
-    } finally {
-      locationRef.current.promise = null;
-    }
-  }, []);
+    },
+    [updateLocationState],
+  );
 
   // Initialize location on mount
   useEffect(() => {
     getCurrentLocation();
   }, [getCurrentLocation]);
 
-  // Track state changes
-  useEffect(() => {
-    if (
-      stateRef.current.status !== locationState.status ||
-      stateRef.current.verificationStatus !== locationState.verificationStatus
-    ) {
-      console.log('Location state change:', {
-        previous: stateRef.current,
-        current: locationState,
-        changed: {
-          status: stateRef.current.status !== locationState.status,
-          verification:
-            stateRef.current.verificationStatus !==
-            locationState.verificationStatus,
-        },
-      });
-      stateRef.current = locationState;
-    }
-  }, [locationState]);
-
-  const locationReady = useMemo(
-    () => locationState.status === 'ready',
-    [locationState.status],
-  );
-
-  const locationVerified = useMemo(
-    () => locationState.verificationStatus === 'verified',
-    [locationState.verificationStatus],
-  );
+  // Use computed values instead of useMemo
+  const { status, verificationStatus, error } = locationState;
+  const locationReady = status === 'ready';
+  const locationVerified = verificationStatus === 'verified';
+  const isLoading = status === 'loading' || status === 'initializing';
 
   return {
     locationState,
     locationReady,
     locationVerified,
-    locationError: locationState.error,
+    locationError: error,
     getCurrentLocation,
-    isLoading:
-      locationState.status === 'loading' ||
-      locationState.status === 'initializing',
+    isLoading,
   };
 }
