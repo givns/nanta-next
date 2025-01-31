@@ -20,7 +20,23 @@ export function useEnhancedLocation() {
   const locationService = useRef(new EnhancedLocationService());
   const [locationState, setLocationState] =
     useState<LocationState>(INITIAL_STATE);
+  const prevStateRef = useRef<LocationState>(INITIAL_STATE);
+
   const isMounted = useRef(true);
+
+  useEffect(() => {
+    if (
+      locationState.status !== prevStateRef.current.status ||
+      locationState.verificationStatus !==
+        prevStateRef.current.verificationStatus
+    ) {
+      console.log('Location state change:', {
+        previous: prevStateRef.current,
+        current: locationState,
+      });
+      prevStateRef.current = locationState;
+    }
+  }, [locationState]);
 
   // Track location requests
   const locationRef = useRef<{
