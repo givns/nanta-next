@@ -30,6 +30,7 @@ export function useSimpleAttendance({
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
+  // In useSimpleAttendance.ts
   const {
     data: rawData,
     error: attendanceError,
@@ -41,16 +42,24 @@ export function useSimpleAttendance({
     employeeId,
     lineUserId: lineUserId ?? undefined,
     locationState,
-    locationReady,
-    locationVerified,
+    // Add these conditions
+    locationReady:
+      locationReady ||
+      locationState.status === 'waiting_admin' ||
+      locationState.status === 'pending_admin',
+    locationVerified:
+      locationVerified || locationState.verificationStatus === 'admin_pending',
     initialAttendanceStatus,
-    // Fix the enabled condition to include admin pending state
+    // Update enabled condition
     enabled:
       enabled &&
-      (locationReady ||
-        locationVerified ||
-        locationState.verificationStatus === 'admin_pending' ||
-        locationState.status === 'waiting_admin'),
+      Boolean(
+        employeeId &&
+          (locationReady ||
+            locationState.verificationStatus === 'admin_pending' ||
+            locationState.status === 'waiting_admin' ||
+            locationState.status === 'pending_admin'),
+      ),
   });
 
   useEffect(() => {
