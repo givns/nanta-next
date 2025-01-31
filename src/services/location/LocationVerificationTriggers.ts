@@ -1,6 +1,6 @@
 // services/location/LocationVerificationTriggers.ts
 
-import { LocationState } from '@/types/attendance';
+import { LocationState, LocationVerificationState } from '@/types/attendance';
 
 export interface LocationTriggerConfig {
   maxAccuracy: number; // Maximum acceptable accuracy in meters
@@ -25,9 +25,31 @@ export interface LocationTriggerConfig {
 export class LocationVerificationTriggers {
   private retryCount = 0;
   private startTime: number;
+  private lockedState: LocationVerificationState | null = null;
 
   constructor(private config: LocationTriggerConfig) {
     this.startTime = Date.now();
+  }
+
+  lockApprovedState(state: LocationVerificationState) {
+    this.lockedState = state;
+
+    // Automatically clear the locked state after some time (e.g., 5 minutes)
+    setTimeout(
+      () => {
+        this.lockedState = null;
+      },
+      5 * 60 * 1000,
+    );
+  }
+
+  getLockedState(): LocationVerificationState | null {
+    return this.lockedState;
+  }
+
+  // Add method to clear locked state
+  clearLockedState() {
+    this.lockedState = null;
   }
 
   shouldTriggerAdminAssistance(locationState: LocationState): {

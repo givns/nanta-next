@@ -197,9 +197,21 @@ export class EnhancedLocationService {
     return result;
   }
 
+  private lockedState: LocationVerificationState | null = null;
+
+  lockState(state: LocationVerificationState) {
+    this.lockedState = state;
+    return () => {
+      this.lockedState = null;
+    };
+  }
+
   async getCurrentLocation(
     forceRefresh = false,
   ): Promise<LocationVerificationState> {
+    if (this.lockedState) {
+      return this.lockedState;
+    }
     try {
       // Validate initial transition
       if (
@@ -211,19 +223,6 @@ export class EnhancedLocationService {
       ) {
         throw new Error('Invalid initial state transition');
       }
-
-      // Initial loading state
-      const loadingState: LocationVerificationState = {
-        status: 'loading',
-        verificationStatus: 'pending',
-        inPremises: false,
-        address: '',
-        confidence: 'low',
-        accuracy: 0,
-        error: null,
-        triggerReason: null,
-        lastVerifiedAt: new Date(),
-      };
 
       if (!forceRefresh && this.lastLocation) {
         const cacheAge =

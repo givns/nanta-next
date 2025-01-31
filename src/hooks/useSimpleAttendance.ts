@@ -41,10 +41,14 @@ export function useSimpleAttendance({
     employeeId,
     lineUserId: lineUserId ?? undefined,
     locationState,
-    locationReady,
-    locationVerified,
+    locationReady:
+      locationReady || locationState.verificationStatus === 'verified',
+    locationVerified:
+      locationVerified || locationState.verificationStatus === 'verified',
     initialAttendanceStatus,
-    enabled: enabled && locationReady && locationVerified,
+    enabled:
+      enabled &&
+      (locationReady || locationState.verificationStatus === 'verified'),
   });
 
   useEffect(() => {
