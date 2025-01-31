@@ -8,7 +8,6 @@ import {
   LocationTriggerConfig,
   INITIAL_STATE,
 } from '@/types/attendance';
-import { mutate } from 'swr';
 
 interface LocationVerificationOptions extends Partial<LocationTriggerConfig> {
   onAdminApproval?: () => Promise<void>;
@@ -96,7 +95,6 @@ const useLocationVerification = (
     console.groupEnd();
   }, [locationState]);
 
-  // Verify location handler
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
@@ -110,6 +108,13 @@ const useLocationVerification = (
         }));
 
         const location = await getCurrentLocation(force);
+        setVerificationState((prev) => ({
+          ...prev,
+          ...location,
+          verificationStatus: location.inPremises
+            ? 'verified'
+            : 'needs_verification',
+        }));
         return location.inPremises;
       } catch (error) {
         console.error('Location verification error:', error);
@@ -157,7 +162,7 @@ const useLocationVerification = (
             'Location request approved, transitioning to loading state',
           );
 
-          // First transition to loading state
+          // Transition to loading state and trigger location verification
           setVerificationState((prev) => ({
             ...prev,
             status: 'loading',
@@ -165,15 +170,10 @@ const useLocationVerification = (
             error: null,
             adminRequestId: undefined,
             triggerReason: null,
-            accuracy: 0, // Reset accuracy for proper transition
           }));
-
-          // Then after a short delay, try location verification
-          setTimeout(() => {
-            verifyLocation(true).catch((error) => {
-              console.error('Error retrying location verification:', error);
-            });
-          }, 1000);
+          verifyLocation(true).catch((error) => {
+            console.error('Error retrying location verification:', error);
+          });
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
@@ -197,12 +197,7 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [
-    verificationState.adminRequestId,
-    verifyLocation,
-    getCurrentLocation,
-    options.onAdminApproval,
-  ]);
+  }, [verificationState.adminRequestId, verifyLocation]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
