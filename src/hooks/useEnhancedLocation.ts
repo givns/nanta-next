@@ -1,5 +1,5 @@
 // hooks/useEnhancedLocation.ts
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LocationState } from '@/types/attendance';
 import { EnhancedLocationService } from '@/services/location/EnhancedLocationService';
 import { LOCATION_CONSTANTS } from '@/types/attendance/base';
@@ -20,23 +20,8 @@ export function useEnhancedLocation() {
   const locationService = useRef(new EnhancedLocationService());
   const [locationState, setLocationState] =
     useState<LocationState>(INITIAL_STATE);
-  const prevStateRef = useRef<LocationState>(INITIAL_STATE);
-
   const isMounted = useRef(true);
-
-  useEffect(() => {
-    if (
-      locationState.status !== prevStateRef.current.status ||
-      locationState.verificationStatus !==
-        prevStateRef.current.verificationStatus
-    ) {
-      console.log('Location state change:', {
-        previous: prevStateRef.current,
-        current: locationState,
-      });
-      prevStateRef.current = locationState;
-    }
-  }, [locationState]);
+  const stateRef = useRef<LocationState>(locationState);
 
   // Track location requests
   const locationRef = useRef<{
@@ -170,10 +155,40 @@ export function useEnhancedLocation() {
     getCurrentLocation();
   }, [getCurrentLocation]);
 
+  // Track state changes
+  useEffect(() => {
+    if (
+      stateRef.current.status !== locationState.status ||
+      stateRef.current.verificationStatus !== locationState.verificationStatus
+    ) {
+      console.log('Location state change:', {
+        previous: stateRef.current,
+        current: locationState,
+        changed: {
+          status: stateRef.current.status !== locationState.status,
+          verification:
+            stateRef.current.verificationStatus !==
+            locationState.verificationStatus,
+        },
+      });
+      stateRef.current = locationState;
+    }
+  }, [locationState]);
+
+  const locationReady = useMemo(
+    () => locationState.status === 'ready',
+    [locationState.status],
+  );
+
+  const locationVerified = useMemo(
+    () => locationState.verificationStatus === 'verified',
+    [locationState.verificationStatus],
+  );
+
   return {
     locationState,
-    locationReady: locationState.status === 'ready',
-    locationVerified: locationState.verificationStatus === 'verified',
+    locationReady,
+    locationVerified,
     locationError: locationState.error,
     getCurrentLocation,
     isLoading:
