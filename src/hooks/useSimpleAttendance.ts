@@ -47,6 +47,24 @@ export function useSimpleAttendance({
     enabled: enabled && locationReady && locationVerified,
   });
 
+  useEffect(() => {
+    console.log('Attendance enable conditions:', {
+      propsEnabled: enabled,
+      locationReady,
+      locationVerified,
+      shouldEnable: enabled && locationReady && locationVerified,
+    });
+  }, [enabled, locationReady, locationVerified]);
+
+  console.log('Attendance data enable conditions:', {
+    props: {
+      enabled,
+      locationReady,
+      locationVerified,
+    },
+    state: locationState,
+  });
+
   // Debug effects to track data flow
   useEffect(() => {
     console.log('Location state:', locationState);
