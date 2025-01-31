@@ -153,10 +153,6 @@ const useLocationVerification = (
             'Location request approved by admin, proceeding with attendance',
           );
 
-          // Force a new location check first to sync states
-          await getCurrentLocation(true); // This ensures useEnhancedLocation updates
-
-          // Then update verification state
           setVerificationState((prev) => ({
             ...prev,
             status: 'ready',
@@ -194,12 +190,7 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [
-    verificationState.adminRequestId,
-    verifyLocation,
-    getCurrentLocation,
-    options.onAdminApproval,
-  ]);
+  }, [verificationState.adminRequestId, verifyLocation]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;

@@ -54,26 +54,6 @@ export function useEnhancedLocation() {
         },
       });
 
-      // Always allow transitions from error state to initializing
-      if (
-        locationRef.current.data?.status === 'error' &&
-        newState.status === 'initializing'
-      ) {
-        locationRef.current.data = newState;
-        setLocationState(newState);
-        return;
-      }
-
-      // Allow direct transition to ready after admin verification
-      if (
-        newState.verificationStatus === 'verified' &&
-        newState.status === 'ready'
-      ) {
-        locationRef.current.data = newState;
-        setLocationState(newState);
-        return;
-      }
-
       locationRef.current.data = newState;
       setLocationState(newState);
     }
