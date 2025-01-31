@@ -33,8 +33,6 @@ const useLocationVerification = (
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
-  const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
-  const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
 
   const {
     locationState,
@@ -95,6 +93,7 @@ const useLocationVerification = (
     console.groupEnd();
   }, [locationState]);
 
+  // Verify location handler
   const verifyLocation = useCallback(
     async (force = false) => {
       if (!triggerRef.current) return false;
@@ -104,6 +103,7 @@ const useLocationVerification = (
           ...prev,
           status: 'loading',
           error: null,
+          triggerReason: null,
           verificationStatus: 'pending',
         }));
 
@@ -168,8 +168,8 @@ const useLocationVerification = (
             status: 'loading',
             verificationStatus: 'pending',
             error: null,
-            adminRequestId: undefined,
             triggerReason: null,
+            adminRequestId: undefined,
           }));
           verifyLocation(true).catch((error) => {
             console.error('Error retrying location verification:', error);
