@@ -9,7 +9,6 @@ import {
   INITIAL_STATE,
   LocationStatus,
 } from '@/types/attendance';
-import { mutate } from 'swr';
 
 interface LocationVerificationOptions extends Partial<LocationTriggerConfig> {
   onAdminApproval?: () => Promise<void>;
@@ -176,12 +175,14 @@ const useLocationVerification = (
   }, [verificationState, options.onAdminApproval]);
 
   useEffect(() => {
-    let pollTimer: NodeJS.Timeout;
+    let pollTimer: NodeJS.Timeout | undefined; // Changed type to allow undefined
+    let isProcessing = false; // Add flag to prevent multiple simultaneous processing
 
     const checkAdminRequestStatus = async () => {
-      if (!verificationState.adminRequestId) return;
+      if (!verificationState.adminRequestId || isProcessing) return;
 
       try {
+        isProcessing = true; // Set processing flag
         const response = await fetch(
           `/api/admin/location-assistance?requestId=${verificationState.adminRequestId}`,
         );
@@ -194,16 +195,32 @@ const useLocationVerification = (
           console.log(
             'Location request approved by admin, proceeding with attendance',
           );
-          await handleAdminApproval(); // Use the handler instead of duplicating logic
+
+          // Clear the polling timer immediately
+          if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = undefined;
+          }
+
+          await handleAdminApproval();
+
+          // Clear the adminRequestId after successful approval
+          setVerificationState((prev) => ({
+            ...prev,
+            adminRequestId: undefined, // This is crucial
+          }));
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
+      } finally {
+        isProcessing = false; // Clear processing flag
       }
     };
 
-    if (verificationState.adminRequestId) {
-      pollTimer = setInterval(checkAdminRequestStatus, 3000);
-      checkAdminRequestStatus();
+    // Only start polling if we have an adminRequestId and no active timer
+    if (verificationState.adminRequestId && !pollTimer) {
+      checkAdminRequestStatus(); // Initial check
+      pollTimer = setInterval(checkAdminRequestStatus, 3000); // Start polling
     }
 
     return () => {
@@ -211,7 +228,7 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [verificationState.adminRequestId, handleAdminApproval]); // Update dependencies
+  }, [verificationState.adminRequestId, handleAdminApproval]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
