@@ -54,17 +54,24 @@ export function useEnhancedLocation() {
         },
       });
 
-      // Enforce strict state transition flow
-      if (locationRef.current.data?.status === 'error') {
-        if (
-          newState.status !== 'initializing' &&
-          newState.status !== 'loading'
-        ) {
-          console.warn(
-            'Invalid transition from error to non-initializing/loading state',
-          );
-          return;
-        }
+      // Always allow transitions from error state to initializing
+      if (
+        locationRef.current.data?.status === 'error' &&
+        newState.status === 'initializing'
+      ) {
+        locationRef.current.data = newState;
+        setLocationState(newState);
+        return;
+      }
+
+      // Allow direct transition to ready after admin verification
+      if (
+        newState.verificationStatus === 'verified' &&
+        newState.status === 'ready'
+      ) {
+        locationRef.current.data = newState;
+        setLocationState(newState);
+        return;
       }
 
       locationRef.current.data = newState;
@@ -95,8 +102,6 @@ export function useEnhancedLocation() {
         const loadingState: LocationState = {
           ...(locationRef.current.data || INITIAL_STATE),
           status: 'loading',
-          error: null,
-          triggerReason: null,
         };
         updateLocationState(loadingState);
 
@@ -165,9 +170,9 @@ export function useEnhancedLocation() {
               : 'Location error',
         };
 
-        // Transition to initializing state before updating to error state
-        updateLocationState({ ...INITIAL_STATE, status: 'initializing' });
-        updateLocationState(errorState);
+        if (isMounted.current) {
+          updateLocationState(errorState);
+        }
 
         return errorState;
       } finally {

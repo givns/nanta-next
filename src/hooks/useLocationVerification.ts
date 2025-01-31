@@ -8,6 +8,7 @@ import {
   LocationTriggerConfig,
   INITIAL_STATE,
 } from '@/types/attendance';
+import { mutate } from 'swr';
 
 interface LocationVerificationOptions extends Partial<LocationTriggerConfig> {
   onAdminApproval?: () => Promise<void>;
@@ -33,6 +34,8 @@ const useLocationVerification = (
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
+  const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
+  const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
 
   const {
     locationState,
@@ -103,18 +106,10 @@ const useLocationVerification = (
           ...prev,
           status: 'loading',
           error: null,
-          triggerReason: null,
           verificationStatus: 'pending',
         }));
 
         const location = await getCurrentLocation(force);
-        setVerificationState((prev) => ({
-          ...prev,
-          ...location,
-          verificationStatus: location.inPremises
-            ? 'verified'
-            : 'needs_verification',
-        }));
         return location.inPremises;
       } catch (error) {
         console.error('Location verification error:', error);
@@ -142,38 +137,40 @@ const useLocationVerification = (
     let pollTimer: NodeJS.Timeout;
 
     const checkAdminRequestStatus = async () => {
-      // Only check if we have an adminRequestId
       if (!verificationState.adminRequestId) return;
 
       try {
         const response = await fetch(
           `/api/admin/location-assistance?requestId=${verificationState.adminRequestId}`,
         );
-        if (!response.ok) {
-          console.error('Failed to check admin request status');
-          return;
-        }
+        if (!response.ok) return;
 
         const data = await response.json();
         console.log('Admin request status check:', data);
 
         if (data.status === 'APPROVED') {
           console.log(
-            'Location request approved, transitioning to loading state',
+            'Location request approved by admin, proceeding with attendance',
           );
 
-          // Transition to loading state and trigger location verification
+          // Force a new location check first to sync states
+          await getCurrentLocation(true); // This ensures useEnhancedLocation updates
+
+          // Then update verification state
           setVerificationState((prev) => ({
             ...prev,
-            status: 'loading',
-            verificationStatus: 'pending',
+            status: 'ready',
+            verificationStatus: 'verified',
+            inPremises: true,
             error: null,
-            triggerReason: null,
             adminRequestId: undefined,
+            triggerReason: null,
           }));
-          verifyLocation(true).catch((error) => {
-            console.error('Error retrying location verification:', error);
-          });
+
+          // Call the callback after state update
+          if (options.onAdminApproval) {
+            await options.onAdminApproval();
+          }
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
@@ -197,7 +194,12 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [verificationState.adminRequestId, verifyLocation]);
+  }, [
+    verificationState.adminRequestId,
+    verifyLocation,
+    getCurrentLocation,
+    options.onAdminApproval,
+  ]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
