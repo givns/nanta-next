@@ -137,40 +137,43 @@ const useLocationVerification = (
     let pollTimer: NodeJS.Timeout;
 
     const checkAdminRequestStatus = async () => {
+      // Only check if we have an adminRequestId
       if (!verificationState.adminRequestId) return;
 
       try {
         const response = await fetch(
           `/api/admin/location-assistance?requestId=${verificationState.adminRequestId}`,
         );
-        if (!response.ok) return;
+        if (!response.ok) {
+          console.error('Failed to check admin request status');
+          return;
+        }
 
         const data = await response.json();
         console.log('Admin request status check:', data);
 
         if (data.status === 'APPROVED') {
           console.log(
-            'Location request approved by admin, proceeding with attendance',
+            'Location request approved, transitioning to loading state',
           );
 
-          // Force a new location check first to sync states
-          await getCurrentLocation(true); // This ensures useEnhancedLocation updates
-
-          // Then update verification state
+          // First transition to loading state
           setVerificationState((prev) => ({
             ...prev,
-            status: 'ready',
-            verificationStatus: 'verified',
-            inPremises: true,
+            status: 'loading',
+            verificationStatus: 'pending',
             error: null,
             adminRequestId: undefined,
             triggerReason: null,
+            accuracy: 0, // Reset accuracy for proper transition
           }));
 
-          // Call the callback after state update
-          if (options.onAdminApproval) {
-            await options.onAdminApproval();
-          }
+          // Then after a short delay, try location verification
+          setTimeout(() => {
+            verifyLocation(true).catch((error) => {
+              console.error('Error retrying location verification:', error);
+            });
+          }, 1000);
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
