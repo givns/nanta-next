@@ -34,6 +34,8 @@ const useLocationVerification = (
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
+  const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
+  const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
 
   const {
     locationState,
@@ -134,8 +136,6 @@ const useLocationVerification = (
   useEffect(() => {
     let pollTimer: NodeJS.Timeout;
 
-    // Inside useLocationVerification hook
-
     const checkAdminRequestStatus = async () => {
       if (!verificationState.adminRequestId) return;
 
@@ -153,6 +153,10 @@ const useLocationVerification = (
             'Location request approved by admin, proceeding with attendance',
           );
 
+          // Force a new location check first to sync states
+          await getCurrentLocation(true); // This ensures useEnhancedLocation updates
+
+          // Then update verification state
           setVerificationState((prev) => ({
             ...prev,
             status: 'ready',
@@ -190,7 +194,12 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [verificationState.adminRequestId, verifyLocation]);
+  }, [
+    verificationState.adminRequestId,
+    verifyLocation,
+    getCurrentLocation,
+    options.onAdminApproval,
+  ]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
