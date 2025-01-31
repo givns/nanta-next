@@ -41,14 +41,16 @@ export function useSimpleAttendance({
     employeeId,
     lineUserId: lineUserId ?? undefined,
     locationState,
-    locationReady:
-      locationReady || locationState.verificationStatus === 'verified',
-    locationVerified:
-      locationVerified || locationState.verificationStatus === 'verified',
+    locationReady,
+    locationVerified,
     initialAttendanceStatus,
+    // Fix the enabled condition to include admin pending state
     enabled:
       enabled &&
-      (locationReady || locationState.verificationStatus === 'verified'),
+      (locationReady ||
+        locationVerified ||
+        locationState.verificationStatus === 'admin_pending' ||
+        locationState.status === 'waiting_admin'),
   });
 
   useEffect(() => {

@@ -175,8 +175,6 @@ const useLocationVerification = (
     }
   }, [verificationState, options.onAdminApproval]);
 
-  // Add polling effect for admin request status
-  // Update the polling effect
   useEffect(() => {
     let pollTimer: NodeJS.Timeout;
 
@@ -196,8 +194,32 @@ const useLocationVerification = (
           console.log(
             'Location request approved by admin, proceeding with attendance',
           );
+
+          // Update state immediately with approved state
+          const approvedState: LocationVerificationState = {
+            status: 'ready',
+            verificationStatus: 'verified',
+            inPremises: true,
+            address: verificationState.address || '',
+            confidence: 'high',
+            accuracy: verificationState.accuracy || 0,
+            coordinates: verificationState.coordinates,
+            error: null,
+            triggerReason: null,
+            adminRequestId: undefined,
+          };
+
+          setVerificationState(approvedState);
           adminVerifiedRef.current = true;
-          await handleAdminApproval();
+
+          // Force a data refresh after state update
+          if (options.onAdminApproval) {
+            try {
+              await options.onAdminApproval();
+            } catch (error) {
+              console.error('Error in admin approval callback:', error);
+            }
+          }
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
@@ -214,7 +236,7 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [verificationState.adminRequestId, handleAdminApproval]);
+  }, [verificationState.adminRequestId, options.onAdminApproval]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;

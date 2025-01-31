@@ -161,21 +161,25 @@ export function useAttendanceData({
         clearTimeout(refreshTimeoutRef.current);
       }
 
-      setLastOperation(new Date().toISOString());
+      // Force a new timestamp for the operation
+      const timestamp = new Date().toISOString();
+      setLastOperation(timestamp);
 
-      await mutate(undefined, {
-        revalidate: true,
-        populateCache: true,
-      });
-
+      // Clear cache first
       try {
         await axios.post(`/api/attendance/clear-cache`, {
           employeeId,
-          timestamp: new Date().toISOString(),
+          timestamp,
         });
       } catch (error) {
         console.warn('Failed to clear server cache:', error);
       }
+
+      // Then mutate data
+      await mutate(undefined, {
+        revalidate: true,
+        populateCache: true,
+      });
     } catch (error) {
       console.error('Error refreshing attendance status:', error);
     } finally {

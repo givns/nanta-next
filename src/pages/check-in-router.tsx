@@ -120,6 +120,18 @@ const CheckInRouter: React.FC = () => {
       return 'user';
     }
 
+    // Modified location state handling
+    if (
+      locationState.verificationStatus === 'admin_pending' ||
+      locationState.status === 'waiting_admin'
+    ) {
+      return 'location';
+    }
+
+    if (locationState.verificationStatus === 'verified') {
+      return 'ready';
+    }
+
     // 3. Finally handle location states
     const hasLocationIssue = Boolean(
       locationState.status === 'error' ||
@@ -128,20 +140,12 @@ const CheckInRouter: React.FC = () => {
         locationState.triggerReason === 'Location permission denied',
     );
 
-    if (hasLocationIssue || needsVerification || !isVerified) {
-      return 'location';
-    }
-
-    // 4. Only proceed to location checks if we have user data
-    if (
-      locationState.status === 'loading' ||
-      locationState.status === 'initializing'
-    ) {
+    if (hasLocationIssue) {
       return 'location';
     }
 
     return 'ready';
-  }, [authLoading, userData, locationState, needsVerification, isVerified]);
+  }, [authLoading, userData, locationState]);
 
   // Debug effect to track state changes
   useEffect(() => {
