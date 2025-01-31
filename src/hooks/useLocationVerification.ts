@@ -7,6 +7,7 @@ import {
   LocationVerificationState,
   LocationTriggerConfig,
   INITIAL_STATE,
+  LocationStatus,
 } from '@/types/attendance';
 import { mutate } from 'swr';
 
@@ -29,13 +30,12 @@ const DEFAULT_CONFIG: LocationTriggerConfig = {
 const useLocationVerification = (
   employeeId?: string,
   options: LocationVerificationOptions = {},
-): LocationStateContextType => {
+): LocationStateContextType & { resetAdminVerification?: () => void } => {
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
-  const stateRef = useRef<LocationVerificationState>(INITIAL_STATE);
-  const previousStateRef = useRef<LocationVerificationState>(INITIAL_STATE);
+  const adminVerifiedRef = useRef<boolean>(false);
 
   const {
     locationState,
@@ -148,22 +148,29 @@ const useLocationVerification = (
         const data = await response.json();
         console.log('Admin request status check:', data);
 
-        if (data.status === 'APPROVED') {
+        if (data.status === 'APPROVED' && !adminVerifiedRef.current) {
           console.log(
             'Location request approved by admin, proceeding with attendance',
           );
 
-          setVerificationState((prev) => ({
-            ...prev,
-            status: 'ready',
+          const updatedState: LocationVerificationState = {
+            status: 'ready' as LocationStatus,
             verificationStatus: 'verified',
             inPremises: true,
             error: null,
             adminRequestId: undefined,
             triggerReason: null,
-          }));
+            // Preserve existing coordinates and address if available
+            coordinates: verificationState.coordinates,
+            address: verificationState.address,
+            accuracy: verificationState.accuracy,
+            confidence: verificationState.confidence || 'low',
+          };
 
-          // Call the callback after state update
+          setVerificationState(updatedState);
+          adminVerifiedRef.current = true;
+
+          // Force location re-verification
           if (options.onAdminApproval) {
             await options.onAdminApproval();
           }
@@ -173,24 +180,17 @@ const useLocationVerification = (
       }
     };
 
-    // Start polling if we have an admin request ID
     if (verificationState.adminRequestId) {
-      console.log(
-        'Starting admin request polling:',
-        verificationState.adminRequestId,
-      );
       pollTimer = setInterval(checkAdminRequestStatus, 3000);
-      // Immediate first check
       checkAdminRequestStatus();
     }
 
     return () => {
       if (pollTimer) {
-        console.log('Clearing admin request polling');
         clearInterval(pollTimer);
       }
     };
-  }, [verificationState.adminRequestId, verifyLocation]);
+  }, [verificationState.adminRequestId, options.onAdminApproval]);
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
@@ -249,6 +249,10 @@ const useLocationVerification = (
     }
   }, [employeeId, verificationState]);
 
+  const resetAdminVerification = useCallback(() => {
+    adminVerifiedRef.current = false;
+  }, []);
+
   return {
     locationState: verificationState,
     isLoading: locationLoading || verificationState.status === 'loading',
@@ -260,6 +264,7 @@ const useLocationVerification = (
     triggerReason: verificationState.triggerReason,
     verifyLocation,
     requestAdminAssistance,
+    resetAdminVerification,
   };
 };
 

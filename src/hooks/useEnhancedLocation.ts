@@ -63,101 +63,90 @@ export function useEnhancedLocation() {
     async (forceRefresh = false) => {
       const now = Date.now();
 
-      // Return cached location if valid and not forcing refresh
+      // More robust caching mechanism
       if (
         !forceRefresh &&
         locationRef.current.data &&
-        now - locationRef.current.timestamp < LOCATION_CONSTANTS.CACHE_TIME
+        now - locationRef.current.timestamp < LOCATION_CONSTANTS.CACHE_TIME &&
+        locationRef.current.data.status === 'ready'
       ) {
         return locationRef.current.data;
       }
 
-      // Prevent multiple concurrent requests
+      // Prevent multiple concurrent requests with a promise cache
       if (locationRef.current.promise) {
         return locationRef.current.promise;
       }
 
-      try {
-        // Update loading state synchronously
-        const loadingState: LocationState = {
-          ...(locationRef.current.data || INITIAL_STATE),
-          status: 'loading',
-        };
-        updateLocationState(loadingState);
+      // Wrap the entire location fetch in a promise to maintain request consistency
+      locationRef.current.promise = (async () => {
+        try {
+          // Detailed loading state
+          updateLocationState({
+            ...(locationRef.current.data || INITIAL_STATE),
+            status: 'loading',
+            verificationStatus: 'pending',
+          });
 
-        // Get location
-        const result =
-          await locationService.current.getCurrentLocation(forceRefresh);
+          const result =
+            await locationService.current.getCurrentLocation(forceRefresh);
 
-        // Handle unmounted component
-        if (!isMounted.current) return result;
+          if (!isMounted.current) return result;
 
-        if (result.error) {
+          // Comprehensive state handling
+          const newLocationState: LocationState = {
+            status: result.error ? 'error' : 'ready',
+            inPremises: result.inPremises || false,
+            address: result.address || '',
+            confidence: result.confidence || 'low',
+            accuracy: result.accuracy || 0,
+            coordinates: result.coordinates,
+            error: result.error || null,
+            verificationStatus: result.error
+              ? 'needs_verification'
+              : result.inPremises
+                ? 'verified'
+                : 'needs_verification',
+            triggerReason: result.error
+              ? result.triggerReason || 'Location fetch error'
+              : result.inPremises
+                ? null
+                : 'Out of premises',
+          };
+
+          updateLocationState(newLocationState);
+
+          locationRef.current.timestamp = now;
+          locationRef.current.retryCount = 0;
+
+          return newLocationState;
+        } catch (error) {
           const errorState: LocationState = {
             status: 'error',
             inPremises: false,
             address: '',
             confidence: 'low',
             accuracy: 0,
-            error: result.error,
             coordinates: undefined,
+            error:
+              error instanceof GeolocationPositionError && error.code === 1
+                ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
+                : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
             verificationStatus: 'needs_verification',
-            triggerReason: result.triggerReason || 'Unknown error',
+            triggerReason:
+              error instanceof GeolocationPositionError && error.code === 1
+                ? 'Location permission denied'
+                : 'Location error',
           };
+
           updateLocationState(errorState);
           return errorState;
+        } finally {
+          locationRef.current.promise = null;
         }
+      })();
 
-        const newLocationState: LocationState = {
-          status: 'ready',
-          inPremises: result.inPremises,
-          address: result.address || '',
-          confidence: result.confidence || 'low',
-          accuracy: result.accuracy || 0,
-          coordinates: result.coordinates,
-          error: null,
-          verificationStatus: result.inPremises
-            ? 'verified'
-            : 'needs_verification',
-          triggerReason: result.inPremises ? null : 'Out of premises',
-        };
-
-        if (isMounted.current) {
-          locationRef.current.timestamp = now;
-          locationRef.current.retryCount = 0;
-          updateLocationState(newLocationState);
-        }
-
-        return newLocationState;
-      } catch (error) {
-        console.error('Location fetch error:', error);
-
-        const errorState: LocationState = {
-          status: 'error',
-          inPremises: false,
-          address: '',
-          confidence: 'low',
-          accuracy: 0,
-          coordinates: undefined,
-          error:
-            error instanceof GeolocationPositionError && error.code === 1
-              ? 'ไม่สามารถระบุตำแหน่งได้เนื่องจากการเข้าถึงตำแหน่งถูกปิดกั้น'
-              : 'เกิดข้อผิดพลาดในการระบุตำแหน่ง',
-          verificationStatus: 'needs_verification',
-          triggerReason:
-            error instanceof GeolocationPositionError && error.code === 1
-              ? 'Location permission denied'
-              : 'Location error',
-        };
-
-        if (isMounted.current) {
-          updateLocationState(errorState);
-        }
-
-        return errorState;
-      } finally {
-        locationRef.current.promise = null;
-      }
+      return locationRef.current.promise;
     },
     [updateLocationState],
   );
