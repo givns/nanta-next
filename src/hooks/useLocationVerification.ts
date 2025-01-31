@@ -194,32 +194,7 @@ const useLocationVerification = (
           console.log(
             'Location request approved by admin, proceeding with attendance',
           );
-
-          // Update state immediately with approved state
-          const approvedState: LocationVerificationState = {
-            status: 'ready',
-            verificationStatus: 'verified',
-            inPremises: true,
-            address: verificationState.address || '',
-            confidence: 'high',
-            accuracy: verificationState.accuracy || 0,
-            coordinates: verificationState.coordinates,
-            error: null,
-            triggerReason: null,
-            adminRequestId: undefined,
-          };
-
-          setVerificationState(approvedState);
-          adminVerifiedRef.current = true;
-
-          // Force a data refresh after state update
-          if (options.onAdminApproval) {
-            try {
-              await options.onAdminApproval();
-            } catch (error) {
-              console.error('Error in admin approval callback:', error);
-            }
-          }
+          await handleAdminApproval(); // Use the handler instead of duplicating logic
         }
       } catch (error) {
         console.error('Error checking admin request status:', error);
@@ -236,7 +211,7 @@ const useLocationVerification = (
         clearInterval(pollTimer);
       }
     };
-  }, [verificationState.adminRequestId, options.onAdminApproval]);
+  }, [verificationState.adminRequestId, handleAdminApproval]); // Update dependencies
 
   const requestAdminAssistance = useCallback(async () => {
     if (!employeeId) return;
