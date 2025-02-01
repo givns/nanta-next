@@ -131,18 +131,15 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     transitionStatus: TransitionStatusInfo,
   ): StateValidation {
-    console.log('Creating state validation:', {
-      periodType: currentState.type,
-      isOvertime: context.isOvertime,
-      timestamp: context.timestamp,
-      timeWindow: currentState.timeWindow,
+    console.log('Creating validation with:', {
+      type: currentState.type,
+      isActive: statusInfo.isActiveAttendance,
       checkInTime: attendance?.CheckInTime,
-      canCheckIn: this.canCheckIn(currentState, statusInfo, context.timestamp),
-      canCheckOut: this.canCheckOut(
-        currentState,
-        statusInfo,
-        context.timestamp,
-      ),
+      checkOutTime: attendance?.CheckOutTime,
+      context: {
+        timestamp: format(context.timestamp, 'HH:mm:ss'),
+        periodType: context.periodType,
+      },
     });
 
     // Build validation flags
@@ -178,6 +175,24 @@ export class AttendanceEnhancementService {
             },
           }
         : undefined;
+
+    const canCheckIn = this.canCheckIn(
+      currentState,
+      statusInfo,
+      context.timestamp,
+    );
+    const canCheckOut = this.canCheckOut(
+      currentState,
+      statusInfo,
+      context.timestamp,
+    );
+
+    console.log('Validation results:', {
+      canCheckIn,
+      canCheckOut,
+      type: currentState.type,
+      isActive: statusInfo.isActiveAttendance,
+    });
 
     return {
       allowed:
