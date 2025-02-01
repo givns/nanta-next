@@ -399,61 +399,56 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     now: Date,
   ): UnifiedPeriodState {
-    // Use attendance date for active periods, otherwise use current date
-    let contextDate = attendance?.date ? new Date(attendance.date) : now;
-
-    // For active overnight periods, adjust context based on current time
+    // For active overtime, use the actual attendance times
     if (
-      period.isOvernight &&
-      attendance?.CheckInTime &&
-      !attendance?.CheckOutTime
+      attendance?.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime &&
+      attendance.shiftStartTime &&
+      attendance.shiftEndTime
     ) {
-      const checkInTime = new Date(attendance.CheckInTime);
-      const checkInHour = checkInTime.getHours();
-      const nowHour = now.getHours();
-
-      // If we're after midnight but before the end time (e.g., 00:55)
-      if (nowHour < 12 && checkInHour >= 12) {
-        contextDate = subDays(contextDate, 1);
-      }
+      return {
+        type: period.type,
+        timeWindow: {
+          start: format(attendance.shiftStartTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          end: format(attendance.shiftEndTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        },
+        activity: {
+          isActive: true,
+          checkIn: format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          checkOut: null,
+          isOvertime: true,
+          isDayOffOvertime: Boolean(period.isDayOff),
+          isInsideShiftHours: false,
+        },
+        validation: {
+          isWithinBounds: isWithinInterval(now, {
+            start: attendance.shiftStartTime,
+            end: attendance.shiftEndTime,
+          }),
+          isEarly: now < attendance.shiftStartTime,
+          isLate: now > attendance.shiftEndTime,
+          isOvernight: true,
+          isConnected: Boolean(attendance.overtimeState === 'COMPLETED'),
+        },
+      };
     }
 
+    // For non-active periods, use period definition with proper date context
+    let contextDate = attendance?.date ? new Date(attendance.date) : now;
     let periodStart = this.parseTimeWithContext(period.startTime, contextDate);
     let periodEnd = this.parseTimeWithContext(period.endTime, contextDate);
 
-    // Handle overnight periods
     if (period.isOvernight) {
       if (periodEnd < periodStart) {
         periodEnd = addDays(periodEnd, 1);
       }
-
-      // Adjust period windows for overnight shifts
-      const nowHour = now.getHours();
-      const startHour = periodStart.getHours();
-
-      if (nowHour < 12 && startHour >= 12) {
-        // We're after midnight but before shift end
-        periodStart = subDays(periodStart, 1);
-        periodEnd = subDays(periodEnd, 1);
-      }
     }
 
-    // Calculate if we're within the period including grace periods
     const isWithinPeriod = isWithinInterval(now, {
-      start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-      end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+      start: periodStart,
+      end: periodEnd,
     });
-
-    // For active periods, consider the actual check-in window
-    const isWithinActiveWindow =
-      attendance?.CheckInTime && !attendance.CheckOutTime
-        ? isWithinInterval(now, {
-            start: new Date(attendance.CheckInTime),
-            end: attendance.shiftEndTime
-              ? new Date(attendance.shiftEndTime)
-              : addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
-          })
-        : isWithinPeriod;
 
     return {
       type: period.type,
@@ -462,30 +457,18 @@ export class PeriodManagementService {
         end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
       },
       activity: {
-        isActive: Boolean(attendance?.CheckInTime && !attendance?.CheckOutTime),
-        checkIn: attendance?.CheckInTime
-          ? format(
-              new Date(attendance.CheckInTime),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            )
-          : null,
-        checkOut: attendance?.CheckOutTime
-          ? format(
-              new Date(attendance.CheckOutTime),
-              "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            )
-          : null,
+        isActive: false,
+        checkIn: null,
+        checkOut: null,
         isOvertime: period.type === PeriodType.OVERTIME,
         isDayOffOvertime: Boolean(period.isDayOff),
         isInsideShiftHours:
-          period.type === PeriodType.REGULAR && isWithinActiveWindow,
+          period.type === PeriodType.REGULAR && isWithinPeriod,
       },
       validation: {
-        isWithinBounds: isWithinActiveWindow,
-        isEarly:
-          now < subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-        isLate:
-          now > addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+        isWithinBounds: isWithinPeriod,
+        isEarly: now < periodStart,
+        isLate: now > periodEnd,
         isOvernight: period.isOvernight || false,
         isConnected: Boolean(attendance?.overtimeState === 'COMPLETED'),
       },
