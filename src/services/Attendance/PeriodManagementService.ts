@@ -994,10 +994,8 @@ export class PeriodManagementService {
 
     // For overtime periods, allow checkout anytime after check-in
     if (currentState.type === PeriodType.OVERTIME) {
-      return isWithinInterval(now, {
-        start: new Date(activeRecord.CheckInTime),
-        end: parseISO(currentState.timeWindow.end),
-      });
+      // Allow checkout anytime during overtime period after check-in
+      return true;
     }
 
     // For regular periods, allow early checkout (5 minutes) up to late checkout threshold
@@ -1213,27 +1211,25 @@ export class PeriodManagementService {
     window: ShiftWindowResponse,
     now: Date,
   ): boolean {
-    // Early returns for non-applicable cases
-    if (!activeRecord?.CheckInTime || activeRecord?.CheckOutTime) {
-      return false;
-    }
-
-    // Get next period info if exists
-    const nextPeriodInfo = window.overtimeInfo || window.nextPeriod;
-    if (!nextPeriodInfo) {
+    if (
+      !activeRecord?.CheckInTime ||
+      activeRecord?.CheckOutTime ||
+      !window.overtimeInfo
+    ) {
       return false;
     }
 
     const periodEnd = parseISO(currentState.timeWindow.end);
-    const currentEndTime = format(periodEnd, 'HH:mm');
-    const nextStartTime = nextPeriodInfo.startTime;
+    const endTime = format(periodEnd, 'HH:mm');
 
-    // Only consider transition if periods are connected
-    if (currentEndTime !== nextStartTime) {
+    // Check if periods are connected
+    const hasConnectedPeriod = window.overtimeInfo.startTime === endTime;
+
+    if (!hasConnectedPeriod) {
       return false;
     }
 
-    // Check if we're approaching period end
+    // Only check transition window if periods are connected
     return isWithinInterval(now, {
       start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
       end: periodEnd,
