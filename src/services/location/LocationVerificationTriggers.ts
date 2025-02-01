@@ -32,12 +32,16 @@ export class LocationVerificationTriggers {
   }
 
   lockApprovedState(state: LocationVerificationState) {
-    this.lockedState = state;
+    this.lockedState = {
+      ...state,
+      priority: 'admin_approved', // Add priority flag
+    };
 
-    // Automatically clear the locked state after some time (e.g., 5 minutes)
     setTimeout(
       () => {
-        this.lockedState = null;
+        if (this.lockedState?.priority === 'admin_approved') {
+          this.lockedState = null;
+        }
       },
       5 * 60 * 1000,
     );

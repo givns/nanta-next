@@ -59,6 +59,14 @@ const useLocationVerification = (
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
 
+    // Don't override admin states
+    if (
+      verificationState.verificationStatus === 'admin_pending' ||
+      verificationState.status === 'waiting_admin'
+    ) {
+      return;
+    }
+
     // Handle error states immediately
     if (locationState.status === 'error' || locationState.error) {
       const errorState: LocationVerificationState = {
@@ -93,7 +101,11 @@ const useLocationVerification = (
     });
 
     console.groupEnd();
-  }, [locationState]);
+  }, [
+    locationState,
+    verificationState.verificationStatus,
+    verificationState.status,
+  ]);
 
   // Verify location handler
   const verifyLocation = useCallback(
@@ -155,15 +167,20 @@ const useLocationVerification = (
         accuracy: verificationState.accuracy || 0,
         adminRequestId: undefined,
         triggerReason: null,
+        lastVerifiedAt: new Date(),
       };
 
-      // Update state
-      setVerificationState(approvedState);
-
-      // Lock the state in the location service
+      // Lock the state in the location service first
       if (triggerRef.current) {
         triggerRef.current.lockApprovedState(approvedState);
       }
+
+      // Update state with a delay to ensure lock is in place
+      setTimeout(() => {
+        if (isMounted.current) {
+          setVerificationState(approvedState);
+        }
+      }, 0);
 
       // Call the onAdminApproval callback if provided
       if (options.onAdminApproval) {

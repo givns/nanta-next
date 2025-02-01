@@ -56,6 +56,8 @@ export interface GeoLocationJson extends Record<string, any> {
 
 export type LocationConfidence = 'high' | 'medium' | 'low' | 'manual';
 
+export type LocationApprovalPriority = 'admin_approved' | 'system' | null;
+
 export type LocationStatus =
   | 'initializing'
   | 'loading'
@@ -90,6 +92,7 @@ export interface LocationState {
 
 export interface LocationVerificationState extends LocationState {
   lastVerifiedAt?: Date;
+  priority?: LocationApprovalPriority; // Add this
 }
 
 // Define what fields can be required
