@@ -1024,29 +1024,39 @@ export class PeriodManagementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
-    console.log('Checking checkout permission:', {
+    console.log('Detailed checkout check:', {
       type: currentState.type,
-      isActive: statusInfo.isActiveAttendance,
-      isOvertime: currentState.type === PeriodType.OVERTIME,
-      now: format(now, 'HH:mm:ss'),
+      isActiveAttendance: statusInfo.isActiveAttendance,
+      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      timeWindow: {
+        start: currentState.timeWindow.start,
+        end: currentState.timeWindow.end,
+      },
     });
 
-    // Can't checkout if not active
     if (!statusInfo.isActiveAttendance) {
+      console.log('Rejecting checkout: not active attendance');
       return false;
     }
 
-    // For overtime periods, always allow checkout if active
     if (currentState.type === PeriodType.OVERTIME) {
+      console.log('Allowing overtime checkout');
       return true;
     }
 
-    // Regular period logic...
+    // Regular period logic
     const periodEnd = parseISO(currentState.timeWindow.end);
-    return isWithinInterval(now, {
-      start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.EARLY_CHECKOUT),
+    const isWithinCheckoutWindow = isWithinInterval(now, {
+      start: subMinutes(periodEnd, 5),
       end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
     });
+
+    console.log('Regular period checkout check:', {
+      periodEnd: format(periodEnd, 'HH:mm:ss'),
+      isWithinWindow: isWithinCheckoutWindow,
+    });
+
+    return isWithinCheckoutWindow;
   }
 
   private canStartOvertime(
