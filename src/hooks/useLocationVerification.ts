@@ -35,6 +35,7 @@ const useLocationVerification = (
   const triggerRef = useRef<LocationVerificationTriggers>();
   const isMounted = useRef(true);
   const adminVerifiedRef = useRef<boolean>(false);
+  const approvalStateRef = useRef<boolean>(false);
 
   const {
     locationState,
@@ -54,18 +55,10 @@ const useLocationVerification = (
 
   // Immediate location state update handler
   useEffect(() => {
-    if (!locationState) return;
+    if (!locationState || approvalStateRef.current) return;
 
     console.group('📍 Location State Processing');
     console.log('Raw Location State:', locationState);
-
-    // Don't override admin states
-    if (
-      verificationState.verificationStatus === 'admin_pending' ||
-      verificationState.status === 'waiting_admin'
-    ) {
-      return;
-    }
 
     // Handle error states immediately
     if (locationState.status === 'error' || locationState.error) {
@@ -90,22 +83,25 @@ const useLocationVerification = (
     }
 
     // For non-error states
-    setVerificationState({
-      ...locationState,
-      verificationStatus:
-        locationState.status === 'ready' && locationState.inPremises
-          ? 'verified'
-          : locationState.status === 'ready'
-            ? 'needs_verification'
-            : 'pending',
-    });
+    if (!approvalStateRef.current) {
+      setVerificationState({
+        ...locationState,
+        verificationStatus:
+          locationState.status === 'ready' && locationState.inPremises
+            ? 'verified'
+            : locationState.status === 'ready'
+              ? 'needs_verification'
+              : 'pending',
+      });
+    }
+  }, [locationState]);
 
-    console.groupEnd();
-  }, [
-    locationState,
-    verificationState.verificationStatus,
-    verificationState.status,
-  ]);
+  // Reset approval state on unmount
+  useEffect(() => {
+    return () => {
+      approvalStateRef.current = false;
+    };
+  }, []);
 
   // Verify location handler
   const verifyLocation = useCallback(
@@ -155,6 +151,7 @@ const useLocationVerification = (
     if (!isMounted.current) return;
 
     try {
+      approvalStateRef.current = true; // Set approval flag
       // Create approved state
       const approvedState: LocationVerificationState = {
         status: 'ready',
@@ -167,22 +164,15 @@ const useLocationVerification = (
         accuracy: verificationState.accuracy || 0,
         adminRequestId: undefined,
         triggerReason: null,
-        lastVerifiedAt: new Date(),
+        priority: 'admin_approved',
       };
 
-      // Lock the state in the location service first
+      setVerificationState(approvedState);
+
       if (triggerRef.current) {
         triggerRef.current.lockApprovedState(approvedState);
       }
 
-      // Update state with a delay to ensure lock is in place
-      setTimeout(() => {
-        if (isMounted.current) {
-          setVerificationState(approvedState);
-        }
-      }, 0);
-
-      // Call the onAdminApproval callback if provided
       if (options.onAdminApproval) {
         await options.onAdminApproval();
       }
