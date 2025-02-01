@@ -399,13 +399,19 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     now: Date,
   ): UnifiedPeriodState {
-    const periodStart = this.parseTimeWithContext(period.startTime, now);
-    let periodEnd = this.parseTimeWithContext(period.endTime, now);
+    const contextDate = attendance?.date ? new Date(attendance.date) : now;
+    let periodStart = this.parseTimeWithContext(period.startTime, contextDate);
+    let periodEnd = this.parseTimeWithContext(period.endTime, contextDate);
 
-    // More precise overnight handling
     if (period.isOvernight) {
+      // Properly handle overnight context
       if (periodEnd < periodStart) {
         periodEnd = addDays(periodEnd, 1);
+      }
+      if (now < periodStart && now > subDays(periodStart, 1)) {
+        // Handle cases where we're in previous day's period
+        periodStart = subDays(periodStart, 1);
+        periodEnd = subDays(periodEnd, 1);
       }
     }
 
