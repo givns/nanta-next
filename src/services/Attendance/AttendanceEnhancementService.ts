@@ -131,6 +131,20 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     transitionStatus: TransitionStatusInfo,
   ): StateValidation {
+    console.log('Creating state validation:', {
+      periodType: currentState.type,
+      isOvertime: context.isOvertime,
+      timestamp: context.timestamp,
+      timeWindow: currentState.timeWindow,
+      checkInTime: attendance?.CheckInTime,
+      canCheckIn: this.canCheckIn(currentState, statusInfo, context.timestamp),
+      canCheckOut: this.canCheckOut(
+        currentState,
+        statusInfo,
+        context.timestamp,
+      ),
+    });
+
     // Build validation flags
     const flags = this.buildValidationFlags(
       statusInfo,
@@ -138,6 +152,8 @@ export class AttendanceEnhancementService {
       attendance,
       periodState,
     );
+
+    console.log('Validation flags:', flags);
 
     // Build metadata with transition info
     const metadata: ValidationMetadata | undefined =

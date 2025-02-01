@@ -35,6 +35,7 @@ import {
   isBefore,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
+import { AttendanceEnhancementService } from './AttendanceEnhancementService';
 
 const TRANSITION_CONFIG = {
   EARLY_BUFFER: 15, // 15 minutes before period
@@ -667,6 +668,19 @@ export class PeriodManagementService {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
 
+    const statusInfo: PeriodStatusInfo = {
+      isActiveAttendance: Boolean(
+        activeRecord?.CheckInTime && !activeRecord?.CheckOutTime,
+      ),
+      isOvertimePeriod: currentState.type === PeriodType.OVERTIME,
+      timingFlags: this.calculateTimingFlags(
+        activeRecord,
+        currentState,
+        context.timestamp,
+      ),
+      shiftTiming: this.calculateShiftTiming(window.shift, context.timestamp),
+    };
+
     // Time window validation
     if (!this.isWithinValidTimeWindow(now, periodStart, periodEnd)) {
       errors.push(this.createTimeWindowError(now, periodStart, periodEnd));
@@ -677,11 +691,12 @@ export class PeriodManagementService {
       warnings.push(this.createLateCheckInWarning(now, periodStart));
     }
 
-    // Active attendance validation
+    // Active attendance validation - update the call
     if (activeRecord?.CheckInTime && !activeRecord?.CheckOutTime) {
       const activeValidation = await this.validateActiveAttendance(
         activeRecord,
         currentState,
+        statusInfo,
         window,
         context,
       );
@@ -731,19 +746,31 @@ export class PeriodManagementService {
       state: activeRecord?.state || AttendanceState.ABSENT,
       errors,
       warnings,
-      checkInAllowed: this.canCheckIn(currentState, activeRecord, now),
-      checkOutAllowed: this.canCheckOut(currentState, activeRecord, now),
-      overtimeAllowed: this.canStartOvertime(currentState, window, now),
+      checkInAllowed: this.canCheckIn(
+        currentState,
+        statusInfo,
+        context.timestamp,
+      ),
+      checkOutAllowed: this.canCheckOut(
+        currentState,
+        statusInfo,
+        context.timestamp,
+      ),
+      overtimeAllowed: this.canStartOvertime(
+        currentState,
+        window,
+        context.timestamp,
+      ),
       allowedTimeWindows: this.getAllowedTimeWindows(currentState, window),
       metadata: {
-        lastValidated: now,
+        lastValidated: context.timestamp,
         validatedBy: 'system',
         rules: this.getAppliedRules(currentState, activeRecord),
         requiresTransition: this.checkTransitionRequired(
           currentState,
           activeRecord,
           window,
-          now,
+          context.timestamp,
         ),
       },
     };
@@ -755,6 +782,7 @@ export class PeriodManagementService {
   private async validateActiveAttendance(
     attendance: AttendanceRecord,
     currentState: UnifiedPeriodState,
+    statusInfo: PeriodStatusInfo, // Add this parameter
     window: ShiftWindowResponse,
     context: ValidationContext,
   ): Promise<{ errors: ValidationError[]; warnings: ValidationWarning[] }> {
@@ -771,6 +799,20 @@ export class PeriodManagementService {
         timestamp: now,
         context,
       });
+    }
+
+    // Validate check-out timing using statusInfo
+    if (statusInfo.isActiveAttendance) {
+      const periodEnd = parseISO(currentState.timeWindow.end);
+      if (now > addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT)) {
+        warnings.push({
+          code: 'LATE_CHECK_OUT',
+          message: 'Late check-out detected',
+          details: {
+            minutesLate: differenceInMinutes(now, periodEnd),
+          },
+        });
+      }
     }
 
     // Validate check-out timing
@@ -962,46 +1004,37 @@ export class PeriodManagementService {
    * Permission Checks
    */
   private canCheckIn(
-    currentState: UnifiedPeriodState,
-    activeRecord: AttendanceRecord | null,
+    currentState: UnifiedPeriodState, // Keep this UnifiedPeriodState
+    statusInfo: PeriodStatusInfo, // Add separate PeriodStatusInfo param
     now: Date,
   ): boolean {
-    // Can't check in if there's an active record
-    if (activeRecord?.CheckInTime && !activeRecord?.CheckOutTime) {
+    if (statusInfo.isActiveAttendance) {
       return false;
     }
 
     const periodStart = parseISO(currentState.timeWindow.start);
-
-    // Allow check-in within window including early buffer
-    return this.isWithinValidTimeWindow(
-      now,
-      periodStart,
-      parseISO(currentState.timeWindow.end),
-      { includeEarly: true },
-    );
+    return isWithinInterval(now, {
+      start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+      end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+    });
   }
 
   private canCheckOut(
-    currentState: UnifiedPeriodState,
-    activeRecord: AttendanceRecord | null,
+    currentState: UnifiedPeriodState, // Keep this UnifiedPeriodState
+    statusInfo: PeriodStatusInfo, // Add separate PeriodStatusInfo param
     now: Date,
   ): boolean {
-    // Can only check out if there's an active check-in
-    if (!activeRecord?.CheckInTime || activeRecord?.CheckOutTime) {
+    if (!statusInfo.isActiveAttendance) {
       return false;
     }
 
-    // For overtime periods, allow checkout anytime after check-in
     if (currentState.type === PeriodType.OVERTIME) {
-      // Allow checkout anytime during overtime period after check-in
-      return true;
+      return true; // Allow checkout anytime during overtime
     }
 
-    // For regular periods, allow early checkout (5 minutes) up to late checkout threshold
     const periodEnd = parseISO(currentState.timeWindow.end);
     return isWithinInterval(now, {
-      start: subMinutes(periodEnd, 5), // 5 minutes early checkout for regular periods
+      start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.EARLY_CHECKOUT),
       end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
     });
   }
