@@ -131,15 +131,28 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     transitionStatus: TransitionStatusInfo,
   ): StateValidation {
-    console.log('Creating validation with:', {
+    console.log('Starting validation creation:', {
       type: currentState.type,
       isActive: statusInfo.isActiveAttendance,
-      checkInTime: attendance?.CheckInTime,
-      checkOutTime: attendance?.CheckOutTime,
-      context: {
-        timestamp: format(context.timestamp, 'HH:mm:ss'),
-        periodType: context.periodType,
-      },
+      now: format(context.timestamp, 'HH:mm:ss'),
+    });
+
+    // Get permission flags once
+    const canCheckIn = this.canCheckIn(
+      currentState,
+      statusInfo,
+      context.timestamp,
+    );
+    const canCheckOut = this.canCheckOut(
+      currentState,
+      statusInfo,
+      context.timestamp,
+    );
+
+    console.log('Permission check results:', {
+      canCheckIn,
+      canCheckOut,
+      type: currentState.type,
     });
 
     // Build validation flags
@@ -150,11 +163,11 @@ export class AttendanceEnhancementService {
       periodState,
     );
 
-    console.log('Validation flags:', flags);
-
-    // Build metadata with transition info
-    const metadata: ValidationMetadata | undefined =
-      transitionStatus.isInTransition
+    const validation = {
+      allowed: canCheckIn || canCheckOut, // Use stored values
+      reason: this.getValidationMessage(statusInfo, currentState, attendance),
+      flags,
+      metadata: transitionStatus.isInTransition
         ? {
             nextTransitionTime: format(
               transitionStatus.window.end,
@@ -174,34 +187,12 @@ export class AttendanceEnhancementService {
               targetPeriod: transitionStatus.targetPeriod,
             },
           }
-        : undefined;
-
-    const canCheckIn = this.canCheckIn(
-      currentState,
-      statusInfo,
-      context.timestamp,
-    );
-    const canCheckOut = this.canCheckOut(
-      currentState,
-      statusInfo,
-      context.timestamp,
-    );
-
-    console.log('Validation results:', {
-      canCheckIn,
-      canCheckOut,
-      type: currentState.type,
-      isActive: statusInfo.isActiveAttendance,
-    });
-
-    return {
-      allowed:
-        this.canCheckIn(currentState, statusInfo, context.timestamp) ||
-        this.canCheckOut(currentState, statusInfo, context.timestamp),
-      reason: this.getValidationMessage(statusInfo, currentState, attendance),
-      flags,
-      metadata,
+        : undefined,
     };
+
+    console.log('Final validation:', validation);
+
+    return validation;
   }
 
   /**
