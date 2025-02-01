@@ -831,15 +831,30 @@ export class PeriodManagementService {
     now: Date,
     windowStart: Date,
     windowEnd: Date,
-    options: { includeEarly?: boolean } = {},
+    options: {
+      includeEarly?: boolean;
+      periodType?: PeriodType;
+      checkInTime?: Date;
+    } = {},
   ): boolean {
-    const effectiveStart = options.includeEarly
-      ? subMinutes(windowStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN)
-      : windowStart;
+    let effectiveStart = windowStart;
+
+    if (options.periodType === PeriodType.OVERTIME && options.checkInTime) {
+      // For overtime, use actual check-in time as start
+      effectiveStart = options.checkInTime;
+    } else if (options.includeEarly) {
+      // For regular periods with early window
+      effectiveStart = subMinutes(
+        windowStart,
+        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+      );
+    }
 
     const effectiveEnd = addMinutes(
       windowEnd,
-      VALIDATION_THRESHOLDS.LATE_CHECKOUT,
+      options.periodType === PeriodType.OVERTIME
+        ? VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT
+        : VALIDATION_THRESHOLDS.LATE_CHECKOUT,
     );
 
     return isWithinInterval(now, {
@@ -943,32 +958,6 @@ export class PeriodManagementService {
     }
   }
 
-  // 2. Fix validation context creation
-  private createValidationContext(
-    employeeId: string,
-    now: Date,
-    activeRecord: AttendanceRecord | null,
-    currentState: UnifiedPeriodState,
-    periodState: ShiftWindowResponse,
-  ): ValidationContext {
-    const isCheckout = Boolean(
-      activeRecord?.CheckInTime && !activeRecord?.CheckOutTime,
-    );
-
-    return {
-      employeeId,
-      timestamp: now,
-      isCheckIn: !isCheckout,
-      state: activeRecord?.state,
-      checkStatus: activeRecord?.checkStatus,
-      overtimeState: activeRecord?.overtimeState,
-      attendance: activeRecord || undefined,
-      shift: periodState.shift,
-      periodType: currentState.type,
-      isOvertime: currentState.type === PeriodType.OVERTIME,
-    };
-  }
-
   /**
    * Permission Checks
    */
@@ -1003,11 +992,20 @@ export class PeriodManagementService {
       return false;
     }
 
-    return this.isWithinValidTimeWindow(
-      now,
-      parseISO(currentState.timeWindow.start),
-      parseISO(currentState.timeWindow.end),
-    );
+    // For overtime periods, allow checkout anytime after check-in
+    if (currentState.type === PeriodType.OVERTIME) {
+      return isWithinInterval(now, {
+        start: new Date(activeRecord.CheckInTime),
+        end: parseISO(currentState.timeWindow.end),
+      });
+    }
+
+    // For regular periods, allow early checkout (5 minutes) up to late checkout threshold
+    const periodEnd = parseISO(currentState.timeWindow.end);
+    return isWithinInterval(now, {
+      start: subMinutes(periodEnd, 5), // 5 minutes early checkout for regular periods
+      end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+    });
   }
 
   private canStartOvertime(
@@ -1209,40 +1207,37 @@ export class PeriodManagementService {
   }
 
   // 4. Fix transition requirement logic
-  private checkTransitionRequired(
+  checkTransitionRequired(
     currentState: UnifiedPeriodState,
     activeRecord: AttendanceRecord | null,
     window: ShiftWindowResponse,
     now: Date,
   ): boolean {
-    // No transition needed if no active record or no overtime info
-    if (
-      !activeRecord?.CheckInTime ||
-      activeRecord?.CheckOutTime ||
-      !window.overtimeInfo
-    ) {
+    // Early returns for non-applicable cases
+    if (!activeRecord?.CheckInTime || activeRecord?.CheckOutTime) {
+      return false;
+    }
+
+    // Get next period info if exists
+    const nextPeriodInfo = window.overtimeInfo || window.nextPeriod;
+    if (!nextPeriodInfo) {
       return false;
     }
 
     const periodEnd = parseISO(currentState.timeWindow.end);
-    const nextPeriodStart = window.overtimeInfo
-      ? parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo.startTime}`,
-        )
-      : null;
+    const currentEndTime = format(periodEnd, 'HH:mm');
+    const nextStartTime = nextPeriodInfo.startTime;
 
-    // Check if we're approaching the end of current period
-    const isApproachingEnd = isWithinInterval(now, {
+    // Only consider transition if periods are connected
+    if (currentEndTime !== nextStartTime) {
+      return false;
+    }
+
+    // Check if we're approaching period end
+    return isWithinInterval(now, {
       start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
       end: periodEnd,
     });
-
-    // Check if there's an upcoming overtime period
-    const hasUpcomingOvertime =
-      nextPeriodStart &&
-      format(nextPeriodStart, 'HH:mm') === format(periodEnd, 'HH:mm');
-
-    return isApproachingEnd && (hasUpcomingOvertime || false);
   }
 
   private isWithinOvernightPeriod(
