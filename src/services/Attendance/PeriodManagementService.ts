@@ -1238,31 +1238,38 @@ export class PeriodManagementService {
   }
 
   // 4. Fix transition requirement logic
-  checkTransitionRequired(
+  private checkTransitionRequired(
     currentState: UnifiedPeriodState,
     activeRecord: AttendanceRecord | null,
     window: ShiftWindowResponse,
     now: Date,
   ): boolean {
-    if (
-      !activeRecord?.CheckInTime ||
-      activeRecord?.CheckOutTime ||
-      !window.overtimeInfo
-    ) {
+    // No transition needed if no active record
+    if (!activeRecord?.CheckInTime || activeRecord?.CheckOutTime) {
       return false;
     }
 
+    // Check for connecting period
+    const currentEndTime = format(
+      parseISO(currentState.timeWindow.end),
+      'HH:mm',
+    );
+    const nextPeriodStartTime =
+      window.overtimeInfo?.startTime || window.nextPeriod?.startTime;
+
+    console.log('Transition check:', {
+      currentEndTime,
+      nextPeriodStartTime,
+      hasConnection: currentEndTime === nextPeriodStartTime,
+    });
+
+    // Only require transition if periods are connected
+    if (!nextPeriodStartTime || currentEndTime !== nextPeriodStartTime) {
+      return false;
+    }
+
+    // Check if within transition window
     const periodEnd = parseISO(currentState.timeWindow.end);
-    const endTime = format(periodEnd, 'HH:mm');
-
-    // Check if periods are connected
-    const hasConnectedPeriod = window.overtimeInfo.startTime === endTime;
-
-    if (!hasConnectedPeriod) {
-      return false;
-    }
-
-    // Only check transition window if periods are connected
     return isWithinInterval(now, {
       start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
       end: periodEnd,
