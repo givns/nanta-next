@@ -462,6 +462,33 @@ export class AttendanceEnhancementService {
     attendance: AttendanceRecord | null,
     periodState: ShiftWindowResponse,
   ): ValidationFlags {
+    console.log('Building validation flags:', {
+      periodType: currentState.type,
+      isActive: statusInfo.isActiveAttendance,
+      timeWindow: currentState.timeWindow,
+      hasOvertimeInfo: Boolean(periodState.overtimeInfo),
+    });
+
+    // Check for connecting period
+    const periodEnd = parseISO(currentState.timeWindow.end);
+    const currentEndTime = format(periodEnd, 'HH:mm');
+    const nextStartTime = periodState.overtimeInfo?.startTime;
+
+    const hasConnectingPeriod = Boolean(
+      nextStartTime && currentEndTime === nextStartTime,
+    );
+
+    // Only require transition if all conditions met
+    const requiresTransition = Boolean(
+      statusInfo.isActiveAttendance && // Must be active
+        hasConnectingPeriod && // Must have connecting period
+        isWithinInterval(new Date(), {
+          // Must be in transition window
+          start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
+          end: periodEnd,
+        }),
+    );
+
     return {
       isCheckingIn: !statusInfo.isActiveAttendance,
       isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
@@ -485,8 +512,8 @@ export class AttendanceEnhancementService {
       requiresAutoCompletion: statusInfo.timingFlags.isVeryLateCheckOut,
 
       // Transition flags
-      hasPendingTransition: false,
-      requiresTransition: currentState.validation.isOvernight,
+      hasPendingTransition: hasConnectingPeriod, // Update based on connecting period
+      requiresTransition, // Use new transition logic
 
       // Shift timing
       isMorningShift: statusInfo.shiftTiming.isMorningShift,

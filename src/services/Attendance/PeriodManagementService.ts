@@ -1020,18 +1020,28 @@ export class PeriodManagementService {
   }
 
   private canCheckOut(
-    currentState: UnifiedPeriodState, // Keep this UnifiedPeriodState
-    statusInfo: PeriodStatusInfo, // Add separate PeriodStatusInfo param
+    currentState: UnifiedPeriodState,
+    statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
+    console.log('Checking checkout permission:', {
+      type: currentState.type,
+      isActive: statusInfo.isActiveAttendance,
+      isOvertime: currentState.type === PeriodType.OVERTIME,
+      now: format(now, 'HH:mm:ss'),
+    });
+
+    // Can't checkout if not active
     if (!statusInfo.isActiveAttendance) {
       return false;
     }
 
+    // For overtime periods, always allow checkout if active
     if (currentState.type === PeriodType.OVERTIME) {
-      return true; // Allow checkout anytime during overtime
+      return true;
     }
 
+    // Regular period logic...
     const periodEnd = parseISO(currentState.timeWindow.end);
     return isWithinInterval(now, {
       start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.EARLY_CHECKOUT),
