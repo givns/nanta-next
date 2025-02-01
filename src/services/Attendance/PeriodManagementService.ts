@@ -250,22 +250,30 @@ export class PeriodManagementService {
   ): PeriodDefinition[] {
     const periods: PeriodDefinition[] = [];
 
-    // Add active overnight period if exists
+    // Handle active overnight overtime first with proper date context
     if (
       attendance?.type === PeriodType.OVERTIME &&
       attendance.CheckInTime &&
       !attendance.CheckOutTime &&
+      attendance.shiftStartTime &&
       attendance.shiftEndTime
     ) {
-      const overtimeEnd = new Date(attendance.shiftEndTime);
-      if (now <= overtimeEnd) {
+      const checkInTime = new Date(attendance.CheckInTime);
+      const shiftEnd = new Date(attendance.shiftEndTime);
+
+      // Properly handle date context for overnight periods
+      if (checkInTime <= now && now <= shiftEnd) {
         periods.push({
           type: PeriodType.OVERTIME,
-          startTime: format(attendance.shiftStartTime!, 'HH:mm'),
+          startTime: format(attendance.shiftStartTime, 'HH:mm'),
           endTime: format(attendance.shiftEndTime, 'HH:mm'),
           sequence: 1,
           isOvernight: true,
+          isDayOff: overtimeInfo?.isDayOffOvertime || false,
         });
+
+        // If we have an active overnight period, return only this period
+        return periods;
       }
     }
 
