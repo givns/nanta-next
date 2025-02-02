@@ -1024,51 +1024,36 @@ export class PeriodManagementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
-    const result = (() => {
-      // Log entry point
-      console.log('DEBUG canCheckOut:', {
-        currentStateType: currentState.type,
-        statusInfo: {
-          isActiveAttendance: statusInfo.isActiveAttendance,
-          isOvertimePeriod: statusInfo.isOvertimePeriod,
-        },
-        now: format(now, 'yyyy-MM-dd HH:mm:ss'),
-        stack: new Error().stack, // This will show us where it's being called from
-      });
-
-      if (!statusInfo.isActiveAttendance) {
-        console.log('DEBUG: Rejecting due to inactive attendance');
-        return false;
-      }
-
-      if (currentState.type === PeriodType.OVERTIME) {
-        console.log('DEBUG: Allowing overtime checkout');
-        return true;
-      }
-
-      // Regular period logic
-      const periodEnd = parseISO(currentState.timeWindow.end);
-      const withinWindow = isWithinInterval(now, {
-        start: subMinutes(periodEnd, 5),
-        end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
-      });
-
-      console.log('Regular period check:', {
-        periodEnd: format(periodEnd, 'HH:mm:ss'),
-        withinWindow,
-      });
-
-      return withinWindow;
-    })();
-
-    // Log final result
-    console.log('canCheckOut final result:', {
-      result,
-      type: currentState.type,
-      active: statusInfo.isActiveAttendance,
+    console.log('DEBUG canCheckOut details:', {
+      currentState: {
+        type: currentState.type,
+        typeCheck: currentState.type === PeriodType.OVERTIME,
+        rawType: typeof currentState.type,
+        enumValue: PeriodType.OVERTIME,
+      },
+      statusInfo: {
+        isActiveAttendance: statusInfo.isActiveAttendance,
+        isOvertimePeriod: statusInfo.isOvertimePeriod,
+        rawActive: typeof statusInfo.isActiveAttendance,
+      },
+      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      calledFrom: new Error().stack?.split('\n')[2] || 'unknown',
     });
 
-    return result;
+    if (!statusInfo.isActiveAttendance) {
+      console.log('DEBUG: Not active attendance');
+      return false;
+    }
+
+    const isOvertime = currentState.type === PeriodType.OVERTIME;
+    console.log('DEBUG: Type check:', { isOvertime, type: currentState.type });
+
+    if (isOvertime) {
+      console.log('DEBUG: Allowing overtime checkout');
+      return true;
+    }
+
+    return false;
   }
 
   private canStartOvertime(
