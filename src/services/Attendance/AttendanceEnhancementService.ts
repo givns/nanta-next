@@ -156,10 +156,11 @@ export class AttendanceEnhancementService {
       context.timestamp,
     );
 
-    console.log('Checkout permission:', {
-      allowed: checkoutAllowed,
+    console.log('Validation preparation:', {
+      checkoutAllowed,
       type: currentState.type,
-      isActive: statusInfo.isActiveAttendance,
+      active: statusInfo.isActiveAttendance,
+      timestamp: format(context.timestamp, 'yyyy-MM-dd HH:mm:ss'),
     });
 
     // Build validation flags
