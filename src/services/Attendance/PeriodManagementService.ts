@@ -1026,22 +1026,23 @@ export class PeriodManagementService {
   ): boolean {
     const result = (() => {
       // Log entry point
-      console.log('canCheckOut entry point:', {
-        type:
-          currentState.type === PeriodType.OVERTIME ? 'OVERTIME' : 'REGULAR',
-        active: statusInfo.isActiveAttendance,
-        timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      console.log('DEBUG canCheckOut:', {
+        currentStateType: currentState.type,
+        statusInfo: {
+          isActiveAttendance: statusInfo.isActiveAttendance,
+          isOvertimePeriod: statusInfo.isOvertimePeriod,
+        },
+        now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+        stack: new Error().stack, // This will show us where it's being called from
       });
 
-      // First check - must be active
       if (!statusInfo.isActiveAttendance) {
-        console.log('Rejecting: not active attendance');
+        console.log('DEBUG: Rejecting due to inactive attendance');
         return false;
       }
 
-      // Overtime check
       if (currentState.type === PeriodType.OVERTIME) {
-        console.log('Allowing: is overtime period');
+        console.log('DEBUG: Allowing overtime checkout');
         return true;
       }
 

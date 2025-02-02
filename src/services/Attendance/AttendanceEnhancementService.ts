@@ -131,17 +131,13 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     transitionStatus: TransitionStatusInfo,
   ): StateValidation {
-    console.log('Starting validation with:', {
-      currentState: {
-        type: currentState.type,
-        timeWindow: currentState.timeWindow,
-        activity: currentState.activity,
-      },
+    console.log('DEBUG createStateValidation input:', {
+      currentStateType: currentState.type,
       statusInfo: {
         isActiveAttendance: statusInfo.isActiveAttendance,
         isOvertimePeriod: statusInfo.isOvertimePeriod,
       },
-      now: context.timestamp,
+      timestamp: format(context.timestamp, 'yyyy-MM-dd HH:mm:ss'),
     });
 
     // Get permission flags once
@@ -155,6 +151,7 @@ export class AttendanceEnhancementService {
       statusInfo,
       context.timestamp,
     );
+    console.log('DEBUG after canCheckOut:', { checkoutAllowed });
 
     console.log('Validation preparation:', {
       checkoutAllowed,
