@@ -131,28 +131,35 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     transitionStatus: TransitionStatusInfo,
   ): StateValidation {
-    console.log('Starting validation creation:', {
-      type: currentState.type,
-      isActive: statusInfo.isActiveAttendance,
-      now: format(context.timestamp, 'HH:mm:ss'),
+    console.log('Starting validation with:', {
+      currentState: {
+        type: currentState.type,
+        timeWindow: currentState.timeWindow,
+        activity: currentState.activity,
+      },
+      statusInfo: {
+        isActiveAttendance: statusInfo.isActiveAttendance,
+        isOvertimePeriod: statusInfo.isOvertimePeriod,
+      },
+      now: context.timestamp,
     });
 
     // Get permission flags once
-    const canCheckIn = this.canCheckIn(
+    const checkinAllowed = this.canCheckIn(
       currentState,
       statusInfo,
       context.timestamp,
     );
-    const canCheckOut = this.canCheckOut(
+    const checkoutAllowed = this.canCheckOut(
       currentState,
       statusInfo,
       context.timestamp,
     );
 
-    console.log('Permission check results:', {
-      canCheckIn,
-      canCheckOut,
+    console.log('Checkout permission:', {
+      allowed: checkoutAllowed,
       type: currentState.type,
+      isActive: statusInfo.isActiveAttendance,
     });
 
     // Build validation flags
@@ -164,7 +171,7 @@ export class AttendanceEnhancementService {
     );
 
     const validation = {
-      allowed: canCheckIn || canCheckOut, // Use stored values
+      allowed: checkinAllowed || checkoutAllowed, // Use stored values
       reason: this.getValidationMessage(statusInfo, currentState, attendance),
       flags,
       metadata: transitionStatus.isInTransition
