@@ -1024,32 +1024,27 @@ export class PeriodManagementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
-    console.log('DEBUG canCheckOut details:', {
-      currentState: {
-        type: currentState.type,
-        typeCheck: currentState.type === PeriodType.OVERTIME,
-        rawType: typeof currentState.type,
-        enumValue: PeriodType.OVERTIME,
+    // Check if PeriodType is properly imported
+    console.log('DEBUG: PeriodType enum check:', {
+      PeriodType,
+      comparison: {
+        currentType: currentState.type,
+        overtimeType: PeriodType.OVERTIME,
+        isEqual: currentState.type === PeriodType.OVERTIME,
+        typeofCurrentType: typeof currentState.type,
+        typeofOvertimeType: typeof PeriodType.OVERTIME,
       },
-      statusInfo: {
-        isActiveAttendance: statusInfo.isActiveAttendance,
-        isOvertimePeriod: statusInfo.isOvertimePeriod,
-        rawActive: typeof statusInfo.isActiveAttendance,
-      },
-      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      calledFrom: new Error().stack?.split('\n')[2] || 'unknown',
     });
 
     if (!statusInfo.isActiveAttendance) {
-      console.log('DEBUG: Not active attendance');
       return false;
     }
 
-    const isOvertime = currentState.type === PeriodType.OVERTIME;
-    console.log('DEBUG: Type check:', { isOvertime, type: currentState.type });
+    // Use strict comparison
+    const isOvertimePeriod = Object.is(currentState.type, PeriodType.OVERTIME);
+    console.log('DEBUG: Strict comparison:', { isOvertimePeriod });
 
-    if (isOvertime) {
-      console.log('DEBUG: Allowing overtime checkout');
+    if (isOvertimePeriod) {
       return true;
     }
 
