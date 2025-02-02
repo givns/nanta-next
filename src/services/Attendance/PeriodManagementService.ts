@@ -1024,14 +1024,18 @@ export class PeriodManagementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
-    console.log('Detailed checkout check:', {
-      type: currentState.type,
-      isActiveAttendance: statusInfo.isActiveAttendance,
-      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      timeWindow: {
-        start: currentState.timeWindow.start,
-        end: currentState.timeWindow.end,
+    console.log('FULL canCheckOut check:', {
+      currentState: {
+        type: currentState.type,
+        timeWindow: currentState.timeWindow,
+        activity: currentState.activity,
       },
+      statusInfo: {
+        isActiveAttendance: statusInfo.isActiveAttendance,
+        isOvertimePeriod: statusInfo.isOvertimePeriod,
+        timingFlags: statusInfo.timingFlags,
+      },
+      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
     if (!statusInfo.isActiveAttendance) {
