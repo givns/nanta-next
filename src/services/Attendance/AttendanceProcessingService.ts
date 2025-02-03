@@ -454,6 +454,23 @@ export class AttendanceProcessingService {
     locationData: LocationDataInput | undefined,
     now: Date,
   ): Promise<AttendanceRecord> {
+    // Add logging for overtime checkout
+    console.log('Processing checkout:', {
+      hasCurrentRecord: !!currentRecord,
+      recordDetails: currentRecord
+        ? {
+            type: currentRecord.type,
+            checkIn: format(currentRecord.CheckInTime!, 'HH:mm:ss'),
+            isOvertime: currentRecord.type === PeriodType.OVERTIME,
+          }
+        : null,
+      requestDetails: {
+        periodType: options.periodType,
+        isOvertime: options.activity.isOvertime,
+        overtimeMissed: options.activity.overtimeMissed,
+      },
+    });
+
     // Find active record with explicit location include
     const activeRecord = await tx.attendance.findFirst({
       where: {
@@ -465,7 +482,10 @@ export class AttendanceProcessingService {
         },
         state: AttendanceState.INCOMPLETE,
         type: options.periodType,
-        isOvertime: options.activity.isOvertime || undefined,
+        // Only set isOvertime for overtime periods
+        ...(options.periodType === PeriodType.OVERTIME && {
+          isOvertime: true,
+        }),
         CheckInTime: { not: null },
         CheckOutTime: null,
       },
@@ -485,6 +505,15 @@ export class AttendanceProcessingService {
       throw new AppError({
         code: ErrorCode.PROCESSING_ERROR,
         message: `No active ${options.periodType} period found for checkout.`,
+        details: {
+          searchCriteria: {
+            periodType: options.periodType,
+            dates: {
+              start: format(subDays(startOfDay(now), 1), 'yyyy-MM-dd'),
+              end: format(endOfDay(now), 'yyyy-MM-dd'),
+            },
+          },
+        },
       });
     }
 
@@ -685,7 +714,7 @@ export class AttendanceProcessingService {
         // Must be active record
         CheckInTime: { not: null },
         CheckOutTime: null,
-        // Include period type
+        // Include only requested period type if specified
         ...(periodType && { type: periodType }),
       },
       orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
@@ -697,22 +726,27 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log(
-      'Found record details:',
-      record
+    // Add detailed logging
+    console.log('Active record search:', {
+      found: !!record,
+      details: record
         ? {
             id: record.id,
             type: record.type,
+            checkIn: format(record.CheckInTime!, 'HH:mm:ss'),
+            checkOut: record.CheckOutTime,
+            isOvertime: record.type === PeriodType.OVERTIME,
             date: format(record.date, 'yyyy-MM-dd'),
-            checkIn: record.CheckInTime
-              ? format(record.CheckInTime, 'HH:mm:ss')
-              : null,
-            checkOut: record.CheckOutTime
-              ? format(record.CheckOutTime, 'HH:mm:ss')
-              : null,
           }
-        : 'No record found',
-    );
+        : null,
+      searchCriteria: {
+        periodType,
+        dateRange: {
+          start: format(subDays(startOfDay(now), 1), 'yyyy-MM-dd'),
+          end: format(endOfDay(now), 'yyyy-MM-dd'),
+        },
+      },
+    });
 
     return record ? AttendanceMappers.toAttendanceRecord(record) : null;
   }
