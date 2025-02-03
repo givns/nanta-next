@@ -230,14 +230,14 @@ export class PeriodManagementService {
       }
     }
 
-    // Find relevant period for current time
-    const relevantPeriod = this.findRelevantPeriod(periods, now);
+    // Update call to include attendance
+    const relevantPeriod = this.findRelevantPeriod(periods, now, attendance);
     if (!relevantPeriod) {
       console.log('No relevant period found, using default state');
       return this.createDefaultPeriodState(now);
     }
 
-    return this.createPeriodState(relevantPeriod, null, now);
+    return this.createPeriodState(relevantPeriod, attendance, now);
   }
 
   /**
@@ -338,9 +338,43 @@ export class PeriodManagementService {
   private findRelevantPeriod(
     periods: PeriodDefinition[],
     now: Date,
+    attendance?: AttendanceRecord | null, // Add attendance parameter
   ): PeriodDefinition | null {
-    console.log('Finding relevant period for:', format(now, 'HH:mm:ss'));
+    console.log('Finding relevant period:', {
+      now: format(now, 'HH:mm:ss'),
+      periods: periods.map((p) => ({
+        type: p.type,
+        start: p.startTime,
+        end: p.endTime,
+        isOvernight: p.isOvernight,
+      })),
+      attendance: attendance
+        ? {
+            type: attendance.type,
+            checkIn: attendance.CheckInTime,
+            checkOut: attendance.CheckOutTime,
+          }
+        : null,
+    });
 
+    // For active overnight overtime, prioritize it
+    if (
+      attendance?.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime &&
+      attendance.shiftStartTime &&
+      attendance.shiftEndTime
+    ) {
+      return {
+        type: PeriodType.OVERTIME,
+        startTime: format(attendance.shiftStartTime, 'HH:mm'),
+        endTime: format(attendance.shiftEndTime, 'HH:mm'),
+        sequence: 1,
+        isOvernight: true,
+      };
+    }
+
+    // Rest of the method remains the same
     for (const period of periods) {
       let currentPeriodStart = this.parseTimeWithContext(period.startTime, now);
       let currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
@@ -349,10 +383,6 @@ export class PeriodManagementService {
       if (period.isOvernight) {
         if (currentPeriodEnd < currentPeriodStart) {
           currentPeriodEnd = addDays(currentPeriodEnd, 1);
-        }
-        if (now < currentPeriodStart) {
-          currentPeriodStart = subDays(currentPeriodStart, 1);
-          currentPeriodEnd = subDays(currentPeriodEnd, 1);
         }
       }
 
