@@ -363,12 +363,27 @@ export class AttendanceEnhancementService {
     transitionStatus: TransitionStatusInfo,
     now: Date,
   ): AttendanceStatusResponse {
-    console.log('Building enhanced response with:', {
-      hasOvertimeInfo: Boolean(periodState.overtimeInfo),
+    // Debug current overtime state
+    console.log('Current overtime state:', {
+      currentType: currentState.type,
       overtimeInfo: periodState.overtimeInfo,
-      currentPeriodType: currentState.type,
-      isInTransition: transitionStatus.isInTransition,
+      statusIsOvertimePeriod: statusInfo.isOvertimePeriod,
     });
+
+    // Build next period info first to ensure overtime is included
+    const nextPeriod = this.buildNextPeriod(periodState, transitionStatus);
+
+    // For active overtime, ensure the period and overtime info are properly typed
+    const enhancedNextPeriod =
+      currentState.type === PeriodType.OVERTIME &&
+      statusInfo.isOvertimePeriod &&
+      nextPeriod
+        ? {
+            type: nextPeriod.type,
+            startTime: nextPeriod.startTime,
+            overtimeInfo: periodState.overtimeInfo,
+          }
+        : nextPeriod;
 
     return {
       daily: {
@@ -387,7 +402,9 @@ export class AttendanceEnhancementService {
         additionalRecords: [], // Default empty array
         periodInfo: {
           type: currentState.type,
-          isOvertime: currentState.activity.isOvertime,
+          isOvertime:
+            currentState.type === PeriodType.OVERTIME ||
+            statusInfo.isOvertimePeriod,
           overtimeState: attendance?.overtimeState,
         },
         validation: {
@@ -409,7 +426,7 @@ export class AttendanceEnhancementService {
           isAdjusted: periodState.isAdjusted,
           holidayInfo: periodState.holidayInfo,
         },
-        nextPeriod: this.buildNextPeriod(periodState, transitionStatus),
+        nextPeriod: enhancedNextPeriod,
         transition: this.buildTransitionInfo(transitionStatus, periodState),
       },
       validation: stateValidation,

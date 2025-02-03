@@ -180,11 +180,13 @@ export class AttendanceStatusService {
     await this.cacheManager.cacheAttendanceState(employeeId, enhancedStatus);
 
     // Log final state with complete overtime info
-    console.log('Final enhanced status:', {
+    console.log('Final response state:', {
       hasTransitions: enhancedStatus.daily.transitions.length > 0,
       hasShift: Boolean(enhancedStatus.context.shift.id),
-      hasOvertime: Boolean(enhancedStatus.context.nextPeriod?.overtimeInfo),
-      overtimeInfo: enhancedStatus.context.nextPeriod?.overtimeInfo,
+      // Check both current overtime info and nextPeriod overtime info
+      hasOvertime: Boolean(
+        enhancedStatus.context.nextPeriod?.overtimeInfo || periodState.overtime,
+      ),
       transitionState: enhancedStatus.context.transition,
       timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
