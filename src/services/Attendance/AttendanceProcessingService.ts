@@ -649,13 +649,24 @@ export class AttendanceProcessingService {
     employeeId: string,
     periodType?: PeriodType,
   ): Promise<AttendanceRecord | null> {
+    // Add debug log
+    console.log('Fetching attendance records for:', {
+      employeeId,
+      periodType,
+      timestamp: new Date().toISOString(),
+    });
+
     const record = await tx.attendance.findFirst({
       where: {
         employeeId,
+        // Look back one day for overnight periods
         date: {
-          gte: startOfDay(getCurrentTime()),
+          gte: subDays(startOfDay(getCurrentTime()), 1),
           lt: endOfDay(getCurrentTime()),
         },
+        // Must be active (no checkout)
+        CheckInTime: { not: null },
+        CheckOutTime: null,
         ...(periodType && { type: periodType }),
       },
       orderBy: [{ metadata: { createdAt: 'desc' } }, { id: 'desc' }],
@@ -666,6 +677,8 @@ export class AttendanceProcessingService {
         metadata: true,
       },
     });
+
+    console.log('Found record:', record);
 
     return record ? AttendanceMappers.toAttendanceRecord(record) : null;
   }
