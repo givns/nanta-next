@@ -21,7 +21,14 @@ import {
   ValidationContext,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { startOfDay, endOfDay, parseISO, format, subDays } from 'date-fns';
+import {
+  startOfDay,
+  endOfDay,
+  parseISO,
+  format,
+  subDays,
+  addHours,
+} from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { TimeEntryService } from '../TimeEntryService';
 import { AttendanceMappers } from './utils/AttendanceMappers';
@@ -477,8 +484,8 @@ export class AttendanceProcessingService {
         employeeId: options.employeeId,
         // Important: Don't limit to today only for overnight periods
         date: {
-          gte: startOfDay(subDays(now, 1)), // Look back one day
-          lte: endOfDay(now),
+          gte: addHours(subDays(startOfDay(now), 1), 18), // Previous day from 18:00
+          lte: addHours(endOfDay(now), 6), // Current day until 06:00 next day
         },
         state: AttendanceState.INCOMPLETE,
         type: options.periodType,
@@ -489,15 +496,36 @@ export class AttendanceProcessingService {
         CheckInTime: { not: null },
         CheckOutTime: null,
       },
-      orderBy: {
-        CheckInTime: 'desc',
-      },
+      orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
         timeEntries: true,
         overtimeEntries: true,
         location: true,
         metadata: true,
         checkTiming: true,
+      },
+    });
+
+    console.log('Active record search result:', {
+      found: !!activeRecord,
+      details: activeRecord
+        ? {
+            id: activeRecord.id,
+            type: activeRecord.type,
+            date: format(activeRecord.date, 'yyyy-MM-dd'),
+            checkIn: format(activeRecord.CheckInTime!, 'HH:mm:ss'),
+            isOvertime: activeRecord.type === PeriodType.OVERTIME,
+          }
+        : null,
+      searchParams: {
+        dateRange: {
+          start: format(
+            addHours(subDays(startOfDay(now), 1), 18),
+            'yyyy-MM-dd HH:mm',
+          ),
+          end: format(addHours(endOfDay(now), 6), 'yyyy-MM-dd HH:mm'),
+        },
+        type: options.periodType,
       },
     });
 
