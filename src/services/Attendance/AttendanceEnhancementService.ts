@@ -366,6 +366,8 @@ export class AttendanceEnhancementService {
     console.log('Building enhanced response with:', {
       hasOvertimeInfo: Boolean(periodState.overtimeInfo),
       overtimeInfo: periodState.overtimeInfo,
+      currentPeriodType: currentState.type,
+      isInTransition: transitionStatus.isInTransition,
     });
 
     return {

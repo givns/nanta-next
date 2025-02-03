@@ -15,6 +15,7 @@ import { cacheService } from '../cache/CacheService';
 import { PeriodType } from '@prisma/client';
 import { AttendanceMappers } from './utils/AttendanceMappers';
 import { PeriodManagementService } from './PeriodManagementService';
+import { format } from 'date-fns';
 
 interface GetAttendanceStatusOptions {
   inPremises: boolean;
@@ -177,6 +178,16 @@ export class AttendanceStatusService {
     // Cache the result
     await cacheService.del(forceRefreshKey);
     await this.cacheManager.cacheAttendanceState(employeeId, enhancedStatus);
+
+    // Log final state with complete overtime info
+    console.log('Final enhanced status:', {
+      hasTransitions: enhancedStatus.daily.transitions.length > 0,
+      hasShift: Boolean(enhancedStatus.context.shift.id),
+      hasOvertime: Boolean(enhancedStatus.context.nextPeriod?.overtimeInfo),
+      overtimeInfo: enhancedStatus.context.nextPeriod?.overtimeInfo,
+      transitionState: enhancedStatus.context.transition,
+      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
 
     return enhancedStatus;
   }
