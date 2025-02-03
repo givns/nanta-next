@@ -753,40 +753,44 @@ export class AttendanceProcessingService {
     tx: Prisma.TransactionClient,
     employeeId: string,
     periodType?: PeriodType,
+    timeContext?: {
+      searchTime: Date;
+      checkTime: Date;
+    },
   ): Promise<AttendanceRecord | null> {
-    const now = getCurrentTime();
+    const searchTime = timeContext?.searchTime || getCurrentTime();
+    const checkTime = timeContext?.checkTime || searchTime;
 
-    console.log('Initial attendance lookup:', {
-      employeeId,
+    console.log('Attendance search context:', {
+      searchTime: format(searchTime, 'yyyy-MM-dd HH:mm:ss'),
+      checkTime: format(checkTime, 'yyyy-MM-dd HH:mm:ss'),
       periodType,
-      now: format(now, 'HH:mm:ss'),
     });
 
-    // Align this query with Status API's query pattern
     const record = await tx.attendance.findFirst({
       where: {
         employeeId,
         type: periodType,
         OR: [
-          // Records from today
+          // Regular day records
           {
             date: {
-              gte: startOfDay(subDays(now, 1)),
-              lt: endOfDay(now),
+              gte: startOfDay(checkTime),
+              lt: endOfDay(checkTime),
             },
             CheckInTime: { not: null },
             CheckOutTime: null,
           },
-          // Handle overnight periods specifically
+          // Overnight records - check both days
           {
             type: PeriodType.OVERTIME,
             CheckInTime: {
               not: null,
-              lt: endOfDay(now),
             },
             CheckOutTime: null,
             date: {
-              gte: startOfDay(subDays(now, 1)),
+              gte: startOfDay(subDays(searchTime, 1)),
+              lte: endOfDay(searchTime),
             },
           },
         ],
@@ -800,27 +804,22 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Detailed logging
-    console.log('Initial lookup result:', {
+    console.log('Record search result:', {
       found: !!record,
       details: record
         ? {
             id: record.id,
             type: record.type,
             date: format(record.date, 'yyyy-MM-dd'),
-            checkIn: format(record.CheckInTime!, 'HH:mm:ss'),
-            checkOut: record.CheckOutTime,
-            rawDate: record.date,
-            rawCheckIn: record.CheckInTime,
+            checkIn: record.CheckInTime
+              ? format(record.CheckInTime, 'HH:mm:ss')
+              : null,
+            dateContext: {
+              clientDate: format(checkTime, 'yyyy-MM-dd'),
+              serverDate: format(searchTime, 'yyyy-MM-dd'),
+            },
           }
         : null,
-      searchCriteria: {
-        dateRange: {
-          start: format(startOfDay(subDays(now, 1)), 'yyyy-MM-dd'),
-          end: format(endOfDay(now), 'yyyy-MM-dd'),
-        },
-        periodType,
-      },
     });
 
     return record ? AttendanceMappers.toAttendanceRecord(record) : null;
