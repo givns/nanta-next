@@ -306,6 +306,21 @@ export default async function handler(
     console.log('Incoming request body:', JSON.stringify(req.body, null, 2));
     const validatedData = validateCheckInOutRequest(req.body);
 
+    // Add timestamp validation
+    const serverTime = getCurrentTime();
+    const requestTime = new Date(validatedData.checkTime);
+
+    if (requestTime > serverTime) {
+      return res.status(400).json({
+        error: ErrorCode.INVALID_INPUT,
+        message: 'Check time cannot be in the future',
+        details: {
+          serverTime: serverTime.toISOString(),
+          requestTime: requestTime.toISOString(),
+        },
+      });
+    }
+
     const result = await Promise.race<QueueResult>([
       new Promise<QueueResult>((resolve, reject) => {
         checkInOutQueue.push(validatedData, async (error, queueResult) => {

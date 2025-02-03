@@ -488,6 +488,21 @@ export class AttendanceProcessingService {
       });
     }
 
+    // Important: Validate checkout time is after check-in
+    const checkInTime = new Date(activeRecord.CheckInTime!);
+    const requestedCheckoutTime = new Date(options.checkTime);
+
+    if (requestedCheckoutTime < checkInTime) {
+      throw new AppError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Check-out time cannot be earlier than check-in time',
+        details: {
+          checkInTime: checkInTime.toISOString(),
+          requestedCheckoutTime: requestedCheckoutTime.toISOString(),
+        },
+      });
+    }
+
     // Handle location update
     if (locationData && activeRecord) {
       if (activeRecord.location) {
