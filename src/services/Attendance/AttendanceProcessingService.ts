@@ -61,6 +61,7 @@ export class AttendanceProcessingService {
           const currentRecord = await this.getLatestAttendance(
             tx,
             options.employeeId,
+            options.periodType, // Pass the periodType
           );
 
           // Get effective shift first
