@@ -179,22 +179,6 @@ export class AttendanceStatusService {
     await cacheService.del(forceRefreshKey);
     await this.cacheManager.cacheAttendanceState(employeeId, enhancedStatus);
 
-    // Single, final state log that correctly captures all state
-    const finalState = {
-      hasTransitions: enhancedStatus.daily.transitions.length > 0,
-      hasShift: Boolean(enhancedStatus.context.shift.id),
-      // Check for both active overtime and overtime info
-      hasOvertime: Boolean(
-        enhancedStatus.base.periodInfo.isOvertime ||
-          enhancedStatus.context.nextPeriod?.overtimeInfo ||
-          periodState.overtime,
-      ),
-      transitionState: enhancedStatus.context.transition,
-      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
-    };
-
-    console.log('Final response state:', finalState);
-
     return enhancedStatus;
   }
 

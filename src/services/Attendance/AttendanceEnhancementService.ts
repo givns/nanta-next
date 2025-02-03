@@ -385,7 +385,7 @@ export class AttendanceEnhancementService {
           }
         : nextPeriod;
 
-    return {
+    const response = {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
         currentState: this.buildCurrentState(currentState, statusInfo),
@@ -431,6 +431,20 @@ export class AttendanceEnhancementService {
       },
       validation: stateValidation,
     };
+    // Single, definitive final state log
+    console.log('Final response state:', {
+      hasTransitions: response.daily.transitions.length > 0,
+      hasShift: Boolean(response.context.shift.id),
+      hasOvertime: Boolean(
+        response.base.periodInfo.isOvertime ||
+          response.context.nextPeriod?.overtimeInfo ||
+          periodState.overtimeInfo,
+      ),
+      transitionState: response.context.transition,
+      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
+
+    return response;
   }
 
   /**
