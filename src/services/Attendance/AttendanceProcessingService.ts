@@ -645,32 +645,35 @@ export class AttendanceProcessingService {
       provider: location.provider,
     };
   }
+
   private async getLatestAttendance(
     tx: Prisma.TransactionClient,
     employeeId: string,
     periodType?: PeriodType,
   ): Promise<AttendanceRecord | null> {
-    // Add debug log
+    const now = getCurrentTime();
+
     console.log('Fetching attendance records for:', {
       employeeId,
       periodType,
-      timestamp: new Date().toISOString(),
+      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
     const record = await tx.attendance.findFirst({
       where: {
         employeeId,
-        // Look back one day for overnight periods
+        // Look back one day for overnight shifts
         date: {
-          gte: subDays(startOfDay(getCurrentTime()), 1),
-          lt: endOfDay(getCurrentTime()),
+          gte: subDays(startOfDay(now), 1),
+          lte: endOfDay(now),
         },
-        // Must be active (no checkout)
+        // Must be active record
         CheckInTime: { not: null },
         CheckOutTime: null,
+        // Include period type
         ...(periodType && { type: periodType }),
       },
-      orderBy: [{ metadata: { createdAt: 'desc' } }, { id: 'desc' }],
+      orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
         timeEntries: true,
         overtimeEntries: true,
@@ -679,7 +682,22 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log('Found record:', record);
+    console.log(
+      'Found record details:',
+      record
+        ? {
+            id: record.id,
+            type: record.type,
+            date: format(record.date, 'yyyy-MM-dd'),
+            checkIn: record.CheckInTime
+              ? format(record.CheckInTime, 'HH:mm:ss')
+              : null,
+            checkOut: record.CheckOutTime
+              ? format(record.CheckOutTime, 'HH:mm:ss')
+              : null,
+          }
+        : 'No record found',
+    );
 
     return record ? AttendanceMappers.toAttendanceRecord(record) : null;
   }
