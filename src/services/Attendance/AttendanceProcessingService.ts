@@ -61,6 +61,12 @@ export class AttendanceProcessingService {
     const now = getCurrentTime();
     const validatedOptions = this.validateAndNormalizeOptions(options);
 
+    console.log('Processing attendance request:', {
+      type: options.periodType,
+      checkTime: options.checkTime,
+      serverTime: now.toISOString(),
+    });
+
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
@@ -189,7 +195,13 @@ export class AttendanceProcessingService {
 
       return result;
     } catch (error) {
-      console.error('Attendance processing error:', error);
+      console.error('Attendance processing error:', {
+        error,
+        options: {
+          type: options.periodType,
+          employeeId: options.employeeId,
+        },
+      });
       throw this.handleProcessingError(error);
     }
   }
@@ -744,25 +756,40 @@ export class AttendanceProcessingService {
   ): Promise<AttendanceRecord | null> {
     const now = getCurrentTime();
 
-    console.log('Fetching attendance records for:', {
+    console.log('Initial attendance lookup:', {
       employeeId,
       periodType,
-      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      now: format(now, 'HH:mm:ss'),
     });
 
+    // Align this query with Status API's query pattern
     const record = await tx.attendance.findFirst({
       where: {
         employeeId,
-        // Look back one day for overnight shifts
-        date: {
-          gte: subDays(startOfDay(now), 1),
-          lte: endOfDay(now),
-        },
-        // Must be active record
-        CheckInTime: { not: null },
-        CheckOutTime: null,
-        // Include only requested period type if specified
-        ...(periodType && { type: periodType }),
+        type: periodType,
+        OR: [
+          // Records from today
+          {
+            date: {
+              gte: startOfDay(subDays(now, 1)),
+              lt: endOfDay(now),
+            },
+            CheckInTime: { not: null },
+            CheckOutTime: null,
+          },
+          // Handle overnight periods specifically
+          {
+            type: PeriodType.OVERTIME,
+            CheckInTime: {
+              not: null,
+              lt: endOfDay(now),
+            },
+            CheckOutTime: null,
+            date: {
+              gte: startOfDay(subDays(now, 1)),
+            },
+          },
+        ],
       },
       orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
@@ -773,25 +800,26 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Add detailed logging
-    console.log('Active record search:', {
+    // Detailed logging
+    console.log('Initial lookup result:', {
       found: !!record,
       details: record
         ? {
             id: record.id,
             type: record.type,
+            date: format(record.date, 'yyyy-MM-dd'),
             checkIn: format(record.CheckInTime!, 'HH:mm:ss'),
             checkOut: record.CheckOutTime,
-            isOvertime: record.type === PeriodType.OVERTIME,
-            date: format(record.date, 'yyyy-MM-dd'),
+            rawDate: record.date,
+            rawCheckIn: record.CheckInTime,
           }
         : null,
       searchCriteria: {
-        periodType,
         dateRange: {
-          start: format(subDays(startOfDay(now), 1), 'yyyy-MM-dd'),
+          start: format(startOfDay(subDays(now, 1)), 'yyyy-MM-dd'),
           end: format(endOfDay(now), 'yyyy-MM-dd'),
         },
+        periodType,
       },
     });
 
