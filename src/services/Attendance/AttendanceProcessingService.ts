@@ -478,23 +478,44 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Find active record with explicit location include
+    // Find active record with improved query matching Status API
     const activeRecord = await tx.attendance.findFirst({
       where: {
         employeeId: options.employeeId,
-        // Important: Don't limit to today only for overnight periods
-        date: {
-          gte: addHours(subDays(startOfDay(now), 1), 18), // Previous day from 18:00
-          lte: addHours(endOfDay(now), 6), // Current day until 06:00 next day
-        },
-        state: AttendanceState.INCOMPLETE,
         type: options.periodType,
-        // Only set isOvertime for overtime periods
-        ...(options.periodType === PeriodType.OVERTIME && {
-          isOvertime: true,
-        }),
-        CheckInTime: { not: null },
-        CheckOutTime: null,
+        AND: [
+          {
+            OR: [
+              // Regular records from today
+              {
+                date: {
+                  gte: startOfDay(subDays(now, 1)),
+                  lt: endOfDay(now),
+                },
+                CheckInTime: { not: null },
+                CheckOutTime: null,
+              },
+              // Overnight records spanning midnight
+              {
+                type: PeriodType.OVERTIME,
+                CheckInTime: {
+                  not: null,
+                  lt: endOfDay(now),
+                },
+                CheckOutTime: null,
+                // Must be active (not checked out)
+                OR: [
+                  { CheckOutTime: null },
+                  {
+                    CheckOutTime: {
+                      gt: startOfDay(now),
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
       orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
@@ -518,14 +539,11 @@ export class AttendanceProcessingService {
           }
         : null,
       searchParams: {
+        periodType: options.periodType,
         dateRange: {
-          start: format(
-            addHours(subDays(startOfDay(now), 1), 18),
-            'yyyy-MM-dd HH:mm',
-          ),
-          end: format(addHours(endOfDay(now), 6), 'yyyy-MM-dd HH:mm'),
+          start: format(startOfDay(subDays(now, 1)), 'yyyy-MM-dd HH:mm'),
+          end: format(endOfDay(now), 'yyyy-MM-dd HH:mm'),
         },
-        type: options.periodType,
       },
     });
 
@@ -535,10 +553,11 @@ export class AttendanceProcessingService {
         message: `No active ${options.periodType} period found for checkout.`,
         details: {
           searchCriteria: {
+            employeeId: options.employeeId,
             periodType: options.periodType,
             dates: {
-              start: format(subDays(startOfDay(now), 1), 'yyyy-MM-dd'),
-              end: format(endOfDay(now), 'yyyy-MM-dd'),
+              start: format(startOfDay(subDays(now, 1)), 'yyyy-MM-dd HH:mm'),
+              end: format(endOfDay(now), 'yyyy-MM-dd HH:mm'),
             },
           },
         },
