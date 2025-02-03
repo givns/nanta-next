@@ -56,15 +56,6 @@ const ActionButton: React.FC<ActionButtonProps> = ({
       : 'bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 text-white';
 
   // Simplified overtime check
-  const isEarlyOvertimePeriod = useMemo(() => {
-    if (!periodWindow?.start || periodType !== PeriodType.OVERTIME)
-      return false;
-    const start = parseISO(periodWindow.start);
-    const shiftStart = parseISO(
-      `${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`,
-    );
-    return start < shiftStart;
-  }, [periodWindow?.start, periodType]);
 
   // Simplified disabled state
   const isDisabled = useMemo(() => {

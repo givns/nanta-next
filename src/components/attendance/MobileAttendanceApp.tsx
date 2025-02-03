@@ -17,7 +17,6 @@ import {
   ShiftData,
   UnifiedPeriodState,
   AttendanceBaseResponse,
-  ValidationFlags,
   ExtendedOvertimeInfo,
   ExtendedValidation,
 } from '@/types/attendance';
@@ -47,10 +46,22 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
   isOvertimePeriod,
 }) => {
   const now = getCurrentTime();
-  const isEarlyOvertimePeriod =
-    currentPeriod.timeWindow.start &&
-    parseISO(currentPeriod.timeWindow.start) <
-      parseISO(`${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`);
+  const isEarlyOvertimePeriod = (() => {
+    if (!currentPeriod.timeWindow.start) return false;
+
+    const periodStart = parseISO(currentPeriod.timeWindow.start);
+    const regularStart = parseISO(
+      `${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`,
+    );
+
+    // For overnight periods (e.g., 21:00-01:00), don't consider as early
+    if (currentPeriod.validation.isOvernight) {
+      return false;
+    }
+
+    // Only morning overtime periods (e.g., 06:00-08:00) should be considered early
+    return periodStart < regularStart;
+  })();
 
   return (
     <div className="space-y-4">
