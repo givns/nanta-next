@@ -37,7 +37,7 @@ export interface PeriodState {
   // Current period information
   current: UnifiedPeriodState; // Current period state
   transitions: PeriodTransition[]; // Any pending transitions
-  overtime: OvertimeContext | null; // Overtime context if exists
+  overtime: OvertimeContext | undefined; // Overtime context if exists
   validation: ValidationResult; // Validation state
 }
 

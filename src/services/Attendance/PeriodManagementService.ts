@@ -194,7 +194,7 @@ export class PeriodManagementService {
     return {
       current: currentState,
       transitions,
-      overtime: overtimeInfo && isInOvertimePeriod ? overtimeInfo : null,
+      overtime: overtimeInfo && isInOvertimePeriod ? overtimeInfo : undefined,
       validation,
     };
   }

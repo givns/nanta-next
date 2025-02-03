@@ -73,12 +73,36 @@ export class AttendanceStatusService {
       ) ||
       allRecords.find((record) => record.CheckInTime && !record.CheckOutTime);
 
+    // Log the current state before getting period state
+    console.log('Current state before period resolution:', {
+      activeRecord: activeRecord
+        ? {
+            type: activeRecord.type,
+            checkIn: activeRecord.CheckInTime,
+            checkOut: activeRecord.CheckOutTime,
+          }
+        : null,
+      hasAllRecords: allRecords.length > 0,
+    });
+
     // Get period state from period manager
     const periodState = await this.periodManager.getCurrentPeriodState(
       employeeId,
       allRecords,
       now,
     );
+
+    console.log('Period state after resolution:', {
+      type: periodState.current.type,
+      hasOvertime: !!periodState.overtime,
+      overtimeDetails: periodState.overtime
+        ? {
+            id: periodState.overtime.id,
+            startTime: periodState.overtime.startTime,
+            endTime: periodState.overtime.endTime,
+          }
+        : null,
+    });
 
     // Transform period state to window response
     const windowResponse: ShiftWindowResponse = {
@@ -91,13 +115,20 @@ export class AttendanceStatusService {
       isHoliday: false, // Will be updated from context
       isDayOff: !shiftData.current.workDays.includes(now.getDay()),
       isAdjusted: shiftData.isAdjusted,
-      overtimeInfo: periodState.overtime || undefined,
+      overtimeInfo: periodState.overtime,
     };
 
     // Debug log window response
-    console.log('Window response creation:', {
+    console.log('Window response after creation:', {
+      type: windowResponse.type,
       hasOvertime: !!windowResponse.overtimeInfo,
-      overtimeDetails: windowResponse.overtimeInfo,
+      overtimeDetails: windowResponse.overtimeInfo
+        ? {
+            id: windowResponse.overtimeInfo.id,
+            startTime: windowResponse.overtimeInfo.startTime,
+            endTime: windowResponse.overtimeInfo.endTime,
+          }
+        : null,
     });
 
     // Get latest record and serialize it
