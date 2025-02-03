@@ -12,7 +12,7 @@ import {
   ShiftAdjustmentRequest,
   PeriodType,
 } from '@prisma/client';
-import { endOfDay, startOfDay, format, parseISO } from 'date-fns';
+import { endOfDay, startOfDay, format, parseISO, subDays } from 'date-fns';
 import { formatDate, getCurrentTime } from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
@@ -109,10 +109,16 @@ export class ShiftManagementService {
   ): Promise<OvertimeContext | undefined> {
     if (!this.overtimeService) return undefined;
 
+    // Expand date range to include potential overnight overtime
+    const checkRange = {
+      start: startOfDay(subDays(date, 1)), // Include previous day
+      end: endOfDay(date), // Include current day's end
+    };
+
     const overtimes = await this.overtimeService.getDetailedOvertimesInRange(
       employeeId,
-      startOfDay(date),
-      endOfDay(date),
+      checkRange.start,
+      checkRange.end,
     );
 
     if (!overtimes?.length) return undefined;

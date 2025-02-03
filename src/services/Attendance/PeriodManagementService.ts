@@ -68,6 +68,29 @@ export class PeriodManagementService {
       this.shiftService.getEffectiveShift(employeeId, now),
       this.shiftService.getOvertimeInfo(employeeId, now),
     ]);
+    console.log('Shift and Overtime Data:', {
+      shiftData: {
+        current: shiftData?.current,
+        isAdjusted: shiftData?.isAdjusted,
+        workDays: shiftData?.current.workDays,
+      },
+      overtimeInfo: overtimeInfo
+        ? {
+            startTime: overtimeInfo.startTime,
+            endTime: overtimeInfo.endTime,
+            isDayOffOvertime: overtimeInfo.isDayOffOvertime,
+          }
+        : 'UNDEFINED',
+      activeRecordDetails: activeRecord
+        ? {
+            type: activeRecord.type,
+            checkIn: activeRecord.CheckInTime,
+            checkOut: activeRecord.CheckOutTime,
+            shiftStartTime: activeRecord.shiftStartTime,
+            shiftEndTime: activeRecord.shiftEndTime,
+          }
+        : 'NO_ACTIVE_RECORD',
+    });
 
     if (!shiftData) {
       throw new Error('No shift configuration found');
