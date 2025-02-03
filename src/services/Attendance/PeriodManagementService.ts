@@ -136,6 +136,17 @@ export class PeriodManagementService {
       overtimeInfo,
     };
 
+    console.log('After windowResponse creation:', {
+      currentType: windowResponse.type,
+      overtimeInfoInWindowResponse: windowResponse.overtimeInfo
+        ? {
+            startTime: windowResponse.overtimeInfo.startTime,
+            endTime: windowResponse.overtimeInfo.endTime,
+            isDayOffOvertime: windowResponse.overtimeInfo.isDayOffOvertime,
+          }
+        : 'UNDEFINED',
+    });
+
     // Get current period
     const currentState = this.resolveCurrentPeriod(
       activeRecord,
