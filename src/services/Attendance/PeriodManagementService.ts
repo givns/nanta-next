@@ -223,6 +223,13 @@ export class PeriodManagementService {
       };
     }
 
+    // Keep existing overtimeInfo if present in original state
+    const effectivePeriodState = {
+      ...periodState,
+      overtimeInfo:
+        periodState.overtimeInfo || originalPeriodState?.overtimeInfo,
+    };
+
     console.log('Resolving current period - Detailed Debug:', {
       currentTime: format(now, 'HH:mm:ss'),
       attendance: attendance
@@ -235,32 +242,15 @@ export class PeriodManagementService {
           }
         : null,
       periodState: {
-        overtimeInfo: periodState.overtimeInfo
+        overtimeInfo: effectivePeriodState.overtimeInfo
           ? {
-              startTime: periodState.overtimeInfo.startTime,
-              endTime: periodState.overtimeInfo.endTime,
-              id:
-                'id' in periodState.overtimeInfo
-                  ? periodState.overtimeInfo.id
-                  : 'NO_ID',
+              startTime: effectivePeriodState.overtimeInfo.startTime,
+              endTime: effectivePeriodState.overtimeInfo.endTime,
+              id: effectivePeriodState.overtimeInfo.id,
             }
           : undefined,
-        shift: periodState.shift,
+        shift: effectivePeriodState.shift,
       },
-      originalPeriodState: originalPeriodState
-        ? {
-            overtimeInfo: originalPeriodState.overtimeInfo
-              ? {
-                  startTime: originalPeriodState.overtimeInfo.startTime,
-                  endTime: originalPeriodState.overtimeInfo.endTime,
-                  id:
-                    'id' in originalPeriodState.overtimeInfo
-                      ? originalPeriodState.overtimeInfo.id
-                      : 'NO_ID',
-                }
-              : undefined,
-          }
-        : 'NO_ORIGINAL_STATE',
     });
 
     // Handle active overnight overtime first

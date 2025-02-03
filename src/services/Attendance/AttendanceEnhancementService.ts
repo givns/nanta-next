@@ -76,6 +76,7 @@ export class AttendanceEnhancementService {
       attendance,
       periodState,
       now,
+      periodState,
     );
 
     // Get period status info
