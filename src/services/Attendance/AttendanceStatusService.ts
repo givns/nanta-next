@@ -94,6 +94,12 @@ export class AttendanceStatusService {
       overtimeInfo: periodState.overtime || undefined,
     };
 
+    // Debug log window response
+    console.log('Window response creation:', {
+      hasOvertime: !!windowResponse.overtimeInfo,
+      overtimeDetails: windowResponse.overtimeInfo,
+    });
+
     // Get latest record and serialize it
     const latestRecord = activeRecord || allRecords[0] || null;
     const serializedLatest = latestRecord

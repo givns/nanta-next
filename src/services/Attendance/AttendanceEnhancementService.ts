@@ -362,6 +362,11 @@ export class AttendanceEnhancementService {
     transitionStatus: TransitionStatusInfo,
     now: Date,
   ): AttendanceStatusResponse {
+    console.log('Building enhanced response with:', {
+      hasOvertimeInfo: Boolean(periodState.overtimeInfo),
+      overtimeInfo: periodState.overtimeInfo,
+    });
+
     return {
       daily: {
         date: format(now, 'yyyy-MM-dd'),
