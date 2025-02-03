@@ -68,20 +68,12 @@ export class PeriodManagementService {
       this.shiftService.getEffectiveShift(employeeId, now),
       this.shiftService.getOvertimeInfo(employeeId, now),
     ]);
-    console.log('Shift and Overtime Data:', {
-      shiftData: {
-        current: shiftData?.current,
-        isAdjusted: shiftData?.isAdjusted,
-        workDays: shiftData?.current.workDays,
-      },
-      overtimeInfo: overtimeInfo
-        ? {
-            startTime: overtimeInfo.startTime,
-            endTime: overtimeInfo.endTime,
-            isDayOffOvertime: overtimeInfo.isDayOffOvertime,
-          }
-        : 'UNDEFINED',
-      activeRecordDetails: activeRecord
+
+    // Detailed logging
+    console.log('Overtime Info Resolution:', {
+      employeeId,
+      now: now.toISOString(),
+      activeRecord: activeRecord
         ? {
             type: activeRecord.type,
             checkIn: activeRecord.CheckInTime,
@@ -89,7 +81,17 @@ export class PeriodManagementService {
             shiftStartTime: activeRecord.shiftStartTime,
             shiftEndTime: activeRecord.shiftEndTime,
           }
-        : 'NO_ACTIVE_RECORD',
+        : null,
+      overtimeInfo: overtimeInfo
+        ? {
+            id: overtimeInfo.id,
+            startTime: overtimeInfo.startTime,
+            endTime: overtimeInfo.endTime,
+            durationMinutes: overtimeInfo.durationMinutes,
+            isInsideShiftHours: overtimeInfo.isInsideShiftHours,
+            isDayOffOvertime: overtimeInfo.isDayOffOvertime,
+          }
+        : null,
     });
 
     if (!shiftData) {
@@ -133,16 +135,15 @@ export class PeriodManagementService {
       isHoliday: false,
       isDayOff: !shiftData.current.workDays.includes(now.getDay()),
       isAdjusted: shiftData.isAdjusted,
-      overtimeInfo,
+      overtimeInfo: overtimeInfo,
     };
 
-    console.log('After windowResponse creation:', {
-      currentType: windowResponse.type,
-      overtimeInfoInWindowResponse: windowResponse.overtimeInfo
+    console.log('WindowResponse Overtime Info:', {
+      overtimeInfo: windowResponse.overtimeInfo
         ? {
+            id: windowResponse.overtimeInfo.id,
             startTime: windowResponse.overtimeInfo.startTime,
             endTime: windowResponse.overtimeInfo.endTime,
-            isDayOffOvertime: windowResponse.overtimeInfo.isDayOffOvertime,
           }
         : 'UNDEFINED',
     });
