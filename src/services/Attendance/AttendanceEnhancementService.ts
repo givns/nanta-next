@@ -664,8 +664,8 @@ export class AttendanceEnhancementService {
    * Permission Check Methods
    */
   private canCheckIn(
-    currentState: UnifiedPeriodState,
-    statusInfo: PeriodStatusInfo,
+    currentState: UnifiedPeriodState, // Keep this UnifiedPeriodState
+    statusInfo: PeriodStatusInfo, // Add separate PeriodStatusInfo param
     now: Date,
   ): boolean {
     if (statusInfo.isActiveAttendance) {
@@ -684,15 +684,31 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
+    // Check if PeriodType is properly imported
+    console.log('DEBUG: PeriodType enum check:', {
+      PeriodType,
+      comparison: {
+        currentType: currentState.type,
+        overtimeType: PeriodType.OVERTIME,
+        isEqual: currentState.type === PeriodType.OVERTIME,
+        typeofCurrentType: typeof currentState.type,
+        typeofOvertimeType: typeof PeriodType.OVERTIME,
+      },
+    });
+
     if (!statusInfo.isActiveAttendance) {
       return false;
     }
 
-    const periodEnd = parseISO(currentState.timeWindow.end);
-    return isWithinInterval(now, {
-      start: periodEnd,
-      end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
-    });
+    // Use strict comparison
+    const isOvertimePeriod = Object.is(currentState.type, PeriodType.OVERTIME);
+    console.log('DEBUG: Strict comparison:', { isOvertimePeriod });
+
+    if (isOvertimePeriod) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
