@@ -456,13 +456,15 @@ export class PeriodManagementService {
   /**
    * Finds the most relevant period for the current time
    */
+  // In PeriodManagementService.ts
+
   private findRelevantPeriod(
     periods: PeriodDefinition[],
     now: Date,
-    attendance?: AttendanceRecord | null, // Add attendance parameter
+    attendance?: AttendanceRecord | null,
   ): PeriodDefinition | null {
     console.log('Finding relevant period:', {
-      now: format(now, 'HH:mm:ss'),
+      currentTime: format(now, 'HH:mm:ss'),
       periods: periods.map((p) => ({
         type: p.type,
         start: p.startTime,
@@ -472,30 +474,34 @@ export class PeriodManagementService {
       attendance: attendance
         ? {
             type: attendance.type,
-            checkIn: attendance.CheckInTime,
+            checkIn: format(attendance.CheckInTime!, 'HH:mm:ss'),
             checkOut: attendance.CheckOutTime,
           }
         : null,
     });
 
-    // For active overnight overtime, prioritize it
-    if (
-      attendance?.type === PeriodType.OVERTIME &&
-      attendance.CheckInTime &&
-      !attendance.CheckOutTime &&
-      attendance.shiftStartTime &&
-      attendance.shiftEndTime
-    ) {
-      return {
-        type: PeriodType.OVERTIME,
-        startTime: format(attendance.shiftStartTime, 'HH:mm'),
-        endTime: format(attendance.shiftEndTime, 'HH:mm'),
-        sequence: 1,
-        isOvernight: true,
-      };
+    // First check if we have an active overnight period
+    const currentTimeStr = format(now, 'HH:mm');
+    const overnightPeriod = periods.find(
+      (p) =>
+        p.isOvernight &&
+        // Period ends after midnight and we're before end time
+        ((p.endTime < p.startTime && currentTimeStr <= p.endTime) ||
+          // Or period starts before midnight and we're after start time
+          (p.endTime < p.startTime && currentTimeStr >= p.startTime)),
+    );
+
+    if (overnightPeriod) {
+      console.log('Found active overnight period:', {
+        type: overnightPeriod.type,
+        start: overnightPeriod.startTime,
+        end: overnightPeriod.endTime,
+        current: currentTimeStr,
+      });
+      return overnightPeriod;
     }
 
-    // Rest of the method remains the same
+    // For regular periods, check within interval as before
     for (const period of periods) {
       let currentPeriodStart = this.parseTimeWithContext(period.startTime, now);
       let currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
