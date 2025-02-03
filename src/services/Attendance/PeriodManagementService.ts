@@ -35,7 +35,6 @@ import {
   isBefore,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
-import { AttendanceEnhancementService } from './AttendanceEnhancementService';
 
 const TRANSITION_CONFIG = {
   EARLY_BUFFER: 15, // 15 minutes before period
@@ -53,6 +52,17 @@ export class PeriodManagementService {
     records: AttendanceRecord[],
     now: Date,
   ): Promise<PeriodState> {
+    // Find active record first
+    const activeRecord = this.findActiveRecord(records);
+
+    // Log active record
+    console.log('Active record check:', {
+      hasActive: Boolean(activeRecord),
+      type: activeRecord?.type,
+      checkIn: activeRecord?.CheckInTime,
+      checkOut: activeRecord?.CheckOutTime,
+    });
+
     // Get all necessary data upfront
     const [shiftData, overtimeInfo] = await Promise.all([
       this.shiftService.getEffectiveShift(employeeId, now),
@@ -63,22 +73,45 @@ export class PeriodManagementService {
       throw new Error('No shift configuration found');
     }
 
-    // Create window response format for period handling
     const windowResponse: ShiftWindowResponse = {
-      current: {
-        start: format(now, "yyyy-MM-dd'T'HH:mm:ss"),
-        end: format(addHours(now, 8), "yyyy-MM-dd'T'HH:mm:ss"),
-      },
-      type: overtimeInfo ? PeriodType.OVERTIME : PeriodType.REGULAR,
+      current: (() => {
+        // If there's an active overtime record, use its times
+        if (
+          activeRecord?.type === PeriodType.OVERTIME &&
+          activeRecord.shiftStartTime &&
+          activeRecord.shiftEndTime
+        ) {
+          return {
+            start: format(activeRecord.shiftStartTime, "yyyy-MM-dd'T'HH:mm:ss"),
+            end: format(activeRecord.shiftEndTime, "yyyy-MM-dd'T'HH:mm:ss"),
+          };
+        }
+
+        // For overtime info, use defined times
+        if (overtimeInfo) {
+          const today = format(now, 'yyyy-MM-dd');
+          return {
+            start: `${today}T${overtimeInfo.startTime}`,
+            end: `${today}T${overtimeInfo.endTime}`,
+          };
+        }
+
+        // Default 8-hour window
+        return {
+          start: format(now, "yyyy-MM-dd'T'HH:mm:ss"),
+          end: format(addHours(now, 8), "yyyy-MM-dd'T'HH:mm:ss"),
+        };
+      })(),
+      type:
+        activeRecord?.type === PeriodType.OVERTIME || overtimeInfo
+          ? PeriodType.OVERTIME
+          : PeriodType.REGULAR,
       shift: shiftData.current,
       isHoliday: false,
       isDayOff: !shiftData.current.workDays.includes(now.getDay()),
       isAdjusted: shiftData.isAdjusted,
       overtimeInfo,
     };
-
-    // Find active record
-    const activeRecord = this.findActiveRecord(records);
 
     // Get current period
     const currentState = this.resolveCurrentPeriod(
