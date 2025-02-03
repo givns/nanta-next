@@ -31,7 +31,8 @@ export function getCurrentTime(): Date {
   //For testing specific scenarios
   const [datePart, timePart] = '2024-12-19T00:55'.split('T');
   const time = timePart.split('+')[0];
-  return parseISO(`${datePart}T${time}`);
+  // Create a Date object with the specific date and time
+  return new Date(`${datePart}T${time}:00.000Z`);
 }
 
 export function formatDateTime(
