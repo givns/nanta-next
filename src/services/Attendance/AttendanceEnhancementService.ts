@@ -50,6 +50,20 @@ export class AttendanceEnhancementService {
     periodState: ShiftWindowResponse,
     validationContext: ValidationContext,
   ): Promise<AttendanceStatusResponse> {
+    console.log('enhanceAttendanceStatus Input Debug:', {
+      periodStateOvertimeInfo: periodState.overtimeInfo
+        ? {
+            startTime: periodState.overtimeInfo.startTime,
+            endTime: periodState.overtimeInfo.endTime,
+            id: periodState.overtimeInfo.id,
+            durationMinutes: periodState.overtimeInfo.durationMinutes,
+            isInsideShiftHours: periodState.overtimeInfo.isInsideShiftHours,
+            isDayOffOvertime: periodState.overtimeInfo.isDayOffOvertime,
+          }
+        : 'UNDEFINED',
+      validationContextTimestamp: validationContext.timestamp.toISOString(),
+    });
+
     const now = validationContext.timestamp;
 
     // Deserialize attendance record
@@ -72,6 +86,16 @@ export class AttendanceEnhancementService {
       now,
     );
 
+    console.log('After determinePeriodStatusInfo Debug:', {
+      periodStateOvertimeInfo: periodState.overtimeInfo
+        ? {
+            startTime: periodState.overtimeInfo.startTime,
+            endTime: periodState.overtimeInfo.endTime,
+            id: periodState.overtimeInfo.id,
+          }
+        : 'UNDEFINED',
+    });
+
     // Calculate transitions
     const transitions = this.periodManager.calculatePeriodTransitions(
       currentState,
@@ -87,6 +111,16 @@ export class AttendanceEnhancementService {
       transitions,
       now,
     );
+
+    console.log('After determineTransitionStatusInfo Debug:', {
+      periodStateOvertimeInfo: periodState.overtimeInfo
+        ? {
+            startTime: periodState.overtimeInfo.startTime,
+            endTime: periodState.overtimeInfo.endTime,
+            id: periodState.overtimeInfo.id,
+          }
+        : 'UNDEFINED',
+    });
 
     // Create enhanced context for validation
     const enhancedContext: ValidationContext = {
