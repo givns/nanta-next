@@ -208,6 +208,21 @@ export class PeriodManagementService {
     now: Date,
     originalPeriodState?: ShiftWindowResponse, // Add this optional parameter
   ): UnifiedPeriodState {
+    // Add a safeguard to restore overtimeInfo if it becomes undefined
+    if (
+      periodState.overtimeInfo === undefined &&
+      originalPeriodState?.overtimeInfo
+    ) {
+      console.warn('Restoring lost overtimeInfo', {
+        restoredInfo: originalPeriodState.overtimeInfo,
+        currentTime: now.toISOString(),
+      });
+      periodState = {
+        ...periodState,
+        overtimeInfo: originalPeriodState.overtimeInfo,
+      };
+    }
+
     console.log('Resolving current period - Detailed Debug:', {
       currentTime: format(now, 'HH:mm:ss'),
       attendance: attendance
