@@ -102,15 +102,6 @@ export default async function handler(
         // Only pass periodType if needed, remove location as it's not part of the interface
       });
 
-    // Log final state
-    console.log('Final response state:', {
-      hasTransitions: attendanceStatus.daily.transitions.length > 0,
-      hasShift: Boolean(attendanceStatus.context.shift.id),
-      hasOvertime: Boolean(attendanceStatus.context.nextPeriod?.overtimeInfo),
-      transitionState: attendanceStatus.context.transition,
-      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
-    });
-
     return res.status(200).json(attendanceStatus);
   } catch (error) {
     console.error('Attendance status error:', error);
