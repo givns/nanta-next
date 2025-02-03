@@ -130,14 +130,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           periodType:
             params?.periodType || periodState?.type || PeriodType.REGULAR,
 
-          // Optional identification (at least one required)
+          // Optional identification
           employeeId: userData.employeeId,
           lineUserId: userData.lineUserId || undefined,
 
-          // Required activity object
+          // Required activity object - ensure isOvertime matches periodType
           activity: {
             isCheckIn: params?.isCheckIn ?? isCheckingIn,
-            isOvertime: params?.isOvertime || false,
+            isOvertime:
+              params?.periodType === PeriodType.OVERTIME ||
+              periodState?.type === PeriodType.OVERTIME, // Fix here
             isManualEntry: false,
             overtimeMissed:
               isOvertimeCheckout || params?.overtimeMissed || false,
@@ -156,7 +158,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             },
           }),
 
-          // Optional transition data for period transitions
+          // Optional transition data
           ...(params?.isTransition &&
             context.transition && {
               transition: {
@@ -185,7 +187,13 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           },
         };
 
-        console.log('Attendance request data:', requestData);
+        // Add debug logging
+        console.log('Preparing attendance request:', {
+          periodType: requestData.periodType,
+          activity: requestData.activity,
+          currentPeriod: periodState?.type,
+          isCheckingIn,
+        });
 
         await checkInOut(requestData);
         await refreshAttendanceStatus();
