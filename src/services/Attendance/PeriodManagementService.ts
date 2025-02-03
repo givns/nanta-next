@@ -152,6 +152,7 @@ export class PeriodManagementService {
       activeRecord,
       windowResponse,
       now,
+      windowResponse, // Pass the original windowResponse as the fourth argument
     );
 
     // Calculate transitions
@@ -204,8 +205,9 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     periodState: ShiftWindowResponse,
     now: Date,
+    originalPeriodState?: ShiftWindowResponse, // Add this optional parameter
   ): UnifiedPeriodState {
-    console.log('Resolving current period:', {
+    console.log('Resolving current period - Detailed Debug:', {
       currentTime: format(now, 'HH:mm:ss'),
       attendance: attendance
         ? {
@@ -217,19 +219,32 @@ export class PeriodManagementService {
           }
         : null,
       periodState: {
-        // Explicitly log the full overtimeInfo
         overtimeInfo: periodState.overtimeInfo
           ? {
               startTime: periodState.overtimeInfo.startTime,
               endTime: periodState.overtimeInfo.endTime,
-              id: periodState.overtimeInfo.id,
-              durationMinutes: periodState.overtimeInfo.durationMinutes,
-              isInsideShiftHours: periodState.overtimeInfo.isInsideShiftHours,
-              isDayOffOvertime: periodState.overtimeInfo.isDayOffOvertime,
+              id:
+                'id' in periodState.overtimeInfo
+                  ? periodState.overtimeInfo.id
+                  : 'NO_ID',
             }
           : undefined,
         shift: periodState.shift,
       },
+      originalPeriodState: originalPeriodState
+        ? {
+            overtimeInfo: originalPeriodState.overtimeInfo
+              ? {
+                  startTime: originalPeriodState.overtimeInfo.startTime,
+                  endTime: originalPeriodState.overtimeInfo.endTime,
+                  id:
+                    'id' in originalPeriodState.overtimeInfo
+                      ? originalPeriodState.overtimeInfo.id
+                      : 'NO_ID',
+                }
+              : undefined,
+          }
+        : 'NO_ORIGINAL_STATE',
     });
 
     // Handle active overnight overtime first
