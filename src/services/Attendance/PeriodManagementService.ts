@@ -217,7 +217,17 @@ export class PeriodManagementService {
           }
         : null,
       periodState: {
-        overtimeInfo: periodState.overtimeInfo,
+        // Explicitly log the full overtimeInfo
+        overtimeInfo: periodState.overtimeInfo
+          ? {
+              startTime: periodState.overtimeInfo.startTime,
+              endTime: periodState.overtimeInfo.endTime,
+              id: periodState.overtimeInfo.id,
+              durationMinutes: periodState.overtimeInfo.durationMinutes,
+              isInsideShiftHours: periodState.overtimeInfo.isInsideShiftHours,
+              isDayOffOvertime: periodState.overtimeInfo.isDayOffOvertime,
+            }
+          : undefined,
         shift: periodState.shift,
       },
     });
@@ -317,6 +327,23 @@ export class PeriodManagementService {
     now: Date,
   ): PeriodDefinition[] {
     const periods: PeriodDefinition[] = [];
+    console.log('Building Period Sequence Debug:', {
+      overtimeInfo: overtimeInfo
+        ? {
+            startTime: overtimeInfo.startTime,
+            endTime: overtimeInfo.endTime,
+            isDayOffOvertime: overtimeInfo.isDayOffOvertime,
+            id: 'id' in overtimeInfo ? overtimeInfo.id : 'NO_ID',
+          }
+        : 'UNDEFINED',
+      attendanceDetails: attendance
+        ? {
+            type: attendance.type,
+            checkIn: attendance.CheckInTime,
+            checkOut: attendance.CheckOutTime,
+          }
+        : 'NO_ATTENDANCE',
+    });
 
     // Handle active overnight overtime first with proper date context
     if (
