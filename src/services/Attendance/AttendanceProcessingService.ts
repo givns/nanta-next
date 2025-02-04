@@ -753,17 +753,10 @@ export class AttendanceProcessingService {
     tx: Prisma.TransactionClient,
     employeeId: string,
     periodType?: PeriodType,
-    timeContext?: {
-      searchTime: Date;
-      checkTime: Date;
-    },
+    effectiveTime: Date = getCurrentTime(),
   ): Promise<AttendanceRecord | null> {
-    const searchTime = timeContext?.searchTime || getCurrentTime();
-    const checkTime = timeContext?.checkTime || searchTime;
-
-    console.log('Attendance search context:', {
-      searchTime: format(searchTime, 'yyyy-MM-dd HH:mm:ss'),
-      checkTime: format(checkTime, 'yyyy-MM-dd HH:mm:ss'),
+    console.log('Finding latest attendance:', {
+      effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
       periodType,
     });
 
@@ -772,26 +765,22 @@ export class AttendanceProcessingService {
         employeeId,
         type: periodType,
         OR: [
-          // Regular day records
+          // For overnight periods, check previous day
           {
             date: {
-              gte: startOfDay(checkTime),
-              lt: endOfDay(checkTime),
+              gte: startOfDay(subDays(effectiveTime, 1)),
             },
+            type: PeriodType.OVERTIME,
             CheckInTime: { not: null },
             CheckOutTime: null,
           },
-          // Overnight records - check both days
+          // Active records from current day
           {
-            type: PeriodType.OVERTIME,
-            CheckInTime: {
-              not: null,
-            },
-            CheckOutTime: null,
             date: {
-              gte: startOfDay(subDays(searchTime, 1)),
-              lte: endOfDay(searchTime),
+              lte: endOfDay(effectiveTime),
             },
+            CheckInTime: { not: null },
+            CheckOutTime: null,
           },
         ],
       },
@@ -804,8 +793,9 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log('Record search result:', {
+    console.log('Latest attendance result:', {
       found: !!record,
+      effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
       details: record
         ? {
             id: record.id,
@@ -814,10 +804,6 @@ export class AttendanceProcessingService {
             checkIn: record.CheckInTime
               ? format(record.CheckInTime, 'HH:mm:ss')
               : null,
-            dateContext: {
-              clientDate: format(checkTime, 'yyyy-MM-dd'),
-              serverDate: format(searchTime, 'yyyy-MM-dd'),
-            },
           }
         : null,
     });
