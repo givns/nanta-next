@@ -758,6 +758,10 @@ export class AttendanceProcessingService {
     console.log('Finding latest attendance:', {
       effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
       periodType,
+      dateRange: {
+        start: format(startOfDay(subDays(effectiveTime, 1)), 'yyyy-MM-dd'),
+        end: format(endOfDay(effectiveTime), 'yyyy-MM-dd'),
+      },
     });
 
     const record = await tx.attendance.findFirst({
@@ -769,6 +773,7 @@ export class AttendanceProcessingService {
           {
             date: {
               gte: startOfDay(subDays(effectiveTime, 1)),
+              lt: endOfDay(effectiveTime),
             },
             type: PeriodType.OVERTIME,
             CheckInTime: { not: null },
@@ -777,7 +782,8 @@ export class AttendanceProcessingService {
           // Active records from current day
           {
             date: {
-              lte: endOfDay(effectiveTime),
+              gte: startOfDay(effectiveTime),
+              lt: endOfDay(effectiveTime),
             },
             CheckInTime: { not: null },
             CheckOutTime: null,
@@ -793,17 +799,24 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log('Latest attendance result:', {
+    console.log('Latest attendance query result:', {
       found: !!record,
-      effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
       details: record
         ? {
             id: record.id,
             type: record.type,
             date: format(record.date, 'yyyy-MM-dd'),
-            checkIn: record.CheckInTime
-              ? format(record.CheckInTime, 'HH:mm:ss')
+            checkIn: format(record.CheckInTime!, 'HH:mm:ss'),
+            checkOut: record.CheckOutTime
+              ? format(record.CheckOutTime, 'HH:mm:ss')
               : null,
+            dateRange: {
+              start: format(
+                startOfDay(subDays(effectiveTime, 1)),
+                'yyyy-MM-dd',
+              ),
+              end: format(endOfDay(effectiveTime), 'yyyy-MM-dd'),
+            },
           }
         : null,
     });
