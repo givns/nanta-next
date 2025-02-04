@@ -767,7 +767,6 @@ export class AttendanceProcessingService {
     const record = await tx.attendance.findFirst({
       where: {
         employeeId,
-        type: periodType,
         OR: [
           // For overnight periods, check previous day
           {
@@ -775,7 +774,7 @@ export class AttendanceProcessingService {
               gte: startOfDay(subDays(effectiveTime, 1)),
               lt: endOfDay(effectiveTime),
             },
-            type: PeriodType.OVERTIME,
+            ...(periodType ? { type: periodType } : {}),
             CheckInTime: { not: null },
             CheckOutTime: null,
           },
@@ -785,6 +784,7 @@ export class AttendanceProcessingService {
               gte: startOfDay(effectiveTime),
               lt: endOfDay(effectiveTime),
             },
+            ...(periodType ? { type: periodType } : {}),
             CheckInTime: { not: null },
             CheckOutTime: null,
           },
@@ -796,6 +796,7 @@ export class AttendanceProcessingService {
         overtimeEntries: true,
         location: true,
         metadata: true,
+        checkTiming: true,
       },
     });
 
@@ -806,7 +807,9 @@ export class AttendanceProcessingService {
             id: record.id,
             type: record.type,
             date: format(record.date, 'yyyy-MM-dd'),
-            checkIn: format(record.CheckInTime!, 'HH:mm:ss'),
+            checkIn: record.CheckInTime
+              ? format(record.CheckInTime, 'HH:mm:ss')
+              : null,
             checkOut: record.CheckOutTime
               ? format(record.CheckOutTime, 'HH:mm:ss')
               : null,
