@@ -4,13 +4,13 @@ import { PeriodType, PrismaClient, TimeEntryStatus } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
-import { CACHE_CONSTANTS } from '@/types/attendance/base';
+import { ATTENDANCE_CONSTANTS, CACHE_CONSTANTS } from '@/types/attendance/base';
 import { getCurrentTime } from '@/utils/dateUtils';
 import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
 import { AttendanceStateResponse, TimeEntry } from '@/types/attendance';
-import { parseISO } from 'date-fns';
+import { addMinutes, format, parseISO } from 'date-fns';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -310,13 +310,33 @@ export default async function handler(
     const serverTime = getCurrentTime();
     const requestTime = new Date(validatedData.checkTime);
 
-    if (requestTime > serverTime) {
+    // For checkout from overtime, allow period end time plus allowance
+    const isOvertimeCheckout =
+      !validatedData.activity.isCheckIn &&
+      validatedData.periodType === PeriodType.OVERTIME &&
+      validatedData.activity.isOvertime;
+
+    // Calculate max allowed time
+    const maxAllowedTime = isOvertimeCheckout
+      ? addMinutes(serverTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD) // Allow future time within allowance
+      : serverTime; // For other cases, don't allow future time
+
+    console.log('Time validation:', {
+      requestTime: format(requestTime, 'yyyy-MM-dd HH:mm:ss'),
+      serverTime: format(serverTime, 'yyyy-MM-dd HH:mm:ss'),
+      maxAllowed: format(maxAllowedTime, 'yyyy-MM-dd HH:mm:ss'),
+      isOvertimeCheckout,
+    });
+
+    if (requestTime > maxAllowedTime) {
       return res.status(400).json({
         error: ErrorCode.INVALID_INPUT,
-        message: 'Check time cannot be in the future',
+        message: 'Check time exceeds allowed window',
         details: {
           serverTime: serverTime.toISOString(),
           requestTime: requestTime.toISOString(),
+          maxAllowed: maxAllowedTime.toISOString(),
+          allowanceMinutes: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
         },
       });
     }
