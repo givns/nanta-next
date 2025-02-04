@@ -73,17 +73,6 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
     lineUserId: userData.lineUserId || '',
   });
 
-  const {
-    isInTransitionWindow,
-    canTransition,
-    overtimeInfo,
-    getTransitionDisplay,
-  } = useAttendanceTransition({
-    currentPeriod: periodState,
-    nextPeriod: context.nextPeriod,
-    validation: stateValidation,
-  });
-
   const now = getCurrentTime();
 
   useEffect(() => {
@@ -119,6 +108,21 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           periodState.type === PeriodType.OVERTIME &&
           periodState.activity.checkIn &&
           !periodState.activity.checkOut;
+
+        // Add before requestData construction
+        console.log('Time context before request:', {
+          now: now.toISOString(),
+          periodWindow: {
+            start: periodState.timeWindow.start,
+            end: periodState.timeWindow.end,
+          },
+          isOvertimeCheckout,
+          currentState: {
+            type: periodState.type,
+            hasCheckIn: periodState.activity.checkIn,
+            hasCheckOut: periodState.activity.checkOut,
+          },
+        });
 
         // Structure data according to CheckInOutData interface and schema
         const requestData: CheckInOutData = {
@@ -188,11 +192,11 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         };
 
         // Add debug logging
-        console.log('Preparing attendance request:', {
+        console.log('Request data debug:', {
+          checkTime: requestData.checkTime,
+          actualTime: now.toISOString(),
+          isOvertime: requestData.activity.isOvertime,
           periodType: requestData.periodType,
-          activity: requestData.activity,
-          currentPeriod: periodState?.type,
-          isCheckingIn,
         });
 
         await checkInOut(requestData);

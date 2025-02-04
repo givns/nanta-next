@@ -30,7 +30,6 @@ export function useSimpleAttendance({
     isLoading: locationLoading,
   } = useEnhancedLocation();
 
-  // In useSimpleAttendance.ts
   const {
     data: rawData,
     error: attendanceError,
