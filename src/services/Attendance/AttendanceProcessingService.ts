@@ -755,40 +755,27 @@ export class AttendanceProcessingService {
     periodType?: PeriodType,
     effectiveTime: Date = getCurrentTime(),
   ): Promise<AttendanceRecord | null> {
-    console.log('Finding latest attendance:', {
-      effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
+    console.log('Finding latest attendance - Detailed Debug:', {
+      employeeId,
       periodType,
+      effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
       dateRange: {
         start: format(startOfDay(subDays(effectiveTime, 1)), 'yyyy-MM-dd'),
         end: format(endOfDay(effectiveTime), 'yyyy-MM-dd'),
       },
     });
 
-    const record = await tx.attendance.findFirst({
+    // Find active records within the date range
+    const activeRecords = await tx.attendance.findMany({
       where: {
         employeeId,
-        OR: [
-          // For overnight periods, check previous day
-          {
-            date: {
-              gte: startOfDay(subDays(effectiveTime, 1)),
-              lt: endOfDay(effectiveTime),
-            },
-            ...(periodType ? { type: periodType } : {}),
-            CheckInTime: { not: null },
-            CheckOutTime: null,
-          },
-          // Active records from current day
-          {
-            date: {
-              gte: startOfDay(effectiveTime),
-              lt: endOfDay(effectiveTime),
-            },
-            ...(periodType ? { type: periodType } : {}),
-            CheckInTime: { not: null },
-            CheckOutTime: null,
-          },
-        ],
+        CheckInTime: { not: null },
+        CheckOutTime: null,
+        date: {
+          gte: startOfDay(subDays(effectiveTime, 1)),
+          lte: endOfDay(effectiveTime),
+        },
+        ...(periodType ? { type: periodType } : {}),
       },
       orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
@@ -800,7 +787,41 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log('Latest attendance query result:', {
+    console.log('Active records debug:', {
+      count: activeRecords.length,
+      records: activeRecords.map((record) => ({
+        id: record.id,
+        type: record.type,
+        date: format(record.date, 'yyyy-MM-dd HH:mm:ss'),
+        checkIn: record.CheckInTime
+          ? format(record.CheckInTime, 'HH:mm:ss')
+          : null,
+      })),
+    });
+
+    // If multiple active records exist, throw an error
+    if (activeRecords.length > 1) {
+      console.error('Multiple active records found', {
+        employeeId,
+        periodType,
+        activeRecordIds: activeRecords.map((r) => r.id),
+      });
+
+      throw new AppError({
+        code: ErrorCode.MULTIPLE_ACTIVE_RECORDS,
+        message: 'Multiple active attendance records found',
+        details: {
+          employeeId,
+          periodType,
+          activeRecordIds: activeRecords.map((r) => r.id),
+        },
+      });
+    }
+
+    // Return the single active record or null
+    const record = activeRecords.length === 1 ? activeRecords[0] : null;
+
+    console.log('Selected record:', {
       found: !!record,
       details: record
         ? {
@@ -813,13 +834,6 @@ export class AttendanceProcessingService {
             checkOut: record.CheckOutTime
               ? format(record.CheckOutTime, 'HH:mm:ss')
               : null,
-            dateRange: {
-              start: format(
-                startOfDay(subDays(effectiveTime, 1)),
-                'yyyy-MM-dd',
-              ),
-              end: format(endOfDay(effectiveTime), 'yyyy-MM-dd'),
-            },
           }
         : null,
     });
