@@ -10,6 +10,8 @@ import { normalizeLocation } from '@/utils/locationUtils';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { UserRole } from '@/types/enum';
+import { addMinutes } from 'date-fns';
+import { ATTENDANCE_CONSTANTS } from '@/types/attendance';
 
 // ===================================
 // Constants
@@ -387,10 +389,41 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
       metadata: validated.metadata,
     };
 
-    if (new Date(processingOptions.checkTime) > getCurrentTime()) {
+    // Check if this is an overtime checkout
+    const isOvertimeCheckout =
+      !processingOptions.activity.isCheckIn &&
+      processingOptions.periodType === PeriodType.OVERTIME &&
+      processingOptions.activity.isOvertime;
+
+    // Get current time and request time
+    const currentTime = getCurrentTime();
+    const requestedTime = new Date(processingOptions.checkTime);
+
+    // Calculate max allowed time based on type
+    const maxAllowedTime = isOvertimeCheckout
+      ? addMinutes(currentTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD)
+      : currentTime;
+
+    console.log('Processing options time validation:', {
+      requestedTime: requestedTime.toISOString(),
+      currentTime: currentTime.toISOString(),
+      maxAllowed: maxAllowedTime.toISOString(),
+      isOvertimeCheckout,
+      allowanceMinutes: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+    });
+
+    // Validate against max allowed time
+    if (requestedTime > maxAllowedTime) {
       throw new AppError({
         code: ErrorCode.INVALID_INPUT,
-        message: 'Check time cannot be in the future',
+        message: isOvertimeCheckout
+          ? `Check time exceeds allowed window of ${ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD} minutes`
+          : 'Check time cannot be in the future',
+        details: {
+          requestedTime: requestedTime.toISOString(),
+          maxAllowed: maxAllowedTime.toISOString(),
+          allowanceMinutes: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+        },
       });
     }
 
