@@ -190,6 +190,10 @@ export function useAttendanceData({
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
       try {
+        console.log('Attendance data request:', {
+          originalCheckTime: params.checkTime,
+          currentTime: getCurrentTime(),
+        });
         if (data?.base) {
           const currentStatus = {
             state: data.base.state,
@@ -222,7 +226,6 @@ export function useAttendanceData({
             address: locationState.address,
             inPremises: locationState.inPremises,
             confidence: locationState.confidence,
-            checkTime: getCurrentTime().toISOString(),
           },
           { timeout: REQUEST_TIMEOUT },
         );
