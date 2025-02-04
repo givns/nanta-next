@@ -109,19 +109,10 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           periodState.activity.checkIn &&
           !periodState.activity.checkOut;
 
-        // Add before requestData construction
-        console.log('Time context before request:', {
-          now: now.toISOString(),
-          periodWindow: {
-            start: periodState.timeWindow.start,
-            end: periodState.timeWindow.end,
-          },
+        console.log('Preparing checkout request:', {
           isOvertimeCheckout,
-          currentState: {
-            type: periodState.type,
-            hasCheckIn: periodState.activity.checkIn,
-            hasCheckOut: periodState.activity.checkOut,
-          },
+          periodEnd: periodState.timeWindow.end,
+          now: now.toISOString(),
         });
 
         // Structure data according to CheckInOutData interface and schema
@@ -191,11 +182,9 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           },
         };
 
-        // Add debug logging
-        console.log('Request data debug:', {
+        console.log('Final request data:', {
           checkTime: requestData.checkTime,
-          actualTime: now.toISOString(),
-          isOvertime: requestData.activity.isOvertime,
+          isOvertimeCheckout,
           periodType: requestData.periodType,
         });
 
