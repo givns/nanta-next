@@ -32,7 +32,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { format } from 'date-fns';
-import { useAuth } from '@/hooks/useAuth';
+import { useLiff } from '@/contexts/LiffContext';
 
 type AdjustmentType = 'individual' | 'department';
 
@@ -74,6 +74,7 @@ interface AdjustmentFormData {
 }
 
 export default function ShiftManagementDashboard() {
+  const { lineUserId } = useLiff();
   const [activeTab, setActiveTab] = useState('adjustments');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,12 +97,22 @@ export default function ShiftManagementDashboard() {
   }, []);
 
   const fetchInitialData = async () => {
+    if (!lineUserId) {
+      setError('Authentication required');
+      return;
+    }
+
     try {
       setIsLoading(true);
+      const headers = {
+        'x-line-userid': lineUserId,
+        'Content-Type': 'application/json',
+      };
+
       const [shiftsRes, deptsRes, adjustmentsRes] = await Promise.all([
-        fetch('/api/shifts/shifts'),
-        fetch('/api/departments'),
-        fetch('/api/admin/shifts/adjustments'),
+        fetch('/api/shifts/shifts', { headers }),
+        fetch('/api/departments', { headers }),
+        fetch('/api/admin/shifts/adjustments', { headers }),
       ]);
 
       if (!shiftsRes.ok || !deptsRes.ok || !adjustmentsRes.ok) {
@@ -125,11 +136,23 @@ export default function ShiftManagementDashboard() {
   };
 
   const handleSubmitAdjustment = async (formData: AdjustmentFormData) => {
+    if (!lineUserId) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Authentication required',
+      });
+      return;
+    }
+
     try {
       setIsLoading(true);
       const response = await fetch('/api/admin/shifts/adjustments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-line-userid': lineUserId,
+        },
         body: JSON.stringify(formData),
       });
 
@@ -153,6 +176,12 @@ export default function ShiftManagementDashboard() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchInitialData();
+    }
+  }, [lineUserId]);
 
   // Filter adjustments based on search and department
   const filteredAdjustments = adjustments.filter((adj) => {

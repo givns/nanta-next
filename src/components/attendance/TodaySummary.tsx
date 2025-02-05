@@ -42,7 +42,7 @@ const TodaySummary: React.FC<TodaySummaryProps> = ({
                 {userData.name}
               </div>
               <div className="text-sm text-gray-500 mb-1">
-                รหัส: {userData.employeeId}
+                รหัสพนักงาน: {userData.employeeId}
               </div>
               <div className="text-sm text-gray-500">
                 {userData.departmentName}
