@@ -22,6 +22,7 @@ import {
   OvertimeEntry,
   OvertimeContext,
   TimingFlags,
+  ATTENDANCE_CONSTANTS,
 } from '@/types/attendance';
 import {
   AttendanceState,
@@ -757,31 +758,57 @@ export class AttendanceEnhancementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
-    // Check if PeriodType is properly imported
-    console.log('DEBUG: PeriodType enum check:', {
-      PeriodType,
-      comparison: {
-        currentType: currentState.type,
-        overtimeType: PeriodType.OVERTIME,
-        isEqual: currentState.type === PeriodType.OVERTIME,
-        typeofCurrentType: typeof currentState.type,
-        typeofOvertimeType: typeof PeriodType.OVERTIME,
+    console.log('DEBUG: canCheckOut Input', {
+      currentStateType: currentState.type,
+      isActiveAttendance: statusInfo.isActiveAttendance,
+      timeWindow: {
+        start: currentState.timeWindow.start,
+        end: currentState.timeWindow.end,
       },
+      currentTime: now.toISOString(),
     });
 
+    // First, check if there's an active attendance
     if (!statusInfo.isActiveAttendance) {
+      console.log('DEBUG: canCheckOut - No active attendance');
       return false;
     }
 
-    // Use strict comparison
-    const isOvertimePeriod = Object.is(currentState.type, PeriodType.OVERTIME);
-    console.log('DEBUG: Strict comparison:', { isOvertimePeriod });
+    // Check if it's an overtime period
+    const isOvertimePeriod = currentState.type === PeriodType.OVERTIME;
 
+    // For overtime, always allow checkout
     if (isOvertimePeriod) {
+      console.log('DEBUG: canCheckOut - Overtime period, allowing checkout');
       return true;
     }
 
-    return false;
+    // Parse period end time
+    const periodEnd = parseISO(currentState.timeWindow.end);
+
+    // Calculate checkout windows
+    const earlyCheckoutBuffer = ATTENDANCE_CONSTANTS.EARLY_CHECKOUT_BUFFER;
+    const lateCheckoutBuffer = ATTENDANCE_CONSTANTS.TRANSITION_LATE_BUFFER;
+
+    // Calculate extended checkout window
+    const earliestCheckoutTime = subMinutes(periodEnd, earlyCheckoutBuffer);
+    const latestCheckoutTime = addMinutes(periodEnd, lateCheckoutBuffer);
+
+    const isWithinCheckoutWindow =
+      now >= earliestCheckoutTime && now <= latestCheckoutTime;
+
+    console.log('DEBUG: canCheckOut Details', {
+      isOvertimePeriod,
+      periodEnd: periodEnd.toISOString(),
+      earliestCheckoutTime: earliestCheckoutTime.toISOString(),
+      latestCheckoutTime: latestCheckoutTime.toISOString(),
+      currentTime: now.toISOString(),
+      isWithinCheckoutWindow,
+      earlyCheckoutBuffer,
+      lateCheckoutBuffer,
+    });
+
+    return isWithinCheckoutWindow;
   }
 
   /**

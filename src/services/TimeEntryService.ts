@@ -19,6 +19,7 @@ import {
   min,
   parseISO,
   startOfDay,
+  subDays,
 } from 'date-fns';
 import { ShiftManagementService } from './ShiftManagementService/ShiftManagementService';
 import { NotificationService } from './NotificationService';
@@ -92,7 +93,7 @@ export class TimeEntryService {
       // Get all overtimes first
       const overtimes = await this.overtimeService.getDetailedOvertimesInRange(
         options.employeeId,
-        startOfDay(new Date(options.checkTime)),
+        startOfDay(subDays(new Date(options.checkTime), 1)), // Look back an extra day
         endOfDay(new Date(options.checkTime)),
       );
 
