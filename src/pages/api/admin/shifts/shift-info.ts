@@ -26,7 +26,6 @@ export default async function handler(
       where: { lineUserId: lineUserId as string },
       include: {
         department: true,
-        assignedShift: true,
       },
     });
 
@@ -43,8 +42,7 @@ export default async function handler(
       include: { requestedShift: true },
     });
 
-    const effectiveShift =
-      shiftAdjustment?.requestedShift || user.assignedShift;
+    const effectiveShift = shiftAdjustment?.requestedShift;
 
     if (!effectiveShift) {
       return res.status(404).json({ message: 'No shift found for the user' });

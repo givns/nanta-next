@@ -1,187 +1,112 @@
-// pages/api/admin/attendance/overtime-requests.ts
-
+// pages/api/admin/shifts/adjustments.ts
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { initializeServices } from '@/services/ServiceInitializer';
-import { AppError, ErrorCode } from '@/types/attendance';
 
-// Initialize Prisma client
 const prisma = new PrismaClient();
-
-// Define the services type
-type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
-
-// Cache the services initialization promise
-let servicesPromise: Promise<InitializedServices> | null = null;
-
-// Initialize services once
-const getServices = async (): Promise<InitializedServices> => {
-  if (!servicesPromise) {
-    servicesPromise = initializeServices(prisma);
-  }
-
-  const services = await servicesPromise;
-  if (!services) {
-    throw new AppError({
-      code: ErrorCode.INTERNAL_ERROR,
-      message: 'Failed to initialize services',
-    });
-  }
-
-  return services;
-};
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const { method } = req;
-  const lineUserId = req.headers['x-line-userid'] as string;
-
-  if (!lineUserId) {
+  if (!req.headers['x-line-userid']) {
     return res.status(401).json({ message: 'Unauthorized' });
   }
 
   try {
-    const services = await getServices();
-    const {
-      attendanceService,
-      notificationService,
-      timeEntryService,
-      shiftService,
-    } = services;
-
-    // Validate services
-    if (
-      !attendanceService ||
-      !notificationService ||
-      !timeEntryService ||
-      !shiftService
-    ) {
-      throw new AppError({
-        code: ErrorCode.INTERNAL_ERROR,
-        message: 'Required services not initialized',
-      });
-    }
-    const user = await prisma.user.findUnique({
-      where: { lineUserId },
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    let result;
-    switch (method) {
+    switch (req.method) {
       case 'GET': {
-        result = await prisma.overtimeRequest.findMany({
-          where: {
-            status: (req.query.status as string) || undefined,
-          },
+        const { startDate, endDate, departmentName } = req.query;
+
+        const where: any = {};
+
+        if (startDate && endDate) {
+          where.date = {
+            gte: new Date(startDate as string),
+            lte: new Date(endDate as string),
+          };
+        }
+
+        if (departmentName && departmentName !== 'all') {
+          where.user = {
+            departmentName: departmentName,
+          };
+        }
+
+        const adjustments = await prisma.shiftAdjustmentRequest.findMany({
+          where,
           include: {
             user: {
               select: {
+                employeeId: true,
                 name: true,
                 departmentName: true,
-                employeeId: true,
+                assignedShift: true,
               },
             },
+            requestedShift: true,
           },
           orderBy: {
-            createdAt: 'desc',
+            date: 'desc',
           },
         });
 
-        const transformedRequests = result.map((request) => ({
-          id: request.id,
-          employeeId: request.employeeId,
-          name: request.user.name,
-          department: request.user.departmentName,
-          date: request.date,
-          startTime: request.startTime,
-          endTime: request.endTime,
-          duration: calculateDuration(request.startTime, request.endTime),
-          reason: request.reason || '',
-          status: request.status,
-          isDayOffOvertime: request.isDayOffOvertime,
-          approverId: request.approverId,
-        }));
-
-        return res.status(200).json(transformedRequests);
+        return res.status(200).json(adjustments);
       }
 
       case 'POST': {
-        const { requestIds, action } = req.body;
+        const { type, employees, departmentName, shiftCode, date, reason } =
+          req.body;
 
-        if (action === 'approve') {
-          result = await services.overtimeService.batchApproveOvertimeRequests(
-            requestIds,
-            user.employeeId,
-          );
-          return res.status(200).json({
-            message: 'Requests approved successfully',
-            results: result,
-          });
+        // Find the shift
+        const shift = await prisma.shift.findUnique({
+          where: { shiftCode },
+        });
+
+        if (!shift) {
+          return res.status(404).json({ message: 'Shift not found' });
         }
 
-        if (action === 'reject') {
-          result = await Promise.all(
-            requestIds.map(async (id: string) => {
-              const request = await prisma.overtimeRequest.update({
-                where: { id },
-                data: {
-                  status: 'rejected',
-                  approverId: user.employeeId,
-                },
-                include: {
-                  user: true,
-                },
-              });
+        let targetEmployees;
 
-              if (request.user.lineUserId) {
-                await services.notificationService.sendOvertimeResponseNotification(
-                  request.employeeId,
-                  request.user.lineUserId,
-                  request,
-                );
-              }
+        if (type === 'department') {
+          // Get all employees in department
+          targetEmployees = await prisma.user.findMany({
+            where: { departmentName },
+            select: { employeeId: true },
+          });
+        } else {
+          // Individual employees
+          targetEmployees = employees.map((empId: string) => ({
+            employeeId: empId,
+          }));
+        }
 
-              return request;
+        // Create adjustments for all target employees
+        const adjustments = await prisma.$transaction(
+          targetEmployees.map((emp: { employeeId: string }) =>
+            prisma.shiftAdjustmentRequest.create({
+              data: {
+                employeeId: emp.employeeId,
+                requestedShiftId: shift.id,
+                date: new Date(date),
+                reason,
+                status: 'pending',
+              },
             }),
-          );
+          ),
+        );
 
-          return res.status(200).json({
-            message: 'Requests rejected successfully',
-            results: result,
-          });
-        }
-
-        return res.status(400).json({ message: 'Invalid action' });
+        return res.status(201).json(adjustments);
       }
 
       default:
         res.setHeader('Allow', ['GET', 'POST']);
         return res
           .status(405)
-          .json({ message: `Method ${method} Not Allowed` });
+          .json({ message: `Method ${req.method} Not Allowed` });
     }
   } catch (error) {
-    console.error('Error processing overtime request:', error);
-    return res.status(500).json({ message: 'Internal server error', error });
+    console.error('Error in shift adjustments:', error);
+    return res.status(500).json({ message: 'Internal server error' });
   }
-}
-
-function calculateDuration(startTime: string, endTime: string): number {
-  const [startHour, startMinute] = startTime.split(':').map(Number);
-  const [endHour, endMinute] = endTime.split(':').map(Number);
-
-  let hours = endHour - startHour;
-  let minutes = endMinute - startMinute;
-
-  if (minutes < 0) {
-    hours -= 1;
-    minutes += 60;
-  }
-
-  return Number((hours + minutes / 60).toFixed(1));
 }

@@ -31,138 +31,134 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { useLiff } from '@/contexts/LiffContext';
-
-type AdjustmentType = 'individual' | 'department';
-
-interface Department {
-  id: string;
-  name: string;
-}
-
-interface Shift {
-  id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  workDays: number[];
-}
+import { Textarea } from '@/components/ui/textarea';
 
 interface ShiftAdjustment {
   id: string;
   employeeId: string;
-  employeeName: string | null; // Make nullable
-  departmentId: string;
-  departmentName: string | null; // Make nullable
-  date: string;
-  newShift: {
-    id: string;
+  user: {
+    employeeId: string;
+    name: string;
+    departmentName: string;
+    assignedShift: {
+      name: string;
+      startTime: string;
+      endTime: string;
+    } | null;
+  };
+  requestedShift: {
+    shiftCode: string;
     name: string;
     startTime: string;
     endTime: string;
-  } | null; // Make nullable
+  };
+  date: string;
   status: 'pending' | 'approved' | 'rejected';
+  reason: string;
 }
 
-interface AdjustmentFormData {
-  type: AdjustmentType;
-  targetId: string; // either employeeId or departmentId
-  shiftId: string;
-  date: Date;
-  reason?: string;
-}
-
-export default function ShiftManagementDashboard() {
+export default function ShiftAdjustmentDashboard() {
   const { lineUserId } = useLiff();
-  const [isLoading, setIsLoading] = useState(true); // Start with loading true
-  const [activeTab, setActiveTab] = useState('adjustments');
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDepartment, setSelectedDepartment] = useState('all');
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [adjustmentType, setAdjustmentType] =
-    useState<AdjustmentType>('individual');
-
-  // Typed state for data
   const [adjustments, setAdjustments] = useState<ShiftAdjustment[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
-
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [shifts, setShifts] = useState<{ shiftCode: string; name: string }[]>(
+    [],
+  );
   const { toast } = useToast();
 
+  // Filter states
+  const [period, setPeriod] = useState({
+    start: startOfMonth(new Date()),
+    end: endOfMonth(new Date()),
+  });
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // New adjustment form state
+  const [adjustmentType, setAdjustmentType] = useState<
+    'individual' | 'department'
+  >('individual');
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [selectedShift, setSelectedShift] = useState('');
+  const [adjustmentDate, setAdjustmentDate] = useState(new Date());
+  const [reason, setReason] = useState('');
+  const [selectedDeptForAdjustment, setSelectedDeptForAdjustment] =
+    useState('');
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [lineUserId]);
+
   const fetchInitialData = async () => {
-    if (!lineUserId) {
-      setError('Authentication required');
-      setIsLoading(false);
-      return;
-    }
+    if (!lineUserId) return;
 
     try {
       setIsLoading(true);
-      const headers = {
-        'x-line-userid': lineUserId,
-        'Content-Type': 'application/json',
-      };
+      const headers = { 'x-line-userid': lineUserId };
 
-      const [shiftsRes, deptsRes, adjustmentsRes] = await Promise.all([
-        fetch('/api/shifts/shifts', { headers }),
-        fetch('/api/departments', { headers }),
-        fetch('/api/admin/shifts/shift-info', { headers }),
-      ]);
-
-      // Handle individual response errors
-      if (!shiftsRes.ok) throw new Error('Failed to fetch shifts');
-      if (!deptsRes.ok) throw new Error('Failed to fetch departments');
-      if (!adjustmentsRes.ok) throw new Error('Failed to fetch adjustments');
-
-      const [shiftsData, deptsData, adjustmentsData] = await Promise.all([
-        shiftsRes.json(),
-        deptsRes.json(),
-        adjustmentsRes.json(),
-      ]);
-
-      // Validate response data
-      if (!Array.isArray(shiftsData)) throw new Error('Invalid shifts data');
-      if (!Array.isArray(deptsData))
-        throw new Error('Invalid departments data');
-      if (!Array.isArray(adjustmentsData))
-        throw new Error('Invalid adjustments data');
-
-      setShifts(shiftsData);
+      // Fetch departments (unique department names from users)
+      const deptsResponse = await fetch('/api/departments', { headers });
+      if (!deptsResponse.ok) throw new Error('Failed to fetch departments');
+      const deptsData = await deptsResponse.json();
       setDepartments(deptsData);
-      setAdjustments(adjustmentsData);
-      setError(null);
+
+      // Fetch shifts
+      const shiftsResponse = await fetch('/api/shifts', { headers });
+      if (!shiftsResponse.ok) throw new Error('Failed to fetch shifts');
+      const shiftsData = await shiftsResponse.json();
+      setShifts(shiftsData);
+
+      // Fetch adjustments
+      await fetchAdjustments();
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching initial data:', error);
       setError(error instanceof Error ? error.message : 'Failed to load data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchInitialData();
-  }, [lineUserId]);
+  const fetchAdjustments = async () => {
+    if (!lineUserId) {
+      setError('Authentication required');
+      return;
+    }
 
-  // Filter adjustments with null safety
-  const filteredAdjustments = adjustments.filter((adj) => {
-    const matchesSearch =
-      searchTerm === '' ||
-      (adj.employeeName?.toLowerCase().includes(searchTerm.toLowerCase()) ??
-        false);
-    const matchesDepartment =
-      selectedDepartment === 'all' || adj.departmentId === selectedDepartment;
-    return matchesSearch && matchesDepartment;
-  });
+    try {
+      const queryParams = new URLSearchParams({
+        startDate: period.start.toISOString(),
+        endDate: period.end.toISOString(),
+        ...(selectedDepartment !== 'all' && {
+          departmentName: selectedDepartment,
+        }),
+      });
 
-  const handleSubmitAdjustment = async (formData: {
-    employeeId: string;
-    shiftId: string;
-    date: Date;
-    reason?: string;
-  }) => {
+      const response = await fetch(
+        `/api/admin/shifts/adjustments?${queryParams}`,
+        {
+          headers: {
+            'x-line-userid': lineUserId, // lineUserId is guaranteed to be string here
+          },
+        },
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch adjustments');
+      const data = await response.json();
+      setAdjustments(data);
+    } catch (error) {
+      console.error('Error fetching adjustments:', error);
+      setError(
+        error instanceof Error ? error.message : 'Failed to fetch adjustments',
+      );
+    }
+  };
+
+  const handleSubmitAdjustment = async () => {
     if (!lineUserId) {
       toast({
         variant: 'destructive',
@@ -173,257 +169,306 @@ export default function ShiftManagementDashboard() {
     }
 
     try {
-      setIsLoading(true);
-      const response = await fetch('/api/admin/shift-adjustments', {
+      const payload = {
+        type: adjustmentType,
+        ...(adjustmentType === 'department'
+          ? { departmentName: selectedDeptForAdjustment }
+          : { employees: selectedEmployees }),
+        shiftCode: selectedShift,
+        date: adjustmentDate.toISOString(),
+        reason,
+      };
+
+      const response = await fetch('/api/admin/shifts/adjustments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': lineUserId,
+          'x-line-userid': lineUserId, // lineUserId is guaranteed to be string here
         },
-        body: JSON.stringify({
-          ...formData,
-          date: formData.date.toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to create adjustment');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to create adjustment');
       }
 
       toast({
         title: 'Success',
-        description: 'Shift adjustment created successfully',
+        description: 'Shift adjustment(s) created successfully',
       });
 
       setShowDialog(false);
-      fetchInitialData();
+      fetchAdjustments();
     } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Error',
         description:
-          error instanceof Error ? error.message : 'An error occurred',
+          error instanceof Error
+            ? error.message
+            : 'Failed to create adjustment',
       });
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // Filter and group adjustments
+  const filteredAdjustments = adjustments.filter(
+    (adj) =>
+      searchTerm === '' ||
+      adj.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      adj.user.employeeId.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
+  const groupedAdjustments = filteredAdjustments.reduce(
+    (acc, curr) => {
+      const date = format(parseISO(curr.date), 'yyyy-MM-dd');
+      if (!acc[date]) acc[date] = [];
+      acc[date].push(curr);
+      return acc;
+    },
+    {} as Record<string, ShiftAdjustment[]>,
+  );
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <div className="flex justify-between items-center">
-            <CardTitle>Shift Management</CardTitle>
+            <CardTitle>Shift Adjustments</CardTitle>
             <Button onClick={() => setShowDialog(true)}>New Adjustment</Button>
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="adjustments">
-                Individual Adjustments
-              </TabsTrigger>
-              <TabsTrigger value="bulk">Bulk Assignment</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="adjustments">
-              <div className="space-y-4">
-                {/* Search and Filter Controls */}
-                <div className="flex gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search employee..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Select
-                    value={selectedDepartment}
-                    onValueChange={setSelectedDepartment}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Department" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Departments</SelectItem>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Adjustments Table */}
-                {isLoading ? (
-                  <div className="flex justify-center py-8">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                  </div>
-                ) : error ? (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                ) : filteredAdjustments.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    No adjustments found
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Employee</TableHead>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>New Shift</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredAdjustments.map((adjustment) => (
-                        <TableRow key={adjustment.id}>
-                          <TableCell>
-                            {adjustment.employeeName || 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            {adjustment.departmentName || 'N/A'}
-                          </TableCell>
-                          <TableCell>
-                            {format(new Date(adjustment.date), 'dd/MM/yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            {adjustment.newShift ? (
-                              <>
-                                {adjustment.newShift.name}
-                                <div className="text-sm text-gray-500">
-                                  {adjustment.newShift.startTime} -{' '}
-                                  {adjustment.newShift.endTime}
-                                </div>
-                              </>
-                            ) : (
-                              'N/A'
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                adjustment.status === 'approved'
-                                  ? 'success'
-                                  : 'default'
-                              }
-                            >
-                              {adjustment.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Button variant="outline" size="sm">
-                              Edit
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="bulk">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Department</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>New Shift</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select shift" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shifts.map((shift) => (
-                          <SelectItem key={shift.id} value={shift.id}>
-                            {shift.name} ({shift.startTime} - {shift.endTime})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div>
-                  <Label>Effective Date</Label>
+          {/* Filter Controls */}
+          <div className="space-y-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div>
+                <Label>Period</Label>
+                <div className="flex gap-2">
                   <DateSelector
-                    date={selectedDate}
-                    onChange={(date) => setSelectedDate(date || new Date())}
-                    disableFutureDates={false}
+                    date={period.start}
+                    onChange={(date) =>
+                      setPeriod((prev) => ({
+                        ...prev,
+                        start: date || prev.start,
+                      }))
+                    }
+                  />
+                  <span className="self-center">to</span>
+                  <DateSelector
+                    date={period.end}
+                    onChange={(date) =>
+                      setPeriod((prev) => ({ ...prev, end: date || prev.end }))
+                    }
                   />
                 </div>
-                <Button className="w-full">Apply Bulk Assignment</Button>
               </div>
-            </TabsContent>
-          </Tabs>
+              <div>
+                <Label>Department</Label>
+                <Select
+                  value={selectedDepartment}
+                  onValueChange={setSelectedDepartment}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Search</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search by name or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Adjustments List */}
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : error ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : Object.keys(groupedAdjustments).length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              No adjustments found
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {Object.entries(groupedAdjustments)
+                .sort((a, b) => b[0].localeCompare(a[0]))
+                .map(([date, adjustments]) => (
+                  <div key={date} className="space-y-2">
+                    <h3 className="font-medium">
+                      {format(parseISO(date), 'EEEE, MMMM d, yyyy')}
+                    </h3>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Current Shift</TableHead>
+                          <TableHead>New Shift</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Reason</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {adjustments.map((adj) => (
+                          <TableRow key={adj.id}>
+                            <TableCell>
+                              <div>{adj.user.name}</div>
+                              <div className="text-sm text-gray-500">
+                                ID: {adj.user.employeeId}
+                              </div>
+                            </TableCell>
+                            <TableCell>{adj.user.departmentName}</TableCell>
+                            <TableCell>
+                              {adj.user.assignedShift ? (
+                                <>
+                                  <div>{adj.user.assignedShift.name}</div>
+                                  <div className="text-sm text-gray-500">
+                                    {adj.user.assignedShift.startTime} -{' '}
+                                    {adj.user.assignedShift.endTime}
+                                  </div>
+                                </>
+                              ) : (
+                                'No shift assigned'
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div>{adj.requestedShift.name}</div>
+                              <div className="text-sm text-gray-500">
+                                {adj.requestedShift.startTime} -{' '}
+                                {adj.requestedShift.endTime}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  adj.status === 'approved'
+                                    ? 'success'
+                                    : adj.status === 'rejected'
+                                      ? 'destructive'
+                                      : 'default'
+                                }
+                              >
+                                {adj.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">{adj.reason}</span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {/* New Adjustment Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>New Shift Adjustment</DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
-            <div>
+            {/* Adjustment Type Selection */}
+            <div className="space-y-2">
               <Label>Adjustment Type</Label>
-              <Select
-                value={adjustmentType}
-                onValueChange={(value: AdjustmentType) =>
-                  setAdjustmentType(value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="individual">Individual</SelectItem>
-                  <SelectItem value="department">Department</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="individual"
+                    value="individual"
+                    checked={adjustmentType === 'individual'}
+                    onChange={(e) =>
+                      setAdjustmentType(
+                        e.target.value as 'individual' | 'department',
+                      )
+                    }
+                    className="rounded-full"
+                  />
+                  <Label htmlFor="individual">Individual</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id="department"
+                    value="department"
+                    checked={adjustmentType === 'department'}
+                    onChange={(e) =>
+                      setAdjustmentType(
+                        e.target.value as 'individual' | 'department',
+                      )
+                    }
+                    className="rounded-full"
+                  />
+                  <Label htmlFor="department">Department</Label>
+                </div>
+              </div>
             </div>
 
+            {/* Employee or Department Selection */}
             {adjustmentType === 'individual' ? (
-              <div>
-                <Label>Employee ID</Label>
-                <Input placeholder="Enter employee ID" />
+              <div className="space-y-2">
+                <Label>Employee IDs</Label>
+                <Textarea
+                  placeholder="Enter employee IDs (one per line)"
+                  value={selectedEmployees.join('\n')}
+                  onChange={(e) =>
+                    setSelectedEmployees(
+                      e.target.value
+                        .split('\n')
+                        .map((id) => id.trim())
+                        .filter(Boolean),
+                    )
+                  }
+                  className="h-24"
+                />
+                <p className="text-sm text-gray-500">
+                  Enter one employee ID per line
+                </p>
               </div>
             ) : (
-              <div>
+              <div className="space-y-2">
                 <Label>Department</Label>
-                <Select>
+                <Select
+                  value={selectedDeptForAdjustment}
+                  onValueChange={setSelectedDeptForAdjustment}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
                     {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -431,42 +476,57 @@ export default function ShiftManagementDashboard() {
               </div>
             )}
 
-            <div>
+            {/* Shift Selection */}
+            <div className="space-y-2">
               <Label>New Shift</Label>
-              <Select>
+              <Select value={selectedShift} onValueChange={setSelectedShift}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select shift" />
                 </SelectTrigger>
                 <SelectContent>
                   {shifts.map((shift) => (
-                    <SelectItem key={shift.id} value={shift.id}>
-                      {shift.name} ({shift.startTime} - {shift.endTime})
+                    <SelectItem key={shift.shiftCode} value={shift.shiftCode}>
+                      {shift.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            <div>
-              <Label>Effective Date</Label>
+            {/* Date Selection */}
+            <div className="space-y-2">
+              <Label>Adjustment Date</Label>
               <DateSelector
-                date={selectedDate}
-                onChange={(date) => setSelectedDate(date || new Date())}
-                disableFutureDates={false}
+                date={adjustmentDate}
+                onChange={(date) => setAdjustmentDate(date || new Date())}
+              />
+            </div>
+
+            {/* Reason */}
+            <div className="space-y-2">
+              <Label>Reason for Adjustment</Label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Enter reason for shift adjustment"
+                className="h-24"
               />
             </div>
           </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDialog(false)}>
               Cancel
             </Button>
             <Button
-              onClick={() =>
-                handleSubmitAdjustment({
-                  employeeId: '', // Add form state to capture this
-                  shiftId: '',
-                  date: selectedDate,
-                })
+              onClick={handleSubmitAdjustment}
+              disabled={
+                (adjustmentType === 'individual' &&
+                  selectedEmployees.length === 0) ||
+                (adjustmentType === 'department' &&
+                  !selectedDeptForAdjustment) ||
+                !selectedShift ||
+                !reason
               }
             >
               Create Adjustment
