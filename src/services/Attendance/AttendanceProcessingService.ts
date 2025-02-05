@@ -81,29 +81,12 @@ export class AttendanceProcessingService {
             activity: validatedOptions.activity,
           });
 
-          // Get current active record using AttendanceMappers
-          const dbRecord = await tx.attendance.findFirst({
-            where: {
-              employeeId: options.employeeId,
-              type: options.periodType,
-              CheckInTime: { not: null },
-              CheckOutTime: null,
-              date: {
-                gte: startOfDay(subDays(now, 1)),
-                lte: endOfDay(now),
-              },
-            },
-            include: {
-              timeEntries: true,
-              overtimeEntries: true,
-              location: true,
-              metadata: true,
-              checkTiming: true,
-            },
-            orderBy: { CheckInTime: 'desc' },
-          });
-
-          const currentRecord = AttendanceMappers.toAttendanceRecord(dbRecord);
+          const currentRecord = await this.getLatestAttendance(
+            tx,
+            options.employeeId,
+            options.periodType,
+            new Date(validatedOptions.checkTime),
+          );
 
           console.log('Current record state:', {
             found: !!currentRecord,
