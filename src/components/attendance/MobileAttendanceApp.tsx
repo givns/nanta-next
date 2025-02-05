@@ -49,18 +49,25 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
   const isEarlyOvertimePeriod = (() => {
     if (!currentPeriod.timeWindow.start) return false;
 
-    const periodStart = parseISO(currentPeriod.timeWindow.start);
-    const regularStart = parseISO(
-      `${format(getCurrentTime(), 'yyyy-MM-dd')}T08:00:00`,
+    // Parse times
+    const periodStartTime = format(
+      parseISO(currentPeriod.timeWindow.start),
+      'HH:mm',
+    );
+    const periodEndTime = format(
+      parseISO(currentPeriod.timeWindow.end),
+      'HH:mm',
     );
 
-    // For overnight periods (e.g., 21:00-01:00), don't consider as early
-    if (currentPeriod.validation.isOvernight) {
+    // First check if it's an overnight period
+    if (periodEndTime < periodStartTime) {
+      // For overnight periods (e.g. 21:00-01:00), this is a late period
       return false;
     }
 
-    // Only morning overtime periods (e.g., 06:00-08:00) should be considered early
-    return periodStart < regularStart;
+    // For regular (non-overnight) periods, check if it starts before regular shift
+    const periodStartHour = parseInt(periodStartTime.split(':')[0], 10);
+    return periodStartHour < 8; // Only morning overtime (e.g. 06:00-08:00) is early
   })();
 
   return (
