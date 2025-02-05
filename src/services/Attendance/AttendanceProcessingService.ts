@@ -812,6 +812,9 @@ export class AttendanceProcessingService {
     periodType?: PeriodType,
     effectiveTime: Date = getCurrentTime(),
   ): Promise<AttendanceRecord | null> {
+    const startDate = startOfDay(subDays(effectiveTime, 1));
+    const endDate = endOfDay(effectiveTime);
+
     console.log('Finding latest attendance - Detailed Debug:', {
       employeeId,
       periodType,
@@ -822,46 +825,54 @@ export class AttendanceProcessingService {
       },
     });
 
+    // Debug: First check all records without filters
+    const allRecords = await tx.attendance.findMany({
+      where: { employeeId },
+      orderBy: [{ date: 'desc' }],
+      take: 5, // Limit to last 5 for debugging
+    });
+
+    console.log('Last 5 records for user:', {
+      count: allRecords.length,
+      records: allRecords.map((r) => ({
+        id: r.id,
+        type: r.type,
+        date: format(r.date, 'yyyy-MM-dd HH:mm:ss'),
+        checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
+        checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
+        isActive: !r.CheckOutTime,
+      })),
+    });
+
     // Find active records with overnight handling
     const activeRecords = await tx.attendance.findMany({
       where: {
         employeeId,
         AND: [
+          { CheckInTime: { not: null } },
+          { CheckOutTime: null },
           {
             OR: [
-              // Regular records from today
+              // Regular same-day records
               {
                 date: {
-                  gte: startOfDay(subDays(effectiveTime, 1)),
-                  lt: endOfDay(effectiveTime),
+                  gte: startDate,
+                  lt: endDate,
                 },
-                CheckInTime: { not: null },
-                CheckOutTime: null,
               },
-              // Overnight records spanning midnight
+              // Overnight overtime records
               {
                 type: PeriodType.OVERTIME,
                 CheckInTime: {
-                  not: null,
-                  lt: endOfDay(effectiveTime),
+                  lt: endDate,
                 },
-                CheckOutTime: null,
-                // Must be active (not checked out)
-                OR: [
-                  { CheckOutTime: null },
-                  {
-                    CheckOutTime: {
-                      gt: startOfDay(effectiveTime),
-                    },
-                  },
-                ],
               },
             ],
           },
           ...(periodType ? [{ type: periodType }] : []),
         ],
       },
-      orderBy: [{ CheckInTime: 'desc' }],
+      orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
         timeEntries: true,
         overtimeEntries: true,
@@ -871,16 +882,11 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Debug logging
-    console.log('Active records debug:', {
-      count: activeRecords.length,
-      records: activeRecords.map((r) => ({
-        id: r.id,
-        type: r.type,
-        checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
-        checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
-        date: format(r.date, 'yyyy-MM-dd'),
-      })),
+    console.log('Query conditions used:', {
+      startDate: format(startDate, 'yyyy-MM-dd HH:mm:ss'),
+      endDate: format(endDate, 'yyyy-MM-dd HH:mm:ss'),
+      periodType,
+      activeRecordsFound: activeRecords.length,
     });
 
     if (activeRecords.length > 1) {
