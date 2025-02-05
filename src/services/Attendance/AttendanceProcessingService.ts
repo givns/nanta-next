@@ -55,29 +55,63 @@ export class AttendanceProcessingService {
   /**
    * Main entry point for processing attendance
    */
+  // In AttendanceProcessingService.ts
+
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
     const validatedOptions = this.validateAndNormalizeOptions(options);
+    const checkTime = new Date(validatedOptions.checkTime);
 
-    console.log('Processing attendance request:', {
+    console.log('Processing attendance:', {
       type: options.periodType,
-      checkTime: options.checkTime,
-      serverTime: now.toISOString(),
+      requestedTime: format(checkTime, 'yyyy-MM-dd HH:mm:ss'),
+      serverTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      activity: options.activity,
     });
 
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
-          // Get current state information
-          const currentRecord = await this.getLatestAttendance(
-            tx,
-            options.employeeId,
-            options.periodType, // Pass the periodType
-          );
+          // Get current active record using AttendanceMappers
+          const dbRecord = await tx.attendance.findFirst({
+            where: {
+              employeeId: options.employeeId,
+              type: options.periodType,
+              CheckInTime: { not: null },
+              CheckOutTime: null,
+              date: {
+                gte: startOfDay(subDays(now, 1)),
+                lte: endOfDay(now),
+              },
+            },
+            include: {
+              timeEntries: true,
+              overtimeEntries: true,
+              location: true,
+              metadata: true,
+              checkTiming: true,
+            },
+            orderBy: { CheckInTime: 'desc' },
+          });
 
-          // Get effective shift first
+          const currentRecord = AttendanceMappers.toAttendanceRecord(dbRecord);
+
+          console.log('Current record state:', {
+            found: !!currentRecord,
+            details: currentRecord
+              ? {
+                  id: currentRecord.id,
+                  type: currentRecord.type,
+                  checkIn: format(currentRecord.CheckInTime!, 'HH:mm:ss'),
+                  checkOut: currentRecord.CheckOutTime,
+                  isOvertime: currentRecord.type === PeriodType.OVERTIME,
+                }
+              : null,
+          });
+
+          // Get effective shift
           const shiftData = await this.shiftService.getEffectiveShift(
             options.employeeId,
             now,
@@ -89,14 +123,14 @@ export class AttendanceProcessingService {
             });
           }
 
-          // Get period state from period manager
+          // Get period state from manager
           const periodState = await this.periodManager.getCurrentPeriodState(
             options.employeeId,
-            [currentRecord].filter(Boolean) as AttendanceRecord[],
+            currentRecord ? [currentRecord] : [],
             now,
           );
 
-          // Transform period state to window response
+          // Transform to window response
           const windowResponse: ShiftWindowResponse = {
             current: {
               start: periodState.current.timeWindow.start,
@@ -111,23 +145,32 @@ export class AttendanceProcessingService {
           };
 
           // Check if auto-completion needed
-          if (this.shouldAutoComplete(options, currentRecord)) {
+          if (this.shouldAutoComplete(validatedOptions, currentRecord)) {
             return this.handleAutoCompletion(
               tx,
               currentRecord!,
               windowResponse,
-              options,
+              validatedOptions,
               now,
             );
           }
+
+          // Create base location data
+          const locationData = options.location
+            ? this.createBaseLocationData(
+                options.location,
+                options.activity.isCheckIn,
+              )
+            : undefined;
 
           // Process attendance record
           const processedAttendance = await this.processAttendanceRecord(
             tx,
             currentRecord,
             windowResponse,
-            options,
-            now,
+            validatedOptions,
+            locationData,
+            checkTime,
           );
 
           // Create validation context
@@ -141,10 +184,10 @@ export class AttendanceProcessingService {
             attendance: processedAttendance,
             shift: shiftData.current,
             periodType: options.periodType,
-            isOvertime: options.activity.isOvertime || false,
+            isOvertime: options.periodType === PeriodType.OVERTIME,
           };
 
-          // Get enhanced status with validation
+          // Get enhanced status
           const enhancedStatus =
             await this.enhancementService.enhanceAttendanceStatus(
               AttendanceMappers.toSerializedAttendanceRecord(
@@ -182,7 +225,7 @@ export class AttendanceProcessingService {
               source: options.activity.isManualEntry ? 'manual' : 'system',
               timeEntries,
             },
-          } as ProcessingResult;
+          };
         },
         {
           timeout: 15000,
@@ -190,16 +233,23 @@ export class AttendanceProcessingService {
         },
       );
 
-      // Invalidate cache
+      // Cache invalidation
       await cacheService.set(`forceRefresh:${options.employeeId}`, 'true', 30);
 
-      return result;
+      return {
+        ...result,
+        metadata: {
+          ...result.metadata,
+          source: 'system',
+        },
+      };
     } catch (error) {
       console.error('Attendance processing error:', {
         error,
-        options: {
+        context: {
           type: options.periodType,
           employeeId: options.employeeId,
+          requestedTime: format(checkTime, 'yyyy-MM-dd HH:mm:ss'),
         },
       });
       throw this.handleProcessingError(error);
@@ -283,39 +333,25 @@ export class AttendanceProcessingService {
   private async processAttendanceRecord(
     tx: Prisma.TransactionClient,
     currentRecord: AttendanceRecord | null,
-    periodState: ShiftWindowResponse,
+    windowResponse: ShiftWindowResponse,
     options: ProcessingOptions,
+    locationData: LocationDataInput | undefined,
     now: Date,
   ): Promise<AttendanceRecord> {
     const isCheckIn = options.activity.isCheckIn;
-
-    // Create base location data
-    const baseLocationData = options.location
-      ? this.createBaseLocationData(options.location, isCheckIn)
-      : undefined;
-
-    // Create proper Prisma input type
-    const locationData = baseLocationData
-      ? {
-          ...baseLocationData,
-          attendance: {
-            connect: {}, // Will be filled in processCheckIn/processCheckOut
-          },
-        }
-      : undefined;
 
     if (!isCheckIn) {
       return this.processCheckOut(
         tx,
         currentRecord,
-        periodState,
+        windowResponse,
         options,
-        baseLocationData,
+        locationData,
         now,
       );
     }
 
-    return this.processCheckIn(tx, periodState, options, baseLocationData, now);
+    return this.processCheckIn(tx, windowResponse, options, locationData, now);
   }
 
   private createBaseLocationData(
@@ -468,11 +504,22 @@ export class AttendanceProcessingService {
   private async processCheckOut(
     tx: Prisma.TransactionClient,
     currentRecord: AttendanceRecord | null,
-    periodState: ShiftWindowResponse,
+    windowResponse: ShiftWindowResponse,
     options: ProcessingOptions,
     locationData: LocationDataInput | undefined,
     now: Date,
   ): Promise<AttendanceRecord> {
+    if (!currentRecord) {
+      throw new AppError({
+        code: ErrorCode.PROCESSING_ERROR,
+        message: `No active ${options.periodType} period found for checkout.`,
+        details: {
+          employeeId: options.employeeId,
+          requestedCheckout: format(now, 'HH:mm:ss'),
+        },
+      });
+    }
+
     // Add logging for overtime checkout
     console.log('Processing checkout:', {
       hasCurrentRecord: !!currentRecord,
@@ -559,25 +606,8 @@ export class AttendanceProcessingService {
       },
     });
 
-    if (!activeRecord) {
-      throw new AppError({
-        code: ErrorCode.PROCESSING_ERROR,
-        message: `No active ${options.periodType} period found for checkout.`,
-        details: {
-          searchCriteria: {
-            employeeId: options.employeeId,
-            periodType: options.periodType,
-            dates: {
-              start: format(startOfDay(subDays(now, 1)), 'yyyy-MM-dd HH:mm'),
-              end: format(endOfDay(now), 'yyyy-MM-dd HH:mm'),
-            },
-          },
-        },
-      });
-    }
-
     // Important: Validate checkout time is after check-in
-    const checkInTime = new Date(activeRecord.CheckInTime!);
+    const checkInTime = new Date(currentRecord.CheckInTime!);
     const requestedCheckoutTime = new Date(options.checkTime);
 
     if (requestedCheckoutTime < checkInTime) {
@@ -592,10 +622,11 @@ export class AttendanceProcessingService {
     }
 
     // Handle location update
-    if (locationData && activeRecord) {
-      if (activeRecord.location) {
+    // Handle location update
+    if (locationData) {
+      if (currentRecord.location) {
         await tx.attendanceLocation.update({
-          where: { attendanceId: activeRecord.id },
+          where: { attendanceId: currentRecord.id },
           data: locationData,
         });
       } else {
@@ -603,7 +634,7 @@ export class AttendanceProcessingService {
           data: {
             ...locationData,
             attendance: {
-              connect: { id: activeRecord.id },
+              connect: { id: currentRecord.id },
             },
           },
         });
@@ -614,16 +645,16 @@ export class AttendanceProcessingService {
     let overtimeDuration = 0;
     if (
       options.periodType === PeriodType.OVERTIME &&
-      activeRecord.timeEntries?.[0]
+      currentRecord.timeEntries?.[0]
     ) {
-      const hours = activeRecord.timeEntries[0]
+      const hours = currentRecord.timeEntries[0]
         .hours as unknown as TimeEntryHours;
       overtimeDuration = Number(hours?.overtime) || 0;
     }
 
     // Update attendance record
     const updatedAttendance = await tx.attendance.update({
-      where: { id: activeRecord.id },
+      where: { id: currentRecord.id },
       data: {
         CheckOutTime: now,
         state: AttendanceState.PRESENT,
