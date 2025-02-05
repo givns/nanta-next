@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,8 +59,33 @@ interface ShiftAdjustment {
   reason: string;
 }
 
+interface ShiftAdjustment {
+  id: string;
+  employeeId: string;
+  user: {
+    employeeId: string;
+    name: string;
+    departmentName: string;
+    assignedShift: {
+      name: string;
+      startTime: string;
+      endTime: string;
+    } | null;
+  };
+  requestedShift: {
+    shiftCode: string;
+    name: string;
+    startTime: string;
+    endTime: string;
+  };
+  date: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reason: string;
+}
+
 export default function ShiftAdjustmentDashboard() {
   const { lineUserId } = useLiff();
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
@@ -69,7 +94,6 @@ export default function ShiftAdjustmentDashboard() {
   const [shifts, setShifts] = useState<{ shiftCode: string; name: string }[]>(
     [],
   );
-  const { toast } = useToast();
 
   // Filter states
   const [period, setPeriod] = useState({
@@ -90,11 +114,45 @@ export default function ShiftAdjustmentDashboard() {
   const [selectedDeptForAdjustment, setSelectedDeptForAdjustment] =
     useState('');
 
-  useEffect(() => {
-    fetchInitialData();
-  }, [lineUserId]);
+  const fetchAdjustments = useCallback(async () => {
+    if (!lineUserId) {
+      setError('Authentication required');
+      return;
+    }
 
-  const fetchInitialData = async () => {
+    try {
+      setIsLoading(true);
+      const queryParams = new URLSearchParams({
+        startDate: period.start.toISOString(),
+        endDate: period.end.toISOString(),
+        ...(selectedDepartment !== 'all' && {
+          departmentName: selectedDepartment,
+        }),
+      });
+
+      const response = await fetch(
+        `/api/admin/shifts/adjustments?${queryParams}`,
+        {
+          headers: {
+            'x-line-userid': lineUserId,
+          },
+        },
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch adjustments');
+      const data = await response.json();
+      setAdjustments(data);
+    } catch (error) {
+      console.error('Error fetching adjustments:', error);
+      setError(
+        error instanceof Error ? error.message : 'Failed to fetch adjustments',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lineUserId, period, selectedDepartment]);
+
+  const fetchInitialData = useCallback(async () => {
     if (!lineUserId) return;
 
     try {
@@ -108,7 +166,7 @@ export default function ShiftAdjustmentDashboard() {
       setDepartments(deptsData);
 
       // Fetch shifts
-      const shiftsResponse = await fetch('/api/shifts', { headers });
+      const shiftsResponse = await fetch('/api/shifts/shifts', { headers });
       if (!shiftsResponse.ok) throw new Error('Failed to fetch shifts');
       const shiftsData = await shiftsResponse.json();
       setShifts(shiftsData);
@@ -121,42 +179,15 @@ export default function ShiftAdjustmentDashboard() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [lineUserId, fetchAdjustments]);
 
-  const fetchAdjustments = async () => {
-    if (!lineUserId) {
-      setError('Authentication required');
-      return;
-    }
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
-    try {
-      const queryParams = new URLSearchParams({
-        startDate: period.start.toISOString(),
-        endDate: period.end.toISOString(),
-        ...(selectedDepartment !== 'all' && {
-          departmentName: selectedDepartment,
-        }),
-      });
-
-      const response = await fetch(
-        `/api/admin/shifts/adjustments?${queryParams}`,
-        {
-          headers: {
-            'x-line-userid': lineUserId, // lineUserId is guaranteed to be string here
-          },
-        },
-      );
-
-      if (!response.ok) throw new Error('Failed to fetch adjustments');
-      const data = await response.json();
-      setAdjustments(data);
-    } catch (error) {
-      console.error('Error fetching adjustments:', error);
-      setError(
-        error instanceof Error ? error.message : 'Failed to fetch adjustments',
-      );
-    }
-  };
+  useEffect(() => {
+    fetchAdjustments();
+  }, [fetchAdjustments, period, selectedDepartment]);
 
   const handleSubmitAdjustment = async () => {
     if (!lineUserId) {
@@ -183,7 +214,7 @@ export default function ShiftAdjustmentDashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-line-userid': lineUserId, // lineUserId is guaranteed to be string here
+          'x-line-userid': lineUserId,
         },
         body: JSON.stringify(payload),
       });
