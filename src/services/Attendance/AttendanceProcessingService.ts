@@ -563,58 +563,6 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Find active record with improved query matching Status API
-    const activeRecord = await tx.attendance.findFirst({
-      where: {
-        employeeId: options.employeeId,
-        type: options.periodType,
-        AND: [
-          {
-            OR: [
-              // Regular records from today
-              {
-                date: {
-                  gte: startOfDay(subDays(now, 1)),
-                  lt: endOfDay(now),
-                },
-                CheckInTime: { not: null },
-                CheckOutTime: null,
-              },
-              // Overnight records spanning midnight
-              {
-                type: PeriodType.OVERTIME,
-                CheckInTime: {
-                  not: null,
-                  lt: endOfDay(now),
-                },
-                CheckOutTime: null,
-              },
-            ],
-          },
-        ],
-      },
-    });
-
-    console.log('Active record search result:', {
-      found: !!activeRecord,
-      details: activeRecord
-        ? {
-            id: activeRecord.id,
-            type: activeRecord.type,
-            date: format(activeRecord.date, 'yyyy-MM-dd'),
-            checkIn: format(activeRecord.CheckInTime!, 'HH:mm:ss'),
-            isOvertime: activeRecord.type === PeriodType.OVERTIME,
-          }
-        : null,
-      searchParams: {
-        periodType: options.periodType,
-        dateRange: {
-          start: format(startOfDay(subDays(now, 1)), 'yyyy-MM-dd HH:mm'),
-          end: format(endOfDay(now), 'yyyy-MM-dd HH:mm'),
-        },
-      },
-    });
-
     // Important: Validate checkout time is after check-in
     const checkInTime = new Date(currentRecord.CheckInTime!);
     const requestedCheckoutTime = new Date(options.checkTime);

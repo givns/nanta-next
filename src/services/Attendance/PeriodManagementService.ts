@@ -36,9 +36,12 @@ import {
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 
-const TRANSITION_CONFIG = {
-  EARLY_BUFFER: 15, // 15 minutes before period
-  LATE_BUFFER: 15, // 15 minutes after period
+const PERIOD_CONSTANTS = {
+  TRANSITION_CONFIG: {
+    EARLY_BUFFER: 15,
+    LATE_BUFFER: 15,
+  },
+  RECENTLY_COMPLETED_THRESHOLD: 15, // 15 minutes threshold after completion
 } as const;
 
 export class PeriodManagementService {
@@ -214,6 +217,19 @@ export class PeriodManagementService {
     now: Date,
     originalPeriodState?: ShiftWindowResponse, // Add this optional parameter
   ): UnifiedPeriodState {
+    const recentlyCompletedOvertime = this.findRecentlyCompletedOvertime(
+      attendance,
+      now,
+      PERIOD_CONSTANTS.RECENTLY_COMPLETED_THRESHOLD,
+    );
+
+    if (recentlyCompletedOvertime) {
+      return this.createPeriodStateFromCompletedOvertime(
+        recentlyCompletedOvertime,
+        now,
+      );
+    }
+
     // Add a safeguard to restore overtimeInfo if it becomes undefined
     if (
       periodState.overtimeInfo === undefined &&
@@ -456,7 +472,6 @@ export class PeriodManagementService {
   /**
    * Finds the most relevant period for the current time
    */
-  // In PeriodManagementService.ts
 
   private findRelevantPeriod(
     periods: PeriodDefinition[],
@@ -775,8 +790,11 @@ export class PeriodManagementService {
       `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
     );
     const transitionWindow = {
-      start: subMinutes(shiftEnd, TRANSITION_CONFIG.EARLY_BUFFER),
-      end: addMinutes(shiftEnd, TRANSITION_CONFIG.LATE_BUFFER),
+      start: subMinutes(
+        shiftEnd,
+        PERIOD_CONSTANTS.TRANSITION_CONFIG.EARLY_BUFFER,
+      ),
+      end: addMinutes(shiftEnd, PERIOD_CONSTANTS.TRANSITION_CONFIG.LATE_BUFFER),
     };
 
     const isInTransitionWindow = isWithinInterval(now, transitionWindow);
@@ -1274,6 +1292,58 @@ export class PeriodManagementService {
    * Helper Functions
    */
 
+  private createPeriodStateFromCompletedOvertime(
+    completedOvertime: AttendanceRecord,
+    now: Date,
+  ): UnifiedPeriodState {
+    if (!completedOvertime.shiftStartTime || !completedOvertime.shiftEndTime) {
+      console.warn(
+        'Missing shift times for completed overtime',
+        completedOvertime,
+      );
+      return this.createDefaultPeriodState(now);
+    }
+
+    return {
+      type: PeriodType.OVERTIME,
+      timeWindow: {
+        start: format(
+          completedOvertime.shiftStartTime,
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+        end: format(
+          completedOvertime.shiftEndTime,
+          "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        ),
+      },
+      activity: {
+        isActive: false,
+        checkIn: completedOvertime.CheckInTime
+          ? format(completedOvertime.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+          : null,
+        checkOut: completedOvertime.CheckOutTime
+          ? format(completedOvertime.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+          : null,
+        isOvertime: true,
+        isDayOffOvertime: false,
+        isInsideShiftHours: false,
+      },
+      validation: {
+        isWithinBounds: isWithinInterval(now, {
+          start: completedOvertime.shiftStartTime,
+          end: completedOvertime.shiftEndTime,
+        }),
+        isEarly: false,
+        isLate: false,
+        isOvernight: isAfter(
+          completedOvertime.shiftEndTime,
+          addDays(completedOvertime.shiftStartTime, 1),
+        ),
+        isConnected: true,
+      },
+    };
+  }
+
   // 3. Fix early check-in calculation
   private isEarlyForPeriod(
     now: Date,
@@ -1335,6 +1405,25 @@ export class PeriodManagementService {
     if (!attendance?.CheckInTime || attendance?.CheckOutTime) return 0;
     const periodEnd = parseISO(currentState.timeWindow.end);
     return Math.max(0, differenceInMinutes(now, periodEnd));
+  }
+
+  private findRecentlyCompletedOvertime(
+    attendance: AttendanceRecord | null,
+    now: Date,
+    thresholdMinutes: number,
+  ): AttendanceRecord | null {
+    if (!attendance || !attendance.CheckOutTime) return null;
+
+    const checkoutTime = new Date(attendance.CheckOutTime);
+    const minutesSinceCheckout = differenceInMinutes(now, checkoutTime);
+
+    if (
+      attendance.type === PeriodType.OVERTIME &&
+      minutesSinceCheckout <= thresholdMinutes
+    ) {
+      return attendance;
+    }
+    return null;
   }
 
   private findActiveRecord(
