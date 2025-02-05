@@ -1,12 +1,14 @@
+// components/admin/attendance/ShiftAdjustmentDashboard.tsx
 import { useState, useEffect, useCallback } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useLiff } from '@/contexts/LiffContext';
+import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateSelector } from './components/DateSelector';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Loader2, Search, Users } from 'lucide-react';
+import { AlertCircle, Loader2, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -31,8 +33,6 @@ import {
 } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
-import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { useLiff } from '@/contexts/LiffContext';
 import { Textarea } from '@/components/ui/textarea';
 
 interface ShiftAdjustment {
@@ -71,15 +71,13 @@ export default function ShiftAdjustmentDashboard() {
     [],
   );
 
-  // Filter states
+  // Form/Filter States
   const [period, setPeriod] = useState({
     start: startOfMonth(new Date()),
     end: endOfMonth(new Date()),
   });
   const [selectedDepartment, setSelectedDepartment] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-
-  // New adjustment form state
   const [adjustmentType, setAdjustmentType] = useState<
     'individual' | 'department'
   >('individual');
@@ -90,7 +88,7 @@ export default function ShiftAdjustmentDashboard() {
   const [selectedDeptForAdjustment, setSelectedDeptForAdjustment] =
     useState('');
 
-  const fetchAdjustments = useCallback(async () => {
+  const fetchInitialData = useCallback(async () => {
     if (!lineUserId) {
       setError('Authentication required');
       return;
@@ -98,20 +96,52 @@ export default function ShiftAdjustmentDashboard() {
 
     try {
       setIsLoading(true);
+      const headers = { 'x-line-userid': lineUserId };
+
+      const [shiftsRes, deptsRes] = await Promise.all([
+        fetch('/api/shifts/shifts', { headers }),
+        fetch('/api/departments', { headers }),
+      ]);
+
+      if (!shiftsRes.ok || !deptsRes.ok) {
+        throw new Error('Failed to fetch initial data');
+      }
+
+      const [shiftsData, deptsData] = await Promise.all([
+        shiftsRes.json(),
+        deptsRes.json(),
+      ]);
+
+      setShifts(shiftsData);
+      setDepartments(deptsData);
+
+      await fetchAdjustments();
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+      setError(
+        error instanceof Error ? error.message : 'Failed to load initial data',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [lineUserId]);
+
+  const fetchAdjustments = useCallback(async () => {
+    if (!lineUserId) return;
+
+    try {
       const queryParams = new URLSearchParams({
         startDate: period.start.toISOString(),
         endDate: period.end.toISOString(),
         ...(selectedDepartment !== 'all' && {
           departmentName: selectedDepartment,
         }),
-      }).toString();
+      });
 
       const response = await fetch(
         `/api/admin/shifts/adjustments?${queryParams}`,
         {
-          headers: {
-            'x-line-userid': lineUserId,
-          },
+          headers: { 'x-line-userid': lineUserId },
         },
       );
 
@@ -121,59 +151,18 @@ export default function ShiftAdjustmentDashboard() {
       }
 
       const data = await response.json();
-      // Ensure data is an array
-      const adjustmentsData = Array.isArray(data) ? data : [];
-      setAdjustments(adjustmentsData);
+      setAdjustments(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching adjustments:', error);
       setError(
         error instanceof Error ? error.message : 'Failed to fetch adjustments',
       );
-    } finally {
-      setIsLoading(false);
     }
   }, [lineUserId, period, selectedDepartment]);
 
-  const fetchInitialData = useCallback(async () => {
-    if (!lineUserId) return;
-
-    try {
-      setIsLoading(true);
-      const headers = { 'x-line-userid': lineUserId };
-
-      // Fetch departments
-      const deptsResponse = await fetch('/api/departments', { headers });
-      if (!deptsResponse.ok) {
-        const errorData = await deptsResponse.json();
-        throw new Error(errorData.message || 'Failed to fetch departments');
-      }
-      const deptsData = await deptsResponse.json();
-      setDepartments(Array.isArray(deptsData) ? deptsData : []);
-
-      // Fetch shifts
-      const shiftsResponse = await fetch('/api/shifts/shifts', { headers });
-      if (!shiftsResponse.ok) {
-        const errorData = await shiftsResponse.json();
-        throw new Error(errorData.message || 'Failed to fetch shifts');
-      }
-      const shiftsData = await shiftsResponse.json();
-      setShifts(Array.isArray(shiftsData) ? shiftsData : []);
-
-      // Fetch adjustments
-      await fetchAdjustments();
-    } catch (error) {
-      console.error('Error fetching initial data:', error);
-      setError(error instanceof Error ? error.message : 'Failed to load data');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [lineUserId, fetchAdjustments]);
-
   useEffect(() => {
-    if (lineUserId) {
-      fetchInitialData();
-    }
-  }, [lineUserId, fetchInitialData]);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const handleSubmitAdjustment = async () => {
     if (!lineUserId) {
@@ -206,8 +195,8 @@ export default function ShiftAdjustmentDashboard() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to create adjustment');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create adjustment');
       }
 
       toast({
@@ -247,164 +236,174 @@ export default function ShiftAdjustmentDashboard() {
     {} as Record<string, ShiftAdjustment[]>,
   );
 
+  // Return JSX
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Shift Adjustments</CardTitle>
-            <Button onClick={() => setShowDialog(true)}>New Adjustment</Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Filter Controls */}
-          <div className="space-y-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div>
-                <Label>Period</Label>
-                <div className="flex gap-2">
-                  <DateSelector
-                    date={period.start}
-                    onChange={(date) =>
-                      setPeriod((prev) => ({
-                        ...prev,
-                        start: date || prev.start,
-                      }))
-                    }
-                  />
-                  <span className="self-center">to</span>
-                  <DateSelector
-                    date={period.end}
-                    onChange={(date) =>
-                      setPeriod((prev) => ({ ...prev, end: date || prev.end }))
-                    }
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Department</Label>
-                <Select
-                  value={selectedDepartment}
-                  onValueChange={setSelectedDepartment}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Search</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search by name or ID..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle>Shift Adjustments</CardTitle>
+          <Button onClick={() => setShowDialog(true)}>New Adjustment</Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Filter Controls */}
+        <div className="space-y-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Period Selection */}
+            <div>
+              <Label>Period</Label>
+              <div className="flex gap-2">
+                <DateSelector
+                  date={period.start}
+                  onChange={(date) =>
+                    setPeriod((prev) => ({
+                      ...prev,
+                      start: date || prev.start,
+                    }))
+                  }
+                />
+                <span className="self-center">to</span>
+                <DateSelector
+                  date={period.end}
+                  onChange={(date) =>
+                    setPeriod((prev) => ({
+                      ...prev,
+                      end: date || prev.end,
+                    }))
+                  }
+                />
               </div>
             </div>
-          </div>
 
-          {/* Adjustments List */}
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
+            {/* Department Filter */}
+            <div>
+              <Label>Department</Label>
+              <Select
+                value={selectedDepartment}
+                onValueChange={setSelectedDepartment}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : error ? (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : Object.keys(groupedAdjustments).length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No adjustments found
+
+            {/* Search */}
+            <div>
+              <Label>Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by name or ID..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedAdjustments)
-                .sort((a, b) => b[0].localeCompare(a[0]))
-                .map(([date, adjustments]) => (
-                  <div key={date} className="space-y-2">
-                    <h3 className="font-medium">
-                      {format(parseISO(date), 'EEEE, MMMM d, yyyy')}
-                    </h3>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Employee</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Current Shift</TableHead>
-                          <TableHead>New Shift</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Reason</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {adjustments.map((adj) => (
-                          <TableRow key={adj.id}>
-                            <TableCell>
-                              <div>{adj.user.name}</div>
+          </div>
+        </div>
+
+        {/* Adjustments List */}
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : error ? (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ) : Object.keys(groupedAdjustments).length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No adjustments found
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedAdjustments)
+              .sort((a, b) => b[0].localeCompare(a[0]))
+              .map(([date, adjustments]) => (
+                <div key={date} className="space-y-2">
+                  <h3 className="font-medium">
+                    {format(parseISO(date), 'EEEE, MMMM d, yyyy')}
+                  </h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employee</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Current Shift</TableHead>
+                        <TableHead>New Shift</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Reason</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {adjustments.map((adj) => (
+                        <TableRow key={adj.id}>
+                          <TableCell>
+                            <div>
+                              {adj.user.name}
                               <div className="text-sm text-gray-500">
                                 ID: {adj.user.employeeId}
                               </div>
-                            </TableCell>
-                            <TableCell>{adj.user.departmentName}</TableCell>
-                            <TableCell>
-                              {adj.user.assignedShift ? (
-                                <>
-                                  <div>{adj.user.assignedShift.name}</div>
-                                  <div className="text-sm text-gray-500">
-                                    {adj.user.assignedShift.startTime} -{' '}
-                                    {adj.user.assignedShift.endTime}
-                                  </div>
-                                </>
-                              ) : (
-                                'No shift assigned'
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div>{adj.requestedShift.name}</div>
-                              <div className="text-sm text-gray-500">
-                                {adj.requestedShift.startTime} -{' '}
-                                {adj.requestedShift.endTime}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  adj.status === 'approved'
-                                    ? 'success'
-                                    : adj.status === 'rejected'
-                                      ? 'destructive'
-                                      : 'default'
-                                }
-                              >
-                                {adj.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm">{adj.reason}</span>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                            </div>
+                          </TableCell>
+                          <TableCell>{adj.user.departmentName}</TableCell>
+                          {/* Continuing the TableCell content */}
+                          <TableCell>
+                            {adj.user.assignedShift ? (
+                              <>
+                                <div>{adj.user.assignedShift.name}</div>
+                                <div className="text-sm text-gray-500">
+                                  {adj.user.assignedShift.startTime} -{' '}
+                                  {adj.user.assignedShift.endTime}
+                                </div>
+                              </>
+                            ) : (
+                              'No shift assigned'
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div>{adj.requestedShift.name}</div>
+                            <div className="text-sm text-gray-500">
+                              {adj.requestedShift.startTime} -{' '}
+                              {adj.requestedShift.endTime}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                adj.status === 'approved'
+                                  ? 'success'
+                                  : adj.status === 'rejected'
+                                    ? 'destructive'
+                                    : 'default'
+                              }
+                            >
+                              {adj.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{adj.reason}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ))}
+          </div>
+        )}
+      </CardContent>
 
       {/* New Adjustment Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
@@ -551,6 +550,6 @@ export default function ShiftAdjustmentDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </Card>
   );
 }
