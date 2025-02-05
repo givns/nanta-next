@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface Department {
   id: string;
@@ -174,11 +175,32 @@ export function ShiftAdjustmentForm({
 
       {/* Date Selection */}
       <div className="space-y-2">
-        <Label>Adjustment Date</Label>
-        <DateSelector
-          date={adjustmentDate}
-          onChange={(date) => setAdjustmentDate(date || new Date())}
-        />
+        <div className="flex items-center gap-2">
+          <Label>Adjustment Date</Label>
+          {adjustmentDate && adjustmentDate < new Date() && (
+            <Badge variant="outline" className="text-xs">
+              Backdated Entry
+            </Badge>
+          )}
+        </div>
+        <div className="space-y-2">
+          <DateSelector
+            date={adjustmentDate}
+            onChange={(date) => setAdjustmentDate(date || new Date())}
+            // Modify DateSelector props to match its expected interface
+            maxDate={new Date()} // Replace disableFutureDates
+            minDate={new Date(2024, 0, 1)} // Set minimum date instead of fromYear
+          />
+          {adjustmentDate && adjustmentDate < new Date() && (
+            <Alert variant="default">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                You are creating a backdated shift adjustment. This will be
+                logged as a historical entry.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
         {errors.date && (
           <span className="text-sm text-red-500">{errors.date}</span>
         )}

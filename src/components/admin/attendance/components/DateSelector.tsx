@@ -24,6 +24,7 @@ interface DateSelectorProps {
   toYear?: number;
   minDate?: Date;
   maxDate?: Date;
+  DateSelectorProps?: boolean;
   disableFutureDates?: boolean;
   className?: string;
 }
