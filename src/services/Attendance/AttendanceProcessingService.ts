@@ -825,26 +825,6 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Debug: First check all records without filters
-    const allRecords = await tx.attendance.findMany({
-      where: { employeeId },
-      orderBy: [{ date: 'desc' }],
-      take: 5, // Limit to last 5 for debugging
-    });
-
-    console.log('Last 5 records for user:', {
-      count: allRecords.length,
-      records: allRecords.map((r) => ({
-        id: r.id,
-        type: r.type,
-        date: format(r.date, 'yyyy-MM-dd HH:mm:ss'),
-        checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
-        checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
-        isActive: !r.CheckOutTime,
-      })),
-    });
-
-    // Find active records with overnight handling
     const activeRecords = await tx.attendance.findMany({
       where: {
         employeeId,
@@ -855,16 +835,13 @@ export class AttendanceProcessingService {
             OR: [
               // Regular same-day records
               {
-                date: {
-                  gte: startDate,
-                  lt: endDate,
-                },
+                date: startOfDay(effectiveTime),
               },
-              // Overnight overtime records
+              // Previous day records that might be active (especially overtime)
               {
-                type: PeriodType.OVERTIME,
+                date: startOfDay(subDays(effectiveTime, 1)),
                 CheckInTime: {
-                  lt: endDate,
+                  lte: endDate,
                 },
               },
             ],
