@@ -61,7 +61,7 @@ interface ShiftAdjustment {
     name: string;
     startTime: string;
     endTime: string;
-  };
+  } | null; // Make nullable
   status: 'pending' | 'approved' | 'rejected';
 }
 
@@ -112,20 +112,30 @@ export default function ShiftManagementDashboard() {
         fetch('/api/admin/shifts/adjustments', { headers }),
       ]);
 
-      if (!shiftsRes.ok || !deptsRes.ok || !adjustmentsRes.ok) {
-        throw new Error('Failed to fetch data');
-      }
+      // Handle individual response errors
+      if (!shiftsRes.ok) throw new Error('Failed to fetch shifts');
+      if (!deptsRes.ok) throw new Error('Failed to fetch departments');
+      if (!adjustmentsRes.ok) throw new Error('Failed to fetch adjustments');
 
       const [shiftsData, deptsData, adjustmentsData] = await Promise.all([
-        shiftsRes.json() as Promise<Shift[]>,
-        deptsRes.json() as Promise<Department[]>,
-        adjustmentsRes.json() as Promise<ShiftAdjustment[]>,
+        shiftsRes.json(),
+        deptsRes.json(),
+        adjustmentsRes.json(),
       ]);
+
+      // Validate response data
+      if (!Array.isArray(shiftsData)) throw new Error('Invalid shifts data');
+      if (!Array.isArray(deptsData))
+        throw new Error('Invalid departments data');
+      if (!Array.isArray(adjustmentsData))
+        throw new Error('Invalid adjustments data');
 
       setShifts(shiftsData);
       setDepartments(deptsData);
       setAdjustments(adjustmentsData);
+      setError(null);
     } catch (error) {
+      console.error('Error fetching data:', error);
       setError(error instanceof Error ? error.message : 'Failed to load data');
     } finally {
       setIsLoading(false);
@@ -133,9 +143,7 @@ export default function ShiftManagementDashboard() {
   };
 
   useEffect(() => {
-    if (lineUserId) {
-      fetchInitialData();
-    }
+    fetchInitialData();
   }, [lineUserId]);
 
   const handleSubmitAdjustment = async (formData: AdjustmentFormData) => {
@@ -180,11 +188,12 @@ export default function ShiftManagementDashboard() {
     }
   };
 
-  // Filter adjustments based on search and department
+  // Filter adjustments with null safety
   const filteredAdjustments = adjustments.filter((adj) => {
     const matchesSearch =
       searchTerm === '' ||
-      adj.employeeName?.toLowerCase().includes(searchTerm.toLowerCase());
+      (adj.employeeName?.toLowerCase().includes(searchTerm.toLowerCase()) ??
+        false);
     const matchesDepartment =
       selectedDepartment === 'all' || adj.departmentId === selectedDepartment;
     return matchesSearch && matchesDepartment;
@@ -249,6 +258,10 @@ export default function ShiftManagementDashboard() {
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
+                ) : filteredAdjustments.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No adjustments found
+                  </div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -264,17 +277,27 @@ export default function ShiftManagementDashboard() {
                     <TableBody>
                       {filteredAdjustments.map((adjustment) => (
                         <TableRow key={adjustment.id}>
-                          <TableCell>{adjustment.employeeName}</TableCell>
-                          <TableCell>{adjustment.departmentName}</TableCell>
+                          <TableCell>
+                            {adjustment.employeeName || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {adjustment.departmentName || 'N/A'}
+                          </TableCell>
                           <TableCell>
                             {format(new Date(adjustment.date), 'dd/MM/yyyy')}
                           </TableCell>
                           <TableCell>
-                            {adjustment.newShift.name}
-                            <div className="text-sm text-gray-500">
-                              {adjustment.newShift.startTime} -{' '}
-                              {adjustment.newShift.endTime}
-                            </div>
+                            {adjustment.newShift ? (
+                              <>
+                                {adjustment.newShift.name}
+                                <div className="text-sm text-gray-500">
+                                  {adjustment.newShift.startTime} -{' '}
+                                  {adjustment.newShift.endTime}
+                                </div>
+                              </>
+                            ) : (
+                              'N/A'
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge
