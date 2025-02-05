@@ -822,19 +822,46 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Find active records within the date range
+    // Find active records with overnight handling
     const activeRecords = await tx.attendance.findMany({
       where: {
         employeeId,
-        CheckInTime: { not: null },
-        CheckOutTime: null,
-        date: {
-          gte: startOfDay(subDays(effectiveTime, 1)),
-          lte: endOfDay(effectiveTime),
-        },
-        ...(periodType ? { type: periodType } : {}),
+        AND: [
+          {
+            OR: [
+              // Regular records from today
+              {
+                date: {
+                  gte: startOfDay(subDays(effectiveTime, 1)),
+                  lt: endOfDay(effectiveTime),
+                },
+                CheckInTime: { not: null },
+                CheckOutTime: null,
+              },
+              // Overnight records spanning midnight
+              {
+                type: PeriodType.OVERTIME,
+                CheckInTime: {
+                  not: null,
+                  lt: endOfDay(effectiveTime),
+                },
+                CheckOutTime: null,
+                // Must be active (not checked out)
+                OR: [
+                  { CheckOutTime: null },
+                  {
+                    CheckOutTime: {
+                      gt: startOfDay(effectiveTime),
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+          ...(periodType ? [{ type: periodType }] : []),
+        ],
       },
-      orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
+      orderBy: [{ CheckInTime: 'desc' }],
       include: {
         timeEntries: true,
         overtimeEntries: true,
@@ -844,39 +871,30 @@ export class AttendanceProcessingService {
       },
     });
 
+    // Debug logging
     console.log('Active records debug:', {
       count: activeRecords.length,
-      records: activeRecords.map((record) => ({
-        id: record.id,
-        type: record.type,
-        date: format(record.date, 'yyyy-MM-dd HH:mm:ss'),
-        checkIn: record.CheckInTime
-          ? format(record.CheckInTime, 'HH:mm:ss')
-          : null,
+      records: activeRecords.map((r) => ({
+        id: r.id,
+        type: r.type,
+        checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
+        checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
+        date: format(r.date, 'yyyy-MM-dd'),
       })),
     });
 
-    // If multiple active records exist, throw an error
     if (activeRecords.length > 1) {
-      console.error('Multiple active records found', {
+      console.warn('Multiple active records found:', {
         employeeId,
-        periodType,
-        activeRecordIds: activeRecords.map((r) => r.id),
-      });
-
-      throw new AppError({
-        code: ErrorCode.MULTIPLE_ACTIVE_RECORDS,
-        message: 'Multiple active attendance records found',
-        details: {
-          employeeId,
-          periodType,
-          activeRecordIds: activeRecords.map((r) => r.id),
-        },
+        records: activeRecords.map((r) => ({
+          id: r.id,
+          type: r.type,
+          checkIn: r.CheckInTime,
+        })),
       });
     }
 
-    // Return the single active record or null
-    const record = activeRecords.length === 1 ? activeRecords[0] : null;
+    const record = activeRecords[0] || null;
 
     console.log('Selected record:', {
       found: !!record,
@@ -884,7 +902,6 @@ export class AttendanceProcessingService {
         ? {
             id: record.id,
             type: record.type,
-            date: format(record.date, 'yyyy-MM-dd'),
             checkIn: record.CheckInTime
               ? format(record.CheckInTime, 'HH:mm:ss')
               : null,
