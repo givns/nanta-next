@@ -1,6 +1,5 @@
 // pages/admin/attendance/shifts.tsx
 import React from 'react';
-import { Card } from '@/components/ui/card';
 import ShiftAdjustmentDashboard from '@/components/admin/attendance/ShiftAdjustmentDashboard';
 import ShiftPatternManagement from '@/components/admin/attendance/ShiftPatternManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';

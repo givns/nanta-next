@@ -59,30 +59,6 @@ interface ShiftAdjustment {
   reason: string;
 }
 
-interface ShiftAdjustment {
-  id: string;
-  employeeId: string;
-  user: {
-    employeeId: string;
-    name: string;
-    departmentName: string;
-    assignedShift: {
-      name: string;
-      startTime: string;
-      endTime: string;
-    } | null;
-  };
-  requestedShift: {
-    shiftCode: string;
-    name: string;
-    startTime: string;
-    endTime: string;
-  };
-  date: string;
-  status: 'pending' | 'approved' | 'rejected';
-  reason: string;
-}
-
 export default function ShiftAdjustmentDashboard() {
   const { lineUserId } = useLiff();
   const { toast } = useToast();
@@ -128,7 +104,7 @@ export default function ShiftAdjustmentDashboard() {
         ...(selectedDepartment !== 'all' && {
           departmentName: selectedDepartment,
         }),
-      });
+      }).toString();
 
       const response = await fetch(
         `/api/admin/shifts/adjustments?${queryParams}`,
@@ -139,9 +115,15 @@ export default function ShiftAdjustmentDashboard() {
         },
       );
 
-      if (!response.ok) throw new Error('Failed to fetch adjustments');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch adjustments');
+      }
+
       const data = await response.json();
-      setAdjustments(data);
+      // Ensure data is an array
+      const adjustmentsData = Array.isArray(data) ? data : [];
+      setAdjustments(adjustmentsData);
     } catch (error) {
       console.error('Error fetching adjustments:', error);
       setError(
@@ -159,17 +141,23 @@ export default function ShiftAdjustmentDashboard() {
       setIsLoading(true);
       const headers = { 'x-line-userid': lineUserId };
 
-      // Fetch departments (unique department names from users)
+      // Fetch departments
       const deptsResponse = await fetch('/api/departments', { headers });
-      if (!deptsResponse.ok) throw new Error('Failed to fetch departments');
+      if (!deptsResponse.ok) {
+        const errorData = await deptsResponse.json();
+        throw new Error(errorData.message || 'Failed to fetch departments');
+      }
       const deptsData = await deptsResponse.json();
-      setDepartments(deptsData);
+      setDepartments(Array.isArray(deptsData) ? deptsData : []);
 
       // Fetch shifts
       const shiftsResponse = await fetch('/api/shifts/shifts', { headers });
-      if (!shiftsResponse.ok) throw new Error('Failed to fetch shifts');
+      if (!shiftsResponse.ok) {
+        const errorData = await shiftsResponse.json();
+        throw new Error(errorData.message || 'Failed to fetch shifts');
+      }
       const shiftsData = await shiftsResponse.json();
-      setShifts(shiftsData);
+      setShifts(Array.isArray(shiftsData) ? shiftsData : []);
 
       // Fetch adjustments
       await fetchAdjustments();
@@ -182,12 +170,10 @@ export default function ShiftAdjustmentDashboard() {
   }, [lineUserId, fetchAdjustments]);
 
   useEffect(() => {
-    fetchInitialData();
-  }, [fetchInitialData]);
-
-  useEffect(() => {
-    fetchAdjustments();
-  }, [fetchAdjustments, period, selectedDepartment]);
+    if (lineUserId) {
+      fetchInitialData();
+    }
+  }, [lineUserId, fetchInitialData]);
 
   const handleSubmitAdjustment = async () => {
     if (!lineUserId) {
