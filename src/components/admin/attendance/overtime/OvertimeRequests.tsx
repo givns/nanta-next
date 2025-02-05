@@ -141,7 +141,7 @@ export default function OvertimeRequests() {
             <span>
               {format(new Date(request.date), 'dd MMM yyyy', { locale: th })} |{' '}
               {request.startTime} - {request.endTime} ({request.durationMinutes}
-              h)
+              mins)
             </span>
           </div>
 

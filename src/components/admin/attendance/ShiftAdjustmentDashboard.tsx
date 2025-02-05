@@ -109,7 +109,7 @@ export default function ShiftManagementDashboard() {
       const [shiftsRes, deptsRes, adjustmentsRes] = await Promise.all([
         fetch('/api/shifts/shifts', { headers }),
         fetch('/api/departments', { headers }),
-        fetch('/api/admin/shifts/adjustments', { headers }),
+        fetch('/api/admin/shifts/shift-info', { headers }),
       ]);
 
       // Handle individual response errors
@@ -146,7 +146,23 @@ export default function ShiftManagementDashboard() {
     fetchInitialData();
   }, [lineUserId]);
 
-  const handleSubmitAdjustment = async (formData: AdjustmentFormData) => {
+  // Filter adjustments with null safety
+  const filteredAdjustments = adjustments.filter((adj) => {
+    const matchesSearch =
+      searchTerm === '' ||
+      (adj.employeeName?.toLowerCase().includes(searchTerm.toLowerCase()) ??
+        false);
+    const matchesDepartment =
+      selectedDepartment === 'all' || adj.departmentId === selectedDepartment;
+    return matchesSearch && matchesDepartment;
+  });
+
+  const handleSubmitAdjustment = async (formData: {
+    employeeId: string;
+    shiftId: string;
+    date: Date;
+    reason?: string;
+  }) => {
     if (!lineUserId) {
       toast({
         variant: 'destructive',
@@ -158,16 +174,22 @@ export default function ShiftManagementDashboard() {
 
     try {
       setIsLoading(true);
-      const response = await fetch('/api/admin/shifts/adjustments', {
+      const response = await fetch('/api/admin/shift-adjustments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-line-userid': lineUserId,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          date: formData.date.toISOString(),
+        }),
       });
 
-      if (!response.ok) throw new Error('Failed to create adjustment');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create adjustment');
+      }
 
       toast({
         title: 'Success',
@@ -187,17 +209,6 @@ export default function ShiftManagementDashboard() {
       setIsLoading(false);
     }
   };
-
-  // Filter adjustments with null safety
-  const filteredAdjustments = adjustments.filter((adj) => {
-    const matchesSearch =
-      searchTerm === '' ||
-      (adj.employeeName?.toLowerCase().includes(searchTerm.toLowerCase()) ??
-        false);
-    const matchesDepartment =
-      selectedDepartment === 'all' || adj.departmentId === selectedDepartment;
-    return matchesSearch && matchesDepartment;
-  });
 
   return (
     <div className="space-y-6">
@@ -452,10 +463,9 @@ export default function ShiftManagementDashboard() {
             <Button
               onClick={() =>
                 handleSubmitAdjustment({
-                  type: adjustmentType,
-                  date: selectedDate,
-                  targetId: '',
+                  employeeId: '', // Add form state to capture this
                   shiftId: '',
+                  date: selectedDate,
                 })
               }
             >
