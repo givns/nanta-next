@@ -704,6 +704,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               }}
               locationState={{
                 isReady: locationState.status === 'ready',
+                address: locationState.address || '', // Add address
+                inPremises: locationState.inPremises || false,
                 error: locationState.error || undefined,
               }}
               onAction={handleAction}

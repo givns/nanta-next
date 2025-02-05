@@ -7,7 +7,7 @@ import {
   subMinutes,
 } from 'date-fns';
 import { is, th } from 'date-fns/locale';
-import { AlertCircle, Clock, User, Building2 } from 'lucide-react';
+import { AlertCircle, Clock, User, Building2, MapPin } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -265,6 +265,8 @@ interface MobileAttendanceAppProps {
   validation: ExtendedValidation;
   locationState: {
     isReady: boolean;
+    address: string;
+    inPremises: boolean;
     error?: string;
   };
   onAction: () => void;
@@ -497,23 +499,64 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         </div>
       </header>
 
-      <main className="flex-1 mt-20 mb-24 overflow-y-auto">
-        {/* User Information */}
-        <div className="bg-white px-4 py-3 shadow-sm">
-          <div className="flex items-center gap-3 mb-2">
-            <User size={20} className="text-gray-400" />
-            <div>
-              <div className="font-medium text-2xl">{userData.name}</div>
-              <div className="text-sm text-gray-500">
-                รหัส: {userData.employeeId}
+      <main className="flex-1 mt-20 mb-24 overflow-y-auto bg-gray-50">
+        {/* User Information Card */}
+        <div className="bg-white px-6 py-4 shadow-sm border-b">
+          <div className="max-w-3xl mx-auto">
+            {/* Name and ID section */}
+            <div className="flex items-start gap-4 mb-4">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <User size={24} className="text-primary" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-baseline justify-between">
+                  <h1 className="font-semibold text-2xl text-gray-900">
+                    {userData.name}
+                  </h1>
+                  <div className="flex items-center gap-2 bg-gray-50 px-3 py-1 rounded-full">
+                    <span className="text-sm font-medium text-gray-700">
+                      รหัสพนักงาน
+                    </span>
+                    <span className="text-sm font-mono text-primary">
+                      {userData.employeeId}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Building2 size={20} className="text-gray-400" />
-            <div className="text-sm text-gray-500">
-              {userData.departmentName}
+
+            {/* Department section */}
+            <div className="flex items-center gap-4 pt-2 border-t border-gray-100">
+              <div className="p-2 bg-gray-50 rounded-lg">
+                <Building2 size={20} className="text-gray-500" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm text-gray-500 mb-1">แผนก</div>
+                <div className="font-medium text-gray-900">
+                  {userData.departmentName}
+                </div>
+              </div>
             </div>
+
+            {/* Location section */}
+            {locationState.address && (
+              <div className="flex items-center gap-4 mt-4 pt-2 border-t border-gray-100">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <MapPin size={20} className="text-gray-500" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm text-gray-500 mb-1">สถานที่ทำงาน</div>
+                  <div className="font-medium text-gray-900 break-words">
+                    {locationState.address}
+                  </div>
+                  {locationState.inPremises && (
+                    <div className="text-sm text-green-600 mt-1">
+                      อยู่ในพื้นที่ที่กำหนด
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
