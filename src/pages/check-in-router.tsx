@@ -352,25 +352,31 @@ const CheckInRouter: React.FC = () => {
     if (!safeAttendanceProps?.base) return false;
 
     try {
+      // Check regular period completion
       const regularRecord = dailyRecords.find(
-        ({ record }) =>
-          record.type === PeriodType.REGULAR &&
-          record.overtimeState === 'COMPLETED',
-      );
-      const overtimeRecord = dailyRecords.find(
-        ({ record }) =>
-          record.type === PeriodType.OVERTIME &&
-          record.overtimeState === 'COMPLETED',
+        ({ record }) => record.type === PeriodType.REGULAR,
       );
 
-      return Boolean(
+      const isRegularComplete =
         regularRecord?.record.CheckOutTime &&
-          regularRecord.record.state === 'PRESENT' &&
-          regularRecord.record.overtimeState === 'COMPLETED' &&
-          (!overtimeRecord ||
-            (overtimeRecord.record.CheckOutTime &&
-              overtimeRecord.record.state === 'PRESENT' &&
-              overtimeRecord.record.overtimeState === 'COMPLETED')),
+        regularRecord.record.state === 'PRESENT';
+
+      // Check ALL overtime periods are completed
+      const overtimeRecords = dailyRecords.filter(
+        ({ record }) => record.type === PeriodType.OVERTIME,
+      );
+
+      const areAllOvertimeComplete =
+        overtimeRecords.length > 0 &&
+        overtimeRecords.every(
+          ({ record }) => record.CheckOutTime && record.state === 'PRESENT',
+        );
+
+      // Calculate if all required periods are complete
+      return Boolean(
+        isRegularComplete && // Regular shift must be complete
+          // AND either no overtime exists OR all overtime periods are complete
+          (overtimeRecords.length === 0 || areAllOvertimeComplete),
       );
     } catch (error) {
       console.error('Error checking period completion:', error);
