@@ -1,29 +1,50 @@
 // pages/admin/attendance/shifts.tsx
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Card } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ShiftAdjustmentDashboard from '@/components/admin/attendance/ShiftAdjustmentDashboard';
-import ShiftPatternManagement from '@/components/admin/attendance/ShiftPatternManagement';
-import { LoadingSpinner } from '@/components/LoadingSpinnner';
+import dynamic from 'next/dynamic';
+import { ErrorBoundary } from 'react-error-boundary';
+
+// Loading fallback component
+const LoadingSpinner = () => (
+  <div className="flex justify-center items-center p-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+  </div>
+);
+
+// Error fallback component
+function ErrorFallback({ error }: { error: Error }) {
+  return (
+    <div className="p-4">
+      <Alert variant="destructive">
+        <AlertTitle>Something went wrong</AlertTitle>
+        <AlertDescription>{error.message}</AlertDescription>
+      </Alert>
+    </div>
+  );
+}
+
+// Dynamically import components
+const ShiftAdjustmentDashboard = dynamic(
+  () => import('@/components/admin/attendance/ShiftAdjustmentDashboard'),
+  { loading: () => <LoadingSpinner /> },
+);
+
+const ShiftPatternManagement = dynamic(
+  () => import('@/components/admin/attendance/ShiftPatternManagement'),
+  { loading: () => <LoadingSpinner /> },
+);
 
 export default function ShiftsPage() {
-  const {
-    user,
-    isLoading: authLoading,
-    isAuthorized,
-  } = useAuth({
+  const { isLoading: authLoading, isAuthorized } = useAuth({
     required: true,
     requiredRoles: ['Admin', 'SuperAdmin'],
   });
 
   if (authLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <LoadingSpinner />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!isAuthorized) {
@@ -48,20 +69,26 @@ export default function ShiftsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="adjustments">
-        <TabsList className="grid w-full grid-cols-1 md:grid-cols-2">
-          <TabsTrigger value="adjustments">Shift Adjustments</TabsTrigger>
-          <TabsTrigger value="patterns">Shift Patterns</TabsTrigger>
-        </TabsList>
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <Suspense fallback={<LoadingSpinner />}>
+          <Card className="p-6">
+            <Tabs defaultValue="adjustments">
+              <TabsList className="grid w-full grid-cols-1 md:grid-cols-2">
+                <TabsTrigger value="adjustments">Shift Adjustments</TabsTrigger>
+                <TabsTrigger value="patterns">Shift Patterns</TabsTrigger>
+              </TabsList>
 
-        <TabsContent value="adjustments">
-          <ShiftAdjustmentDashboard />
-        </TabsContent>
+              <TabsContent value="adjustments" className="mt-6">
+                <ShiftAdjustmentDashboard />
+              </TabsContent>
 
-        <TabsContent value="patterns">
-          <ShiftPatternManagement />
-        </TabsContent>
-      </Tabs>
+              <TabsContent value="patterns" className="mt-6">
+                <ShiftPatternManagement />
+              </TabsContent>
+            </Tabs>
+          </Card>
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }
