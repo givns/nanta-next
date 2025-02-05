@@ -925,16 +925,6 @@ export class TimeEntryService {
     breakStart: Date | null,
     breakEnd: Date | null,
   ): { hours: number; metadata: OvertimeMetadataInput | null } {
-    console.log('Calculating overtime hours:', {
-      checkIn: format(checkInTime, 'HH:mm:ss'),
-      checkout: format(checkOutTime, 'HH:mm:ss'),
-      overtimePeriod: {
-        start: overtimeRequest.startTime,
-        end: overtimeRequest.endTime,
-        date: format(checkInTime, 'yyyy-MM-dd'),
-      },
-    });
-
     // Convert overtime period boundaries to Date objects
     const overtimeStart = parseISO(
       `${format(checkInTime, 'yyyy-MM-dd')}T${overtimeRequest.startTime}`,
@@ -949,27 +939,44 @@ export class TimeEntryService {
       overtimeEnd = addDays(overtimeEnd, 1);
     }
 
-    // Use period start time if checked in early
+    // Apply 15-minute late start allowance but bound by period
+    const lateStartAllowance = addMinutes(overtimeStart, 15);
+    const isWithinLateStartAllowance =
+      checkInTime > overtimeStart && checkInTime <= lateStartAllowance;
+
+    // Use period start if within late start allowance or check-in is earlier
     const effectiveStartTime =
-      checkInTime < overtimeStart ? overtimeStart : checkInTime;
+      checkInTime <= lateStartAllowance ? overtimeStart : checkInTime;
 
-    // Check if within late checkout allowance (5 minutes after period end)
-    const lateCheckoutAllowance = addMinutes(overtimeEnd, 5);
-    const isWithinLateAllowance =
-      checkOutTime > overtimeEnd && checkOutTime <= lateCheckoutAllowance;
+    // IMPORTANT: Always bound by period end time
+    const effectiveEndTime = min([checkOutTime, overtimeEnd]);
 
-    // Use period end time if within allowance
-    const effectiveEndTime = isWithinLateAllowance ? overtimeEnd : checkOutTime;
-
-    // Calculate worked minutes
-    const workedMinutes = Math.max(
-      0,
-      differenceInMinutes(effectiveEndTime, effectiveStartTime),
+    // Calculate total worked minutes within period bounds
+    const workedMinutes = differenceInMinutes(
+      effectiveEndTime,
+      effectiveStartTime,
     );
 
-    // Calculate completed 30-minute cycles
-    const completedCycles = Math.floor(workedMinutes / 30);
-    const overtimeMinutes = completedCycles * 30;
+    // Special handling for minutes near period boundaries
+    const remainderMinutes = workedMinutes % 30;
+    let overtimeMinutes = 0;
+
+    if (workedMinutes >= 25) {
+      // Minimum threshold for any overtime
+      // If within 5 minutes of period end, round up to period end
+      const isNearPeriodEnd =
+        effectiveEndTime === overtimeEnd && remainderMinutes >= 25;
+
+      if (isNearPeriodEnd) {
+        overtimeMinutes = workedMinutes + (30 - remainderMinutes);
+      } else {
+        // Normal rounding to 30-minute increments
+        overtimeMinutes = workedMinutes - remainderMinutes;
+        if (remainderMinutes >= 15) {
+          overtimeMinutes += 30;
+        }
+      }
+    }
 
     console.log('Overtime calculation details:', {
       period: {
@@ -977,14 +984,17 @@ export class TimeEntryService {
         end: format(overtimeEnd, 'HH:mm:ss'),
         isOvernight,
       },
+      times: {
+        checkIn: format(checkInTime, 'HH:mm:ss'),
+        checkOut: format(checkOutTime, 'HH:mm:ss'),
+      },
       effective: {
         start: format(effectiveStartTime, 'HH:mm:ss'),
         end: format(effectiveEndTime, 'HH:mm:ss'),
       },
       workedMinutes,
-      completedCycles,
+      remainderMinutes,
       overtimeMinutes,
-      isWithinLateAllowance,
     });
 
     return {
@@ -994,24 +1004,6 @@ export class TimeEntryService {
         isInsideShiftHours: overtimeRequest.isInsideShiftHours,
       },
     };
-  }
-
-  public calculateOvertimeDuration(
-    attendance: AttendanceRecord,
-    approvedOvertime: ApprovedOvertimeInfo,
-    currentTime: Date,
-  ): number {
-    if (!attendance.CheckInTime) return 0;
-
-    const result = this.calculateOvertimeHours(
-      attendance.CheckInTime,
-      attendance.CheckOutTime || currentTime,
-      approvedOvertime,
-      null,
-      null,
-    );
-
-    return result.hours;
   }
 
   private parseShiftTime(timeString: string, date: Date): Date {
