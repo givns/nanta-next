@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Clock } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { PeriodType } from '@prisma/client';
 import { SerializedAttendanceRecord } from '@/types/attendance';
+import { parseISO, differenceInMinutes } from 'date-fns';
+
+const OT_CONSTANTS = {
+  INCREMENT_MINUTES: 30,
+  EARLY_CHECKOUT_ALLOWANCE: 5,
+  LATE_START_ALLOWANCE: 15,
+};
 
 const AttendanceCard: React.FC<{
   record: SerializedAttendanceRecord;
@@ -39,6 +46,72 @@ const AttendanceCard: React.FC<{
       : null,
     shiftEnd: record.shiftEndTime ? formatTime(record.shiftEndTime) : null,
   };
+
+  const overtimeHours = useMemo(() => {
+    if (
+      periodType !== PeriodType.OVERTIME ||
+      !record.CheckInTime ||
+      !record.CheckOutTime ||
+      !record.shiftStartTime ||
+      !record.shiftEndTime
+    ) {
+      return null;
+    }
+
+    try {
+      // Parse all times
+      const checkIn = parseISO(record.CheckInTime);
+      const checkOut = parseISO(record.CheckOutTime);
+      const shiftStart = parseISO(record.shiftStartTime);
+      const shiftEnd = parseISO(record.shiftEndTime);
+
+      // Calculate effective start time (considering late start allowance)
+      const effectiveStart =
+        differenceInMinutes(checkIn, shiftStart) <=
+        OT_CONSTANTS.LATE_START_ALLOWANCE
+          ? shiftStart
+          : checkIn;
+
+      // Calculate effective end time (considering early checkout allowance)
+      const minutesBeforeShiftEnd = differenceInMinutes(shiftEnd, checkOut);
+      const effectiveEnd =
+        minutesBeforeShiftEnd <= OT_CONSTANTS.EARLY_CHECKOUT_ALLOWANCE
+          ? shiftEnd
+          : checkOut;
+
+      // Calculate total minutes
+      let totalMinutes = differenceInMinutes(effectiveEnd, effectiveStart);
+
+      // Round to nearest 30 minutes with special handling for early checkout
+      let roundedMinutes;
+      const remainderMinutes = totalMinutes % OT_CONSTANTS.INCREMENT_MINUTES;
+
+      if (
+        minutesBeforeShiftEnd <= OT_CONSTANTS.EARLY_CHECKOUT_ALLOWANCE &&
+        remainderMinutes >=
+          OT_CONSTANTS.INCREMENT_MINUTES - OT_CONSTANTS.EARLY_CHECKOUT_ALLOWANCE
+      ) {
+        // Round up if within early checkout allowance
+        roundedMinutes =
+          totalMinutes + (OT_CONSTANTS.INCREMENT_MINUTES - remainderMinutes);
+      } else {
+        // Normal rounding to nearest 30 minutes
+        roundedMinutes = totalMinutes - remainderMinutes;
+        if (remainderMinutes >= OT_CONSTANTS.INCREMENT_MINUTES / 2) {
+          roundedMinutes += OT_CONSTANTS.INCREMENT_MINUTES;
+        }
+      }
+
+      return {
+        hours: Math.floor(roundedMinutes / 60),
+        minutes: roundedMinutes % 60,
+        totalMinutes: roundedMinutes,
+      };
+    } catch (error) {
+      console.error('Error calculating overtime:', error);
+      return null;
+    }
+  }, [record, periodType]);
 
   return (
     <Card className="bg-white shadow-sm">
@@ -79,7 +152,6 @@ const AttendanceCard: React.FC<{
             )}
           </div>
         </div>
-
         {record.checkTiming && (
           <div className="mt-2 text-xs text-gray-500">
             {record.checkTiming.isLateCheckIn && (
@@ -88,6 +160,18 @@ const AttendanceCard: React.FC<{
             {record.checkTiming.isLateCheckOut && (
               <div>ออกงานช้า {record.checkTiming.lateCheckOutMinutes} นาที</div>
             )}
+          </div>
+        )}
+        {/* Add overtime hours display */}
+        {periodType === PeriodType.OVERTIME && overtimeHours && (
+          <div className="mt-3 border-t pt-2">
+            <div className="text-sm font-medium text-yellow-800">
+              ชั่วโมงทำงานล่วงเวลา
+            </div>
+            <div className="text-sm text-gray-600">
+              {overtimeHours.hours > 0 && `${overtimeHours.hours} ชั่วโมง `}
+              {overtimeHours.minutes > 0 && `${overtimeHours.minutes} นาที`}
+            </div>
           </div>
         )}
       </CardContent>
