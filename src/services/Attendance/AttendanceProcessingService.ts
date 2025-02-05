@@ -812,41 +812,45 @@ export class AttendanceProcessingService {
     periodType?: PeriodType,
     effectiveTime: Date = getCurrentTime(),
   ): Promise<AttendanceRecord | null> {
-    const startDate = startOfDay(subDays(effectiveTime, 1));
-    const endDate = endOfDay(effectiveTime);
-
     console.log('Finding latest attendance - Detailed Debug:', {
       employeeId,
       periodType,
       effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
-      dateRange: {
-        start: format(startOfDay(subDays(effectiveTime, 1)), 'yyyy-MM-dd'),
-        end: format(endOfDay(effectiveTime), 'yyyy-MM-dd'),
+      conditions: {
+        checkIn: true,
+        noCheckOut: true,
+        type: periodType,
       },
     });
 
-    const activeRecords = await tx.attendance.findMany({
+    // Find active records
+    const activeRecords = await tx.attendance.findFirst({
       where: {
         employeeId,
+        type: periodType,
         AND: [
-          { CheckInTime: { not: null } },
-          { CheckOutTime: null },
           {
             OR: [
-              // Regular same-day records
+              // Today's records
               {
-                date: startOfDay(effectiveTime),
-              },
-              // Previous day records that might be active (especially overtime)
-              {
-                date: startOfDay(subDays(effectiveTime, 1)),
-                CheckInTime: {
-                  lte: endDate,
+                date: {
+                  gte: startOfDay(subDays(effectiveTime, 1)),
+                  lt: endOfDay(effectiveTime),
                 },
+                CheckInTime: { not: null },
+                CheckOutTime: null,
+              },
+              // Overnight records
+              {
+                type: PeriodType.OVERTIME,
+                CheckInTime: {
+                  not: null,
+                  lt: endOfDay(effectiveTime),
+                },
+                CheckOutTime: null,
               },
             ],
           },
-          ...(periodType ? [{ type: periodType }] : []),
         ],
       },
       orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
@@ -859,43 +863,26 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log('Query conditions used:', {
-      startDate: format(startDate, 'yyyy-MM-dd HH:mm:ss'),
-      endDate: format(endDate, 'yyyy-MM-dd HH:mm:ss'),
-      periodType,
-      activeRecordsFound: activeRecords.length,
-    });
-
-    if (activeRecords.length > 1) {
-      console.warn('Multiple active records found:', {
-        employeeId,
-        records: activeRecords.map((r) => ({
-          id: r.id,
-          type: r.type,
-          checkIn: r.CheckInTime,
-        })),
-      });
-    }
-
-    const record = activeRecords[0] || null;
-
-    console.log('Selected record:', {
-      found: !!record,
-      details: record
+    console.log('Query result:', {
+      found: !!activeRecords,
+      details: activeRecords
         ? {
-            id: record.id,
-            type: record.type,
-            checkIn: record.CheckInTime
-              ? format(record.CheckInTime, 'HH:mm:ss')
+            id: activeRecords.id,
+            type: activeRecords.type,
+            date: format(activeRecords.date, 'yyyy-MM-dd'),
+            checkIn: activeRecords.CheckInTime
+              ? format(activeRecords.CheckInTime, 'HH:mm:ss')
               : null,
-            checkOut: record.CheckOutTime
-              ? format(record.CheckOutTime, 'HH:mm:ss')
+            checkOut: activeRecords.CheckOutTime
+              ? format(activeRecords.CheckOutTime, 'HH:mm:ss')
               : null,
           }
         : null,
     });
 
-    return record ? AttendanceMappers.toAttendanceRecord(record) : null;
+    return activeRecords
+      ? AttendanceMappers.toAttendanceRecord(activeRecords)
+      : null;
   }
 
   private createStatusUpdateFromProcessing(
