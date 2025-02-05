@@ -35,6 +35,7 @@ import { AttendanceMappers } from './utils/AttendanceMappers';
 import { AttendanceEnhancementService } from './AttendanceEnhancementService';
 import { cacheService } from '../cache/CacheService';
 import { PeriodManagementService } from './PeriodManagementService';
+import { current } from '@reduxjs/toolkit';
 
 type LocationDataInput = {
   checkInCoordinates?: Prisma.InputJsonValue | null;
@@ -61,19 +62,25 @@ export class AttendanceProcessingService {
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
-    const validatedOptions = this.validateAndNormalizeOptions(options);
-    const checkTime = new Date(validatedOptions.checkTime);
-
-    console.log('Processing attendance:', {
-      type: options.periodType,
-      requestedTime: format(checkTime, 'yyyy-MM-dd HH:mm:ss'),
-      serverTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      activity: options.activity,
-    });
 
     try {
       const result = await this.prisma.$transaction(
         async (tx) => {
+          const validatedOptions = await this.validateAndNormalizeOptions(
+            options,
+            tx,
+          );
+
+          console.log('Processing attendance:', {
+            type: validatedOptions.periodType,
+            requestedTime: format(
+              new Date(validatedOptions.checkTime),
+              'yyyy-MM-dd HH:mm:ss',
+            ),
+            serverTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+            activity: validatedOptions.activity,
+          });
+
           // Get current active record using AttendanceMappers
           const dbRecord = await tx.attendance.findFirst({
             where: {
@@ -170,7 +177,7 @@ export class AttendanceProcessingService {
             windowResponse,
             validatedOptions,
             locationData,
-            checkTime,
+            new Date(validatedOptions.checkTime),
           );
 
           // Create validation context
@@ -249,7 +256,10 @@ export class AttendanceProcessingService {
         context: {
           type: options.periodType,
           employeeId: options.employeeId,
-          requestedTime: format(checkTime, 'yyyy-MM-dd HH:mm:ss'),
+          requestedTime: format(
+            new Date(options.checkTime),
+            'yyyy-MM-dd HH:mm:ss',
+          ),
         },
       });
       throw this.handleProcessingError(error);
@@ -370,17 +380,50 @@ export class AttendanceProcessingService {
     };
   }
 
-  private validateAndNormalizeOptions(
+  private async validateAndNormalizeOptions(
     options: ProcessingOptions,
-  ): ProcessingOptions {
+    tx: Prisma.TransactionClient,
+  ): Promise<ProcessingOptions> {
     const isOvertimePeriod = options.periodType === PeriodType.OVERTIME;
+
+    // Get current record first
+    const currentRecord = await this.getLatestAttendance(
+      tx,
+      options.employeeId,
+      options.periodType,
+      new Date(options.checkTime),
+    );
+
+    console.log('Validating options:', {
+      type: options.periodType,
+      isCheckIn: options.activity.isCheckIn,
+      currentRecord: currentRecord
+        ? {
+            type: currentRecord.type,
+            checkIn: currentRecord.CheckInTime,
+            checkOut: currentRecord.CheckOutTime,
+          }
+        : null,
+      overtimeMissed: options.activity.overtimeMissed,
+    });
+
+    // Check if auto-completion needed
+    const shouldAutoComplete =
+      options.activity.overtimeMissed &&
+      this.shouldAutoComplete(options, currentRecord);
+
+    console.log('Auto-completion check:', {
+      shouldAutoComplete,
+      overtimeMissed: options.activity.overtimeMissed,
+      autoCompletionNeeded: this.shouldAutoComplete(options, currentRecord),
+    });
 
     return {
       ...options,
       activity: {
         ...options.activity,
         isOvertime: isOvertimePeriod,
-        overtimeMissed: options.activity.overtimeMissed || false, // Ensure boolean
+        overtimeMissed: shouldAutoComplete,
       },
     };
   }
@@ -562,27 +605,10 @@ export class AttendanceProcessingService {
                   lt: endOfDay(now),
                 },
                 CheckOutTime: null,
-                // Must be active (not checked out)
-                OR: [
-                  { CheckOutTime: null },
-                  {
-                    CheckOutTime: {
-                      gt: startOfDay(now),
-                    },
-                  },
-                ],
               },
             ],
           },
         ],
-      },
-      orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
-      include: {
-        timeEntries: true,
-        overtimeEntries: true,
-        location: true,
-        metadata: true,
-        checkTiming: true,
       },
     });
 

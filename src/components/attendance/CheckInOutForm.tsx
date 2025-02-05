@@ -109,10 +109,17 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           periodState.activity.checkIn &&
           !periodState.activity.checkOut;
 
-        console.log('Preparing checkout request:', {
+        // Add debug logging
+        console.log('Building attendance request:', {
+          isCheckingIn,
           isOvertimeCheckout,
-          periodEnd: periodState.timeWindow.end,
-          now: now.toISOString(),
+          periodState: {
+            type: periodState.type,
+            checkIn: periodState.activity.checkIn,
+            checkOut: periodState.activity.checkOut,
+          },
+          requiresAutoCompletion:
+            stateValidation?.flags?.requiresAutoCompletion,
         });
 
         // Structure data according to CheckInOutData interface and schema
@@ -137,7 +144,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               periodState?.type === PeriodType.OVERTIME, // Fix here
             isManualEntry: false,
             overtimeMissed:
-              isOvertimeCheckout || params?.overtimeMissed || false,
+              stateValidation?.flags?.requiresAutoCompletion ?? false,
           },
 
           // Optional location data
@@ -186,6 +193,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           checkTime: requestData.checkTime,
           isOvertimeCheckout,
           periodType: requestData.periodType,
+          activity: requestData.activity,
         });
 
         await checkInOut(requestData);

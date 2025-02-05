@@ -306,6 +306,34 @@ export default async function handler(
     console.log('Incoming request body:', JSON.stringify(req.body, null, 2));
     const validatedData = validateCheckInOutRequest(req.body);
 
+    console.log('Processing attendance request:', {
+      type: validatedData.periodType,
+      isCheckIn: validatedData.activity.isCheckIn,
+      overtimeMissed: validatedData.activity.overtimeMissed,
+      requiresAutoCompletion: validatedData.activity.overtimeMissed,
+    });
+
+    // Get current status first to validate auto-completion
+    const currentStatus = await services.attendanceService.getAttendanceStatus(
+      validatedData.employeeId!,
+      {
+        inPremises: true,
+        address: validatedData.location?.address || '',
+        periodType: validatedData.periodType,
+      },
+    );
+
+    // IMPROVEMENT: Update overtimeMissed based on status flags
+    validatedData.activity.overtimeMissed =
+      currentStatus.validation.flags.requiresAutoCompletion;
+
+    // Log the validation result
+    console.log('Attendance validation:', {
+      requiresAutoCompletion:
+        currentStatus.validation.flags.requiresAutoCompletion,
+      finalOvertimeMissed: validatedData.activity.overtimeMissed,
+    });
+
     // Add timestamp validation
     const serverTime = getCurrentTime();
     const requestTime = new Date(validatedData.checkTime);
@@ -346,12 +374,12 @@ export default async function handler(
         checkInOutQueue.push(validatedData, async (error, queueResult) => {
           if (error) reject(error);
           else if (queueResult) {
-            console.log('Initial queue result:', {
-              status: queueResult.status.base.state,
-              checkStatus: queueResult.status.base.checkStatus,
+            console.log('Queue processing result:', {
+              success: queueResult.success,
               requiresAutoComplete:
                 queueResult.status.validation.flags.requiresAutoCompletion,
-              currentAttendance: queueResult.status.base.latestAttendance
+              state: queueResult.status.base.state,
+              attendance: queueResult.status.base.latestAttendance
                 ? {
                     type: queueResult.status.base.latestAttendance.type,
                     checkIn:
@@ -361,45 +389,6 @@ export default async function handler(
                   }
                 : null,
             });
-
-            // Case 1: Checking out without check-in
-            if (
-              !queueResult.status.base.latestAttendance?.CheckInTime &&
-              !validatedData.activity.isCheckIn
-            ) {
-              console.log('Auto-completion: Missing check-in for checkout');
-              // Let processAttendance handle this through auto-completion
-              resolve(queueResult);
-              return;
-            }
-
-            // Case 2: Checking in regular shift with incomplete overtime
-            if (
-              validatedData.periodType === PeriodType.REGULAR &&
-              validatedData.activity.isCheckIn &&
-              queueResult.status.base.latestAttendance?.type ===
-                PeriodType.OVERTIME &&
-              !queueResult.status.base.latestAttendance.CheckOutTime
-            ) {
-              console.log(
-                'Auto-completion: Missing overtime checkout before regular check-in',
-              );
-              // Let processAttendance handle the overtime completion
-              resolve(queueResult);
-              return;
-            }
-
-            // Case 3: Normal check-in/out, not auto-completion
-            // This includes late overtime checkout - should go through normal processing
-            if (
-              validatedData.periodType === PeriodType.OVERTIME &&
-              !validatedData.activity.isCheckIn
-            ) {
-              console.log(
-                'Normal overtime checkout - no auto-completion needed',
-              );
-            }
-
             resolve(queueResult);
           } else {
             reject(new Error('No result returned from queue'));
