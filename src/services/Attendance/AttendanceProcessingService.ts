@@ -818,28 +818,33 @@ export class AttendanceProcessingService {
       effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
     });
 
+    // EXACTLY match the working query structure
     const records = await tx.attendance.findMany({
       where: {
         employeeId,
         OR: [
-          // Regular records from current period
+          // Records that start today
           {
             date: {
               gte: startOfDay(subDays(effectiveTime, 1)),
               lt: endOfDay(effectiveTime),
             },
             ...(periodType && { type: periodType }),
-            CheckInTime: { not: null },
-            CheckOutTime: null,
           },
-          // Overnight records
+          // Overtime records spanning midnight
           {
-            type: PeriodType.OVERTIME,
-            ...(periodType === PeriodType.OVERTIME && { type: periodType }),
+            type: periodType || PeriodType.OVERTIME, // Only filter if type provided
             CheckInTime: {
               lt: endOfDay(effectiveTime),
             },
-            CheckOutTime: null,
+            OR: [
+              { CheckOutTime: null },
+              {
+                CheckOutTime: {
+                  gt: startOfDay(effectiveTime),
+                },
+              },
+            ],
           },
         ],
       },
@@ -869,6 +874,7 @@ export class AttendanceProcessingService {
       })),
     });
 
+    // Find active record after query
     const activeRecord = records.find((r) => !r.CheckOutTime);
     return activeRecord
       ? AttendanceMappers.toAttendanceRecord(activeRecord)
