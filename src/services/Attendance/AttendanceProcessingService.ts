@@ -816,72 +816,62 @@ export class AttendanceProcessingService {
       employeeId,
       periodType,
       effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
-      conditions: {
-        checkIn: true,
-        noCheckOut: true,
-        type: periodType,
-      },
     });
 
-    // Find active records
-    const activeRecords = await tx.attendance.findFirst({
+    const records = await tx.attendance.findMany({
       where: {
         employeeId,
-        type: periodType,
-        AND: [
+        OR: [
+          // Regular records from current period
           {
-            OR: [
-              // Today's records
-              {
-                date: {
-                  gte: startOfDay(subDays(effectiveTime, 1)),
-                  lt: endOfDay(effectiveTime),
-                },
-                CheckInTime: { not: null },
-                CheckOutTime: null,
-              },
-              // Overnight records
-              {
-                type: PeriodType.OVERTIME,
-                CheckInTime: {
-                  not: null,
-                  lt: endOfDay(effectiveTime),
-                },
-                CheckOutTime: null,
-              },
-            ],
+            date: {
+              gte: startOfDay(subDays(effectiveTime, 1)),
+              lt: endOfDay(effectiveTime),
+            },
+            ...(periodType && { type: periodType }),
+            CheckInTime: { not: null },
+            CheckOutTime: null,
+          },
+          // Overnight records
+          {
+            type: PeriodType.OVERTIME,
+            ...(periodType === PeriodType.OVERTIME && { type: periodType }),
+            CheckInTime: {
+              lt: endOfDay(effectiveTime),
+            },
+            CheckOutTime: null,
           },
         ],
       },
-      orderBy: [{ date: 'desc' }, { CheckInTime: 'desc' }],
       include: {
-        timeEntries: true,
+        timeEntries: {
+          include: {
+            overtimeMetadata: true,
+          },
+        },
         overtimeEntries: true,
+        checkTiming: true,
         location: true,
         metadata: true,
-        checkTiming: true,
       },
+      orderBy: [{ CheckInTime: 'desc' }, { id: 'desc' }],
     });
 
     console.log('Query result:', {
-      found: !!activeRecords,
-      details: activeRecords
-        ? {
-            id: activeRecords.id,
-            type: activeRecords.type,
-            date: format(activeRecords.date, 'yyyy-MM-dd'),
-            checkIn: activeRecords.CheckInTime
-              ? format(activeRecords.CheckInTime, 'HH:mm:ss')
-              : null,
-            checkOut: activeRecords.CheckOutTime
-              ? format(activeRecords.CheckOutTime, 'HH:mm:ss')
-              : null,
-          }
-        : null,
+      recordsFound: records.length,
+      details: records.map((r) => ({
+        id: r.id,
+        type: r.type,
+        date: format(r.date, 'yyyy-MM-dd'),
+        checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
+        checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
+        active: !r.CheckOutTime,
+      })),
     });
 
-    return activeRecords
-      ? AttendanceMappers.toAttendanceRecord(activeRecords)
+    const activeRecord = records.find((r) => !r.CheckOutTime);
+    return activeRecord
+      ? AttendanceMappers.toAttendanceRecord(activeRecord)
       : null;
   }
 
