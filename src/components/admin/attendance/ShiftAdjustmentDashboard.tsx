@@ -52,9 +52,9 @@ interface Shift {
 interface ShiftAdjustment {
   id: string;
   employeeId: string;
-  employeeName: string;
+  employeeName: string | null; // Make nullable
   departmentId: string;
-  departmentName: string;
+  departmentName: string | null; // Make nullable
   date: string;
   newShift: {
     id: string;
@@ -75,8 +75,8 @@ interface AdjustmentFormData {
 
 export default function ShiftManagementDashboard() {
   const { lineUserId } = useLiff();
+  const [isLoading, setIsLoading] = useState(true); // Start with loading true
   const [activeTab, setActiveTab] = useState('adjustments');
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -92,13 +92,10 @@ export default function ShiftManagementDashboard() {
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
   const fetchInitialData = async () => {
     if (!lineUserId) {
       setError('Authentication required');
+      setIsLoading(false);
       return;
     }
 
@@ -134,6 +131,12 @@ export default function ShiftManagementDashboard() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchInitialData();
+    }
+  }, [lineUserId]);
 
   const handleSubmitAdjustment = async (formData: AdjustmentFormData) => {
     if (!lineUserId) {
@@ -177,17 +180,11 @@ export default function ShiftManagementDashboard() {
     }
   };
 
-  useEffect(() => {
-    if (lineUserId) {
-      fetchInitialData();
-    }
-  }, [lineUserId]);
-
   // Filter adjustments based on search and department
   const filteredAdjustments = adjustments.filter((adj) => {
     const matchesSearch =
       searchTerm === '' ||
-      adj.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
+      adj.employeeName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDepartment =
       selectedDepartment === 'all' || adj.departmentId === selectedDepartment;
     return matchesSearch && matchesDepartment;
