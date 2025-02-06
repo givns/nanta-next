@@ -39,9 +39,19 @@ import {
   differenceInMinutes,
   addDays,
   addHours,
+  isAfter,
+  isBefore,
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
 import { VALIDATION_ACTIONS } from '@/types/attendance/interface';
+import { getCurrentTime } from '@/utils/dateUtils';
+
+interface PeriodValidation {
+  canCheckIn: boolean;
+  canCheckOut: boolean;
+  isLateCheckIn: boolean;
+  isWithinLateAllowance: boolean;
+}
 
 export class AttendanceEnhancementService {
   constructor(private readonly periodManager: PeriodManagementService) {}
@@ -189,6 +199,7 @@ export class AttendanceEnhancementService {
       currentState,
       attendance,
       periodState,
+      periodValidation,
     );
 
     const validation = {
@@ -533,6 +544,7 @@ export class AttendanceEnhancementService {
     currentState: UnifiedPeriodState,
     attendance: AttendanceRecord | null,
     periodState: ShiftWindowResponse,
+    periodValidation: PeriodValidation,
   ): ValidationFlags {
     console.log('Building validation flags:', {
       periodType: currentState.type,
@@ -561,9 +573,13 @@ export class AttendanceEnhancementService {
         }),
     );
 
+    // Use validation results from periodValidation
+    const isLateCheckIn =
+      periodValidation.isLateCheckIn && !attendance?.CheckInTime;
+
     return {
       isCheckingIn: !statusInfo.isActiveAttendance,
-      isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
+      isLateCheckIn,
       isEarlyCheckIn: currentState.validation.isEarly,
       isEarlyCheckOut: false,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
@@ -643,12 +659,27 @@ export class AttendanceEnhancementService {
       }
     }
 
-    // Case 3: Regular shift timing
+    // Case 3: Regular shift timing with enhanced late check-in messages
     if (currentState.type === PeriodType.REGULAR) {
+      const now = getCurrentTime();
+      const periodStart = parseISO(currentState.timeWindow.start);
+      const lateThreshold = addMinutes(
+        periodStart,
+        VALIDATION_THRESHOLDS.LATE_CHECKIN,
+      );
+
       if (currentState.validation.isEarly) {
-        return `เวลาทำงานปกติเริ่ม ${format(parseISO(currentState.timeWindow.start), 'HH:mm')} น.`;
+        return `เวลาทำงานปกติเริ่ม ${format(periodStart, 'HH:mm')} น.`;
       }
-      if (currentState.validation.isLate) {
+
+      // Handle late check-in cases
+      if (isAfter(now, periodStart)) {
+        // If within late allowance window
+        if (isBefore(now, lateThreshold)) {
+          const minutesLate = differenceInMinutes(now, periodStart);
+          return `เลยเวลาเข้างานปกติ ${minutesLate} นาที`;
+        }
+        // If beyond late allowance window
         return 'เลยเวลาเข้างานปกติ';
       }
     }

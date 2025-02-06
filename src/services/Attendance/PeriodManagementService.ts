@@ -1226,6 +1226,11 @@ export class PeriodManagementService {
   /**
    * Permission Checks
    */
+
+  private isLateCheckIn(now: Date, periodStart: Date): boolean {
+    return isAfter(now, periodStart); // Mark as late immediately after start time
+  }
+
   private canCheckIn(
     currentState: UnifiedPeriodState,
     statusInfo: PeriodStatusInfo,
@@ -1663,9 +1668,6 @@ export class PeriodManagementService {
     };
   }
 
-  private isLateCheckIn(now: Date, start: Date): boolean {
-    return differenceInMinutes(now, start) > VALIDATION_THRESHOLDS.LATE_CHECKIN;
-  }
   /**
    * New methods taking over from ShiftManagementService
    */
