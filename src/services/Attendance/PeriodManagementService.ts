@@ -1220,18 +1220,33 @@ export class PeriodManagementService {
    * Permission Checks
    */
   private canCheckIn(
-    currentState: UnifiedPeriodState, // Keep this UnifiedPeriodState
-    statusInfo: PeriodStatusInfo, // Add separate PeriodStatusInfo param
+    currentState: UnifiedPeriodState,
+    statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
+    // If there's already an active attendance, can't check in
     if (statusInfo.isActiveAttendance) {
       return false;
     }
 
     const periodStart = parseISO(currentState.timeWindow.start);
+
+    // Early window start: periodStart - EARLY_CHECKIN_THRESHOLD
+    const earlyWindow = subMinutes(
+      periodStart,
+      VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+    );
+
+    // Late window end: periodStart + LATE_CHECKIN_THRESHOLD
+    const lateWindow = addMinutes(
+      periodStart,
+      VALIDATION_THRESHOLDS.LATE_CHECKIN,
+    );
+
+    // Can check in if within the valid window (including early and late periods)
     return isWithinInterval(now, {
-      start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-      end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+      start: earlyWindow,
+      end: lateWindow,
     });
   }
 
@@ -1364,10 +1379,10 @@ export class PeriodManagementService {
 
   private isLateForPeriod(
     now: Date,
-    periodEnd: Date,
+    periodStart: Date,
     threshold: number = VALIDATION_THRESHOLDS.LATE_CHECKIN,
   ): boolean {
-    const lateThresholdEnd = addMinutes(periodEnd, threshold);
+    const lateThresholdEnd = addMinutes(periodStart, threshold);
     return isAfter(now, lateThresholdEnd);
   }
 

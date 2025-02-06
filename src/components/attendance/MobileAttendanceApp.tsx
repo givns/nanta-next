@@ -436,9 +436,8 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       });
 
       return {
-        lateMinutes: Math.max(
-          0,
-          (now.getTime() - periodStart.getTime()) / 60000,
+        lateMinutes: Math.floor(
+          Math.max(0, (now.getTime() - periodStart.getTime()) / 60000),
         ),
         earlyMinutes: 0,
         isEarly: false,
@@ -471,10 +470,14 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
 
     return {
       lateMinutes: !isEarly
-        ? Math.max(0, (checkIn.getTime() - periodStart.getTime()) / 60000)
+        ? Math.floor(
+            Math.max(0, (checkIn.getTime() - periodStart.getTime()) / 60000),
+          )
         : 0,
       earlyMinutes: isEarly
-        ? Math.max(0, (periodStart.getTime() - checkIn.getTime()) / 60000)
+        ? Math.floor(
+            Math.max(0, (periodStart.getTime() - checkIn.getTime()) / 60000),
+          )
         : 0,
       isEarly,
       progressPercent: progress,
