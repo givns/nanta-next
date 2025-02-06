@@ -177,24 +177,11 @@ export class AttendanceEnhancementService {
     });
 
     // Get permission flags once
-    const checkinAllowed = this.canCheckIn(
+    const periodValidation = this.periodManager.validatePeriodAccess(
       currentState,
       statusInfo,
       context.timestamp,
     );
-    const checkoutAllowed = this.canCheckOut(
-      currentState,
-      statusInfo,
-      context.timestamp,
-    );
-    console.log('DEBUG after canCheckOut:', { checkoutAllowed });
-
-    console.log('Validation preparation:', {
-      checkoutAllowed,
-      type: currentState.type,
-      active: statusInfo.isActiveAttendance,
-      timestamp: format(context.timestamp, 'yyyy-MM-dd HH:mm:ss'),
-    });
 
     // Build validation flags
     const flags = this.buildValidationFlags(
@@ -205,7 +192,7 @@ export class AttendanceEnhancementService {
     );
 
     const validation = {
-      allowed: checkinAllowed || checkoutAllowed, // Use stored values
+      allowed: periodValidation.canCheckIn || periodValidation.canCheckOut,
       reason: this.getValidationMessage(statusInfo, currentState, attendance),
       flags,
       metadata: transitionStatus.isInTransition
@@ -737,79 +724,6 @@ export class AttendanceEnhancementService {
   /**
    * Permission Check Methods
    */
-  private canCheckIn(
-    currentState: UnifiedPeriodState, // Keep this UnifiedPeriodState
-    statusInfo: PeriodStatusInfo, // Add separate PeriodStatusInfo param
-    now: Date,
-  ): boolean {
-    if (statusInfo.isActiveAttendance) {
-      return false;
-    }
-
-    const periodStart = parseISO(currentState.timeWindow.start);
-    return isWithinInterval(now, {
-      start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-      end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
-    });
-  }
-
-  private canCheckOut(
-    currentState: UnifiedPeriodState,
-    statusInfo: PeriodStatusInfo,
-    now: Date,
-  ): boolean {
-    console.log('DEBUG: canCheckOut Input', {
-      currentStateType: currentState.type,
-      isActiveAttendance: statusInfo.isActiveAttendance,
-      timeWindow: {
-        start: currentState.timeWindow.start,
-        end: currentState.timeWindow.end,
-      },
-      currentTime: now.toISOString(),
-    });
-
-    // First, check if there's an active attendance
-    if (!statusInfo.isActiveAttendance) {
-      console.log('DEBUG: canCheckOut - No active attendance');
-      return false;
-    }
-
-    // Check if it's an overtime period
-    const isOvertimePeriod = currentState.type === PeriodType.OVERTIME;
-
-    // For overtime, always allow checkout
-    if (isOvertimePeriod) {
-      console.log('DEBUG: canCheckOut - Overtime period, allowing checkout');
-      return true;
-    }
-
-    // Parse period end time
-    const periodEnd = parseISO(currentState.timeWindow.end);
-
-    // Calculate checkout windows
-    const earlyCheckoutBuffer = ATTENDANCE_CONSTANTS.EARLY_CHECKOUT_BUFFER;
-    const lateCheckoutBuffer = ATTENDANCE_CONSTANTS.TRANSITION_LATE_BUFFER;
-
-    // Calculate extended checkout window
-    const earliestCheckoutTime = subMinutes(periodEnd, earlyCheckoutBuffer);
-    const latestCheckoutTime = addMinutes(periodEnd, lateCheckoutBuffer);
-
-    const isWithinCheckoutWindow =
-      now >= earliestCheckoutTime && now <= latestCheckoutTime;
-
-    console.log('DEBUG: canCheckOut Details', {
-      isOvertimePeriod,
-      periodEnd: periodEnd.toISOString(),
-      earliestCheckoutTime: earliestCheckoutTime.toISOString(),
-      latestCheckoutTime: latestCheckoutTime.toISOString(),
-      currentTime: now.toISOString(),
-      isWithinCheckoutWindow,
-      earlyCheckoutBuffer,
-      lateCheckoutBuffer,
-    });
-
-    return isWithinCheckoutWindow;
-  }
 
   /**
    * Time Check Methods

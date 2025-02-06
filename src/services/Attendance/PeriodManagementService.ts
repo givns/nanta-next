@@ -36,6 +36,13 @@ import {
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 
+interface PeriodValidation {
+  canCheckIn: boolean;
+  canCheckOut: boolean;
+  isLateCheckIn: boolean;
+  isWithinLateAllowance: boolean;
+}
+
 const PERIOD_CONSTANTS = {
   TRANSITION_CONFIG: {
     EARLY_BUFFER: 15,
@@ -1280,6 +1287,25 @@ export class PeriodManagementService {
     }
 
     return false;
+  }
+
+  public validatePeriodAccess(
+    currentState: UnifiedPeriodState,
+    statusInfo: PeriodStatusInfo,
+    now: Date,
+  ): PeriodValidation {
+    const periodStart = parseISO(currentState.timeWindow.start);
+    const periodEnd = parseISO(currentState.timeWindow.end);
+
+    return {
+      canCheckIn: this.canCheckIn(currentState, statusInfo, now),
+      canCheckOut: this.canCheckOut(currentState, statusInfo, now),
+      isLateCheckIn: this.isLateForPeriod(now, periodStart),
+      isWithinLateAllowance: isWithinInterval(now, {
+        start: periodStart,
+        end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+      }),
+    };
   }
 
   private canStartOvertime(
