@@ -1416,7 +1416,6 @@ export class PeriodManagementService {
       statusInfo.timingFlags.isLateCheckOut ||
       statusInfo.timingFlags.isVeryLateCheckOut ||
       // These flags would come from the validation logic you mentioned
-      statusInfo.shiftTiming.isAfterMidshift || // Added for emergency leave case
       // Add other specific conditions here
       false; // Placeholder for additional flags
 
