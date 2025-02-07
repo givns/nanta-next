@@ -591,6 +591,24 @@ export class AttendanceEnhancementService {
       statusInfo.isActiveAttendance && // User is checked in
         !statusInfo.shiftTiming.isAfterMidshift, // Not after midshift
     );
+    console.log('Validation flags:', {
+      isLateCheckIn,
+      isEarlyCheckIn: currentState.validation.isEarly,
+      isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
+      isVeryLateCheckOut: statusInfo.timingFlags.isVeryLateCheckOut,
+      hasActivePeriod: statusInfo.isActiveAttendance,
+      isInsideShift: !currentState.activity.isOvertime,
+      isOutsideShift: currentState.activity.isOvertime,
+      isOvertime: currentState.activity.isOvertime,
+      isDayOffOvertime: currentState.activity.isDayOffOvertime,
+      isEmergencyLeave,
+      requiresTransition,
+      isMorningShift: statusInfo.shiftTiming.isMorningShift,
+      isAfternoonShift: statusInfo.shiftTiming.isAfternoonShift,
+      isAfterMidshift: statusInfo.shiftTiming.isAfterMidshift,
+      isHoliday: periodState.isHoliday,
+      isDayOff: periodState.isDayOff,
+    });
 
     return {
       isCheckingIn: !statusInfo.isActiveAttendance,

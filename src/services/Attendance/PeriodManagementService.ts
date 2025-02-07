@@ -1452,6 +1452,17 @@ export class PeriodManagementService {
     // Late allowance only relevant when checking late status
     const isWithinLateAllowance = isLateCheckIn;
 
+    console.log('Period Access Validation:', {
+      now,
+      periodStart,
+      periodEnd,
+      isInEarlyWindow,
+      isLateCheckIn,
+      isWithinShift,
+      canCheckIn,
+      isWithinLateAllowance,
+    });
+
     return {
       canCheckIn,
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
