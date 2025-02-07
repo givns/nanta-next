@@ -461,7 +461,7 @@ export class AttendanceProcessingService {
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
 
-    // Create new attendance record
+    // Create attendance record
     const attendance = await tx.attendance.create({
       data: {
         user: { connect: { employeeId: options.employeeId } },
@@ -511,18 +511,6 @@ export class AttendanceProcessingService {
         checkTiming: true,
       },
     });
-
-    // Then create location if needed
-    if (locationData) {
-      await tx.attendanceLocation.create({
-        data: {
-          ...locationData,
-          attendance: {
-            connect: { id: attendance.id },
-          },
-        },
-      });
-    }
 
     return AttendanceMappers.toAttendanceRecord(attendance)!;
   }
