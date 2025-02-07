@@ -722,11 +722,36 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         onClose={() => setIsLateModalOpen(false)}
         onSubmit={async (reason: string) => {
           setIsLateModalOpen(false);
-          await handleAttendanceSubmit({
-            reason,
-            isOvertime: false,
-            isTransition: false,
+          setStep('processing'); // Change to processing state first
+          setProcessingState({
+            status: 'loading',
+            message: 'กำลังบันทึกเวลา...',
           });
+
+          try {
+            await handleAttendanceSubmit({
+              reason,
+              isOvertime: false,
+              isTransition: false,
+            });
+
+            setProcessingState({
+              status: 'success',
+              message: 'บันทึกเวลาสำเร็จ',
+            });
+
+            setTimeout(onComplete, 2000);
+          } catch (error) {
+            console.error('Late check-in error:', error);
+            setProcessingState({
+              status: 'error',
+              message:
+                error instanceof Error
+                  ? error.message
+                  : 'เกิดข้อผิดพลาดในการบันทึกเวลา',
+            });
+            setStep('info');
+          }
         }}
       />
     </div>
