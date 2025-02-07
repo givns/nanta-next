@@ -49,17 +49,18 @@ export function useSimpleAttendance({
     locationVerified:
       locationVerified || locationState.verificationStatus === 'admin_pending',
     initialAttendanceStatus,
-    // Update enabled condition
-    enabled:
-      enabled &&
-      Boolean(
-        employeeId &&
-          (locationReady ||
-            locationState.verificationStatus === 'admin_pending' ||
-            locationState.status === 'waiting_admin' ||
-            locationState.status === 'pending_admin'),
-      ),
+    enabled,
   });
+
+  // Add debug logging
+  useEffect(() => {
+    console.log('Simple attendance data update:', {
+      hasRawData: !!rawData,
+      hasBase: !!rawData?.base,
+      state: rawData?.base?.state,
+      context: rawData?.context?.shift?.id,
+    });
+  }, [rawData]);
 
   useEffect(() => {
     console.log('Attendance enable conditions:', {
@@ -98,25 +99,52 @@ export function useSimpleAttendance({
 
   // Modified data ready check
   useEffect(() => {
-    if (rawData?.context?.shift?.id && !isDataReady) {
-      console.log('Data is ready with shift:', rawData.context.shift);
+    if (rawData?.base && !isDataReady) {
+      console.log('Data ready check:', {
+        hasBase: !!rawData.base,
+        state: rawData.base.state,
+        hasContext: !!rawData.context,
+        hasShift: !!rawData.context?.shift?.id,
+      });
       setIsDataReady(true);
     }
   }, [rawData, isDataReady]);
 
   // Modified base state to handle loading case
   const baseState = useMemo((): AttendanceBaseResponse => {
-    if (!rawData && initialAttendanceStatus?.base) {
-      console.log('Using initial attendance status base');
+    console.log('Computing base state:', {
+      hasRawData: !!rawData,
+      hasBase: !!rawData?.base,
+      state: rawData?.base?.state,
+    });
+
+    if (rawData?.base) {
+      return {
+        ...rawData.base,
+        metadata: {
+          lastUpdated:
+            rawData.base.metadata?.lastUpdated ||
+            getCurrentTime().toISOString(),
+          version: rawData.base.metadata?.version || 1,
+          source: rawData.base.metadata?.source || 'system',
+        },
+        periodInfo: {
+          type: rawData.base.periodInfo?.type || PeriodType.REGULAR,
+          isOvertime: rawData.base.periodInfo?.isOvertime || false,
+          overtimeState: rawData.base.periodInfo?.overtimeState,
+        },
+        validation: {
+          canCheckIn: Boolean(rawData.base.validation?.canCheckIn),
+          canCheckOut: Boolean(rawData.base.validation?.canCheckOut),
+          message: rawData.base.validation?.message || '',
+        },
+      };
+    }
+
+    if (initialAttendanceStatus?.base) {
       return initialAttendanceStatus.base;
     }
 
-    if (rawData?.base) {
-      console.log('Using raw data base');
-      return rawData.base;
-    }
-
-    console.log('Using default base state');
     return {
       state: AttendanceState.ABSENT,
       checkStatus: CheckStatus.PENDING,
@@ -272,13 +300,18 @@ export function useSimpleAttendance({
     !context?.shift?.id;
 
   // Only return complete data when ready
-  if (!rawData || !rawData.context?.shift?.id) {
-    console.log('Returning loading state - waiting for shift data');
+  if (!rawData?.base) {
+    console.log('Returning loading state:', {
+      hasBase: !!rawData?.base,
+      hasContext: !!rawData?.context,
+      initialStatus: !!initialAttendanceStatus,
+    });
+
+    // Return initial or default state while loading
     return {
-      state: initialAttendanceStatus?.base?.state || AttendanceState.ABSENT,
-      checkStatus:
-        initialAttendanceStatus?.base?.checkStatus || CheckStatus.PENDING,
-      isCheckingIn: initialAttendanceStatus?.base?.isCheckingIn ?? true,
+      state: baseState.state,
+      checkStatus: baseState.checkStatus,
+      isCheckingIn: baseState.isCheckingIn,
       base: baseState,
       periodState: initialAttendanceStatus?.daily?.currentState || periodState,
       stateValidation:

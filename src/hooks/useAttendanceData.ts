@@ -194,28 +194,6 @@ export function useAttendanceData({
           originalCheckTime: params.checkTime,
           currentTime: getCurrentTime(),
         });
-        if (data?.base) {
-          const currentStatus = {
-            state: data.base.state,
-            checkStatus: data.base.checkStatus,
-            isOvertime: data.base.periodInfo.isOvertime,
-            overtimeState: data.base.periodInfo.overtimeState,
-          };
-
-          if (params.isCheckIn && !StatusHelpers.canCheckIn(currentStatus)) {
-            throw new AppError({
-              code: ErrorCode.PROCESSING_ERROR,
-              message: 'Invalid check-in attempt',
-            });
-          }
-
-          if (!params.isCheckIn && !StatusHelpers.canCheckOut(currentStatus)) {
-            throw new AppError({
-              code: ErrorCode.PROCESSING_ERROR,
-              message: 'Invalid check-out attempt',
-            });
-          }
-        }
 
         const response = await axios.post<ProcessingResult>(
           '/api/attendance/check-in-out',
@@ -240,10 +218,18 @@ export function useAttendanceData({
           });
         }
 
+        console.log('Check-in/out response:', {
+          success: response.data.success,
+          hasData: !!response.data.data,
+          processingTime: response.data.timestamp,
+        });
+
         setLastOperation(
           `${params.isCheckIn ? 'checkin' : 'checkout'}-${new Date().toISOString()}`,
         );
-        await mutate(undefined, { revalidate: true });
+
+        // Use the existing refresh function to get fresh data
+        await refreshAttendanceStatus();
 
         return response.data;
       } catch (error) {
@@ -256,8 +242,20 @@ export function useAttendanceData({
         throw handleAttendanceError(error);
       }
     },
-    [employeeId, lineUserId, locationState, mutate, data],
+    [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
+
+  // Add debug logging for data changes
+  useEffect(() => {
+    if (data) {
+      console.log('useAttendanceData state update:', {
+        hasDaily: !!data.daily,
+        hasBase: !!data.base,
+        hasContext: !!data.context,
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }, [data]);
 
   const sanitizeResponse = (data: any): AttendanceStatusResponse => {
     console.log('Sanitizing response data:', {
