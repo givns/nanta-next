@@ -735,12 +735,16 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
               isTransition: false,
             });
 
+            await refreshAttendanceStatus();
+
             setProcessingState({
               status: 'success',
               message: 'บันทึกเวลาสำเร็จ',
             });
 
-            setTimeout(onComplete, 2000);
+            setTimeout(() => {
+              onComplete();
+            }, 2000);
           } catch (error) {
             console.error('Late check-in error:', error);
             setProcessingState({

@@ -31,6 +31,7 @@ import {
   ProcessingOptions,
   AttendanceRecord,
   TimeEntryHours,
+  ATTENDANCE_CONSTANTS,
 } from '../types/attendance';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
@@ -753,14 +754,32 @@ export class TimeEntryService {
   // Simplified late status calculation (no notifications)
   private calculateLateStatus(
     checkInTime: Date,
-    shiftStart: Date,
-  ): CheckInCalculationsResult {
-    const minutesLate = Math.max(
-      0,
-      differenceInMinutes(checkInTime, shiftStart),
+    shiftStartTime: Date,
+  ): { minutesLate: number; isHalfDayLate: boolean } {
+    // After 5 minutes grace period is considered late
+    const graceEndTime = addMinutes(
+      shiftStartTime,
+      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
     );
-    const isHalfDayLate = minutesLate >= this.HALF_DAY_THRESHOLD;
-    return { minutesLate, isHalfDayLate };
+
+    // If check-in is after the shift start time, calculate minutes late
+    if (checkInTime > shiftStartTime) {
+      const minutesLate = differenceInMinutes(checkInTime, shiftStartTime);
+      const isHalfDayLate = minutesLate >= 240; // 4 hours threshold
+
+      // Log late status calculation
+      console.log('Late status calculation:', {
+        checkIn: format(checkInTime, 'HH:mm:ss'),
+        shiftStart: format(shiftStartTime, 'HH:mm:ss'),
+        minutesLate,
+        isHalfDayLate,
+      });
+
+      return { minutesLate, isHalfDayLate };
+    }
+
+    // If check-in is on or before shift start time
+    return { minutesLate: 0, isHalfDayLate: false };
   }
 
   private async notifyLateCheckIn(
