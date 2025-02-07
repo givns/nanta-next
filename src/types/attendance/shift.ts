@@ -67,20 +67,29 @@ export interface TransitionInfo {
 export interface ShiftAdjustment {
   id: string;
   employeeId: string;
-  updatedAt: Date;
-  requestedShiftId: string;
-  date: Date;
-  reason: string;
-  status: string;
-  createdAt: Date;
-  requestedShift: {
-    id: string;
+  user: {
     name: string;
+    employeeId: string;
+    departmentName: string;
+    assignedShift: {
+      shiftCode: string;
+      name: string;
+      startTime: string;
+      endTime: string;
+    } | null;
+  };
+  requestedShiftId: string;
+  requestedShift: {
     shiftCode: string;
+    name: string;
     startTime: string;
     endTime: string;
-    workDays: number[];
   };
+  date: string;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ShiftStatus {

@@ -12,6 +12,7 @@ import { AlertCircle, Loader2, Search, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -405,6 +406,9 @@ export default function ShiftAdjustmentDashboard() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Create New Shift Adjustment</DialogTitle>
+            <DialogDescription>
+              Create a new shift adjustment for an individual or department.
+            </DialogDescription>
           </DialogHeader>
           <ShiftAdjustmentForm
             departments={departments}

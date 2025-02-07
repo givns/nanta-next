@@ -1300,16 +1300,27 @@ export class PeriodManagementService {
     now: Date,
   ): PeriodValidation {
     const periodStart = parseISO(currentState.timeWindow.start);
-    const periodEnd = parseISO(currentState.timeWindow.end);
+
+    // Calculate late status first
+    const isLate = this.isLateForPeriod(now, periodStart);
+    const isWithinLateAllowance = isWithinInterval(now, {
+      start: periodStart,
+      end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+    });
+
+    // Log validation calculation
+    console.log('Period access validation:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      periodStart: format(periodStart, 'HH:mm:ss'),
+      isLate,
+      isWithinLateAllowance,
+    });
 
     return {
-      canCheckIn: this.canCheckIn(currentState, statusInfo, now),
+      canCheckIn: !statusInfo.isActiveAttendance && isWithinLateAllowance,
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn: this.isLateForPeriod(now, periodStart),
-      isWithinLateAllowance: isWithinInterval(now, {
-        start: periodStart,
-        end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
-      }),
+      isLateCheckIn: isLate,
+      isWithinLateAllowance,
     };
   }
 
@@ -1413,8 +1424,26 @@ export class PeriodManagementService {
     periodStart: Date,
     threshold: number = VALIDATION_THRESHOLDS.LATE_CHECKIN,
   ): boolean {
-    const lateThresholdEnd = addMinutes(periodStart, threshold);
-    return isAfter(now, lateThresholdEnd);
+    // If after period start, it's late
+    const isAfterStart = isAfter(now, periodStart);
+
+    // Check if within late allowance
+    const isWithinAllowance = isWithinInterval(now, {
+      start: periodStart,
+      end: addMinutes(periodStart, threshold),
+    });
+
+    // Log late check calculation
+    console.log('Late check calculation:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      periodStart: format(periodStart, 'HH:mm:ss'),
+      isAfterStart,
+      isWithinAllowance,
+      lateThreshold: threshold,
+    });
+
+    // It's considered late if after start and within allowance
+    return isAfterStart && isWithinAllowance;
   }
 
   private isLateCheckOut(
