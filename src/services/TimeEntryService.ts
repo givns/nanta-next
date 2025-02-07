@@ -482,9 +482,17 @@ export class TimeEntryService {
       shiftStart,
     );
 
-    // Check if notification should be sent
-    if (minutesLate <= this.LATE_THRESHOLD) return;
+    console.log('Late Check-In Processing:', {
+      minutesLate,
+      lateThreshold: this.LATE_THRESHOLD,
+      isHalfDayLate,
+    });
 
+    // Check if notification should be sent
+    if (minutesLate <= this.LATE_THRESHOLD) {
+      console.log('Skipping late notification - within threshold');
+      return;
+    }
     // Check for approved leaves that would affect notification
     const hasApprovedLeave = leaveRequests.some(
       (leave) =>
@@ -924,6 +932,9 @@ export class TimeEntryService {
             isEmergency,
             timestamp: getCurrentTime(),
           });
+          if (admins.length === 0) {
+            console.warn('No admins found for late check-in notification');
+          }
         } catch (error) {
           console.error(
             `Failed to send late check-in notification to admin ${admin.employeeId}:`,
