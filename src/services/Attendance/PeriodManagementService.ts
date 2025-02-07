@@ -17,6 +17,7 @@ import {
   PeriodStatusInfo,
   TimingFlags,
   ATTENDANCE_CONSTANTS,
+  StateValidation,
 } from '@/types/attendance';
 import { PeriodType, AttendanceState } from '@prisma/client';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -36,6 +37,7 @@ import {
   isBefore,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
+import { State } from 'swr';
 
 interface PeriodValidation {
   canCheckIn: boolean;

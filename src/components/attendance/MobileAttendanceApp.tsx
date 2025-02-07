@@ -508,7 +508,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
           <div className="max-w-3xl mx-auto">
             {/* Name, ID, Department - all centered */}
             <div className="text-center mb-4">
-              <div className="font-bold text-lg text-gray-900 mb-2">
+              <div className="font-bold text-xl text-gray-900 mb-2">
                 {userData.name}
               </div>
               <div className="text-sm text-gray-500 mb-1">
