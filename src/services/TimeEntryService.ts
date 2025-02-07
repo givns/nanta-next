@@ -91,89 +91,105 @@ export class TimeEntryService {
     overtime?: TimeEntry[];
   }> {
     try {
-      // Get all overtimes first
+      // For regular period check-in, skip overtime matching
+      if (
+        options.periodType === PeriodType.REGULAR &&
+        options.activity.isCheckIn
+      ) {
+        // Pre-fetch data for regular entry
+        const [leaveRequests, shift] = await Promise.all([
+          this.leaveService.getLeaveRequests(options.employeeId),
+          this.shiftService.getEffectiveShift(
+            attendance.employeeId,
+            attendance.date,
+          ),
+        ]);
+
+        const result = await this.processEntriesWithContext(
+          tx,
+          attendance,
+          options,
+          {
+            overtimeRequest: null,
+            leaveRequests,
+            shift,
+          },
+        );
+
+        return {
+          regular: result.regular
+            ? this.ensureProcessedEntry(result.regular)
+            : undefined,
+        };
+      }
+
+      // For overtime or check-out cases, proceed with overtime matching
       const overtimes = await this.overtimeService.getDetailedOvertimesInRange(
         options.employeeId,
-        startOfDay(subDays(new Date(options.checkTime), 1)), // Look back an extra day
+        startOfDay(subDays(new Date(options.checkTime), 1)),
         endOfDay(new Date(options.checkTime)),
       );
 
-      // Match the correct overtime period based on check-in time
+      // Match overtime only if needed (for overtime periods or check-outs)
       const matchedOvertime = overtimes?.find((ot) => {
         const checkInTime = attendance.CheckInTime!;
-        const checkOutTime = attendance.CheckOutTime!;
 
-        // Parse start and end times
-        const [startHour, startMinute] = ot.startTime.split(':').map(Number);
-        const [endHour, endMinute] = ot.endTime.split(':').map(Number);
+        // For check-in, only match start time
+        if (options.activity.isCheckIn) {
+          const [startHour, startMinute] = ot.startTime.split(':').map(Number);
+          const startTimeInMinutes = startHour * 60 + startMinute;
+          const checkInTimeInMinutes =
+            checkInTime.getHours() * 60 + checkInTime.getMinutes();
 
-        // Convert times to minutes for easier comparison
-        const startTimeInMinutes = startHour * 60 + startMinute;
-        const endTimeInMinutes = endHour * 60 + endMinute;
+          // Allow early check-in window
+          const earlyWindowMinutes = startTimeInMinutes - 30; // 30 minutes early window
+          return (
+            checkInTimeInMinutes >= earlyWindowMinutes &&
+            checkInTimeInMinutes <= startTimeInMinutes + 15
+          ); // 15 minutes late window
+        }
 
-        // For check-in
-        const checkInHour = checkInTime.getHours();
-        const checkInMinute = checkInTime.getMinutes();
-        const checkInTimeInMinutes = checkInHour * 60 + checkInMinute;
+        // For check-out, check both start and end times
+        if (attendance.CheckOutTime) {
+          const [startHour, startMinute] = ot.startTime.split(':').map(Number);
+          const [endHour, endMinute] = ot.endTime.split(':').map(Number);
 
-        // For check-out
-        const checkOutHour = checkOutTime.getHours();
-        const checkOutMinute = checkOutTime.getMinutes();
-        const checkOutTimeInMinutes = checkOutHour * 60 + checkOutMinute;
+          const startTimeInMinutes = startHour * 60 + startMinute;
+          const endTimeInMinutes = endHour * 60 + endMinute;
 
-        // Conditions for matching:
-        // 1. Check-in is before or equal to overtime end
-        // 2. Check-out is after overtime start
-        const isCheckInBeforeOvertimeEnd =
-          checkInTimeInMinutes <= endTimeInMinutes;
-        const isCheckOutAfterOvertimeStart =
-          checkOutTimeInMinutes >= startTimeInMinutes;
+          const checkOutTime = attendance.CheckOutTime;
+          const checkOutTimeInMinutes =
+            checkOutTime.getHours() * 60 + checkOutTime.getMinutes();
 
-        return isCheckInBeforeOvertimeEnd && isCheckOutAfterOvertimeStart;
+          return (
+            checkOutTimeInMinutes >= startTimeInMinutes &&
+            checkOutTimeInMinutes <= endTimeInMinutes
+          );
+        }
+
+        return false;
       });
 
-      // Logging with local variables
       console.log('Overtime matching details:', {
         checkInTime: {
           full: attendance.CheckInTime,
           formatted: attendance.CheckInTime
             ? format(attendance.CheckInTime, 'HH:mm:ss')
             : null,
-          minutes: attendance.CheckInTime
-            ? attendance.CheckInTime.getHours() * 60 +
-              attendance.CheckInTime.getMinutes()
-            : null,
         },
         checkOutTime: attendance.CheckOutTime
-          ? {
-              full: attendance.CheckOutTime,
-              formatted: format(attendance.CheckOutTime, 'HH:mm:ss'),
-              minutes:
-                attendance.CheckOutTime.getHours() * 60 +
-                attendance.CheckOutTime.getMinutes(),
-            }
+          ? format(attendance.CheckOutTime, 'HH:mm:ss')
           : null,
         availableOvertimes: overtimes?.map((ot) => ({
           start: ot.startTime,
           end: ot.endTime,
-          startMinutes: ot.startTime
-            .split(':')
-            .map(Number)
-            .reduce((a, b) => a * 60 + b, 0),
-          endMinutes: ot.endTime
-            .split(':')
-            .map(Number)
-            .reduce((a, b) => a * 60 + b, 0),
         })),
         matched: matchedOvertime
-          ? {
-              start: matchedOvertime.startTime,
-              end: matchedOvertime.endTime,
-            }
+          ? { start: matchedOvertime.startTime, end: matchedOvertime.endTime }
           : null,
       });
 
-      // Pre-fetch all necessary data
+      // Fetch required data
       const [leaveRequests, shift] = await Promise.all([
         this.leaveService.getLeaveRequests(options.employeeId),
         this.shiftService.getEffectiveShift(
@@ -182,7 +198,7 @@ export class TimeEntryService {
         ),
       ]);
 
-      // Process entries within transaction
+      // Process entries
       const result = await this.processEntriesWithContext(
         tx,
         attendance,
@@ -194,7 +210,7 @@ export class TimeEntryService {
         },
       );
 
-      // Handle post-processing asynchronously
+      // Handle post-processing
       setImmediate(() => {
         this.handlePostProcessing(
           attendance,
@@ -211,7 +227,6 @@ export class TimeEntryService {
         );
       });
 
-      // Convert raw results to properly typed entries
       return {
         regular: result.regular
           ? this.ensureProcessedEntry(result.regular)

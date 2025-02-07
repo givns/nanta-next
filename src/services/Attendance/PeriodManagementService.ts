@@ -16,6 +16,7 @@ import {
   PeriodState,
   PeriodStatusInfo,
   TimingFlags,
+  ATTENDANCE_CONSTANTS,
 } from '@/types/attendance';
 import { PeriodType, AttendanceState } from '@prisma/client';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -762,13 +763,9 @@ export class PeriodManagementService {
         currentState.type,
       );
 
+    // Late check-in - after allowance period
     const isLateCheckIn =
-      !attendance?.CheckInTime &&
-      this.isLateForPeriod(
-        now,
-        periodStart,
-        VALIDATION_THRESHOLDS.LATE_CHECKIN,
-      );
+      !attendance?.CheckInTime && this.isLateForPeriod(now, periodStart);
 
     const isLateCheckOut = this.isLateCheckOut(attendance, currentState, now);
 
@@ -1501,31 +1498,13 @@ export class PeriodManagementService {
     });
   }
 
-  private isLateForPeriod(
-    now: Date,
-    periodStart: Date,
-    threshold: number = VALIDATION_THRESHOLDS.LATE_CHECKIN,
-  ): boolean {
-    // If after period start, it's late
-    const isAfterStart = isAfter(now, periodStart);
-
-    // Check if within late allowance
-    const isWithinAllowance = isWithinInterval(now, {
-      start: periodStart,
-      end: addMinutes(periodStart, threshold),
-    });
-
-    // Log late check calculation
-    console.log('Late check calculation:', {
-      currentTime: format(now, 'HH:mm:ss'),
-      periodStart: format(periodStart, 'HH:mm:ss'),
-      isAfterStart,
-      isWithinAllowance,
-      lateThreshold: threshold,
-    });
-
-    // It's considered late if after start and within allowance
-    return isAfterStart && isWithinAllowance;
+  private isLateForPeriod(now: Date, periodStart: Date): boolean {
+    // After allowance period (start time + 5 minutes) is considered late
+    const allowancePeriodEnd = addMinutes(
+      periodStart,
+      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
+    );
+    return isAfter(now, allowancePeriodEnd);
   }
 
   private isLateCheckOut(
