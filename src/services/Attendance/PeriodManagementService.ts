@@ -722,6 +722,7 @@ export class PeriodManagementService {
         late: format(lateWindow, 'HH:mm:ss'),
       },
       currentTime: format(now, 'HH:mm:ss'),
+      isLate: now > lateWindow,
     });
 
     const isWithinPeriod = isWithinInterval(now, {
