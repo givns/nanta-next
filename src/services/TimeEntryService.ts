@@ -308,6 +308,18 @@ export class TimeEntryService {
     leaveRequests: LeaveRequest[],
     shift: any,
   ): Promise<TimeEntry> {
+    const lateStatus = this.calculateLateStatus(
+      attendance.CheckInTime!,
+      shift.effectiveShift.startTime,
+    );
+
+    console.log('Detailed Late Status Logging:', {
+      employeeId: attendance.employeeId,
+      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      minutesLate: lateStatus.minutesLate,
+      isHalfDayLate: lateStatus.isHalfDayLate,
+    });
+
     console.log('Handle regular entry:', {
       isCheckIn,
       attendanceId: attendance.id,
@@ -757,47 +769,24 @@ export class TimeEntryService {
     shiftStartTime: Date,
   ): { minutesLate: number; isHalfDayLate: boolean } {
     // Extensive debugging for late status calculation
-    console.log('Late Status Calculation Debug:', {
+    console.log('Late Status Calculation Comprehensive Debug:', {
       checkInTime: {
-        formatted: format(checkInTime, 'yyyy-MM-dd HH:mm:ss.SSS'),
-        iso: checkInTime.toISOString(),
+        formatted: format(checkInTime, 'yyyy-MM-dd HH:mm:ss.SSS Z'),
         timestamp: checkInTime.getTime(),
-        components: {
-          year: checkInTime.getFullYear(),
-          month: checkInTime.getMonth(),
-          date: checkInTime.getDate(),
-          hours: checkInTime.getHours(),
-          minutes: checkInTime.getMinutes(),
-          seconds: checkInTime.getSeconds(),
-          milliseconds: checkInTime.getMilliseconds(),
-        },
+        iso: checkInTime.toISOString(),
       },
       shiftStartTime: {
-        formatted: format(shiftStartTime, 'yyyy-MM-dd HH:mm:ss.SSS'),
-        iso: shiftStartTime.toISOString(),
+        formatted: format(shiftStartTime, 'yyyy-MM-dd HH:mm:ss.SSS Z'),
         timestamp: shiftStartTime.getTime(),
-        components: {
-          year: shiftStartTime.getFullYear(),
-          month: shiftStartTime.getMonth(),
-          date: shiftStartTime.getDate(),
-          hours: shiftStartTime.getHours(),
-          minutes: shiftStartTime.getMinutes(),
-          seconds: shiftStartTime.getSeconds(),
-          milliseconds: shiftStartTime.getMilliseconds(),
-        },
-      },
-      comparisonResults: {
-        greaterThan: checkInTime > shiftStartTime,
-        equalTo: checkInTime.getTime() === shiftStartTime.getTime(),
-        timeDifference: checkInTime.getTime() - shiftStartTime.getTime(),
+        iso: shiftStartTime.toISOString(),
       },
     });
 
-    // Precise comparison using timestamps
+    // Use absolute time comparison with full timestamps
     const checkInTimestamp = checkInTime.getTime();
     const shiftStartTimestamp = shiftStartTime.getTime();
 
-    // If check-in is strictly after the shift start time
+    // Calculate late status considering full timestamp precision
     if (checkInTimestamp > shiftStartTimestamp) {
       const minutesLate = differenceInMinutes(checkInTime, shiftStartTime);
       const isHalfDayLate = minutesLate >= 240; // 4 hours threshold
@@ -810,13 +799,11 @@ export class TimeEntryService {
         checkInTimestamp,
         shiftStartTimestamp,
         timestampDifference: checkInTimestamp - shiftStartTimestamp,
-        differenceInMs: checkInTimestamp - shiftStartTimestamp,
       });
 
       return { minutesLate, isHalfDayLate };
     }
 
-    // If check-in is on or before shift start time
     console.log('No Late Time Detected', {
       reason: 'Check-in not after shift start',
       checkInTimestamp,
