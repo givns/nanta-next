@@ -17,6 +17,7 @@ import {
   isSameDay,
   max,
   min,
+  parse,
   parseISO,
   startOfDay,
   subDays,
@@ -483,6 +484,12 @@ export class TimeEntryService {
       },
     });
 
+    const effectiveStartTime = parse(
+      overtimeRequest.startTime,
+      'HH:mm',
+      attendance.CheckInTime!,
+    );
+
     // Find existing entry
     const existingEntry = await tx.timeEntry.findFirst({
       where: {
@@ -497,7 +504,7 @@ export class TimeEntryService {
         data: {
           employeeId: attendance.employeeId,
           date: attendance.date,
-          startTime: attendance.CheckInTime!,
+          startTime: effectiveStartTime,
           status: TimeEntryStatus.STARTED,
           entryType: PeriodType.OVERTIME,
           attendanceId: attendance.id,
