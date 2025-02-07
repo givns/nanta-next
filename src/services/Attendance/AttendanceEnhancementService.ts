@@ -592,7 +592,7 @@ export class AttendanceEnhancementService {
         !statusInfo.shiftTiming.isAfterMidshift, // Not after midshift
     );
     console.log('Validation flags:', {
-      isLateCheckIn,
+      isLateCheckIn: periodValidation.isLateCheckIn,
       isEarlyCheckIn: currentState.validation.isEarly,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isVeryLateCheckOut: statusInfo.timingFlags.isVeryLateCheckOut,
@@ -612,7 +612,7 @@ export class AttendanceEnhancementService {
 
     return {
       isCheckingIn: !statusInfo.isActiveAttendance,
-      isLateCheckIn,
+      isLateCheckIn: periodValidation.isLateCheckIn,
       isEarlyCheckIn: currentState.validation.isEarly,
       isEarlyCheckOut: false,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
@@ -643,7 +643,7 @@ export class AttendanceEnhancementService {
 
       // Special cases
       isPlannedHalfDayLeave: false,
-      isEmergencyLeave, // New emergency leave logic
+      isEmergencyLeave,
       isApprovedEarlyCheckout: false,
       isHoliday: periodState.isHoliday,
       isDayOff: periodState.isDayOff,
