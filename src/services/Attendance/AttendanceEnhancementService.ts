@@ -586,6 +586,12 @@ export class AttendanceEnhancementService {
     const isLateCheckIn =
       periodValidation.isLateCheckIn && !attendance?.CheckInTime;
 
+    // Emergency Leave Logic
+    const isEmergencyLeave = Boolean(
+      statusInfo.isActiveAttendance && // User is checked in
+        !statusInfo.shiftTiming.isAfterMidshift, // Not after midshift
+    );
+
     return {
       isCheckingIn: !statusInfo.isActiveAttendance,
       isLateCheckIn,
@@ -619,7 +625,7 @@ export class AttendanceEnhancementService {
 
       // Special cases
       isPlannedHalfDayLeave: false,
-      isEmergencyLeave: false,
+      isEmergencyLeave, // New emergency leave logic
       isApprovedEarlyCheckout: false,
       isHoliday: periodState.isHoliday,
       isDayOff: periodState.isDayOff,

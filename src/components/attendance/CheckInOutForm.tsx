@@ -449,6 +449,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       transition: context?.transition,
       nextPeriod: context?.nextPeriod,
       availableAt: context?.transition?.to?.start,
+      now: getCurrentTime(),
     });
 
     // Emergency leave case
