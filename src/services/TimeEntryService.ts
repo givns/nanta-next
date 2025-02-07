@@ -308,14 +308,26 @@ export class TimeEntryService {
     leaveRequests: LeaveRequest[],
     shift: any,
   ): Promise<TimeEntry> {
+    // Safely access shift data
+    const shiftStartTime =
+      shift?.current?.startTime || shift?.effectiveShift?.startTime;
+    if (!shiftStartTime) {
+      console.error('Missing shift start time:', {
+        shiftData: shift,
+        attendanceId: attendance.id,
+      });
+      throw new Error('Invalid shift configuration');
+    }
+
     const lateStatus = this.calculateLateStatus(
       attendance.CheckInTime!,
-      shift.effectiveShift.startTime,
+      this.parseShiftTime(shiftStartTime, attendance.date),
     );
 
     console.log('Detailed Late Status Logging:', {
       employeeId: attendance.employeeId,
       checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      shiftStartTime,
       minutesLate: lateStatus.minutesLate,
       isHalfDayLate: lateStatus.isHalfDayLate,
     });
@@ -338,7 +350,14 @@ export class TimeEntryService {
     });
 
     // Get shift times and calculate metrics
-    const shiftTimes = this.getShiftTimes(shift, attendance.date);
+    const shiftTimes = {
+      start: this.parseShiftTime(shiftStartTime, attendance.date),
+      end: this.parseShiftTime(
+        shift?.current?.endTime || shift?.effectiveShift?.endTime,
+        attendance.date,
+      ),
+    };
+
     const metrics = this.calculateEntryMetrics(
       attendance,
       isCheckIn,
@@ -366,6 +385,16 @@ export class TimeEntryService {
           ...entryData,
           employeeId: attendance.employeeId,
           attendanceId: attendance.id,
+          hours: {
+            regular: 0,
+            overtime: 0,
+          },
+          metadata: {
+            source: 'system',
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
         },
       });
     }
@@ -400,7 +429,7 @@ export class TimeEntryService {
         endTime: attendance.CheckOutTime,
         status: TimeEntryStatus.COMPLETED,
         hours: {
-          regular: workingHours.regularHours, // Will be 8 hours or 4 for half day
+          regular: workingHours.regularHours,
           overtime: 0,
         },
         metadata: {
