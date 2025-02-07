@@ -1300,22 +1300,22 @@ export class PeriodManagementService {
     now: Date,
   ): PeriodValidation {
     const periodStart = parseISO(currentState.timeWindow.start);
-    const earlyWindow = {
+
+    // Early window check (before start time)
+    const isInEarlyWindow = isWithinInterval(now, {
       start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
       end: periodStart,
-    };
+    });
 
-    // Is in early window
-    const isInEarlyWindow = isWithinInterval(now, earlyWindow);
-
-    // Is within late allowance (only if already past start time)
+    // Late window check (after start time, within allowance)
     const isInLateWindow = isWithinInterval(now, {
       start: periodStart,
       end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
     });
 
-    // For check-in permission, only allow early window
-    const canCheckIn = !statusInfo.isActiveAttendance && isInEarlyWindow;
+    // Allow check-in if either in early window OR in late window
+    const canCheckIn =
+      !statusInfo.isActiveAttendance && (isInEarlyWindow || isInLateWindow);
 
     return {
       canCheckIn,
