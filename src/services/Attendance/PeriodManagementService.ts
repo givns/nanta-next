@@ -1400,31 +1400,27 @@ export class PeriodManagementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): boolean {
-    // Check if PeriodType is properly imported
-    console.log('DEBUG: PeriodType enum check:', {
-      PeriodType,
-      comparison: {
-        currentType: currentState.type,
-        overtimeType: PeriodType.OVERTIME,
-        isEqual: currentState.type === PeriodType.OVERTIME,
-        typeofCurrentType: typeof currentState.type,
-        typeofOvertimeType: typeof PeriodType.OVERTIME,
-      },
-    });
-
+    // If no active attendance, can't check out
     if (!statusInfo.isActiveAttendance) {
       return false;
     }
 
-    // Use strict comparison
+    // Always allow check-out during overtime
     const isOvertimePeriod = Object.is(currentState.type, PeriodType.OVERTIME);
-    console.log('DEBUG: Strict comparison:', { isOvertimePeriod });
-
     if (isOvertimePeriod) {
       return true;
     }
 
-    return false;
+    // Additional conditions that allow check-out
+    const additionalCheckOutConditions =
+      statusInfo.timingFlags.isLateCheckOut ||
+      statusInfo.timingFlags.isVeryLateCheckOut ||
+      // These flags would come from the validation logic you mentioned
+      statusInfo.shiftTiming.isAfterMidshift || // Added for emergency leave case
+      // Add other specific conditions here
+      false; // Placeholder for additional flags
+
+    return additionalCheckOutConditions;
   }
 
   public validatePeriodAccess(
