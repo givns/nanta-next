@@ -367,6 +367,7 @@ export const CACHE_CONSTANTS = {
 
 export const ATTENDANCE_CONSTANTS = {
   EARLY_CHECK_IN_THRESHOLD: 29, // 29 minutes
+  OT_EARLY_CHECKIN: 10, // 10 minutes
   LATE_CHECK_IN_THRESHOLD: 5, // 5 minutes
   LATE_CHECK_OUT_THRESHOLD: 15, // 15 minutes
   EARLY_CHECK_OUT_THRESHOLD: 5, // 5 minutes
