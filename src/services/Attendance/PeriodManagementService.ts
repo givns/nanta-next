@@ -1300,6 +1300,7 @@ export class PeriodManagementService {
     now: Date,
   ): PeriodValidation {
     const periodStart = parseISO(currentState.timeWindow.start);
+    const periodEnd = parseISO(currentState.timeWindow.end);
 
     // Early window check (before start time)
     const isInEarlyWindow = isWithinInterval(now, {
@@ -1307,21 +1308,24 @@ export class PeriodManagementService {
       end: periodStart,
     });
 
-    // Late window check (after start time, within allowance)
-    const isInLateWindow = isWithinInterval(now, {
-      start: periodStart,
-      end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
-    });
+    // Is late if after start time
+    const isLateCheckIn = now > periodStart;
 
-    // Allow check-in if either in early window OR in late window
+    // Within shift window (can check in anytime during shift)
+    const isWithinShift = now < periodEnd;
+
+    // Allow check-in if either early or within shift time
     const canCheckIn =
-      !statusInfo.isActiveAttendance && (isInEarlyWindow || isInLateWindow);
+      !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift);
+
+    // Late allowance only relevant when checking late status
+    const isWithinLateAllowance = isLateCheckIn;
 
     return {
       canCheckIn,
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn: now > periodStart,
-      isWithinLateAllowance: isInLateWindow,
+      isLateCheckIn,
+      isWithinLateAllowance,
     };
   }
 
