@@ -756,29 +756,73 @@ export class TimeEntryService {
     checkInTime: Date,
     shiftStartTime: Date,
   ): { minutesLate: number; isHalfDayLate: boolean } {
-    // After 5 minutes grace period is considered late
-    const graceEndTime = addMinutes(
-      shiftStartTime,
-      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-    );
+    // Extensive debugging for late status calculation
+    console.log('Late Status Calculation Debug:', {
+      checkInTime: {
+        formatted: format(checkInTime, 'yyyy-MM-dd HH:mm:ss.SSS'),
+        iso: checkInTime.toISOString(),
+        timestamp: checkInTime.getTime(),
+        components: {
+          year: checkInTime.getFullYear(),
+          month: checkInTime.getMonth(),
+          date: checkInTime.getDate(),
+          hours: checkInTime.getHours(),
+          minutes: checkInTime.getMinutes(),
+          seconds: checkInTime.getSeconds(),
+          milliseconds: checkInTime.getMilliseconds(),
+        },
+      },
+      shiftStartTime: {
+        formatted: format(shiftStartTime, 'yyyy-MM-dd HH:mm:ss.SSS'),
+        iso: shiftStartTime.toISOString(),
+        timestamp: shiftStartTime.getTime(),
+        components: {
+          year: shiftStartTime.getFullYear(),
+          month: shiftStartTime.getMonth(),
+          date: shiftStartTime.getDate(),
+          hours: shiftStartTime.getHours(),
+          minutes: shiftStartTime.getMinutes(),
+          seconds: shiftStartTime.getSeconds(),
+          milliseconds: shiftStartTime.getMilliseconds(),
+        },
+      },
+      comparisonResults: {
+        greaterThan: checkInTime > shiftStartTime,
+        equalTo: checkInTime.getTime() === shiftStartTime.getTime(),
+        timeDifference: checkInTime.getTime() - shiftStartTime.getTime(),
+      },
+    });
 
-    // If check-in is after the shift start time, calculate minutes late
-    if (checkInTime > shiftStartTime) {
+    // Precise comparison using timestamps
+    const checkInTimestamp = checkInTime.getTime();
+    const shiftStartTimestamp = shiftStartTime.getTime();
+
+    // If check-in is strictly after the shift start time
+    if (checkInTimestamp > shiftStartTimestamp) {
       const minutesLate = differenceInMinutes(checkInTime, shiftStartTime);
       const isHalfDayLate = minutesLate >= 240; // 4 hours threshold
 
-      // Log late status calculation
-      console.log('Late status calculation:', {
+      console.log('Detailed Late Calculation:', {
         checkIn: format(checkInTime, 'HH:mm:ss'),
         shiftStart: format(shiftStartTime, 'HH:mm:ss'),
         minutesLate,
         isHalfDayLate,
+        checkInTimestamp,
+        shiftStartTimestamp,
+        timestampDifference: checkInTimestamp - shiftStartTimestamp,
+        differenceInMs: checkInTimestamp - shiftStartTimestamp,
       });
 
       return { minutesLate, isHalfDayLate };
     }
 
     // If check-in is on or before shift start time
+    console.log('No Late Time Detected', {
+      reason: 'Check-in not after shift start',
+      checkInTimestamp,
+      shiftStartTimestamp,
+    });
+
     return { minutesLate: 0, isHalfDayLate: false };
   }
 
