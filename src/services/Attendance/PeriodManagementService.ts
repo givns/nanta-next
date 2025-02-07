@@ -644,8 +644,10 @@ export class PeriodManagementService {
         },
         activity: {
           isActive: Boolean(attendance.CheckInTime && !attendance.CheckOutTime),
-          checkIn: attendance.CheckInTime.toISOString(),
-          checkOut: attendance.CheckOutTime?.toISOString() || null,
+          checkIn: format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          checkOut: attendance.CheckOutTime
+            ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+            : null,
           isOvertime: period.type === PeriodType.OVERTIME,
           isDayOffOvertime: Boolean(period.isDayOff),
           isInsideShiftHours: isWithinInterval(now, {
