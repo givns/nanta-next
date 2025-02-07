@@ -798,14 +798,14 @@ export class TimeEntryService {
     shiftStartTime: Date,
   ): { minutesLate: number; isHalfDayLate: boolean } {
     // Extensive debugging for late status calculation
-    console.log('Late Status Calculation Comprehensive Debug:', {
+    console.log('Late Status Calculation Debug:', {
       checkInTime: {
-        formatted: format(checkInTime, 'yyyy-MM-dd HH:mm:ss.SSS Z'),
+        formatted: format(checkInTime, 'yyyy-MM-dd HH:mm:ss'),
         timestamp: checkInTime.getTime(),
         iso: checkInTime.toISOString(),
       },
       shiftStartTime: {
-        formatted: format(shiftStartTime, 'yyyy-MM-dd HH:mm:ss.SSS Z'),
+        formatted: format(shiftStartTime, 'yyyy-MM-dd HH:mm:ss'),
         timestamp: shiftStartTime.getTime(),
         iso: shiftStartTime.toISOString(),
       },
@@ -820,7 +820,7 @@ export class TimeEntryService {
       const minutesLate = differenceInMinutes(checkInTime, shiftStartTime);
       const isHalfDayLate = minutesLate >= 240; // 4 hours threshold
 
-      console.log('Detailed Late Calculation:', {
+      console.log('Late Calculation Details:', {
         checkIn: format(checkInTime, 'HH:mm:ss'),
         shiftStart: format(shiftStartTime, 'HH:mm:ss'),
         minutesLate,
