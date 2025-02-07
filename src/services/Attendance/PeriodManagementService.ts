@@ -368,11 +368,12 @@ export class PeriodManagementService {
     }
 
     // Modify periodState to include nextPeriod
-    periodState = {
+    const updatedPeriodState = {
       ...periodState,
       nextPeriod: nextPeriod
         ? {
-            startTime: `${format(now, 'yyyy-MM-dd')}T${nextPeriod.startTime}`,
+            start: `${format(now, 'yyyy-MM-dd')}T${nextPeriod.startTime}`,
+            end: `${format(now, 'yyyy-MM-dd')}T${nextPeriod.endTime}`,
             type: nextPeriod.type,
           }
         : undefined,
