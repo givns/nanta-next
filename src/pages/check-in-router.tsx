@@ -397,8 +397,19 @@ const CheckInRouter: React.FC = () => {
   const mainContent = useMemo(() => {
     // Early return if we don't have required data
     if (!userData?.employeeId) return null;
-    if (!safeAttendanceProps?.base?.state) return null;
+    // Process attendance props
+    const safeProps = safeAttendanceProps
+      ? createSafeAttendance(safeAttendanceProps)
+      : null;
 
+    if (!safeProps?.base?.state) {
+      console.log('Missing required attendance data', {
+        hasProps: !!safeAttendanceProps,
+        hasBase: !!safeProps?.base,
+        state: safeProps?.base?.state,
+      });
+      return null;
+    }
     const serializeRecords = (
       records: Array<{
         record: AttendanceRecord;
