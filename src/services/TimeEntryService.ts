@@ -484,6 +484,7 @@ export class TimeEntryService {
       },
     });
 
+    // Use the overtime period's start time for creating/updating time entries
     const effectiveStartTime = parse(
       overtimeRequest.startTime,
       'HH:mm',
@@ -504,7 +505,7 @@ export class TimeEntryService {
         data: {
           employeeId: attendance.employeeId,
           date: attendance.date,
-          startTime: effectiveStartTime,
+          startTime: effectiveStartTime, // Use overtime start time
           status: TimeEntryStatus.STARTED,
           entryType: PeriodType.OVERTIME,
           attendanceId: attendance.id,
