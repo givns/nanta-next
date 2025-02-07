@@ -100,21 +100,80 @@ export class TimeEntryService {
 
       // Match the correct overtime period based on check-in time
       const matchedOvertime = overtimes?.find((ot) => {
-        const checkInHour = attendance.CheckInTime!.getHours();
-        const checkInMinute = attendance.CheckInTime!.getMinutes();
+        const checkInTime = attendance.CheckInTime!;
+        const checkOutTime = attendance.CheckOutTime;
+
+        // Parse start and end times
         const [startHour, startMinute] = ot.startTime.split(':').map(Number);
         const [endHour, endMinute] = ot.endTime.split(':').map(Number);
 
-        return checkInHour === startHour
-          ? checkInMinute >= startMinute
-          : checkInHour >= startHour && checkInHour < endHour;
+        // Convert times to minutes for easier comparison
+        const startTimeInMinutes = startHour * 60 + startMinute;
+        const endTimeInMinutes = endHour * 60 + endMinute;
+
+        // For check-in
+        if (checkOutTime === null) {
+          const checkInHour = checkInTime.getHours();
+          const checkInMinute = checkInTime.getMinutes();
+          const checkInTimeInMinutes = checkInHour * 60 + checkInMinute;
+
+          // Conditions for matching check-in:
+          // 1. Check-in time is within or before the overtime period
+          return (
+            checkInTimeInMinutes <= endTimeInMinutes &&
+            checkInTimeInMinutes >= startTimeInMinutes - 30
+          );
+        }
+
+        // For check-out
+        if (checkOutTime !== null) {
+          const checkOutHour = checkOutTime.getHours();
+          const checkOutMinute = checkOutTime.getMinutes();
+          const checkOutTimeInMinutes = checkOutHour * 60 + checkOutMinute;
+
+          // Conditions for matching check-out:
+          // 1. Check-out time is after or within the overtime period
+          return (
+            checkOutTimeInMinutes > endTimeInMinutes &&
+            checkOutTimeInMinutes <= endTimeInMinutes + 60 // Allow up to 1 hour after
+          );
+        }
+
+        return false;
       });
 
-      console.log('Overtime matching:', {
-        checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      // Logging with local variables
+      console.log('Overtime matching details:', {
+        checkInTime: {
+          full: attendance.CheckInTime,
+          formatted: attendance.CheckInTime
+            ? format(attendance.CheckInTime, 'HH:mm:ss')
+            : null,
+          minutes: attendance.CheckInTime
+            ? attendance.CheckInTime.getHours() * 60 +
+              attendance.CheckInTime.getMinutes()
+            : null,
+        },
+        checkOutTime: attendance.CheckOutTime
+          ? {
+              full: attendance.CheckOutTime,
+              formatted: format(attendance.CheckOutTime, 'HH:mm:ss'),
+              minutes:
+                attendance.CheckOutTime.getHours() * 60 +
+                attendance.CheckOutTime.getMinutes(),
+            }
+          : null,
         availableOvertimes: overtimes?.map((ot) => ({
           start: ot.startTime,
           end: ot.endTime,
+          startMinutes: ot.startTime
+            .split(':')
+            .map(Number)
+            .reduce((a, b) => a * 60 + b, 0),
+          endMinutes: ot.endTime
+            .split(':')
+            .map(Number)
+            .reduce((a, b) => a * 60 + b, 0),
         })),
         matched: matchedOvertime
           ? {
