@@ -357,14 +357,28 @@ export class PeriodManagementService {
       }
     }
 
-    // Update call to include attendance
-    const relevantPeriod = this.findRelevantPeriod(periods, now, attendance);
-    if (!relevantPeriod) {
+    const { currentPeriod, nextPeriod } = this.findRelevantPeriod(
+      periods,
+      now,
+      attendance,
+    );
+    if (!currentPeriod) {
       console.log('No relevant period found, using default state');
       return this.createDefaultPeriodState(now);
     }
 
-    return this.createPeriodState(relevantPeriod, attendance, now);
+    // Modify periodState to include nextPeriod
+    periodState = {
+      ...periodState,
+      nextPeriod: nextPeriod
+        ? {
+            startTime: `${format(now, 'yyyy-MM-dd')}T${nextPeriod.startTime}`,
+            type: nextPeriod.type,
+          }
+        : undefined,
+    };
+
+    return this.createPeriodState(currentPeriod, attendance, now);
   }
 
   /**
@@ -484,7 +498,10 @@ export class PeriodManagementService {
     periods: PeriodDefinition[],
     now: Date,
     attendance?: AttendanceRecord | null,
-  ): PeriodDefinition | null {
+  ): {
+    currentPeriod: PeriodDefinition | null;
+    nextPeriod: PeriodDefinition | null;
+  } {
     console.log('Finding relevant period:', {
       currentTime: format(now, 'HH:mm:ss'),
       periods: periods.map((p) => ({
@@ -502,6 +519,9 @@ export class PeriodManagementService {
         : null,
     });
 
+    let currentPeriod: PeriodDefinition | null = null;
+    let nextPeriod: PeriodDefinition | null = null;
+
     // First check if we have an active overnight period
     const currentTimeStr = format(now, 'HH:mm');
     const overnightPeriod = periods.find(
@@ -514,61 +534,79 @@ export class PeriodManagementService {
     );
 
     if (overnightPeriod) {
+      currentPeriod = overnightPeriod;
       console.log('Found active overnight period:', {
-        type: overnightPeriod.type,
-        start: overnightPeriod.startTime,
-        end: overnightPeriod.endTime,
+        type: currentPeriod.type,
+        start: currentPeriod.startTime,
+        end: currentPeriod.endTime,
         current: currentTimeStr,
       });
-      return overnightPeriod;
-    }
+    } else {
+      // Check regular periods
+      for (const period of periods) {
+        let currentPeriodStart = this.parseTimeWithContext(
+          period.startTime,
+          now,
+        );
+        let currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
 
-    // For regular periods, check within interval as before
-    for (const period of periods) {
-      let currentPeriodStart = this.parseTimeWithContext(period.startTime, now);
-      let currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
-
-      // Handle overnight periods
-      if (period.isOvernight) {
-        if (currentPeriodEnd < currentPeriodStart) {
-          currentPeriodEnd = addDays(currentPeriodEnd, 1);
+        // Handle overnight periods
+        if (period.isOvernight) {
+          if (currentPeriodEnd < currentPeriodStart) {
+            currentPeriodEnd = addDays(currentPeriodEnd, 1);
+          }
         }
-      }
 
-      // Include early and late windows
-      const earlyWindow = subMinutes(
-        currentPeriodStart,
-        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-      );
-      const lateWindow = addMinutes(
-        currentPeriodEnd,
-        VALIDATION_THRESHOLDS.LATE_CHECKOUT,
-      );
+        // Include early and late windows
+        const earlyWindow = subMinutes(
+          currentPeriodStart,
+          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        );
+        const lateWindow = addMinutes(
+          currentPeriodEnd,
+          VALIDATION_THRESHOLDS.LATE_CHECKOUT,
+        );
 
-      if (isWithinInterval(now, { start: earlyWindow, end: lateWindow })) {
-        console.log('Found current period:', {
-          type: period.type,
-          start: format(currentPeriodStart, 'HH:mm:ss'),
-          end: format(currentPeriodEnd, 'HH:mm:ss'),
-        });
-        return period;
+        if (isWithinInterval(now, { start: earlyWindow, end: lateWindow })) {
+          currentPeriod = period;
+          console.log('Found current period:', {
+            type: period.type,
+            start: format(currentPeriodStart, 'HH:mm:ss'),
+            end: format(currentPeriodEnd, 'HH:mm:ss'),
+          });
+          break;
+        }
       }
     }
 
     // Find next upcoming period
-    const nextPeriod = periods.find((period) => {
-      const start = this.parseTimeWithContext(period.startTime, now);
-      return now < start;
+    nextPeriod =
+      periods.find((period) => {
+        const start = this.parseTimeWithContext(period.startTime, now);
+        return now < start;
+      }) || null;
+
+    console.log('Period Resolution:', {
+      currentPeriod: currentPeriod
+        ? {
+            type: currentPeriod.type,
+            start: currentPeriod.startTime,
+            end: currentPeriod.endTime,
+          }
+        : null,
+      nextPeriod: nextPeriod
+        ? {
+            type: nextPeriod.type,
+            start: nextPeriod.startTime,
+            end: nextPeriod.endTime,
+          }
+        : null,
     });
 
-    if (nextPeriod) {
-      console.log('Found upcoming period:', {
-        type: nextPeriod.type,
-        start: nextPeriod.startTime,
-      });
-    }
-
-    return nextPeriod || null;
+    return {
+      currentPeriod,
+      nextPeriod,
+    };
   }
 
   /**
@@ -793,6 +831,50 @@ export class PeriodManagementService {
       return [];
     }
 
+    // Transition from Overtime to Regular
+    if (currentState.type === PeriodType.OVERTIME) {
+      const regularShiftStart = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.shift.startTime}`,
+      );
+      const overtimeEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.overtimeInfo?.endTime || '00:00'}`,
+      );
+
+      const transitionWindow = {
+        start: overtimeEnd,
+        end: addMinutes(
+          regularShiftStart,
+          PERIOD_CONSTANTS.TRANSITION_CONFIG.LATE_BUFFER,
+        ),
+      };
+
+      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+
+      if (isInTransitionWindow) {
+        console.log('Detected Overtime to Regular Transition:', {
+          overtimeEnd: format(overtimeEnd, 'HH:mm:ss'),
+          regularShiftStart: format(regularShiftStart, 'HH:mm:ss'),
+          currentTime: format(now, 'HH:mm:ss'),
+        });
+
+        return [
+          {
+            from: {
+              periodIndex: 0,
+              type: PeriodType.OVERTIME,
+            },
+            to: {
+              periodIndex: 1,
+              type: PeriodType.REGULAR,
+            },
+            transitionTime: window.shift.startTime,
+            isComplete: false,
+          },
+        ];
+      }
+    }
+
+    // Original Regular to Overtime transition logic
     const shiftEnd = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
     );
@@ -806,15 +888,9 @@ export class PeriodManagementService {
 
     const isInTransitionWindow = isWithinInterval(now, transitionWindow);
     const hasUpcomingOvertime =
-      window.overtimeInfo.startTime === window.shift.endTime;
+      window.overtimeInfo?.startTime === window.shift.endTime;
 
     if (isInTransitionWindow && hasUpcomingOvertime) {
-      console.log('Found valid transition:', {
-        from: PeriodType.REGULAR,
-        to: PeriodType.OVERTIME,
-        transitionTime: window.shift.endTime,
-      });
-
       return [
         {
           from: {
