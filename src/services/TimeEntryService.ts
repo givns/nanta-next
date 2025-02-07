@@ -111,28 +111,25 @@ export class TimeEntryService {
         const startTimeInMinutes = startHour * 60 + startMinute;
         const endTimeInMinutes = endHour * 60 + endMinute;
 
-        // For check-out
-        const checkOutHour = checkOutTime.getHours();
-        const checkOutMinute = checkOutTime.getMinutes();
-        const checkOutTimeInMinutes = checkOutHour * 60 + checkOutMinute;
-
         // For check-in
         const checkInHour = checkInTime.getHours();
         const checkInMinute = checkInTime.getMinutes();
         const checkInTimeInMinutes = checkInHour * 60 + checkInMinute;
 
-        // Conditions for matching check-out:
-        // 1. Check-out time is near the overtime period end
-        // 2. Check-in time was within the overtime period
-        const isCheckOutNearOvertimePeriod =
-          checkOutTimeInMinutes >= endTimeInMinutes - 5 &&
-          checkOutTimeInMinutes <= endTimeInMinutes + 5;
+        // For check-out
+        const checkOutHour = checkOutTime.getHours();
+        const checkOutMinute = checkOutTime.getMinutes();
+        const checkOutTimeInMinutes = checkOutHour * 60 + checkOutMinute;
 
-        const isCheckInWithinOvertimePeriod =
-          checkInTimeInMinutes >= startTimeInMinutes &&
+        // Conditions for matching:
+        // 1. Check-in is before or equal to overtime end
+        // 2. Check-out is after overtime start
+        const isCheckInBeforeOvertimeEnd =
           checkInTimeInMinutes <= endTimeInMinutes;
+        const isCheckOutAfterOvertimeStart =
+          checkOutTimeInMinutes >= startTimeInMinutes;
 
-        return isCheckOutNearOvertimePeriod && isCheckInWithinOvertimePeriod;
+        return isCheckInBeforeOvertimeEnd && isCheckOutAfterOvertimeStart;
       });
 
       // Logging with local variables
