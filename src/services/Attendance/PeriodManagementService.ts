@@ -619,6 +619,49 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     now: Date,
   ): UnifiedPeriodState {
+    // Calculate period times first
+    let contextDate = attendance?.date ? new Date(attendance.date) : now;
+    let periodStart = this.parseTimeWithContext(period.startTime, contextDate);
+    let periodEnd = this.parseTimeWithContext(period.endTime, contextDate);
+
+    if (period.isOvernight) {
+      if (periodEnd < periodStart) {
+        periodEnd = addDays(periodEnd, 1);
+      }
+    }
+
+    const isWithinPeriod = isWithinInterval(now, {
+      start: periodStart,
+      end: periodEnd,
+    });
+
+    if (attendance?.CheckInTime) {
+      return {
+        type: period.type,
+        timeWindow: {
+          start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        },
+        activity: {
+          isActive: Boolean(attendance.CheckInTime && !attendance.CheckOutTime),
+          checkIn: attendance.CheckInTime.toISOString(),
+          checkOut: attendance.CheckOutTime?.toISOString() || null,
+          isOvertime: period.type === PeriodType.OVERTIME,
+          isDayOffOvertime: Boolean(period.isDayOff),
+          isInsideShiftHours: isWithinInterval(now, {
+            start: periodStart,
+            end: periodEnd,
+          }),
+        },
+        validation: {
+          isWithinBounds: isWithinPeriod,
+          isEarly: now < periodStart,
+          isLate: now > periodEnd,
+          isOvernight: period.isOvernight || false,
+          isConnected: Boolean(attendance?.overtimeState === 'COMPLETED'),
+        },
+      };
+    }
     // For active overtime, use the actual attendance times
     if (
       attendance?.type === PeriodType.OVERTIME &&
@@ -655,20 +698,6 @@ export class PeriodManagementService {
     }
 
     // For non-active periods, use period definition with proper date context
-    let contextDate = attendance?.date ? new Date(attendance.date) : now;
-    let periodStart = this.parseTimeWithContext(period.startTime, contextDate);
-    let periodEnd = this.parseTimeWithContext(period.endTime, contextDate);
-
-    if (period.isOvernight) {
-      if (periodEnd < periodStart) {
-        periodEnd = addDays(periodEnd, 1);
-      }
-    }
-
-    const isWithinPeriod = isWithinInterval(now, {
-      start: periodStart,
-      end: periodEnd,
-    });
 
     return {
       type: period.type,

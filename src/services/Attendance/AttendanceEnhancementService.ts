@@ -449,11 +449,13 @@ export class AttendanceEnhancementService {
   /**
    * Build current state for daily attendance
    */
+  // In AttendanceEnhancementService.ts
   private buildCurrentState(
     currentState: UnifiedPeriodState,
     statusInfo: PeriodStatusInfo,
+    attendance?: AttendanceRecord | null, // Add attendance parameter
   ): UnifiedPeriodState {
-    // Change return type to UnifiedPeriodState
+    // Change this part
     return {
       type: currentState.type,
       timeWindow: {
@@ -462,8 +464,15 @@ export class AttendanceEnhancementService {
       },
       activity: {
         isActive: statusInfo.isActiveAttendance,
-        checkIn: currentState.activity.checkIn,
-        checkOut: currentState.activity.checkOut,
+        // These were coming in as null from somewhere
+        checkIn:
+          statusInfo.isActiveAttendance && attendance?.CheckInTime
+            ? attendance.CheckInTime.toISOString()
+            : currentState.activity.checkIn,
+        checkOut:
+          currentState.activity.checkOut ||
+          attendance?.CheckOutTime?.toISOString() ||
+          null,
         isOvertime: currentState.activity.isOvertime,
         isDayOffOvertime: currentState.activity.isDayOffOvertime,
         isInsideShiftHours: currentState.activity.isInsideShiftHours,
