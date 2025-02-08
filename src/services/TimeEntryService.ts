@@ -129,6 +129,7 @@ export class TimeEntryService {
           hasRegular: !!result.regular,
           hasOvertime: !!result.overtime,
           beforePostProcessing: true,
+          hasShiftData: !!shift,
         });
 
         await this.handlePostProcessing(
@@ -460,8 +461,23 @@ export class TimeEntryService {
         employeeId: attendance.employeeId,
         activity: options.activity,
         result,
+        hasShiftData: !!shift?.effectiveShift,
+        shiftTimes: shift?.effectiveShift
+          ? {
+              startTime: shift.effectiveShift.startTime,
+              endTime: shift.effectiveShift.endTime,
+            }
+          : 'Missing shift data',
         timestamp: getCurrentTime(),
       });
+
+      if (!shift?.effectiveShift) {
+        console.warn('Missing shift data in post-processing:', {
+          employeeId: attendance.employeeId,
+          timestamp: getCurrentTime(),
+        });
+        return;
+      }
 
       // Add condition check logging
       console.log('Post-processing conditions:', {
@@ -472,12 +488,10 @@ export class TimeEntryService {
           options.activity.isCheckIn &&
           !options.activity.isOvertime &&
           !!result.regular,
-        shiftData: shift?.effectiveShift
-          ? {
-              startTime: shift.effectiveShift.startTime,
-              endTime: shift.effectiveShift.endTime,
-            }
-          : 'No shift data',
+        shiftData: {
+          startTime: shift.effectiveShift.startTime,
+          endTime: shift.effectiveShift.endTime,
+        },
         leaveRequestsCount: leaveRequests.length,
       });
 
@@ -489,7 +503,11 @@ export class TimeEntryService {
         console.log('About to process late check-in:', {
           employeeId: attendance.employeeId,
           checkInTime: attendance.CheckInTime,
-          shiftStart: shift?.effectiveShift?.startTime,
+          shiftStart: shift.effectiveShift.startTime,
+          shiftData: {
+            startTime: shift.effectiveShift.startTime,
+            endTime: shift.effectiveShift.endTime,
+          },
         });
 
         await this.processLateCheckIn(attendance, shift, leaveRequests);
@@ -520,17 +538,37 @@ export class TimeEntryService {
   ) {
     console.log('Processing late check-in:', {
       employeeId: attendance.employeeId,
-      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
-      shift: shift?.effectiveShift,
+      checkInTime: attendance.CheckInTime
+        ? format(attendance.CheckInTime, 'HH:mm:ss')
+        : null,
+      shiftData: shift?.effectiveShift
+        ? {
+            startTime: shift.effectiveShift.startTime,
+            endTime: shift.effectiveShift.endTime,
+          }
+        : 'Missing shift data',
       timestamp: getCurrentTime(),
     });
 
-    if (!shift?.effectiveShift || !attendance.CheckInTime) return;
+    if (!shift?.effectiveShift || !attendance.CheckInTime) {
+      console.warn('Missing required data for late check-in:', {
+        hasShift: !!shift?.effectiveShift,
+        hasCheckInTime: !!attendance.CheckInTime,
+        employeeId: attendance.employeeId,
+      });
+      return;
+    }
 
     const shiftStart = this.parseShiftTime(
       shift.effectiveShift.startTime,
       attendance.date,
     );
+
+    console.log('Parsed shift times:', {
+      originalStartTime: shift.effectiveShift.startTime,
+      parsedStartTime: format(shiftStart, 'HH:mm:ss'),
+      attendanceDate: format(attendance.date, 'yyyy-MM-dd'),
+    });
 
     const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
       attendance.CheckInTime,
