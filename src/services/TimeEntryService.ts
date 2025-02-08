@@ -476,7 +476,7 @@ export class TimeEntryService {
         timestamp: getCurrentTime(),
       });
 
-      if (!shift?.effectiveShift) {
+      if (!shift?.current) {
         console.warn('Missing shift data in post-processing:', {
           employeeId: attendance.employeeId,
           timestamp: getCurrentTime(),
