@@ -212,21 +212,13 @@ export class TimeEntryService {
       );
 
       // Handle post-processing
-      setImmediate(() => {
-        this.handlePostProcessing(
-          attendance,
-          options,
-          result,
-          shift,
-          leaveRequests,
-        ).catch((error) =>
-          console.error('Post-processing error:', {
-            error,
-            employeeId: attendance.employeeId,
-            timestamp: getCurrentTime(),
-          }),
-        );
-      });
+      await this.handlePostProcessing(
+        attendance,
+        options,
+        result,
+        shift,
+        leaveRequests,
+      );
 
       return {
         regular: result.regular
