@@ -494,8 +494,8 @@ export class TimeEntryService {
           !options.activity.isOvertime &&
           !!result.regular,
         shiftData: {
-          startTime: shift.effectiveShift.startTime,
-          endTime: shift.effectiveShift.endTime,
+          startTime: shift.effectiveShift.current.startTime,
+          endTime: shift.effectiveShift.current.endTime,
         },
         leaveRequestsCount: leaveRequests.length,
       });
@@ -510,8 +510,8 @@ export class TimeEntryService {
           checkInTime: attendance.CheckInTime,
           shiftStart: shift.effectiveShift.startTime,
           shiftData: {
-            startTime: shift.effectiveShift.startTime,
-            endTime: shift.effectiveShift.endTime,
+            startTime: shift.effectiveShift.current.startTime,
+            endTime: shift.effectiveShift.current.endTime,
           },
         });
 
@@ -546,10 +546,10 @@ export class TimeEntryService {
       checkInTime: attendance.CheckInTime
         ? format(attendance.CheckInTime, 'HH:mm:ss')
         : null,
-      shiftData: shift?.effectiveShift
+      shiftData: shift?.effectiveShift.current
         ? {
-            startTime: shift.effectiveShift.startTime,
-            endTime: shift.effectiveShift.endTime,
+            startTime: shift.effectiveShift.current.startTime,
+            endTime: shift.effectiveShift.current.endTime,
           }
         : 'Missing shift data',
       timestamp: getCurrentTime(),
@@ -557,7 +557,7 @@ export class TimeEntryService {
 
     if (!shift?.effectiveShift || !attendance.CheckInTime) {
       console.warn('Missing required data for late check-in:', {
-        hasShift: !!shift?.effectiveShift,
+        hasShift: !!shift?.effectiveShift.current,
         hasCheckInTime: !!attendance.CheckInTime,
         employeeId: attendance.employeeId,
       });
@@ -565,12 +565,12 @@ export class TimeEntryService {
     }
 
     const shiftStart = this.parseShiftTime(
-      shift.effectiveShift.startTime,
+      shift.effectiveShift.current.startTime,
       attendance.date,
     );
 
     console.log('Parsed shift times:', {
-      originalStartTime: shift.effectiveShift.startTime,
+      originalStartTime: shift.effectiveShift.current.startTime,
       parsedStartTime: format(shiftStart, 'HH:mm:ss'),
       attendanceDate: format(attendance.date, 'yyyy-MM-dd'),
     });
