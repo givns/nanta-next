@@ -448,6 +448,13 @@ export class TimeEntryService {
     shift: any,
     leaveRequests: LeaveRequest[],
   ) {
+    console.log('Post-processing:', {
+      employeeId: attendance.employeeId,
+      activity: options.activity,
+      result,
+      timestamp: getCurrentTime(),
+    });
+
     try {
       if (
         options.activity.isCheckIn &&
