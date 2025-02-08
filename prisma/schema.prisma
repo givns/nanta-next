@@ -310,6 +310,7 @@ model CheckTiming {
   attendance         Attendance @relation(fields: [attendanceId], references: [id])
   isEarlyCheckIn     Boolean    @default(false)
   isLateCheckIn      Boolean    @default(false)
+  lateCheckInMinutes Int       @default(0)
   isLateCheckOut     Boolean    @default(false)
   isVeryLateCheckOut Boolean    @default(false)
   lateCheckOutMinutes Int       @default(0)

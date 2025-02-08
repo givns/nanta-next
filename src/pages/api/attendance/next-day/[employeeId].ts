@@ -9,7 +9,17 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
-import { startOfDay, addDays, endOfDay, format } from 'date-fns';
+import { startOfDay, addDays, endOfDay, format, isSameDay } from 'date-fns';
+
+type MappedOvertime = {
+  id: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  isInsideShiftHours: boolean;
+  isDayOffOvertime: boolean;
+  reason?: string; // Make reason optional to match OvertimeContext
+};
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -76,13 +86,43 @@ export default async function handler(
 
     const { employeeId } = validatedParams.data;
     const now = getCurrentTime();
-    const nextDay = addDays(now, 1);
+    // First get the last active period to determine proper "next day"
+    const lastPeriod =
+      await services.attendanceRecordService.getLatestAttendanceRecord(
+        employeeId,
+      );
 
-    // Get next day period state from period manager
-    const nextDayState = await services.periodManager.getNextDayPeriodState(
-      employeeId,
-      nextDay,
-    );
+    console.log('Last period details:', {
+      hasRecord: !!lastPeriod,
+      checkInTime: lastPeriod?.CheckInTime,
+      checkOutTime: lastPeriod?.CheckOutTime,
+      shiftEnd: lastPeriod?.shiftEndTime,
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
+
+    // Determine the correct next day based on last period
+    const nextDay = (() => {
+      if (!lastPeriod?.CheckOutTime) {
+        // If there's no checkout time, use tomorrow from now
+        return addDays(now, 1);
+      }
+      const checkOutTime = new Date(lastPeriod.CheckOutTime);
+      const shiftEndTime = new Date(lastPeriod.shiftEndTime!);
+
+      // If it's an overnight period that ends tomorrow morning
+      if (shiftEndTime > checkOutTime && isSameDay(checkOutTime, now)) {
+        // Use the day after checkout
+        return addDays(checkOutTime, 1);
+      }
+
+      // Otherwise use tomorrow from now
+      return addDays(now, 1);
+    })();
+
+    console.log('Next day calculation:', {
+      calculatedDate: format(nextDay, 'yyyy-MM-dd'),
+      baseDate: format(now, 'yyyy-MM-dd'),
+    });
 
     // Get overtime information for next day
     const nextDayOvertimes =
@@ -92,16 +132,72 @@ export default async function handler(
         endOfDay(nextDay),
       )) || [];
 
-    // Map overtimes to OvertimeContext
-    const mappedOvertimes: OvertimeContext[] = nextDayOvertimes.map((ot) => ({
-      id: ot.id,
-      startTime: format(new Date(ot.startTime), 'HH:mm'),
-      endTime: format(new Date(ot.endTime), 'HH:mm'),
-      durationMinutes: ot.durationMinutes,
-      isInsideShiftHours: ot.isInsideShiftHours,
-      isDayOffOvertime: ot.isDayOffOvertime,
-      reason: ot.reason || undefined,
-    }));
+    const mappedOvertimes = (nextDayOvertimes || [])
+      .map((ot) => {
+        try {
+          // Log raw overtime data
+          console.log('Processing overtime:', {
+            id: ot.id,
+            rawStartTime: ot.startTime,
+            rawEndTime: ot.endTime,
+            startTimeType: typeof ot.startTime,
+            endTimeType: typeof ot.endTime,
+          });
+
+          // Date validation...
+          const startDate = new Date(ot.startTime);
+          const endDate = new Date(ot.endTime);
+
+          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            console.error('Invalid date found in overtime:', {
+              id: ot.id,
+              startTime: ot.startTime,
+              endTime: ot.endTime,
+            });
+            return null;
+          }
+
+          const overtime: MappedOvertime = {
+            id: ot.id,
+            startTime: format(startDate, 'HH:mm'),
+            endTime: format(endDate, 'HH:mm'),
+            durationMinutes: ot.durationMinutes,
+            isInsideShiftHours: ot.isInsideShiftHours,
+            isDayOffOvertime: ot.isDayOffOvertime,
+          };
+
+          // Only add reason if it exists
+          if (ot.reason) {
+            overtime.reason = ot.reason;
+          }
+
+          return overtime;
+        } catch (error) {
+          console.error('Error mapping overtime:', {
+            error,
+            overtime: ot,
+          });
+          return null;
+        }
+      })
+      .filter((ot): ot is OvertimeContext => ot !== null);
+
+    // Log successful mappings
+    console.log('Successfully mapped overtimes:', {
+      totalInput: nextDayOvertimes?.length || 0,
+      successfulMappings: mappedOvertimes.length,
+      mappedTimes: mappedOvertimes.map((ot) => ({
+        id: ot.id,
+        start: ot.startTime,
+        end: ot.endTime,
+      })),
+    });
+
+    // Get next day period state from period manager
+    const nextDayState = await services.periodManager.getNextDayPeriodState(
+      employeeId,
+      nextDay,
+    );
 
     const response: NextDayScheduleResponse = {
       current: nextDayState.current,

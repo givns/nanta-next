@@ -502,6 +502,7 @@ export class AttendanceProcessingService {
           create: {
             isEarlyCheckIn: false,
             isLateCheckIn: lateStatus.minutesLate > 0, // Use actual late status
+            lateCheckInMinutes: lateStatus.minutesLate,
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
             lateCheckOutMinutes: 0,
