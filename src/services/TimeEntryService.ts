@@ -467,10 +467,10 @@ export class TimeEntryService {
         result,
         hasShiftData: shift,
 
-        shiftTimes: shift?.effectiveShift
+        shiftTimes: shift?.current
           ? {
-              startTime: shift.effectiveShift.startTime,
-              endTime: shift.effectiveShift.endTime,
+              startTime: shift.current.startTime,
+              endTime: shift.current.endTime,
             }
           : 'Missing shift data',
         timestamp: getCurrentTime(),
@@ -494,8 +494,8 @@ export class TimeEntryService {
           !options.activity.isOvertime &&
           !!result.regular,
         shiftData: {
-          startTime: shift.effectiveShift.current.startTime,
-          endTime: shift.effectiveShift.current.endTime,
+          startTime: shift.current.startTime,
+          endTime: shift.current.endTime,
         },
         leaveRequestsCount: leaveRequests.length,
       });
@@ -508,10 +508,10 @@ export class TimeEntryService {
         console.log('About to process late check-in:', {
           employeeId: attendance.employeeId,
           checkInTime: attendance.CheckInTime,
-          shiftStart: shift.effectiveShift.startTime,
+          shiftStart: shift.startTime,
           shiftData: {
-            startTime: shift.effectiveShift.current.startTime,
-            endTime: shift.effectiveShift.current.endTime,
+            startTime: shift.current.startTime,
+            endTime: shift.current.endTime,
           },
         });
 
@@ -546,18 +546,18 @@ export class TimeEntryService {
       checkInTime: attendance.CheckInTime
         ? format(attendance.CheckInTime, 'HH:mm:ss')
         : null,
-      shiftData: shift?.effectiveShift.current
+      shiftData: shift?.current
         ? {
-            startTime: shift.effectiveShift.current.startTime,
-            endTime: shift.effectiveShift.current.endTime,
+            startTime: shift.current.startTime,
+            endTime: shift.current.endTime,
           }
         : 'Missing shift data',
       timestamp: getCurrentTime(),
     });
 
-    if (!shift?.effectiveShift || !attendance.CheckInTime) {
+    if (!shift?.current || !attendance.CheckInTime) {
       console.warn('Missing required data for late check-in:', {
-        hasShift: !!shift?.effectiveShift.current,
+        hasShift: !!shift?.current,
         hasCheckInTime: !!attendance.CheckInTime,
         employeeId: attendance.employeeId,
       });
@@ -565,12 +565,12 @@ export class TimeEntryService {
     }
 
     const shiftStart = this.parseShiftTime(
-      shift.effectiveShift.current.startTime,
+      shift.current.startTime,
       attendance.date,
     );
 
     console.log('Parsed shift times:', {
-      originalStartTime: shift.effectiveShift.current.startTime,
+      originalStartTime: shift.current.startTime,
       parsedStartTime: format(shiftStart, 'HH:mm:ss'),
       attendanceDate: format(attendance.date, 'yyyy-MM-dd'),
     });
