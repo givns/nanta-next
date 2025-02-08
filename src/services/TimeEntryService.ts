@@ -125,11 +125,13 @@ export class TimeEntryService {
             shift,
           },
         );
-        console.log('Time entries processed:', {
-          hasRegular: !!result.regular,
-          hasOvertime: !!result.overtime,
-          beforePostProcessing: true,
-          hasShiftData: !!shift,
+        console.log('Shift data before post-processing:', {
+          employeeId: attendance.employeeId,
+          hasShift: !!shift,
+          shiftDetails: shift ? {
+            effectiveShift: shift,
+            current: shift.current
+          } : 'No shift data'
         });
 
         await this.handlePostProcessing(
@@ -461,7 +463,8 @@ export class TimeEntryService {
         employeeId: attendance.employeeId,
         activity: options.activity,
         result,
-        hasShiftData: !!shift?.effectiveShift,
+        hasShiftData: shift,
+
         shiftTimes: shift?.effectiveShift
           ? {
               startTime: shift.effectiveShift.startTime,
