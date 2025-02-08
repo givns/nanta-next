@@ -92,6 +92,15 @@ export class TimeEntryService {
     overtime?: TimeEntry[];
   }> {
     try {
+      console.log('Starting processTimeEntries:', {
+        attendanceId: attendance.id,
+        employeeId: attendance.employeeId,
+        options: {
+          periodType: options.periodType,
+          isCheckIn: options.activity.isCheckIn,
+          isOvertime: options.activity.isOvertime,
+        },
+      });
       // For regular period check-in, skip overtime matching
       if (
         options.periodType === PeriodType.REGULAR &&
@@ -115,6 +124,19 @@ export class TimeEntryService {
             leaveRequests,
             shift,
           },
+        );
+        console.log('Time entries processed:', {
+          hasRegular: !!result.regular,
+          hasOvertime: !!result.overtime,
+          beforePostProcessing: true,
+        });
+
+        await this.handlePostProcessing(
+          attendance,
+          options,
+          result,
+          shift,
+          leaveRequests,
         );
 
         return {
@@ -212,13 +234,6 @@ export class TimeEntryService {
       );
 
       // Handle post-processing
-      await this.handlePostProcessing(
-        attendance,
-        options,
-        result,
-        shift,
-        leaveRequests,
-      );
 
       return {
         regular: result.regular
