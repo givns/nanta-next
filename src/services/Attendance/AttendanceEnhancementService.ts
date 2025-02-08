@@ -202,8 +202,13 @@ export class AttendanceEnhancementService {
       periodValidation,
     );
 
+    const isAllowed =
+      flags.isEmergencyLeave ||
+      periodValidation.canCheckIn ||
+      periodValidation.canCheckOut;
+
     const validation = {
-      allowed: periodValidation.canCheckIn || periodValidation.canCheckOut,
+      allowed: isAllowed, // Use the new calculation
       reason: this.getValidationMessage(statusInfo, currentState, attendance),
       flags,
       metadata: transitionStatus.isInTransition
