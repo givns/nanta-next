@@ -466,9 +466,9 @@ export class TimeEntryService {
       if (
         options.activity.isCheckIn &&
         !options.activity.isOvertime &&
-        result.regular
+        result.regular?.actualMinutesLate
       ) {
-        await this.processLateCheckIn(attendance, shift, leaveRequests);
+        await this.processLateCheckIn(attendance, shift, leaveRequests, result);
       }
     } catch (error) {
       console.error('Post-processing error:', {
@@ -483,7 +483,16 @@ export class TimeEntryService {
     attendance: AttendanceRecord,
     shift: any,
     leaveRequests: LeaveRequest[],
+    result: { regular?: TimeEntry; overtime?: TimeEntry[] },
   ) {
+    console.log('Processing late check-in:', {
+      employeeId: attendance.employeeId,
+      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      shift: shift?.effectiveShift,
+      result,
+      timestamp: getCurrentTime(),
+    });
+
     if (!shift?.effectiveShift || !attendance.CheckInTime) return;
 
     const shiftStart = this.parseShiftTime(
