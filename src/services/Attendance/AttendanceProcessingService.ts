@@ -459,6 +459,11 @@ export class AttendanceProcessingService {
       },
     });
 
+    const lateStatus = this.timeEntryService.calculateLateStatus(
+      now,
+      parseISO(periodState.current.start),
+    );
+
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
 
     // Create attendance record
@@ -496,7 +501,7 @@ export class AttendanceProcessingService {
         checkTiming: {
           create: {
             isEarlyCheckIn: false,
-            isLateCheckIn: false,
+            isLateCheckIn: lateStatus.minutesLate > 0, // Use actual late status
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
             lateCheckOutMinutes: 0,

@@ -808,7 +808,7 @@ export class TimeEntryService {
   }
 
   // Simplified late status calculation (no notifications)
-  private calculateLateStatus(
+  public calculateLateStatus(
     checkInTime: Date,
     shiftStartTime: Date,
   ): { minutesLate: number; isHalfDayLate: boolean } {
@@ -1175,7 +1175,7 @@ export class TimeEntryService {
     };
   }
 
-  private parseShiftTime(timeString: string, date: Date): Date {
+  public parseShiftTime(timeString: string, date: Date): Date {
     const [hours, minutes] = timeString.split(':').map(Number);
     return new Date(
       date.getFullYear(),
