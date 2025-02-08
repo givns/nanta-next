@@ -128,10 +128,12 @@ export class TimeEntryService {
         console.log('Shift data before post-processing:', {
           employeeId: attendance.employeeId,
           hasShift: !!shift,
-          shiftDetails: shift ? {
-            effectiveShift: shift,
-            current: shift.current
-          } : 'No shift data'
+          shiftDetails: shift
+            ? {
+                effectiveShift: shift,
+                current: shift.current,
+              }
+            : 'No shift data',
         });
 
         await this.handlePostProcessing(
