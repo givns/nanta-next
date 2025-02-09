@@ -1331,7 +1331,7 @@ export class PeriodManagementService {
       // Include early window for new check-ins
       const earlyWindow = subMinutes(
         overtimeStart,
-        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        VALIDATION_THRESHOLDS.OT_EARLY_CHECKIN,
       );
       const isWithin = isWithinInterval(now, {
         start: earlyWindow,

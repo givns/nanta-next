@@ -20,6 +20,8 @@ import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
 import useLocationVerification from '@/hooks/useLocationVerification';
+import { getCurrentTime } from '@/utils/dateUtils';
+import { subMinutes, format, isSameDay } from 'date-fns';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -352,6 +354,40 @@ const CheckInRouter: React.FC = () => {
     if (!safeAttendanceProps?.base) return false;
 
     try {
+      const now = getCurrentTime();
+      const lastRecord = dailyRecords[dailyRecords.length - 1]?.record;
+
+      // If we have shifts info, use it to determine cutoff
+      if (safeAttendanceProps.shift) {
+        const [nextShiftHour, nextShiftMinute] =
+          safeAttendanceProps.shift.startTime.split(':').map(Number);
+        const nextShiftStart = new Date(now);
+        nextShiftStart.setHours(nextShiftHour, nextShiftMinute, 0, 0);
+
+        // If we're within 30 minutes of next shift, don't show completion
+        const approachingNextShift = subMinutes(nextShiftStart, 30);
+        if (now >= approachingNextShift) {
+          console.log('Within next shift window:', {
+            currentTime: format(now, 'HH:mm:ss'),
+            nextShiftStart: format(nextShiftStart, 'HH:mm:ss'),
+            approachWindow: format(approachingNextShift, 'HH:mm:ss'),
+          });
+          return false;
+        }
+      }
+
+      // Check if we're in a new calendar day
+      if (lastRecord?.CheckOutTime) {
+        const lastCheckout = new Date(lastRecord.CheckOutTime);
+        if (!isSameDay(now, lastCheckout)) {
+          console.log('New calendar day detected:', {
+            currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+            lastCheckout: format(lastCheckout, 'yyyy-MM-dd HH:mm:ss'),
+          });
+          return false;
+        }
+      }
+
       // Check regular period completion
       const regularRecord = dailyRecords.find(
         ({ record }) => record.type === PeriodType.REGULAR,

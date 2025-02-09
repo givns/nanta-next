@@ -17,6 +17,7 @@ export const VALIDATION_ACTIONS = {
 
 export const VALIDATION_THRESHOLDS = {
   EARLY_CHECKIN: 30,
+  OT_EARLY_CHECKIN: 10,
   EARLY_CHECKOUT: 5, // Add this for regular periods
   LATE_CHECKIN: 15,
   LATE_CHECKOUT: 15, // 15 minutes after shift end
