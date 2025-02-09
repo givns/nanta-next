@@ -1430,8 +1430,25 @@ export class PeriodManagementService {
     statusInfo: PeriodStatusInfo,
     now: Date,
   ): PeriodValidation {
-    const periodStart = parseISO(currentState.timeWindow.start);
-    const periodEnd = parseISO(currentState.timeWindow.end);
+    console.log('Validating period access:', {
+      timeWindow: currentState.timeWindow,
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
+
+    // Get today's date
+    const today = startOfDay(now);
+
+    // Parse times using today's date
+    const periodStart = parseISO(
+      format(today, 'yyyy-MM-dd') +
+        'T' +
+        format(parseISO(currentState.timeWindow.start), 'HH:mm:ss'),
+    );
+    const periodEnd = parseISO(
+      format(today, 'yyyy-MM-dd') +
+        'T' +
+        format(parseISO(currentState.timeWindow.end), 'HH:mm:ss'),
+    );
 
     // Early window check (before start time)
     const isInEarlyWindow = isWithinInterval(now, {
@@ -1445,29 +1462,22 @@ export class PeriodManagementService {
     // Within shift window (can check in anytime during shift)
     const isWithinShift = now < periodEnd;
 
-    // Allow check-in if either early or within shift time
-    const canCheckIn =
-      !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift);
-
-    // Late allowance only relevant when checking late status
-    const isWithinLateAllowance = isLateCheckIn;
-
-    console.log('Period Access Validation:', {
-      now,
-      periodStart,
-      periodEnd,
-      isInEarlyWindow,
-      isLateCheckIn,
+    // Add debug logging
+    console.log('Period boundary check:', {
+      todayDate: format(today, 'yyyy-MM-dd'),
+      calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
+      calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      isLate: isLateCheckIn,
       isWithinShift,
-      canCheckIn,
-      isWithinLateAllowance,
     });
 
     return {
-      canCheckIn,
+      canCheckIn:
+        !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
       isLateCheckIn,
-      isWithinLateAllowance,
+      isWithinLateAllowance: isLateCheckIn,
     };
   }
 
