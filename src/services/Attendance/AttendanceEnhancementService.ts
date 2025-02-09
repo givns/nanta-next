@@ -61,18 +61,18 @@ export class AttendanceEnhancementService {
     periodState: ShiftWindowResponse,
     validationContext: ValidationContext,
   ): Promise<AttendanceStatusResponse> {
-    console.log('enhanceAttendanceStatus Input Debug:', {
-      periodStateOvertimeInfo: periodState.overtimeInfo
+    // Track enhancement state
+    console.log('Enhancement state tracking:', {
+      currentTime: format(validationContext.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+      hasAttendance: !!serializedAttendance,
+      hasOvertimeInfo: !!periodState.overtimeInfo,
+      overtimeDetails: periodState.overtimeInfo
         ? {
+            id: periodState.overtimeInfo.id,
             startTime: periodState.overtimeInfo.startTime,
             endTime: periodState.overtimeInfo.endTime,
-            id: periodState.overtimeInfo.id,
-            durationMinutes: periodState.overtimeInfo.durationMinutes,
-            isInsideShiftHours: periodState.overtimeInfo.isInsideShiftHours,
-            isDayOffOvertime: periodState.overtimeInfo.isDayOffOvertime,
           }
-        : 'UNDEFINED',
-      validationContextTimestamp: validationContext.timestamp.toISOString(),
+        : null,
     });
 
     const now = validationContext.timestamp;
@@ -82,13 +82,28 @@ export class AttendanceEnhancementService {
       ? this.deserializeAttendanceRecord(serializedAttendance)
       : null;
 
+    // Create state cache for the enhancement process
+    const stateCache = {
+      originalPeriodState: { ...periodState },
+      currentTime: validationContext.timestamp,
+      attendanceSnapshot: serializedAttendance
+        ? { ...serializedAttendance }
+        : null,
+    };
+
     // Get current period state
     const currentState = this.periodManager.resolveCurrentPeriod(
       attendance,
       periodState,
-      now,
-      periodState,
+      validationContext.timestamp,
+      stateCache.originalPeriodState, // Pass preserved state
     );
+
+    console.log('Post resolution state check:', {
+      hasPreservedOvertime: !!stateCache.originalPeriodState.overtimeInfo,
+      resultType: currentState.type,
+      currentTime: format(validationContext.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+    });
 
     // Get period status info
     const statusInfo = this.determinePeriodStatusInfo(

@@ -255,11 +255,31 @@ export class PeriodManagementService {
       };
     }
 
-    // Keep existing overtimeInfo if present in original state
+    // Track state preservation
+    console.log('State preservation check:', {
+      hasOriginalState: !!originalPeriodState,
+      originalOvertimeInfo: originalPeriodState?.overtimeInfo
+        ? {
+            id: originalPeriodState.overtimeInfo.id,
+            startTime: originalPeriodState.overtimeInfo.startTime,
+            endTime: originalPeriodState.overtimeInfo.endTime,
+          }
+        : null,
+      currentOvertimeInfo: periodState.overtimeInfo
+        ? {
+            id: periodState.overtimeInfo.id,
+            startTime: periodState.overtimeInfo.startTime,
+            endTime: periodState.overtimeInfo.endTime,
+          }
+        : null,
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
+
+    // Ensure overtime info preservation
     const effectivePeriodState = {
       ...periodState,
       overtimeInfo:
-        periodState.overtimeInfo || originalPeriodState?.overtimeInfo,
+        originalPeriodState?.overtimeInfo || periodState.overtimeInfo,
     };
 
     console.log('Resolving current period - Detailed Debug:', {
@@ -324,6 +344,16 @@ export class PeriodManagementService {
       attendance,
       now,
     );
+
+    console.log('Period sequence with preserved state:', {
+      periodsCount: periods.length,
+      hasOvertimeInfo: !!effectivePeriodState.overtimeInfo,
+      periods: periods.map((p) => ({
+        type: p.type,
+        start: p.startTime,
+        end: p.endTime,
+      })),
+    });
 
     // Handle active regular overtime
     if (

@@ -86,6 +86,15 @@ export class AttendanceStatusService {
       hasAllRecords: allRecords.length > 0,
     });
 
+    const stateTracker = {
+      originalState: null as ShiftWindowResponse | null,
+      stateUpdates: [] as Array<{
+        timestamp: string;
+        hasOvertimeInfo: boolean;
+        type: 'initial' | 'enhancement' | 'final';
+      }>,
+    };
+
     // Get period state from period manager
     const periodState = await this.periodManager.getCurrentPeriodState(
       employeeId,
@@ -106,6 +115,7 @@ export class AttendanceStatusService {
     });
 
     // Transform period state to window response
+    // Create window response with tracking
     const windowResponse: ShiftWindowResponse = {
       current: {
         start: periodState.current.timeWindow.start,
@@ -113,23 +123,18 @@ export class AttendanceStatusService {
       },
       type: periodState.current.type,
       shift: shiftData.current,
-      isHoliday: false, // Will be updated from context
+      isHoliday: false,
       isDayOff: !shiftData.current.workDays.includes(now.getDay()),
       isAdjusted: shiftData.isAdjusted,
       overtimeInfo: periodState.overtime,
     };
 
-    // Debug log window response
-    console.log('Window response after creation:', {
-      type: windowResponse.type,
-      hasOvertime: !!windowResponse.overtimeInfo,
-      overtimeDetails: windowResponse.overtimeInfo
-        ? {
-            id: windowResponse.overtimeInfo.id,
-            startTime: windowResponse.overtimeInfo.startTime,
-            endTime: windowResponse.overtimeInfo.endTime,
-          }
-        : null,
+    // Track initial state
+    stateTracker.originalState = { ...windowResponse };
+    stateTracker.stateUpdates.push({
+      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      hasOvertimeInfo: !!windowResponse.overtimeInfo,
+      type: 'initial',
     });
 
     // Get latest record and serialize it
@@ -174,6 +179,20 @@ export class AttendanceStatusService {
       canCheckOut: enhancedStatus.validation.allowed && Boolean(activeRecord),
       message: enhancedStatus.validation.reason || '',
     };
+
+    // Track final state
+    stateTracker.stateUpdates.push({
+      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      hasOvertimeInfo: !!enhancedStatus.context?.nextPeriod?.overtimeInfo,
+      type: 'final',
+    });
+
+    // Log state tracking results
+    console.log('State tracking summary:', {
+      updates: stateTracker.stateUpdates,
+      preservedState: !!stateTracker.originalState?.overtimeInfo,
+      finalState: !!enhancedStatus.context?.nextPeriod?.overtimeInfo,
+    });
 
     // Cache the result
     await cacheService.del(forceRefreshKey);
