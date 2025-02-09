@@ -61,7 +61,7 @@ export class AttendanceEnhancementService {
     periodState: ShiftWindowResponse,
     validationContext: ValidationContext,
   ): Promise<AttendanceStatusResponse> {
-    // Track enhancement state
+    // Keep existing tracking
     console.log('Enhancement state tracking:', {
       currentTime: format(validationContext.timestamp, 'yyyy-MM-dd HH:mm:ss'),
       hasAttendance: !!serializedAttendance,
@@ -77,79 +77,55 @@ export class AttendanceEnhancementService {
 
     const now = validationContext.timestamp;
 
-    // Deserialize attendance record
+    // Keep existing deserialization
     const attendance = serializedAttendance
       ? this.deserializeAttendanceRecord(serializedAttendance)
       : null;
 
-    // Create state cache for the enhancement process
-    const stateCache = {
-      originalPeriodState: { ...periodState },
-      currentTime: validationContext.timestamp,
-      attendanceSnapshot: serializedAttendance
-        ? { ...serializedAttendance }
-        : null,
+    // Create preserved state that will be used throughout
+    const preservedState: ShiftWindowResponse = {
+      ...periodState,
+      // Ensure overtime info is deeply cloned
+      overtimeInfo: periodState.overtimeInfo
+        ? {
+            ...periodState.overtimeInfo,
+          }
+        : undefined,
     };
 
-    // Get current period state
+    // Get current period with preserved state
     const currentState = this.periodManager.resolveCurrentPeriod(
       attendance,
-      periodState,
+      preservedState, // Use preserved state
       validationContext.timestamp,
-      stateCache.originalPeriodState, // Pass preserved state
+      preservedState, // Pass same preserved state as original
     );
 
-    console.log('Post resolution state check:', {
-      hasPreservedOvertime: !!stateCache.originalPeriodState.overtimeInfo,
-      resultType: currentState.type,
-      currentTime: format(validationContext.timestamp, 'yyyy-MM-dd HH:mm:ss'),
-    });
-
-    // Get period status info
+    // Get period status with preserved state
     const statusInfo = this.determinePeriodStatusInfo(
       attendance,
       currentState,
-      periodState,
+      preservedState, // Use preserved state
       now,
     );
 
-    console.log('After determinePeriodStatusInfo Debug:', {
-      periodStateOvertimeInfo: periodState.overtimeInfo
-        ? {
-            startTime: periodState.overtimeInfo.startTime,
-            endTime: periodState.overtimeInfo.endTime,
-            id: periodState.overtimeInfo.id,
-          }
-        : 'UNDEFINED',
-    });
-
-    // Calculate transitions
+    // Calculate transitions with preserved state
     const transitions = this.periodManager.calculatePeriodTransitions(
       currentState,
-      periodState,
+      preservedState, // Use preserved state
       attendance,
       now,
     );
 
-    // Get transition status
+    // Get transition status with preserved state
     const transitionStatus = this.determineTransitionStatusInfo(
       statusInfo,
-      periodState,
+      preservedState, // Use preserved state
       transitions,
       now,
     );
 
-    console.log('After determineTransitionStatusInfo Debug:', {
-      periodStateOvertimeInfo: periodState.overtimeInfo
-        ? {
-            startTime: periodState.overtimeInfo.startTime,
-            endTime: periodState.overtimeInfo.endTime,
-            id: periodState.overtimeInfo.id,
-          }
-        : 'UNDEFINED',
-    });
-
-    // Create enhanced context for validation
+    // Rest of the existing validation context creation
     const enhancedContext: ValidationContext = {
       ...validationContext,
       attendance: attendance || undefined,
@@ -159,20 +135,21 @@ export class AttendanceEnhancementService {
         Boolean(statusInfo.isOvertimePeriod),
     };
 
-    // Create state validation
+    // Create validation with preserved state
     const stateValidation = this.createStateValidation(
       currentState,
       attendance,
-      periodState,
+      preservedState, // Use preserved state
       enhancedContext,
       statusInfo,
       transitionStatus,
     );
 
+    // Build response with preserved state
     return this.buildEnhancedResponse(
       attendance,
       currentState,
-      periodState,
+      preservedState, // Use preserved state
       transitions,
       stateValidation,
       statusInfo,
