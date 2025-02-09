@@ -94,10 +94,7 @@ export default async function handler(
 
     console.log('Last period details:', {
       hasRecord: !!lastPeriod,
-      checkInTime: lastPeriod?.CheckInTime,
-      checkOutTime: lastPeriod?.CheckOutTime,
-      shiftEnd: lastPeriod?.shiftEndTime,
-      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      lastRecord: lastPeriod,
     });
 
     // Determine the correct next day based on last period
@@ -144,18 +141,44 @@ export default async function handler(
             endTimeType: typeof ot.endTime,
           });
 
-          // Date validation...
-          const startDate = new Date(ot.startTime);
-          const endDate = new Date(ot.endTime);
+          // If times are just HH:mm strings, combine with nextDay date
+          const startDate = new Date(nextDay);
+          const endDate = new Date(nextDay);
 
-          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-            console.error('Invalid date found in overtime:', {
+          // Parse time strings in format "HH:mm"
+          const [startHours, startMinutes] = ot.startTime
+            .split(':')
+            .map(Number);
+          const [endHours, endMinutes] = ot.endTime.split(':').map(Number);
+
+          if (
+            isNaN(startHours) ||
+            isNaN(startMinutes) ||
+            isNaN(endHours) ||
+            isNaN(endMinutes)
+          ) {
+            console.error('Invalid time format:', {
               id: ot.id,
               startTime: ot.startTime,
               endTime: ot.endTime,
             });
             return null;
           }
+
+          // Set hours and minutes
+          startDate.setHours(startHours, startMinutes, 0, 0);
+          endDate.setHours(endHours, endMinutes, 0, 0);
+
+          // Handle overnight overtime
+          if (endHours < startHours) {
+            endDate.setDate(endDate.getDate() + 1);
+          }
+
+          console.log('Constructed overtime dates:', {
+            id: ot.id,
+            startDate: format(startDate, 'yyyy-MM-dd HH:mm'),
+            endDate: format(endDate, 'yyyy-MM-dd HH:mm'),
+          });
 
           const overtime: MappedOvertime = {
             id: ot.id,
