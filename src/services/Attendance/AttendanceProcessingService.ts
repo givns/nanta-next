@@ -391,9 +391,7 @@ export class AttendanceProcessingService {
     });
 
     // Check if auto-completion needed
-    const shouldAutoComplete =
-      options.activity.overtimeMissed &&
-      this.shouldAutoComplete(options, currentRecord);
+    const shouldAutoComplete = this.shouldAutoComplete(options, currentRecord);
 
     console.log('Auto-completion check:', {
       shouldAutoComplete,
@@ -421,6 +419,7 @@ export class AttendanceProcessingService {
       return false;
     }
 
+    // Case 1: Regular -> Overtime transition
     if (
       options.periodType === PeriodType.REGULAR &&
       currentRecord?.type === PeriodType.OVERTIME &&
@@ -430,6 +429,7 @@ export class AttendanceProcessingService {
       return true;
     }
 
+    // Case 2: Missing check-in
     if (!currentRecord?.CheckInTime && !options.activity.isCheckIn) {
       return true;
     }
