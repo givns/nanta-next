@@ -96,6 +96,8 @@ export class ShiftManagementService {
       adjustment: adjustment as ShiftAdjustment | null, // Include if exists with proper type
     };
 
+    console.log('Effective shift:', result);
+
     await setCacheData(cacheKey, JSON.stringify(result), 3600);
     return result;
   }
