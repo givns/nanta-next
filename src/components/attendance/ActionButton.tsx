@@ -102,7 +102,7 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     return (
       validation.flags.hasPendingTransition &&
       attendanceStatus.checkStatus === CheckStatus.CHECKED_IN &&
-      Boolean(transition?.isInTransition)
+      validation.flags.requiresTransition // Add this condition
     );
   }, [
     validation.flags,
