@@ -579,17 +579,6 @@ export class AttendanceEnhancementService {
       nextStartTime && currentEndTime === nextStartTime,
     );
 
-    // Only require transition if all conditions met
-    const requiresTransition = Boolean(
-      statusInfo.isActiveAttendance && // Must be active
-        hasConnectingPeriod && // Must have connecting period
-        isWithinInterval(new Date(), {
-          // Must be in transition window
-          start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
-          end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
-        }),
-    );
-
     // Use validation results from periodValidation
     const isLateCheckIn =
       periodValidation.isLateCheckIn && !attendance?.CheckInTime;
@@ -610,7 +599,7 @@ export class AttendanceEnhancementService {
       isOvertime: currentState.activity.isOvertime,
       isDayOffOvertime: currentState.activity.isDayOffOvertime,
       isEmergencyLeave,
-      requiresTransition,
+      requiresTransition: currentState.validation.isConnected,
       isMorningShift: statusInfo.shiftTiming.isMorningShift,
       isAfternoonShift: statusInfo.shiftTiming.isAfternoonShift,
       isAfterMidshift: statusInfo.shiftTiming.isAfterMidshift,
@@ -642,7 +631,7 @@ export class AttendanceEnhancementService {
 
       // Transition flags
       hasPendingTransition: hasConnectingPeriod, // Update based on connecting period
-      requiresTransition, // Use new transition logic
+      requiresTransition: currentState.validation.isConnected,
 
       // Shift timing
       isMorningShift: statusInfo.shiftTiming.isMorningShift,

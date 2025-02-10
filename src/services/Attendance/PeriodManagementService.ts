@@ -1774,7 +1774,7 @@ export class PeriodManagementService {
   }
 
   // 4. Fix transition requirement logic
-  private checkTransitionRequired(
+  public checkTransitionRequired(
     currentState: UnifiedPeriodState,
     activeRecord: AttendanceRecord | null,
     window: ShiftWindowResponse,
