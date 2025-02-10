@@ -1430,6 +1430,7 @@ export class PeriodManagementService {
     const additionalCheckOutConditions =
       statusInfo.timingFlags.isLateCheckOut ||
       statusInfo.timingFlags.isVeryLateCheckOut ||
+      currentState.validation.isConnected ||
       // These flags would come from the validation logic you mentioned
       // Add other specific conditions here
       false; // Placeholder for additional flags
