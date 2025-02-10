@@ -586,7 +586,7 @@ export class AttendanceEnhancementService {
         isWithinInterval(new Date(), {
           // Must be in transition window
           start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
-          end: periodEnd,
+          end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
         }),
     );
 
