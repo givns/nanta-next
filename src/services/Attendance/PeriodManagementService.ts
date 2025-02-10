@@ -688,6 +688,10 @@ export class PeriodManagementService {
       period.endTime,
       period.isOvernight ? addDays(today, 1) : today,
     );
+    const earlyWindow = subMinutes(
+      periodStart,
+      VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+    );
 
     console.log('Non-active period calculation:', {
       isOvernight: period.isOvernight,
@@ -727,11 +731,13 @@ export class PeriodManagementService {
       },
       validation: {
         isWithinBounds: isWithinInterval(now, {
-          start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+          start: earlyWindow,
           end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
         }),
-        isEarly:
-          now < subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+        isEarly: isWithinInterval(now, {
+          start: earlyWindow, // 07:30
+          end: periodStart, // 08:00
+        }),
         isLate:
           now > addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
         isOvernight: Boolean(period.isOvernight), // Force boolean
