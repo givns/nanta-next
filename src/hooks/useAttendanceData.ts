@@ -46,7 +46,7 @@ export function useAttendanceData({
 }: UseAttendanceDataProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastOperation, setLastOperation] = useState<string>('');
-  const refreshTimeoutRef = useRef<NodeJS.Timeout>();
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const shouldFetch =
     enabled && employeeId && locationReady && locationVerified;
