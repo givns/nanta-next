@@ -179,6 +179,15 @@ export class AttendanceEnhancementService {
       timestamp: format(context.timestamp, 'yyyy-MM-dd HH:mm:ss'),
     });
 
+    console.log(transitionStatus, {
+      isInTransition: transitionStatus.isInTransition,
+      targetPeriod: transitionStatus.targetPeriod,
+      window: {
+        start: format(transitionStatus.window.start, 'yyyy-MM-dd HH:mm:ss'),
+        end: format(transitionStatus.window.end, 'yyyy-MM-dd HH:mm:ss'),
+      },
+    });
+
     // Get permission flags once
     const periodValidation = this.periodManager.validatePeriodAccess(
       currentState,
@@ -315,6 +324,13 @@ export class AttendanceEnhancementService {
     transitions: PeriodTransition[],
     now: Date,
   ): TransitionStatusInfo {
+    console.log('Determining transition status:', {
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      hasOvertime: !!periodState.overtimeInfo,
+      type: statusInfo.isOvertimePeriod,
+      hasTransitions: transitions.length > 0,
+    });
+
     if (transitions.length > 0 && periodState.overtimeInfo) {
       const overtimeStart = parseISO(
         `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo.startTime}`,
@@ -336,6 +352,7 @@ export class AttendanceEnhancementService {
         };
       }
     }
+    console.log('No transition detected, returning default state');
 
     return {
       isInTransition: false,
