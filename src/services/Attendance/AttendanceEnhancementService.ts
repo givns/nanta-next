@@ -613,7 +613,7 @@ export class AttendanceEnhancementService {
 
     return {
       isCheckingIn: !statusInfo.isActiveAttendance,
-      isLateCheckIn: periodValidation.isLateCheckIn,
+      isLateCheckIn: isLateCheckIn,
       isEarlyCheckIn: currentState.validation.isEarly,
       isEarlyCheckOut: false,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
