@@ -288,9 +288,8 @@ export default function LocationAssistanceAdmin() {
                   <div className="space-y-2 text-sm">
                     <div>
                       <span className="text-gray-500">พิกัด: </span>
-                      {
-                        selectedRequest.coordinates.lat
-                      }, {selectedRequest.coordinates.lng}
+                      {selectedRequest.coordinates.lat},{' '}
+                      {selectedRequest.coordinates.lng}
                     </div>
                     {selectedRequest.address && (
                       <div>

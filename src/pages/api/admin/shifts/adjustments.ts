@@ -66,7 +66,7 @@ export default async function handler(
               requestedShiftId: requestedShift.id,
               date: new Date(date),
               reason,
-              status: 'pending',
+              status: 'approved',
             },
             include: {
               user: {
