@@ -40,6 +40,20 @@ export default async function handler(
         const { type, employeeIds, departmentId, shiftCode, date, reason } =
           req.body;
 
+        // Extensive date logging
+        console.log('Backend - Received shift adjustment data:', {
+          type,
+          employeeIds,
+          departmentId,
+          shiftCode,
+          originalDate: date,
+          receivedDateType: typeof date,
+          newDateObject: new Date(date),
+          isoDateString: new Date(date).toISOString(),
+          localeDateString: new Date(date).toLocaleString(),
+          utcDateString: new Date(date).toUTCString(),
+        });
+
         // Find the requested shift by shiftCode
         const requestedShift = await prisma.shift.findUnique({
           where: { shiftCode },
@@ -59,6 +73,13 @@ export default async function handler(
           if (!employee) {
             throw new Error(`Employee with ID ${employeeId} not found`);
           }
+
+          console.log('Creating adjustment for employee:', {
+            employeeId,
+            originalDate: date,
+            processedDate: new Date(date),
+            processedDateISO: new Date(date).toISOString(),
+          });
 
           return prisma.shiftAdjustmentRequest.create({
             data: {
