@@ -369,6 +369,10 @@ export class AttendanceEnhancementService {
     });
 
     const today = startOfDay(now);
+    const transitionInfo = this.buildTransitionInfo(
+      transitionStatus,
+      periodState,
+    );
 
     // Build next period info first to ensure overtime is included
     const nextPeriod = this.buildNextPeriod(periodState, transitionStatus);
@@ -392,7 +396,7 @@ export class AttendanceEnhancementService {
       daily: {
         date: format(today, 'yyyy-MM-dd'),
         currentState: this.buildCurrentState(currentState, statusInfo),
-        transitions: this.filterValidTransitions(transitions, transitionStatus),
+        transitions: transitions, // Don't filter
       },
       base: {
         state: attendance?.state || AttendanceState.ABSENT,
@@ -430,7 +434,7 @@ export class AttendanceEnhancementService {
           holidayInfo: periodState.holidayInfo,
         },
         nextPeriod: enhancedNextPeriod,
-        transition: this.buildTransitionInfo(transitionStatus, periodState),
+        transition: transitionInfo,
       },
       validation: stateValidation,
     };
