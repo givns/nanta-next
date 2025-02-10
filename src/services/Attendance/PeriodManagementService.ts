@@ -307,7 +307,12 @@ export class PeriodManagementService {
           isDayOff: periodState.isDayOff,
         };
 
-        return this.createPeriodState(activePeriod, attendance, now);
+        return this.createPeriodState(
+          activePeriod,
+          attendance,
+          now,
+          periodState,
+        );
       }
     }
 
@@ -347,7 +352,12 @@ export class PeriodManagementService {
           periodEnd: activePeriod.endTime,
           isOvernight: activePeriod.isOvernight,
         });
-        return this.createPeriodState(activePeriod, attendance, now);
+        return this.createPeriodState(
+          activePeriod,
+          attendance,
+          now,
+          periodState,
+        );
       }
     }
 
@@ -359,7 +369,12 @@ export class PeriodManagementService {
     ) {
       const activePeriod = periods.find((p) => p.type === PeriodType.REGULAR);
       if (activePeriod) {
-        return this.createPeriodState(activePeriod, attendance, now);
+        return this.createPeriodState(
+          activePeriod,
+          attendance,
+          now,
+          periodState,
+        );
       }
     }
 
@@ -369,7 +384,7 @@ export class PeriodManagementService {
       return this.createDefaultPeriodState(now);
     }
 
-    return this.createPeriodState(currentPeriod, attendance, now);
+    return this.createPeriodState(currentPeriod, attendance, now, periodState);
   }
 
   /**
@@ -611,6 +626,7 @@ export class PeriodManagementService {
     period: PeriodDefinition,
     attendance: AttendanceRecord | null,
     now: Date,
+    window: ShiftWindowResponse, // Add window parameter
   ): UnifiedPeriodState {
     console.log('Creating period state:', {
       periodType: period.type,
@@ -620,6 +636,21 @@ export class PeriodManagementService {
     });
 
     const today = startOfDay(now);
+    const periodStart = this.parseTimeWithContext(period.startTime, today);
+    const periodEnd = this.parseTimeWithContext(
+      period.endTime,
+      period.isOvernight ? addDays(today, 1) : today,
+    );
+    const earlyWindow = subMinutes(
+      periodStart,
+      VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+    );
+    const nextPeriodStart =
+      window.overtimeInfo?.startTime || window.nextPeriod?.startTime;
+
+    const isConnected = Boolean(
+      nextPeriodStart && format(periodEnd, 'HH:mm') === nextPeriodStart,
+    );
 
     // For active attendance
     if (
@@ -668,6 +699,7 @@ export class PeriodManagementService {
           }),
         },
         validation: {
+          isConnected,
           isWithinBounds: isWithinInterval(now, {
             start: subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
             end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
@@ -677,21 +709,11 @@ export class PeriodManagementService {
           isLate:
             now > addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           isOvernight: Boolean(period.isOvernight), // Force boolean
-          isConnected: Boolean(attendance.overtimeState === 'COMPLETED'),
         },
       };
     }
 
     // For non-active period
-    const periodStart = this.parseTimeWithContext(period.startTime, today);
-    const periodEnd = this.parseTimeWithContext(
-      period.endTime,
-      period.isOvernight ? addDays(today, 1) : today,
-    );
-    const earlyWindow = subMinutes(
-      periodStart,
-      VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-    );
 
     console.log('Non-active period calculation:', {
       isOvernight: period.isOvernight,
@@ -741,7 +763,7 @@ export class PeriodManagementService {
         isLate:
           now > addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
         isOvernight: Boolean(period.isOvernight), // Force boolean
-        isConnected: false,
+        isConnected,
       },
     };
   }
@@ -1762,6 +1784,11 @@ export class PeriodManagementService {
       return false;
     }
 
+    // Use the validation.isConnected flag
+    if (!currentState.validation.isConnected) {
+      return false;
+    }
+
     // Check for connecting period
     const currentEndTime = format(
       parseISO(currentState.timeWindow.end),
@@ -1785,7 +1812,7 @@ export class PeriodManagementService {
     const periodEnd = parseISO(currentState.timeWindow.end);
     return isWithinInterval(now, {
       start: subMinutes(periodEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
-      end: periodEnd,
+      end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT), // Add grace period
     });
   }
 

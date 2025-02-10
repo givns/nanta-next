@@ -381,7 +381,10 @@ export class AttendanceEnhancementService {
         ? {
             type: nextPeriod.type,
             startTime: nextPeriod.startTime,
-            overtimeInfo: periodState.overtimeInfo,
+            overtimeInfo:
+              nextPeriod.type === PeriodType.OVERTIME
+                ? periodState.overtimeInfo
+                : undefined,
           }
         : nextPeriod;
 
