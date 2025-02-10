@@ -32,7 +32,9 @@ const useLocationVerification = (
 ): LocationStateContextType & { resetAdminVerification?: () => void } => {
   const [verificationState, setVerificationState] =
     useState<LocationVerificationState>(INITIAL_STATE);
-  const triggerRef = useRef<LocationVerificationTriggers>();
+  const triggerRef = useRef<LocationVerificationTriggers>(
+    new LocationVerificationTriggers(DEFAULT_CONFIG),
+  );
   const isMounted = useRef(true);
   const adminVerifiedRef = useRef<boolean>(false);
   const approvalStateRef = useRef<boolean>(false);
