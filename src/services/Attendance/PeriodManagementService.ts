@@ -897,11 +897,6 @@ export class PeriodManagementService {
       overtimeInfo: window.overtimeInfo,
     });
 
-    // Don't process transitions for active records
-    if (activeRecord?.CheckInTime && !activeRecord?.CheckOutTime) {
-      return [];
-    }
-
     // Transition from Overtime to Regular
     if (currentState.type === PeriodType.OVERTIME) {
       const regularShiftStart = parseISO(
@@ -961,7 +956,13 @@ export class PeriodManagementService {
     const hasUpcomingOvertime =
       window.overtimeInfo?.startTime === window.shift.endTime;
 
-    if (isInTransitionWindow && hasUpcomingOvertime) {
+    // Add check for active record
+    const isActiveRegularPeriod =
+      activeRecord?.CheckInTime &&
+      !activeRecord?.CheckOutTime &&
+      currentState.type === PeriodType.REGULAR;
+
+    if (isInTransitionWindow && hasUpcomingOvertime && isActiveRegularPeriod) {
       return [
         {
           from: {
