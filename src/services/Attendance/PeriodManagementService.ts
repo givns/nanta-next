@@ -227,6 +227,13 @@ export class PeriodManagementService {
     now: Date,
     originalPeriodState?: ShiftWindowResponse, // Add this optional parameter
   ): UnifiedPeriodState {
+    console.log('Resolution state tracking:', {
+      hasAttendance: !!attendance,
+      hasOriginalOvertimeInfo: !!originalPeriodState?.overtimeInfo,
+      hasCurrentOvertimeInfo: !!periodState.overtimeInfo,
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
+
     const recentlyCompletedOvertime = this.findRecentlyCompletedOvertime(
       attendance,
       now,
@@ -240,14 +247,18 @@ export class PeriodManagementService {
       );
     }
 
-    // Add a safeguard to restore overtimeInfo if it becomes undefined
+    // State preservation enhancement
     if (
       periodState.overtimeInfo === undefined &&
       originalPeriodState?.overtimeInfo
     ) {
-      console.warn('Restoring lost overtimeInfo', {
-        restoredInfo: originalPeriodState.overtimeInfo,
-        currentTime: now.toISOString(),
+      console.log('Restoring lost overtimeInfo:', {
+        restoredFrom: 'originalPeriodState',
+        info: {
+          id: originalPeriodState.overtimeInfo.id,
+          startTime: originalPeriodState.overtimeInfo.startTime,
+          endTime: originalPeriodState.overtimeInfo.endTime,
+        },
       });
       periodState = {
         ...periodState,
@@ -255,57 +266,7 @@ export class PeriodManagementService {
       };
     }
 
-    // Track state preservation
-    console.log('State preservation check:', {
-      hasOriginalState: !!originalPeriodState,
-      originalOvertimeInfo: originalPeriodState?.overtimeInfo
-        ? {
-            id: originalPeriodState.overtimeInfo.id,
-            startTime: originalPeriodState.overtimeInfo.startTime,
-            endTime: originalPeriodState.overtimeInfo.endTime,
-          }
-        : null,
-      currentOvertimeInfo: periodState.overtimeInfo
-        ? {
-            id: periodState.overtimeInfo.id,
-            startTime: periodState.overtimeInfo.startTime,
-            endTime: periodState.overtimeInfo.endTime,
-          }
-        : null,
-      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-    });
-
-    // Ensure overtime info preservation
-    const effectivePeriodState = {
-      ...periodState,
-      overtimeInfo:
-        originalPeriodState?.overtimeInfo || periodState.overtimeInfo,
-    };
-
-    console.log('Resolving current period - Detailed Debug:', {
-      currentTime: format(now, 'HH:mm:ss'),
-      attendance: attendance
-        ? {
-            type: attendance.type,
-            checkIn: attendance.CheckInTime,
-            checkOut: attendance.CheckOutTime,
-            shiftStart: attendance.shiftStartTime,
-            shiftEnd: attendance.shiftEndTime,
-          }
-        : null,
-      periodState: {
-        overtimeInfo: effectivePeriodState.overtimeInfo
-          ? {
-              startTime: effectivePeriodState.overtimeInfo.startTime,
-              endTime: effectivePeriodState.overtimeInfo.endTime,
-              id: effectivePeriodState.overtimeInfo.id,
-            }
-          : undefined,
-        shift: effectivePeriodState.shift,
-      },
-    });
-
-    // Handle active overnight overtime first
+    // Active overnight overtime handling
     if (
       attendance?.type === PeriodType.OVERTIME &&
       attendance.CheckInTime &&
@@ -313,26 +274,38 @@ export class PeriodManagementService {
       attendance.shiftStartTime &&
       attendance.shiftEndTime
     ) {
+      const today = startOfDay(now);
+      const windowStart = this.setHoursFromDate(
+        today,
+        attendance.shiftStartTime,
+      );
+      const windowEnd = this.setHoursFromDate(
+        isBefore(attendance.shiftEndTime, attendance.shiftStartTime)
+          ? addDays(today, 1)
+          : today,
+        attendance.shiftEndTime,
+      );
+
       const isInOvertimeWindow = isWithinInterval(now, {
         start: attendance.CheckInTime,
-        end: attendance.shiftEndTime,
+        end: windowEnd,
       });
 
       if (isInOvertimeWindow) {
+        console.log('Active overnight overtime period:', {
+          start: format(windowStart, 'yyyy-MM-dd HH:mm:ss'),
+          end: format(windowEnd, 'yyyy-MM-dd HH:mm:ss'),
+          current: format(now, 'yyyy-MM-dd HH:mm:ss'),
+        });
+
         const activePeriod = {
           type: PeriodType.OVERTIME,
-          startTime: format(attendance.shiftStartTime, 'HH:mm'),
-          endTime: format(attendance.shiftEndTime, 'HH:mm'),
+          startTime: format(windowStart, 'HH:mm'),
+          endTime: format(windowEnd, 'HH:mm'),
           sequence: 1,
           isOvernight: true,
           isDayOff: periodState.isDayOff,
         };
-
-        console.log('Found active overnight overtime:', {
-          start: format(attendance.shiftStartTime, 'HH:mm'),
-          end: format(attendance.shiftEndTime, 'HH:mm'),
-          current: format(now, 'HH:mm'),
-        });
 
         return this.createPeriodState(activePeriod, attendance, now);
       }
@@ -347,7 +320,7 @@ export class PeriodManagementService {
 
     console.log('Period sequence with preserved state:', {
       periodsCount: periods.length,
-      hasOvertimeInfo: !!effectivePeriodState.overtimeInfo,
+      hasOvertimeInfo: !!periodState.overtimeInfo,
       periods: periods.map((p) => ({
         type: p.type,
         start: p.startTime,
@@ -390,27 +363,11 @@ export class PeriodManagementService {
       }
     }
 
-    const { currentPeriod, nextPeriod } = this.findRelevantPeriod(
-      periods,
-      now,
-      attendance,
-    );
+    const { currentPeriod } = this.findRelevantPeriod(periods, now, attendance);
     if (!currentPeriod) {
       console.log('No relevant period found, using default state');
       return this.createDefaultPeriodState(now);
     }
-
-    // Modify periodState to include nextPeriod
-    const updatedPeriodState = {
-      ...periodState,
-      nextPeriod: nextPeriod
-        ? {
-            start: `${format(now, 'yyyy-MM-dd')}T${nextPeriod.startTime}`,
-            end: `${format(now, 'yyyy-MM-dd')}T${nextPeriod.endTime}`,
-            type: nextPeriod.type,
-          }
-        : undefined,
-    };
 
     return this.createPeriodState(currentPeriod, attendance, now);
   }
@@ -655,6 +612,13 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     now: Date,
   ): UnifiedPeriodState {
+    console.log('Creating period state:', {
+      periodType: period.type,
+      hasAttendance: !!attendance,
+      isOvernight: period.isOvernight,
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+    });
+
     const today = startOfDay(now);
 
     // For active attendance
@@ -663,41 +627,24 @@ export class PeriodManagementService {
       attendance.shiftStartTime &&
       attendance.shiftEndTime
     ) {
-      // Use today's date but keep time components
-      const startTime = format(attendance.shiftStartTime, 'HH:mm:ss');
-      const endTime = format(attendance.shiftEndTime, 'HH:mm:ss');
-
-      const shiftStart = parseISO(
-        `${format(today, 'yyyy-MM-dd')}T${startTime}`,
+      // Use today's date for time windows
+      const shiftStart = this.setHoursFromDate(
+        today,
+        attendance.shiftStartTime,
       );
-      const shiftEnd = parseISO(`${format(today, 'yyyy-MM-dd')}T${endTime}`);
+      const shiftEnd = this.setHoursFromDate(
+        period.isOvernight ? addDays(today, 1) : today,
+        attendance.shiftEndTime,
+      );
 
-      // Handle overnight periods
+      // For overnight periods, ensure correct window
       if (period.isOvernight) {
-        shiftEnd.setDate(shiftEnd.getDate() + 1);
+        console.log('Handling overnight period:', {
+          start: format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+          end: format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
+          isActive: !attendance.CheckOutTime,
+        });
       }
-
-      const earlyWindow = subMinutes(
-        shiftStart,
-        ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-      );
-      const lateWindow = addMinutes(
-        shiftEnd,
-        ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
-      );
-
-      console.log('Active attendance period calculation:', {
-        isOvernight: Boolean(period.isOvernight),
-        shiftTimes: {
-          start: format(shiftStart, 'HH:mm:ss'),
-          end: format(shiftEnd, 'HH:mm:ss'),
-        },
-        windows: {
-          early: format(earlyWindow, 'HH:mm:ss'),
-          late: format(lateWindow, 'HH:mm:ss'),
-        },
-        currentTime: format(now, 'HH:mm:ss'),
-      });
 
       return {
         type: period.type,
@@ -707,24 +654,28 @@ export class PeriodManagementService {
         },
         activity: {
           isActive: !attendance.CheckOutTime,
-          checkIn: format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          checkIn: attendance.CheckInTime
+            ? format(attendance.CheckInTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
+            : null,
           checkOut: attendance.CheckOutTime
             ? format(attendance.CheckOutTime, "yyyy-MM-dd'T'HH:mm:ss.SSS")
             : null,
           isOvertime: period.type === PeriodType.OVERTIME,
-          isDayOffOvertime: Boolean(period.isDayOff),
+          isDayOffOvertime: period.isDayOff || false,
           isInsideShiftHours: isWithinInterval(now, {
-            start: earlyWindow,
-            end: lateWindow,
+            start: subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+            end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           }),
         },
         validation: {
           isWithinBounds: isWithinInterval(now, {
-            start: earlyWindow,
-            end: lateWindow,
+            start: subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+            end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           }),
-          isEarly: now < earlyWindow,
-          isLate: now > lateWindow,
+          isEarly:
+            now < subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+          isLate:
+            now > addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           isOvernight: Boolean(period.isOvernight), // Force boolean
           isConnected: Boolean(attendance.overtimeState === 'COMPLETED'),
         },
@@ -732,40 +683,29 @@ export class PeriodManagementService {
     }
 
     // For non-active period
-    let periodStart = this.parseTimeWithContext(period.startTime, now);
-    let periodEnd = this.parseTimeWithContext(period.endTime, now);
-
-    // Handle overnight period
-    if (period.isOvernight && periodEnd < periodStart) {
-      periodEnd = addDays(periodEnd, 1);
-    }
-
-    const earlyWindow = subMinutes(
-      periodStart,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-    );
-    const lateWindow = addMinutes(
-      periodEnd,
-      ATTENDANCE_CONSTANTS.LATE_CHECK_OUT_THRESHOLD,
+    const periodStart = this.parseTimeWithContext(period.startTime, today);
+    const periodEnd = this.parseTimeWithContext(
+      period.endTime,
+      period.isOvernight ? addDays(today, 1) : today,
     );
 
     console.log('Non-active period calculation:', {
-      isOvernight: Boolean(period.isOvernight),
+      isOvernight: period.isOvernight,
       periodTimes: {
         start: format(periodStart, 'HH:mm:ss'),
         end: format(periodEnd, 'HH:mm:ss'),
       },
       windows: {
-        early: format(earlyWindow, 'HH:mm:ss'),
-        late: format(lateWindow, 'HH:mm:ss'),
+        early: format(
+          subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+          'HH:mm:ss',
+        ),
+        late: format(
+          addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+          'HH:mm:ss',
+        ),
       },
       currentTime: format(now, 'HH:mm:ss'),
-      isLate: now > lateWindow,
-    });
-
-    const isWithinPeriod = isWithinInterval(now, {
-      start: periodStart,
-      end: periodEnd,
     });
 
     return {
@@ -779,16 +719,21 @@ export class PeriodManagementService {
         checkIn: null,
         checkOut: null,
         isOvertime: period.type === PeriodType.OVERTIME,
-        isDayOffOvertime: Boolean(period.isDayOff),
-        isInsideShiftHours: isWithinPeriod,
+        isDayOffOvertime: period.isDayOff || false,
+        isInsideShiftHours: isWithinInterval(now, {
+          start: periodStart,
+          end: periodEnd,
+        }),
       },
       validation: {
         isWithinBounds: isWithinInterval(now, {
-          start: earlyWindow,
-          end: lateWindow,
+          start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+          end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
         }),
-        isEarly: now < earlyWindow,
-        isLate: now > lateWindow,
+        isEarly:
+          now < subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+        isLate:
+          now > addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
         isOvernight: Boolean(period.isOvernight), // Force boolean
         isConnected: false,
       },
@@ -1543,6 +1488,17 @@ export class PeriodManagementService {
   /**
    * Helper Functions
    */
+
+  private setHoursFromDate(baseDate: Date, timeDate: Date): Date {
+    const result = new Date(baseDate);
+    result.setHours(
+      timeDate.getHours(),
+      timeDate.getMinutes(),
+      timeDate.getSeconds(),
+      timeDate.getMilliseconds(),
+    );
+    return result;
+  }
 
   private createPeriodStateFromCompletedOvertime(
     completedOvertime: AttendanceRecord,

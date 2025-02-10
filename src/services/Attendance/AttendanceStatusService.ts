@@ -15,7 +15,7 @@ import { cacheService } from '../cache/CacheService';
 import { PeriodType } from '@prisma/client';
 import { AttendanceMappers } from './utils/AttendanceMappers';
 import { PeriodManagementService } from './PeriodManagementService';
-import { format } from 'date-fns';
+import { format, startOfDay } from 'date-fns';
 
 interface GetAttendanceStatusOptions {
   inPremises: boolean;
@@ -138,7 +138,22 @@ export class AttendanceStatusService {
     });
 
     // Get latest record and serialize it
-    const latestRecord = activeRecord || allRecords[0] || null;
+    // Get latest record and serialize it
+    const latestRecord = (() => {
+      // First priority: Active records (already handles overnight periods)
+      if (activeRecord) return activeRecord;
+
+      // Second priority: Today's records
+      const todayRecords = allRecords.filter(
+        (record) =>
+          startOfDay(record.date).getTime() === startOfDay(now).getTime(),
+      );
+      if (todayRecords.length > 0) return todayRecords[0];
+
+      // No relevant records
+      return null;
+    })();
+
     const serializedLatest = latestRecord
       ? AttendanceMappers.toSerializedAttendanceRecord(latestRecord)
       : null;

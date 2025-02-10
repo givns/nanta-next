@@ -41,6 +41,7 @@ import {
   addHours,
   isAfter,
   isBefore,
+  startOfDay,
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
 import { VALIDATION_ACTIONS } from '@/types/attendance/interface';
@@ -83,14 +84,14 @@ export class AttendanceEnhancementService {
       : null;
 
     // Create preserved state that will be used throughout
-    const preservedState: ShiftWindowResponse = {
+    const preservedOvertimeInfo = periodState.overtimeInfo
+      ? JSON.parse(JSON.stringify(periodState.overtimeInfo))
+      : undefined;
+
+    // Ensure overtime info is preserved throughout the process
+    const preservedState = {
       ...periodState,
-      // Ensure overtime info is deeply cloned
-      overtimeInfo: periodState.overtimeInfo
-        ? {
-            ...periodState.overtimeInfo,
-          }
-        : undefined,
+      overtimeInfo: preservedOvertimeInfo,
     };
 
     // Get current period with preserved state
@@ -360,11 +361,14 @@ export class AttendanceEnhancementService {
     now: Date,
   ): AttendanceStatusResponse {
     // Debug current overtime state
-    console.log('Current overtime state:', {
-      currentType: currentState.type,
-      overtimeInfo: periodState.overtimeInfo,
-      statusIsOvertimePeriod: statusInfo.isOvertimePeriod,
+    console.log('Building enhanced response:', {
+      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      hasOvertime: !!periodState.overtimeInfo,
+      type: currentState.type,
+      hasTransitions: transitions.length > 0,
     });
+
+    const today = startOfDay(now);
 
     // Build next period info first to ensure overtime is included
     const nextPeriod = this.buildNextPeriod(periodState, transitionStatus);
@@ -383,7 +387,7 @@ export class AttendanceEnhancementService {
 
     const response = {
       daily: {
-        date: format(now, 'yyyy-MM-dd'),
+        date: format(today, 'yyyy-MM-dd'),
         currentState: this.buildCurrentState(currentState, statusInfo),
         transitions: this.filterValidTransitions(transitions, transitionStatus),
       },
