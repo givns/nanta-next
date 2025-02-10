@@ -324,35 +324,29 @@ export class AttendanceEnhancementService {
     transitions: PeriodTransition[],
     now: Date,
   ): TransitionStatusInfo {
-    console.log('Determining transition status:', {
-      currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      hasOvertime: !!periodState.overtimeInfo,
-      type: statusInfo.isOvertimePeriod,
-      hasTransitions: transitions.length > 0,
-    });
-
+    // Handle regular to overtime transition
     if (transitions.length > 0 && periodState.overtimeInfo) {
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo.startTime}`,
+      const shiftEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
       );
 
-      const transitionStart = subMinutes(
-        overtimeStart,
-        VALIDATION_THRESHOLDS.TRANSITION_WINDOW,
-      );
+      const transitionWindow = {
+        start: subMinutes(shiftEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
+        end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+      };
 
-      if (now >= transitionStart && now < overtimeStart) {
+      // Check if we're in transition window
+      if (isWithinInterval(now, transitionWindow)) {
         return {
           isInTransition: true,
           targetPeriod: PeriodType.OVERTIME,
           window: {
-            start: transitionStart,
-            end: overtimeStart,
+            start: shiftEnd,
+            end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           },
         };
       }
     }
-    console.log('No transition detected, returning default state');
 
     return {
       isInTransition: false,
