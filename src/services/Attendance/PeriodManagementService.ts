@@ -655,18 +655,26 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     now: Date,
   ): UnifiedPeriodState {
+    const today = startOfDay(now);
+
     // For active attendance
     if (
       attendance?.CheckInTime &&
       attendance.shiftStartTime &&
       attendance.shiftEndTime
     ) {
-      let shiftStart = attendance.shiftStartTime;
-      let shiftEnd = attendance.shiftEndTime;
+      // Use today's date but keep time components
+      const startTime = format(attendance.shiftStartTime, 'HH:mm:ss');
+      const endTime = format(attendance.shiftEndTime, 'HH:mm:ss');
 
-      // Handle overnight period
-      if (period.isOvernight && shiftEnd < shiftStart) {
-        shiftEnd = addDays(shiftEnd, 1);
+      const shiftStart = parseISO(
+        `${format(today, 'yyyy-MM-dd')}T${startTime}`,
+      );
+      const shiftEnd = parseISO(`${format(today, 'yyyy-MM-dd')}T${endTime}`);
+
+      // Handle overnight periods
+      if (period.isOvernight) {
+        shiftEnd.setDate(shiftEnd.getDate() + 1);
       }
 
       const earlyWindow = subMinutes(
