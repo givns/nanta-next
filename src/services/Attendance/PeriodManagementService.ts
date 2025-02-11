@@ -710,6 +710,28 @@ export class PeriodManagementService {
         });
       }
 
+      console.log('Active period calculation:', {
+        periodTimes: {
+          start: format(periodStart, 'HH:mm:ss'),
+          end: format(periodEnd, 'HH:mm:ss'),
+        },
+        shiftTimes: {
+          start: format(shiftStart, 'HH:mm:ss'),
+          end: format(shiftEnd, 'HH:mm:ss'),
+        },
+        windows: {
+          early: format(
+            subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+            'HH:mm:ss',
+          ),
+          late: format(
+            addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+            'HH:mm:ss',
+          ),
+        },
+        currentTime: format(now, 'HH:mm:ss'),
+      });
+
       return {
         type: period.type,
         timeWindow: {
