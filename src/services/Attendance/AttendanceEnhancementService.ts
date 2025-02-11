@@ -46,6 +46,7 @@ import {
 import { PeriodManagementService } from './PeriodManagementService';
 import { VALIDATION_ACTIONS } from '@/types/attendance/interface';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { current } from '@reduxjs/toolkit';
 
 interface PeriodValidation {
   canCheckIn: boolean;
@@ -273,9 +274,46 @@ export class AttendanceEnhancementService {
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
 
+    console.log('determine Period Status Info:', {
+      isActive,
+      isOvertimePeriod: currentState.type === PeriodType.OVERTIME,
+      isLateCheckOut: this.isLateCheckOut(attendance, currentState, now),
+      isVeryLateCheckOut: this.isVeryLateCheckOut(
+        attendance,
+        currentState,
+        now,
+      ),
+      lateCheckOutMinutes: this.calculateLateMinutes(
+        attendance,
+        currentState,
+        now,
+      ),
+      requiresTransition:
+        isActive &&
+        isWithinInterval(now, {
+          start: subMinutes(
+            parseISO(currentState.timeWindow.end),
+            VALIDATION_THRESHOLDS.TRANSITION_WINDOW,
+          ),
+          end: parseISO(currentState.timeWindow.end),
+        }),
+      requiresAutoCompletion:
+        isActive &&
+        Boolean(
+          attendance?.CheckInTime &&
+            !attendance.CheckOutTime &&
+            this.isVeryLateCheckOut(attendance, currentState, now),
+        ),
+    });
+
     const timingFlags: TimingFlags = {
       isEarlyCheckIn: currentState.validation.isEarly,
       isLateCheckIn: currentState.validation.isLate,
+      isEarlyCheckOut: this.periodManager.calculateTimingFlags(
+        attendance,
+        currentState,
+        now,
+      ).isEarlyCheckOut,
       isLateCheckOut: this.isLateCheckOut(attendance, currentState, now),
       isVeryLateCheckOut: this.isVeryLateCheckOut(
         attendance,

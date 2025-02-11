@@ -55,6 +55,7 @@ export interface TimingFlags {
   isEarlyCheckIn: boolean;
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
+  isEarlyCheckOut: boolean;
   isVeryLateCheckOut: boolean;
   lateCheckOutMinutes: number;
   requiresTransition: boolean;

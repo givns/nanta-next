@@ -874,7 +874,7 @@ export class PeriodManagementService {
   }
 
   // Update existing or add calculateTimingFlags
-  private calculateTimingFlags(
+  public calculateTimingFlags(
     attendance: AttendanceRecord | null,
     currentState: UnifiedPeriodState,
     now: Date,
@@ -896,6 +896,12 @@ export class PeriodManagementService {
       !attendance?.CheckInTime && this.isLateForPeriod(now, periodStart);
 
     const isLateCheckOut = this.isLateCheckOut(attendance, currentState, now);
+    const isEarlyCheckOut =
+      attendance?.CheckInTime &&
+      !attendance?.CheckOutTime &&
+      now < periodEnd &&
+      differenceInMinutes(now, periodEnd) >
+        VALIDATION_THRESHOLDS.EARLY_CHECKOUT;
 
     const isVeryLateCheckOut = this.isVeryLateCheckOut(
       attendance,
@@ -929,6 +935,7 @@ export class PeriodManagementService {
       isEarlyCheckIn,
       isLateCheckIn,
       isLateCheckOut,
+      isEarlyCheckOut: isEarlyCheckOut ?? false,
       isVeryLateCheckOut,
       lateCheckOutMinutes: this.calculateLateMinutes(
         attendance,
