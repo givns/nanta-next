@@ -574,12 +574,20 @@ export class AttendanceEnhancementService {
     periodState: ShiftWindowResponse,
     periodValidation: PeriodValidation,
   ): ValidationFlags {
-    console.log('Building validation flags:', {
-      periodType: currentState.type,
-      isActive: statusInfo.isActiveAttendance,
-      timeWindow: currentState.timeWindow,
-      hasOvertimeInfo: Boolean(periodState.overtimeInfo),
+    console.log('Building validation flags from state:', {
+      statusInfo: {
+        timingFlags: statusInfo.timingFlags,
+        shiftTiming: statusInfo.shiftTiming,
+        isActiveAttendance: statusInfo.isActiveAttendance,
+      },
+      currentState: {
+        timeWindow: currentState.timeWindow,
+        validation: currentState.validation,
+        activity: currentState.activity,
+      },
     });
+
+    const { timingFlags, shiftTiming } = statusInfo;
 
     // Check for connecting period
     const periodEnd = parseISO(currentState.timeWindow.end);
@@ -590,9 +598,11 @@ export class AttendanceEnhancementService {
       nextStartTime && currentEndTime === nextStartTime,
     );
 
-    // Use validation results from periodValidation
-    const isLateCheckIn =
-      periodValidation.isLateCheckIn && !attendance?.CheckInTime;
+    const isInsideShift = Boolean(
+      currentState.validation.isWithinBounds &&
+        !currentState.validation.isEarly &&
+        !currentState.validation.isLate,
+    );
 
     // Emergency Leave Logic
     const isEmergencyLeave = Boolean(
@@ -619,42 +629,49 @@ export class AttendanceEnhancementService {
     });
 
     return {
+      // Activity status - from statusInfo
       isCheckingIn: !statusInfo.isActiveAttendance,
-      isLateCheckIn: isLateCheckIn,
-      isEarlyCheckIn: currentState.validation.isEarly,
-      isEarlyCheckOut: false,
-      isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
-      isVeryLateCheckOut: statusInfo.timingFlags.isVeryLateCheckOut,
-
-      // Period status
       hasActivePeriod: statusInfo.isActiveAttendance,
-      isInsideShift: !currentState.activity.isOvertime,
-      isOutsideShift: currentState.activity.isOvertime,
+
+      // Timing flags - from statusInfo.timingFlags
+      isLateCheckIn: timingFlags.isLateCheckIn,
+      isEarlyCheckIn: timingFlags.isEarlyCheckIn,
+      isLateCheckOut: timingFlags.isLateCheckOut,
+      isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
+
+      // Shift timing - from statusInfo.shiftTiming
+      isMorningShift: shiftTiming.isMorningShift,
+      isAfternoonShift: shiftTiming.isAfternoonShift,
+      isAfterMidshift: shiftTiming.isAfterMidshift,
+
+      // Period status - from currentState
+      isInsideShift,
+      isOutsideShift: !isInsideShift,
       isOvertime: currentState.activity.isOvertime,
       isDayOffOvertime: currentState.activity.isDayOffOvertime,
-      isPendingOvertime: false,
-
-      // Automation flags
-      isAutoCheckIn: false,
-      isAutoCheckOut: false,
-      requireConfirmation: false,
-      requiresAutoCompletion: statusInfo.timingFlags.isVeryLateCheckOut,
 
       // Transition flags
       hasPendingTransition: hasConnectingPeriod, // Update based on connecting period
-      requiresTransition: currentState.validation.isConnected,
+      requiresTransition: timingFlags.requiresTransition,
 
-      // Shift timing
-      isMorningShift: statusInfo.shiftTiming.isMorningShift,
-      isAfternoonShift: statusInfo.shiftTiming.isAfternoonShift,
-      isAfterMidshift: statusInfo.shiftTiming.isAfterMidshift,
+      // Automation flags - from statusInfo.timingFlags
+      requiresAutoCompletion: timingFlags.requiresAutoCompletion,
 
-      // Special cases
+      // Default flags that need explicit setting elsewhere
+      isAutoCheckIn: false,
+      isAutoCheckOut: false,
+      requireConfirmation: false,
+      isPendingOvertime: false,
+      isEarlyCheckOut: false,
       isPlannedHalfDayLeave: false,
-      isEmergencyLeave,
+      isEmergencyLeave: false,
       isApprovedEarlyCheckout: false,
+
+      // Schedule flags - from periodState
       isHoliday: periodState.isHoliday,
       isDayOff: periodState.isDayOff,
+
+      // Metadata flags
       isManualEntry: Boolean(attendance?.metadata.isManualEntry),
     };
   }
@@ -664,6 +681,13 @@ export class AttendanceEnhancementService {
     currentState: UnifiedPeriodState,
     attendance: AttendanceRecord | null,
   ): string {
+    const now = getCurrentTime();
+    const periodStart = parseISO(currentState.timeWindow.start);
+
+    if (isBefore(now, periodStart)) {
+      return `เวลาทำงานปกติเริ่ม ${format(periodStart, 'HH:mm')} น.`;
+    }
+
     // Case 1: Active period cases
     if (statusInfo.isActiveAttendance) {
       if (statusInfo.timingFlags.isVeryLateCheckOut) {

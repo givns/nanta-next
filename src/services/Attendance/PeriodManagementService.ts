@@ -225,7 +225,7 @@ export class PeriodManagementService {
     attendance: AttendanceRecord | null,
     periodState: ShiftWindowResponse,
     now: Date,
-    originalPeriodState?: ShiftWindowResponse, // Add this optional parameter
+    originalPeriodState: ShiftWindowResponse, // Add this optional parameter
   ): UnifiedPeriodState {
     console.log('Resolution state tracking:', {
       hasAttendance: !!attendance,
@@ -244,6 +244,7 @@ export class PeriodManagementService {
       return this.createPeriodStateFromCompletedOvertime(
         recentlyCompletedOvertime,
         now,
+        originalPeriodState,
       );
     }
 
@@ -378,15 +379,46 @@ export class PeriodManagementService {
       }
     }
 
-    const { currentPeriod } = this.findRelevantPeriod(periods, now, attendance);
+    // Find relevant period with proper window parameter
+    const { currentPeriod, nextPeriod } = this.findRelevantPeriod(
+      periods,
+      now,
+      attendance,
+      periodState,
+    );
     if (!currentPeriod) {
-      console.log('No relevant period found, using default state');
-      return this.createDefaultPeriodState(now);
+      console.log(
+        'No relevant period found, creating default with period state:',
+        {
+          shift: periodState.shift,
+          currentTime: format(now, 'HH:mm:ss'),
+        },
+      );
+
+      // Create a default period definition
+      const defaultPeriod: PeriodDefinition = {
+        type: PeriodType.REGULAR,
+        startTime: periodState.shift.startTime,
+        endTime: periodState.shift.endTime,
+        sequence: 1,
+        isOvernight: this.isOvernightPeriod(
+          periodState.shift.startTime,
+          periodState.shift.endTime,
+        ),
+        isDayOff: periodState.isDayOff,
+      };
+
+      return this.createPeriodState(
+        defaultPeriod,
+        attendance,
+        now,
+        periodState,
+      );
     }
 
+    // Use period state consistently
     return this.createPeriodState(currentPeriod, attendance, now, periodState);
   }
-
   /**
    * Builds chronological sequence of periods for the day
    */
@@ -508,6 +540,7 @@ export class PeriodManagementService {
     periods: PeriodDefinition[],
     now: Date,
     attendance?: AttendanceRecord | null,
+    window?: ShiftWindowResponse, // Add window parameter
   ): {
     currentPeriod: PeriodDefinition | null;
     nextPeriod: PeriodDefinition | null;
@@ -1533,13 +1566,14 @@ export class PeriodManagementService {
   private createPeriodStateFromCompletedOvertime(
     completedOvertime: AttendanceRecord,
     now: Date,
+    window: ShiftWindowResponse,
   ): UnifiedPeriodState {
     if (!completedOvertime.shiftStartTime || !completedOvertime.shiftEndTime) {
       console.warn(
         'Missing shift times for completed overtime',
         completedOvertime,
       );
-      return this.createDefaultPeriodState(now);
+      return this.createDefaultPeriodState(now, window);
     }
 
     return {
@@ -1840,12 +1874,22 @@ export class PeriodManagementService {
     return isWithinInterval(now, { start: periodStart, end: periodEnd });
   }
 
-  private createDefaultPeriodState(now: Date): UnifiedPeriodState {
+  private createDefaultPeriodState(
+    now: Date,
+    window: ShiftWindowResponse,
+  ): UnifiedPeriodState {
+    const today = format(now, 'yyyy-MM-dd');
+    const shiftStart = `${today}T${window.shift.startTime}`;
+    const shiftEnd = `${today}T${window.shift.endTime}`;
+
+    // Pre-shift period handling
+    const isBeforeShift = isBefore(now, parseISO(shiftStart));
+
     return {
       type: PeriodType.REGULAR,
       timeWindow: {
-        start: format(startOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-        end: format(endOfDay(now), "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+        start: shiftStart,
+        end: shiftEnd,
       },
       activity: {
         isActive: false,
@@ -1853,13 +1897,16 @@ export class PeriodManagementService {
         checkOut: null,
         isOvertime: false,
         isDayOffOvertime: false,
-        isInsideShiftHours: false,
+        isInsideShiftHours: this.isWithinShiftWindow(now, window.shift),
       },
       validation: {
-        isWithinBounds: false,
-        isEarly: false,
+        isWithinBounds: this.isWithinShiftWindow(now, window.shift, {
+          includeEarlyWindow: true,
+          includeLateWindow: true,
+        }),
+        isEarly: isBeforeShift,
         isLate: false,
-        isOvernight: false,
+        isOvernight: window.shift.endTime < window.shift.startTime,
         isConnected: false,
       },
     };
