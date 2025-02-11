@@ -902,8 +902,8 @@ export class PeriodManagementService {
       attendance?.CheckInTime &&
       !attendance?.CheckOutTime &&
       now < periodEnd &&
-      differenceInMinutes(now, periodEnd) >
-        VALIDATION_THRESHOLDS.EARLY_CHECKOUT;
+      differenceInMinutes(periodEnd, now) >=
+        VALIDATION_THRESHOLDS.EARLY_CHECKOUT; // 5 >= 5 -> true
 
     const isVeryLateCheckOut = this.isVeryLateCheckOut(
       attendance,
