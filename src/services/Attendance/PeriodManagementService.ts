@@ -43,6 +43,7 @@ interface PeriodValidation {
   canCheckIn: boolean;
   canCheckOut: boolean;
   isLateCheckIn: boolean;
+  isLateCheckOut: boolean;
   isWithinLateAllowance: boolean;
 }
 
@@ -1538,8 +1539,7 @@ export class PeriodManagementService {
       end: periodStart,
     });
 
-    // Is late if after start time
-    const isLateCheckIn = now > periodStart;
+    const isLateCheckIn = this.isLateForPeriod(now, periodStart);
 
     // Parse shift data from currentState
     const shiftData: ShiftData = {
@@ -1563,7 +1563,8 @@ export class PeriodManagementService {
       calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      isLateCheckIn: isLateCheckIn,
+      isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
+      isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isWithinShift,
     });
 
@@ -1572,6 +1573,7 @@ export class PeriodManagementService {
         !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
       isLateCheckIn,
+      isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isWithinLateAllowance: isLateCheckIn,
     };
   }
