@@ -896,6 +896,13 @@ export class PeriodManagementService {
       attendance?.CheckInTime && !attendance.CheckOutTime && isVeryLateCheckOut,
     );
 
+    console.log('Calculating timing flags:', {
+      periodEnd: format(periodEnd, 'HH:mm:ss'),
+      currentTime: format(now, 'HH:mm:ss'),
+      timeDiff: differenceInMinutes(now, periodEnd),
+      isLateCheckOut,
+    });
+
     return {
       isEarlyCheckIn,
       isLateCheckIn,
@@ -1650,9 +1657,24 @@ export class PeriodManagementService {
   ): boolean {
     if (!attendance?.CheckInTime || attendance?.CheckOutTime) return false;
     const periodEnd = parseISO(currentState.timeWindow.end);
+
+    console.log('isLateCheckOut check:', {
+      now: format(now, 'HH:mm:ss'),
+      periodEnd: format(periodEnd, 'HH:mm:ss'),
+      lateWindow: format(
+        addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+        'HH:mm:ss',
+      ),
+      isWithinLateWindow: isWithinInterval(now, {
+        start: periodEnd,
+        end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+      }),
+    });
+
+    // Check if current time is after shift end but within late threshold
     return isWithinInterval(now, {
-      start: periodEnd,
-      end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+      start: periodEnd, // shift end time
+      end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT), // 15 min grace period
     });
   }
 
