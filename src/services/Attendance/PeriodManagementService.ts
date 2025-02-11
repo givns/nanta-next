@@ -1534,8 +1534,21 @@ export class PeriodManagementService {
     // Is late if after start time
     const isLateCheckIn = now > periodStart;
 
-    // Within shift window (can check in anytime during shift)
-    const isWithinShift = now < periodEnd;
+    // Parse shift data from currentState
+    const shiftData: ShiftData = {
+      startTime: format(parseISO(currentState.timeWindow.start), 'HH:mm'),
+      endTime: format(parseISO(currentState.timeWindow.end), 'HH:mm'),
+      // Other required ShiftData fields
+      id: 'current',
+      name: 'Current Shift',
+      shiftCode: 'CURRENT',
+      workDays: [],
+    };
+
+    // Use isWithinShiftWindow for all window checks
+    const isWithinShift = this.isWithinShiftWindow(now, shiftData, {
+      includeLateWindow: true, // Include late window for check-out
+    });
 
     // Add debug logging
     console.log('Period boundary check:', {
@@ -1543,7 +1556,7 @@ export class PeriodManagementService {
       calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      isLate: isLateCheckIn,
+      isLateCheckIn: isLateCheckIn,
       isWithinShift,
     });
 
