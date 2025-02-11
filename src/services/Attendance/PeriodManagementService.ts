@@ -44,6 +44,7 @@ interface PeriodValidation {
   canCheckOut: boolean;
   isLateCheckIn: boolean;
   isLateCheckOut: boolean;
+  isEarlyCheckOut: boolean;
   isWithinLateAllowance: boolean;
 }
 
@@ -930,6 +931,7 @@ export class PeriodManagementService {
       currentTime: format(now, 'HH:mm:ss'),
       timeDiff: differenceInMinutes(now, periodEnd),
       isLateCheckOut,
+      isEarlyCheckOut,
     });
 
     return {
@@ -1500,6 +1502,7 @@ export class PeriodManagementService {
     const additionalCheckOutConditions =
       statusInfo.timingFlags.isLateCheckOut ||
       statusInfo.timingFlags.isVeryLateCheckOut ||
+      statusInfo.timingFlags.isEarlyCheckOut ||
       currentState.validation.isConnected ||
       // These flags would come from the validation logic you mentioned
       // Add other specific conditions here
@@ -1565,6 +1568,7 @@ export class PeriodManagementService {
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
       isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
+      isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinShift,
     });
 
@@ -1574,6 +1578,7 @@ export class PeriodManagementService {
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
       isLateCheckIn,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
+      isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinLateAllowance: isLateCheckIn,
     };
   }
