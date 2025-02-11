@@ -395,7 +395,8 @@ const CheckInRouter: React.FC = () => {
 
       const isRegularComplete =
         regularRecord?.record.CheckOutTime &&
-        regularRecord.record.state === 'PRESENT';
+        regularRecord.record.state === 'PRESENT' && // Must be present
+        regularRecord.record.checkStatus === 'CHECKED_OUT'; // Explicitly checked out
 
       // Check ALL overtime periods are completed
       const overtimeRecords = dailyRecords.filter(
