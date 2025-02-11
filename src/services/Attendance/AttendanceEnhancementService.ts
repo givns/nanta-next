@@ -664,7 +664,7 @@ export class AttendanceEnhancementService {
       isPendingOvertime: false,
       isEarlyCheckOut: false,
       isPlannedHalfDayLeave: false,
-      isEmergencyLeave: false,
+      isEmergencyLeave,
       isApprovedEarlyCheckout: false,
 
       // Schedule flags - from periodState
