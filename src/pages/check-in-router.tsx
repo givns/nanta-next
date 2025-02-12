@@ -21,7 +21,7 @@ import NextDayInfo from '@/components/attendance/NextDayInformation';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
 import useLocationVerification from '@/hooks/useLocationVerification';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { subMinutes, format, isSameDay } from 'date-fns';
+import { subMinutes, format, isSameDay, isAfter, parseISO } from 'date-fns';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -375,36 +375,33 @@ const CheckInRouter: React.FC = () => {
 
       // If we have shifts info, use it to determine cutoff
       if (safeAttendanceProps.shift) {
-        const [shiftHour, shiftMinute] = safeAttendanceProps.shift.startTime
-          .split(':')
-          .map(Number);
-        const currentShiftEnd = new Date(
-          safeAttendanceProps.base.latestAttendance?.shiftEndTime || now,
-        );
-
-        // Create next day's shift start time
-        const nextShiftStart = new Date(now);
-        // Only add a day if we're not in an overnight shift period
-        if (isSameDay(now, currentShiftEnd)) {
-          nextShiftStart.setDate(nextShiftStart.getDate() + 1);
-        }
-        nextShiftStart.setHours(shiftHour, shiftMinute, 0, 0);
+        const now = getCurrentTime();
+        const nextShiftTime = safeAttendanceProps.shift.startTime; // "13:00"
+        const currentShiftEnd =
+          safeAttendanceProps.base.latestAttendance?.shiftEndTime;
 
         console.log('Next shift window check:', {
-          currentTime: now,
+          currentTime: now.toISOString(),
+          shiftStartTime: nextShiftTime,
           currentShiftEnd,
-          nextShift: nextShiftStart,
-          isOvernight: !isSameDay(now, currentShiftEnd),
         });
 
-        // Calculate approach window
-        const approachingNextShift = subMinutes(nextShiftStart, 30);
+        // Parse them properly to compare
+        const nextShiftDate = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`,
+        );
+        const approachingNextShift = subMinutes(nextShiftDate, 30);
+
+        // If we're in an overnight period, shift should be tomorrow
+        if (currentShiftEnd && isAfter(parseISO(currentShiftEnd), now)) {
+          nextShiftDate.setDate(nextShiftDate.getDate() + 1);
+        }
+
         if (now >= approachingNextShift) {
           console.log('Within next shift window:', {
-            currentTime: now,
-            nextShiftStart: nextShiftStart,
-            approachWindow: approachingNextShift,
-            isOvernight: !isSameDay(now, currentShiftEnd),
+            currentTime: now.toISOString(),
+            nextShiftStart: nextShiftDate.toISOString(),
+            approachWindow: approachingNextShift.toISOString(),
           });
           return false;
         }
