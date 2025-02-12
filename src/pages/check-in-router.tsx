@@ -362,8 +362,12 @@ const CheckInRouter: React.FC = () => {
         lastRecord: lastRecord
           ? {
               id: lastRecord.id,
-              checkIn: format(new Date(lastRecord.CheckInTime), 'HH:mm:ss'),
-              checkOut: lastRecord.CheckOutTime
+              // Use the original UTC time string
+              checkIn: lastRecord.CheckInTime,
+              checkOut: lastRecord.CheckOutTime,
+              // Or explicitly format in UTC
+              checkInTime: format(new Date(lastRecord.CheckInTime), 'HH:mm:ss'),
+              checkOutTime: lastRecord.CheckOutTime
                 ? format(new Date(lastRecord.CheckOutTime), 'HH:mm:ss')
                 : null,
               type: lastRecord.type,
@@ -412,12 +416,20 @@ const CheckInRouter: React.FC = () => {
 
       const isRegularComplete =
         regularRecord?.record.CheckOutTime &&
-        regularRecord.record.state === 'PRESENT' && // Must be present
-        regularRecord.record.checkStatus === 'CHECKED_OUT'; // Explicitly checked out
+        regularRecord.record.state === 'PRESENT' &&
+        regularRecord.record.checkStatus === 'CHECKED_OUT';
 
-      console.log('Regular period completion:', {
+      console.log('Regular period completion check:', {
+        hasRegularRecord: !!regularRecord,
+        recordDetails: regularRecord
+          ? {
+              checkIn: regularRecord.record.CheckInTime,
+              checkOut: regularRecord.record.CheckOutTime,
+              state: regularRecord.record.state,
+              checkStatus: regularRecord.record.checkStatus,
+            }
+          : null,
         isRegularComplete,
-        record: regularRecord?.record,
       });
       // Check ALL overtime periods are completed
       const overtimeRecords = dailyRecords.filter(
