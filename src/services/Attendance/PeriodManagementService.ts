@@ -541,7 +541,7 @@ export class PeriodManagementService {
     periods: PeriodDefinition[],
     now: Date,
     attendance?: AttendanceRecord | null,
-    window?: ShiftWindowResponse, // Add window parameter
+    window?: ShiftWindowResponse,
   ): {
     currentPeriod: PeriodDefinition | null;
     nextPeriod: PeriodDefinition | null;
@@ -558,7 +558,9 @@ export class PeriodManagementService {
         ? {
             type: attendance.type,
             checkIn: format(attendance.CheckInTime!, 'HH:mm:ss'),
-            checkOut: attendance.CheckOutTime,
+            checkOut: attendance.CheckOutTime
+              ? format(attendance.CheckOutTime, 'HH:mm:ss')
+              : null,
           }
         : null,
     });
@@ -566,14 +568,39 @@ export class PeriodManagementService {
     let currentPeriod: PeriodDefinition | null = null;
     let nextPeriod: PeriodDefinition | null = null;
 
-    // First check if we have an active overnight period
     const currentTimeStr = format(now, 'HH:mm');
+
+    // First, check if regular period just completed and we're in overtime start window
+    if (
+      attendance?.type === PeriodType.REGULAR &&
+      attendance.CheckOutTime &&
+      window?.overtimeInfo
+    ) {
+      const overtimePeriod = periods.find(
+        (p) => p.type === PeriodType.OVERTIME,
+      );
+      if (
+        overtimePeriod &&
+        currentTimeStr >= overtimePeriod.startTime &&
+        currentTimeStr <= overtimePeriod.endTime
+      ) {
+        console.log('Found overtime period after regular completion:', {
+          type: overtimePeriod.type,
+          start: overtimePeriod.startTime,
+          end: overtimePeriod.endTime,
+        });
+        return {
+          currentPeriod: overtimePeriod,
+          nextPeriod: null,
+        };
+      }
+    }
+
+    // Then check overnight periods
     const overnightPeriod = periods.find(
       (p) =>
         p.isOvernight &&
-        // Period ends after midnight and we're before end time
         ((p.endTime < p.startTime && currentTimeStr <= p.endTime) ||
-          // Or period starts before midnight and we're after start time
           (p.endTime < p.startTime && currentTimeStr >= p.startTime)),
     );
 
@@ -586,34 +613,13 @@ export class PeriodManagementService {
         current: currentTimeStr,
       });
     } else {
-      // Check regular periods
+      // Check regular periods with proper transition handling
       for (const period of periods) {
-        let currentPeriodStart = this.parseTimeWithContext(
+        const currentPeriodStart = this.parseTimeWithContext(
           period.startTime,
           now,
         );
-        let currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
-
-        // Use check-out status to help determine current period
-        if (
-          attendance?.type === PeriodType.REGULAR &&
-          attendance.CheckOutTime
-        ) {
-          // If regular is checked out and we're past overtime start, pick overtime period
-          if (
-            period.type === PeriodType.OVERTIME &&
-            isAfter(now, currentPeriodStart)
-          ) {
-            currentPeriod = period;
-            break;
-          }
-        }
-        // Handle overnight periods
-        if (period.isOvernight) {
-          if (currentPeriodEnd < currentPeriodStart) {
-            currentPeriodEnd = addDays(currentPeriodEnd, 1);
-          }
-        }
+        const currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
 
         // Include early and late windows
         const earlyWindow = subMinutes(
@@ -625,14 +631,27 @@ export class PeriodManagementService {
           VALIDATION_THRESHOLDS.LATE_CHECKOUT,
         );
 
-        if (isWithinInterval(now, { start: earlyWindow, end: lateWindow })) {
-          currentPeriod = period;
-          console.log('Found current period:', {
-            type: period.type,
-            start: format(currentPeriodStart, 'HH:mm:ss'),
-            end: format(currentPeriodEnd, 'HH:mm:ss'),
-          });
-          break;
+        // For overtime periods, prioritize exact time match
+        if (period.type === PeriodType.OVERTIME) {
+          if (
+            isWithinInterval(now, {
+              start: currentPeriodStart,
+              end: addMinutes(
+                currentPeriodEnd,
+                VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
+              ),
+            })
+          ) {
+            currentPeriod = period;
+            break;
+          }
+        } else if (
+          isWithinInterval(now, { start: earlyWindow, end: lateWindow })
+        ) {
+          // Only set regular period if we haven't found an overtime period
+          if (!currentPeriod) {
+            currentPeriod = period;
+          }
         }
       }
     }
