@@ -594,6 +594,20 @@ export class PeriodManagementService {
         );
         let currentPeriodEnd = this.parseTimeWithContext(period.endTime, now);
 
+        // Use check-out status to help determine current period
+        if (
+          attendance?.type === PeriodType.REGULAR &&
+          attendance.CheckOutTime
+        ) {
+          // If regular is checked out and we're past overtime start, pick overtime period
+          if (
+            period.type === PeriodType.OVERTIME &&
+            isAfter(now, currentPeriodStart)
+          ) {
+            currentPeriod = period;
+            break;
+          }
+        }
         // Handle overnight periods
         if (period.isOvernight) {
           if (currentPeriodEnd < currentPeriodStart) {
