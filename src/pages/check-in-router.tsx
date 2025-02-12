@@ -364,6 +364,7 @@ const CheckInRouter: React.FC = () => {
       const now = getCurrentTime();
       const lastRecord = dailyRecords[dailyRecords.length - 1]?.record;
 
+      // Log for debugging
       console.log('Checking period completion:', {
         recordCount: dailyRecords.length,
         lastRecord: lastRecord
@@ -379,7 +380,7 @@ const CheckInRouter: React.FC = () => {
         currentTime: format(now, 'HH:mm:ss'),
       });
 
-      // Check regular period completion first
+      // Check regular period completion
       const regularRecord = dailyRecords.find(
         ({ record }) => record.type === PeriodType.REGULAR,
       );
@@ -389,20 +390,7 @@ const CheckInRouter: React.FC = () => {
         regularRecord.record.state === 'PRESENT' &&
         regularRecord.record.checkStatus === 'CHECKED_OUT';
 
-      console.log('Regular period completion check:', {
-        hasRegularRecord: !!regularRecord,
-        recordDetails: regularRecord
-          ? {
-              checkIn: regularRecord.record.CheckInTime,
-              checkOut: regularRecord.record.CheckOutTime,
-              state: regularRecord.record.state,
-              checkStatus: regularRecord.record.checkStatus,
-            }
-          : null,
-        isRegularComplete,
-      });
-
-      // Check ALL overtime periods are completed
+      // Check overtime completion
       const overtimeRecords = dailyRecords.filter(
         ({ record }) => record.type === PeriodType.OVERTIME,
       );
@@ -418,51 +406,25 @@ const CheckInRouter: React.FC = () => {
           (overtimeRecords.length === 0 || areAllOvertimeComplete),
       );
 
-      // Only check next shift window if all periods are complete
+      // If periods are complete, only check if we're approaching next shift
       if (allComplete && safeAttendanceProps.shift) {
-        console.log('Shift info:', {
-          shift: safeAttendanceProps.shift,
-        });
-
         const nextShiftTime = safeAttendanceProps.shift.startTime;
         const currentShiftEnd =
           safeAttendanceProps.base.latestAttendance?.shiftEndTime;
-
-        // Determine if we're in an overnight period by checking if shift end is tomorrow
         const isOvernight = currentShiftEnd && currentShiftEnd > now;
 
-        // If in overnight period, next shift is today
-        // If in regular period, next shift is tomorrow
+        // Calculate next shift start
         const nextShiftStart = isOvernight
-          ? parseISO(`${format(now, 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`) // Today
+          ? parseISO(`${format(now, 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`)
           : parseISO(
               `${format(addDays(now, 1), 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`,
-            ); // Tomorrow
+            );
 
         const approachingNextShift = subMinutes(nextShiftStart, 30);
 
-        console.log('Next shift window check:', {
-          now,
-          currentShiftEnd,
-          nextShiftStart: nextShiftStart.toISOString(),
-          approachingNextShift: approachingNextShift.toISOString(),
-          isOvernight,
-        });
-
-        // Return false if we're within 30 mins of next shift
+        // Only return false if we're within 30 minutes of next shift
         if (isAfter(now, approachingNextShift)) {
           return false;
-        }
-
-        // Check if we're in a new calendar day
-        if (lastRecord?.CheckOutTime) {
-          if (!isSameDay(now, new Date(lastRecord.CheckOutTime))) {
-            console.log('New calendar day detected:', {
-              currentTime: now,
-              lastCheckout: lastRecord.CheckOutTime,
-            });
-            return false;
-          }
         }
       }
 
