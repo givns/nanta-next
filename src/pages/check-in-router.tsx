@@ -21,7 +21,14 @@ import NextDayInfo from '@/components/attendance/NextDayInformation';
 import { LoadingSpinner } from '@/components/LoadingSpinnner';
 import useLocationVerification from '@/hooks/useLocationVerification';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { subMinutes, format, isSameDay, isAfter, parseISO } from 'date-fns';
+import {
+  subMinutes,
+  format,
+  isSameDay,
+  addDays,
+  isAfter,
+  parseISO,
+} from 'date-fns';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
 type LoadingPhase = 'loading' | 'fadeOut' | 'complete';
@@ -362,7 +369,6 @@ const CheckInRouter: React.FC = () => {
         lastRecord: lastRecord
           ? {
               id: lastRecord.id,
-              // Use the original UTC time string
               checkIn: lastRecord.CheckInTime,
               checkOut: lastRecord.CheckOutTime,
               type: lastRecord.type,
@@ -376,33 +382,32 @@ const CheckInRouter: React.FC = () => {
       // If we have shifts info, use it to determine cutoff
       if (safeAttendanceProps.shift) {
         const now = getCurrentTime();
-        const nextShiftTime = safeAttendanceProps.shift.startTime; // "13:00"
+        const nextShiftTime = safeAttendanceProps.shift.startTime;
         const currentShiftEnd =
           safeAttendanceProps.base.latestAttendance?.shiftEndTime;
 
+        // Determine if we're in an overnight period by checking if shift end is tomorrow
+        const isOvernight = currentShiftEnd && currentShiftEnd > now;
+
+        // If in overnight period, next shift is today
+        // If in regular period, next shift is tomorrow
+        const nextShiftStart = isOvernight
+          ? parseISO(`${format(now, 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`) // Today
+          : parseISO(
+              `${format(addDays(now, 1), 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`,
+            ); // Tomorrow
+
+        const approachingNextShift = subMinutes(nextShiftStart, 30);
+
         console.log('Next shift window check:', {
-          currentTime: now.toISOString(),
-          shiftStartTime: nextShiftTime,
+          now: now.toISOString(),
           currentShiftEnd,
+          nextShiftStart: nextShiftStart.toISOString(),
+          approachingNextShift: approachingNextShift.toISOString(),
+          isOvernight,
         });
 
-        // Parse them properly to compare
-        const nextShiftDate = parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`,
-        );
-        const approachingNextShift = subMinutes(nextShiftDate, 30);
-
-        // If we're in an overnight period, shift should be tomorrow
-        if (currentShiftEnd && isAfter(parseISO(currentShiftEnd), now)) {
-          nextShiftDate.setDate(nextShiftDate.getDate() + 1);
-        }
-
-        if (now >= approachingNextShift) {
-          console.log('Within next shift window:', {
-            currentTime: now.toISOString(),
-            nextShiftStart: nextShiftDate.toISOString(),
-            approachWindow: approachingNextShift.toISOString(),
-          });
+        if (isAfter(now, approachingNextShift)) {
           return false;
         }
       }
