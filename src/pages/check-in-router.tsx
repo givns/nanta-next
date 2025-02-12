@@ -383,12 +383,10 @@ const CheckInRouter: React.FC = () => {
       if (safeAttendanceProps.shift) {
         console.log('Shift info:', {
           shift: safeAttendanceProps.shift,
-          regularStart: safeAttendanceProps.shift.regular.startTime,
-          regularEnd: safeAttendanceProps.shift.regular.endTime,
         });
 
         const now = getCurrentTime();
-        const nextShiftTime = safeAttendanceProps.shift.regular.startTime;
+        const nextShiftTime = safeAttendanceProps.shift.startTime;
         const currentShiftEnd =
           safeAttendanceProps.base.latestAttendance?.shiftEndTime;
 
