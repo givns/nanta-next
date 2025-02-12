@@ -357,6 +357,23 @@ const CheckInRouter: React.FC = () => {
       const now = getCurrentTime();
       const lastRecord = dailyRecords[dailyRecords.length - 1]?.record;
 
+      console.log('Checking period completion:', {
+        recordCount: dailyRecords.length,
+        lastRecord: lastRecord
+          ? {
+              id: lastRecord.id,
+              checkIn: format(new Date(lastRecord.CheckInTime), 'HH:mm:ss'),
+              checkOut: lastRecord.CheckOutTime
+                ? format(new Date(lastRecord.CheckOutTime), 'HH:mm:ss')
+                : null,
+              type: lastRecord.type,
+              state: lastRecord.state,
+              checkStatus: lastRecord.checkStatus,
+            }
+          : null,
+        currentTime: format(now, 'HH:mm:ss'),
+      });
+
       // If we have shifts info, use it to determine cutoff
       if (safeAttendanceProps.shift) {
         const [nextShiftHour, nextShiftMinute] =
