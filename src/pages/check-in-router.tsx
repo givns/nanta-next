@@ -418,7 +418,7 @@ const CheckInRouter: React.FC = () => {
 
       // Check if we're in a new calendar day
       if (lastRecord?.CheckOutTime) {
-        const lastCheckout = new Date(lastRecord.CheckOutTime);
+        const lastCheckout = lastRecord.CheckOutTime;
         if (!isSameDay(now, lastCheckout)) {
           console.log('New calendar day detected:', {
             currentTime: now,
