@@ -380,6 +380,15 @@ const CheckInRouter: React.FC = () => {
         currentTime: format(now, 'HH:mm:ss'),
       });
 
+      // For overnight shifts, check against shift end time instead of calendar day
+      if (lastRecord?.CheckOutTime && lastRecord?.shiftEndTime) {
+        // If current time is after shift end time, it's a new shift period
+        // This covers both regular and overnight shifts
+        if (now > new Date(lastRecord.shiftEndTime)) {
+          return false;
+        }
+      }
+
       // Check regular period completion
       const regularRecord = dailyRecords.find(
         ({ record }) => record.type === PeriodType.REGULAR,
