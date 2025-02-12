@@ -28,6 +28,7 @@ import {
   addDays,
   isAfter,
   parseISO,
+  startOfDay,
 } from 'date-fns';
 
 type Step = 'auth' | 'user' | 'location' | 'ready';
@@ -390,14 +391,33 @@ const CheckInRouter: React.FC = () => {
       }
 
       // Check regular period completion
-      const regularRecord = dailyRecords.find(
-        ({ record }) => record.type === PeriodType.REGULAR,
-      );
+      const regularRecord = dailyRecords.find(({ record }) => {
+        // Only consider records from today for completion check
+        const recordDate = startOfDay(new Date(record.date));
+        const today = startOfDay(now);
+        return (
+          record.type === PeriodType.REGULAR &&
+          recordDate.getTime() === today.getTime()
+        );
+      });
 
       const isRegularComplete =
         regularRecord?.record.CheckOutTime &&
         regularRecord.record.state === 'PRESENT' &&
         regularRecord.record.checkStatus === 'CHECKED_OUT';
+
+      // Log for debugging
+      console.log('Regular period check:', {
+        today: startOfDay(now).toISOString(),
+        recordFound: regularRecord
+          ? {
+              date: regularRecord.record.date,
+              checkIn: regularRecord.record.CheckInTime,
+              checkOut: regularRecord.record.CheckOutTime,
+            }
+          : null,
+        isRegularComplete,
+      });
 
       // Check overtime completion
       const overtimeRecords = dailyRecords.filter(
