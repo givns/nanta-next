@@ -461,12 +461,17 @@ const CheckInRouter: React.FC = () => {
           ({ record }) => record.CheckOutTime && record.state === 'PRESENT',
         );
 
-      // Calculate if all required periods are complete
-      return Boolean(
-        isRegularComplete && // Regular shift must be complete
-          // AND either no overtime exists OR all overtime periods are complete
+      const allComplete = Boolean(
+        isRegularComplete &&
           (overtimeRecords.length === 0 || areAllOvertimeComplete),
       );
+
+      // Only check shift cutoff if periods are complete
+      if (allComplete && safeAttendanceProps.shift) {
+        // ... shift cutoff checks ...
+      }
+
+      return allComplete;
     } catch (error) {
       console.error('Error checking period completion:', error);
       return false;
