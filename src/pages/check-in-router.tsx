@@ -381,8 +381,14 @@ const CheckInRouter: React.FC = () => {
 
       // If we have shifts info, use it to determine cutoff
       if (safeAttendanceProps.shift) {
+        console.log('Shift info:', {
+          shift: safeAttendanceProps.shift,
+          regularStart: safeAttendanceProps.shift.regular.startTime,
+          regularEnd: safeAttendanceProps.shift.regular.endTime,
+        });
+
         const now = getCurrentTime();
-        const nextShiftTime = safeAttendanceProps.shift.startTime;
+        const nextShiftTime = safeAttendanceProps.shift.regular.startTime;
         const currentShiftEnd =
           safeAttendanceProps.base.latestAttendance?.shiftEndTime;
 
@@ -400,7 +406,7 @@ const CheckInRouter: React.FC = () => {
         const approachingNextShift = subMinutes(nextShiftStart, 30);
 
         console.log('Next shift window check:', {
-          now: now.toISOString(),
+          now,
           currentShiftEnd,
           nextShiftStart: nextShiftStart.toISOString(),
           approachingNextShift: approachingNextShift.toISOString(),
@@ -417,8 +423,8 @@ const CheckInRouter: React.FC = () => {
         const lastCheckout = new Date(lastRecord.CheckOutTime);
         if (!isSameDay(now, lastCheckout)) {
           console.log('New calendar day detected:', {
-            currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-            lastCheckout: format(lastCheckout, 'yyyy-MM-dd HH:mm:ss'),
+            currentTime: now,
+            lastCheckout: lastCheckout,
           });
           return false;
         }
