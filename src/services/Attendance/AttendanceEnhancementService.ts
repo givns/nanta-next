@@ -690,7 +690,8 @@ export class AttendanceEnhancementService {
 
       // Transition flags
       hasPendingTransition: hasConnectingPeriod, // Update based on connecting period
-      requiresTransition: timingFlags.requiresTransition,
+      requiresTransition:
+        currentState.validation.isConnected || hasConnectingPeriod,
 
       // Automation flags - from statusInfo.timingFlags
       requiresAutoCompletion: timingFlags.requiresAutoCompletion,
