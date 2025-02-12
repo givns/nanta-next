@@ -379,13 +379,51 @@ const CheckInRouter: React.FC = () => {
         currentTime: format(now, 'HH:mm:ss'),
       });
 
-      // If we have shifts info, use it to determine cutoff
-      if (safeAttendanceProps.shift) {
+      // Check regular period completion first
+      const regularRecord = dailyRecords.find(
+        ({ record }) => record.type === PeriodType.REGULAR,
+      );
+
+      const isRegularComplete =
+        regularRecord?.record.CheckOutTime &&
+        regularRecord.record.state === 'PRESENT' &&
+        regularRecord.record.checkStatus === 'CHECKED_OUT';
+
+      console.log('Regular period completion check:', {
+        hasRegularRecord: !!regularRecord,
+        recordDetails: regularRecord
+          ? {
+              checkIn: regularRecord.record.CheckInTime,
+              checkOut: regularRecord.record.CheckOutTime,
+              state: regularRecord.record.state,
+              checkStatus: regularRecord.record.checkStatus,
+            }
+          : null,
+        isRegularComplete,
+      });
+
+      // Check ALL overtime periods are completed
+      const overtimeRecords = dailyRecords.filter(
+        ({ record }) => record.type === PeriodType.OVERTIME,
+      );
+
+      const areAllOvertimeComplete =
+        overtimeRecords.length > 0 &&
+        overtimeRecords.every(
+          ({ record }) => record.CheckOutTime && record.state === 'PRESENT',
+        );
+
+      const allComplete = Boolean(
+        isRegularComplete &&
+          (overtimeRecords.length === 0 || areAllOvertimeComplete),
+      );
+
+      // Only check next shift window if all periods are complete
+      if (allComplete && safeAttendanceProps.shift) {
         console.log('Shift info:', {
           shift: safeAttendanceProps.shift,
         });
 
-        const now = getCurrentTime();
         const nextShiftTime = safeAttendanceProps.shift.startTime;
         const currentShiftEnd =
           safeAttendanceProps.base.latestAttendance?.shiftEndTime;
@@ -411,64 +449,21 @@ const CheckInRouter: React.FC = () => {
           isOvernight,
         });
 
+        // Return false if we're within 30 mins of next shift
         if (isAfter(now, approachingNextShift)) {
           return false;
         }
-      }
 
-      // Check if we're in a new calendar day
-      if (lastRecord?.CheckOutTime) {
-        const lastCheckout = lastRecord.CheckOutTime;
-        if (!isSameDay(now, lastCheckout)) {
-          console.log('New calendar day detected:', {
-            currentTime: now,
-            lastCheckout: lastCheckout,
-          });
-          return false;
+        // Check if we're in a new calendar day
+        if (lastRecord?.CheckOutTime) {
+          if (!isSameDay(now, new Date(lastRecord.CheckOutTime))) {
+            console.log('New calendar day detected:', {
+              currentTime: now,
+              lastCheckout: lastRecord.CheckOutTime,
+            });
+            return false;
+          }
         }
-      }
-
-      // Check regular period completion
-      const regularRecord = dailyRecords.find(
-        ({ record }) => record.type === PeriodType.REGULAR,
-      );
-
-      const isRegularComplete =
-        regularRecord?.record.CheckOutTime &&
-        regularRecord.record.state === 'PRESENT' &&
-        regularRecord.record.checkStatus === 'CHECKED_OUT';
-
-      console.log('Regular period completion check:', {
-        hasRegularRecord: !!regularRecord,
-        recordDetails: regularRecord
-          ? {
-              checkIn: regularRecord.record.CheckInTime,
-              checkOut: regularRecord.record.CheckOutTime,
-              state: regularRecord.record.state,
-              checkStatus: regularRecord.record.checkStatus,
-            }
-          : null,
-        isRegularComplete,
-      });
-      // Check ALL overtime periods are completed
-      const overtimeRecords = dailyRecords.filter(
-        ({ record }) => record.type === PeriodType.OVERTIME,
-      );
-
-      const areAllOvertimeComplete =
-        overtimeRecords.length > 0 &&
-        overtimeRecords.every(
-          ({ record }) => record.CheckOutTime && record.state === 'PRESENT',
-        );
-
-      const allComplete = Boolean(
-        isRegularComplete &&
-          (overtimeRecords.length === 0 || areAllOvertimeComplete),
-      );
-
-      // Only check shift cutoff if periods are complete
-      if (allComplete && safeAttendanceProps.shift) {
-        // ... shift cutoff checks ...
       }
 
       return allComplete;
