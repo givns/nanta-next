@@ -365,6 +365,15 @@ const CheckInRouter: React.FC = () => {
       const now = getCurrentTime();
       const lastRecord = dailyRecords[dailyRecords.length - 1]?.record;
 
+      // First check if there's pending overtime
+      if (
+        safeAttendanceProps.context?.nextPeriod?.type === PeriodType.OVERTIME ||
+        safeAttendanceProps.context?.transition?.to?.type ===
+          PeriodType.OVERTIME
+      ) {
+        return false; // Can't be complete if overtime is pending
+      }
+
       // Log for debugging
       console.log('Checking period completion:', {
         recordCount: dailyRecords.length,

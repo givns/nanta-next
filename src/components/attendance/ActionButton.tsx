@@ -123,13 +123,10 @@ const ActionButton: React.FC<ActionButtonProps> = ({
     }
 
     // Case 2: Early morning overtime approach
+    // Show overtime check-in when ready
     if (periodType === PeriodType.OVERTIME && periodWindow?.start) {
       const now = getCurrentTime();
-      const overtimeStart = parseISO(
-        `${format(now, 'yyyy-MM-dd')}T${periodWindow.start}`,
-      );
-      const approachWindow = subMinutes(overtimeStart, 30);
-      return now >= approachWindow && now < overtimeStart;
+      return attendanceStatus.checkStatus !== CheckStatus.CHECKED_IN;
     }
 
     return false;
