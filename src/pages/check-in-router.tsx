@@ -365,11 +365,6 @@ const CheckInRouter: React.FC = () => {
               // Use the original UTC time string
               checkIn: lastRecord.CheckInTime,
               checkOut: lastRecord.CheckOutTime,
-              // Or explicitly format in UTC
-              checkInTime: format(new Date(lastRecord.CheckInTime), 'HH:mm:ss'),
-              checkOutTime: lastRecord.CheckOutTime
-                ? format(new Date(lastRecord.CheckOutTime), 'HH:mm:ss')
-                : null,
               type: lastRecord.type,
               state: lastRecord.state,
               checkStatus: lastRecord.checkStatus,
@@ -380,18 +375,36 @@ const CheckInRouter: React.FC = () => {
 
       // If we have shifts info, use it to determine cutoff
       if (safeAttendanceProps.shift) {
-        const [nextShiftHour, nextShiftMinute] =
-          safeAttendanceProps.shift.startTime.split(':').map(Number);
-        const nextShiftStart = new Date(now);
-        nextShiftStart.setHours(nextShiftHour, nextShiftMinute, 0, 0);
+        const [shiftHour, shiftMinute] = safeAttendanceProps.shift.startTime
+          .split(':')
+          .map(Number);
+        const currentShiftEnd = new Date(
+          safeAttendanceProps.base.latestAttendance?.shiftEndTime || now,
+        );
 
-        // If we're within 30 minutes of next shift, don't show completion
+        // Create next day's shift start time
+        const nextShiftStart = new Date(now);
+        // Only add a day if we're not in an overnight shift period
+        if (isSameDay(now, currentShiftEnd)) {
+          nextShiftStart.setDate(nextShiftStart.getDate() + 1);
+        }
+        nextShiftStart.setHours(shiftHour, shiftMinute, 0, 0);
+
+        console.log('Next shift window check:', {
+          currentTime: now,
+          currentShiftEnd,
+          nextShift: nextShiftStart,
+          isOvernight: !isSameDay(now, currentShiftEnd),
+        });
+
+        // Calculate approach window
         const approachingNextShift = subMinutes(nextShiftStart, 30);
         if (now >= approachingNextShift) {
           console.log('Within next shift window:', {
-            currentTime: format(now, 'HH:mm:ss'),
-            nextShiftStart: format(nextShiftStart, 'HH:mm:ss'),
-            approachWindow: format(approachingNextShift, 'HH:mm:ss'),
+            currentTime: now,
+            nextShiftStart: nextShiftStart,
+            approachWindow: approachingNextShift,
+            isOvernight: !isSameDay(now, currentShiftEnd),
           });
           return false;
         }
