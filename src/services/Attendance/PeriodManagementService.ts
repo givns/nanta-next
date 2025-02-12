@@ -37,7 +37,6 @@ import {
   isBefore,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
-import { State } from 'swr';
 
 interface PeriodValidation {
   canCheckIn: boolean;
