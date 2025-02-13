@@ -67,6 +67,7 @@ export interface ProcessingOptions {
   // Additional metadata
   metadata?: {
     overtimeId?: string;
+    overtimeEndTime?: string;
     reason?: string;
     photo?: string;
     source?: 'manual' | 'system' | 'auto';

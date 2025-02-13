@@ -10,7 +10,7 @@ import { normalizeLocation } from '@/utils/locationUtils';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { UserRole } from '@/types/enum';
-import { addMinutes } from 'date-fns';
+import { addMinutes, format, isBefore, parseISO } from 'date-fns';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance';
 
 // ===================================
@@ -400,9 +400,43 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
     const requestedTime = new Date(processingOptions.checkTime);
 
     // Calculate max allowed time based on type
-    const maxAllowedTime = isOvertimeCheckout
-      ? addMinutes(currentTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD)
-      : currentTime;
+    const maxAllowedTime = (() => {
+      if (isOvertimeCheckout) {
+        // Prioritize getting overtime end time
+        const overtimeEndTime = processingOptions.transition?.to?.startTime;
+
+        // If no overtime end time is provided, throw an error
+        if (!overtimeEndTime) {
+          throw new AppError({
+            code: ErrorCode.INVALID_INPUT,
+            message: 'Overtime end time is required for checkout',
+            details: {
+              transition: processingOptions.transition,
+              metadata: processingOptions.metadata,
+            },
+          });
+        }
+
+        // Create period end time using current date
+        const periodEndTime = parseISO(
+          `${format(currentTime, 'yyyy-MM-dd')}T${overtimeEndTime}`,
+        );
+
+        // Calculate latest checkout time
+        const latestCheckoutTime = addMinutes(
+          periodEndTime,
+          ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+        );
+
+        // Return the earlier of current time extended or period end + threshold
+        return isBefore(latestCheckoutTime, currentTime)
+          ? currentTime
+          : latestCheckoutTime;
+      }
+
+      // For non-overtime checkouts, use current time
+      return currentTime;
+    })();
 
     console.log('Processing options time validation:', {
       requestedTime: requestedTime.toISOString(),

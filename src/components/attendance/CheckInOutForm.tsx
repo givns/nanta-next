@@ -18,7 +18,7 @@ import MobileAttendanceApp from './MobileAttendanceApp';
 import SliderUnlock from './SliderUnlock';
 import { useAttendanceTransition } from '@/hooks/useAttendanceTransition';
 import ProcessingView from './ProcessingView';
-import { format, parseISO } from 'date-fns';
+import { differenceInMinutes, format, parseISO } from 'date-fns';
 
 interface ProcessingState {
   status: 'idle' | 'loading' | 'success' | 'error';
@@ -109,6 +109,30 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
           periodState.activity.checkIn &&
           !periodState.activity.checkOut;
 
+        // Determine checkout time with flexibility
+        const checkOutTime = (() => {
+          if (isOvertimeCheckout) {
+            const periodEndTime = new Date(periodState.timeWindow.end);
+            const nowTime = now;
+            const earlyThreshold = 5; // 5 minutes early tolerance
+
+            // Check if current time is within 5 minutes before period end
+            if (
+              nowTime < periodEndTime &&
+              differenceInMinutes(periodEndTime, nowTime) <= earlyThreshold
+            ) {
+              // If within early threshold, use period end time
+              return periodState.timeWindow.end;
+            }
+
+            // Otherwise, use the actual current time
+            return nowTime.toISOString();
+          }
+
+          // For non-overtime checkouts, use current time
+          return now.toISOString();
+        })();
+
         // Add debug logging
         console.log('Building attendance request:', {
           isCheckingIn,
@@ -118,6 +142,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             checkIn: periodState.activity.checkIn,
             checkOut: periodState.activity.checkOut,
           },
+          checkOutTime,
           requiresAutoCompletion:
             stateValidation?.flags?.requiresAutoCompletion,
         });
@@ -126,9 +151,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         const requestData: CheckInOutData = {
           // Required fields
           isCheckIn: params?.isCheckIn ?? isCheckingIn,
-          checkTime: isOvertimeCheckout
-            ? periodState.timeWindow.end
-            : now.toISOString(),
+          checkTime: checkOutTime,
           periodType:
             params?.periodType || periodState?.type || PeriodType.REGULAR,
 
@@ -141,7 +164,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
             isCheckIn: params?.isCheckIn ?? isCheckingIn,
             isOvertime:
               params?.periodType === PeriodType.OVERTIME ||
-              periodState?.type === PeriodType.OVERTIME, // Fix here
+              periodState?.type === PeriodType.OVERTIME,
             isManualEntry: false,
             overtimeMissed:
               stateValidation?.flags?.requiresAutoCompletion ?? false,
