@@ -920,15 +920,18 @@ export class PeriodManagementService {
     const periodStart = parseISO(currentState.timeWindow.start);
     const periodEnd = parseISO(currentState.timeWindow.end);
 
-    // Initial check for check-in time
-    const checkInTime = attendance?.CheckInTime;
-    const lateCheckInStatus = checkInTime
-      ? this.calculateLateCheckInStatus(checkInTime, periodStart)
-      : { isLate: false, minutesLate: 0 };
+    // Check if we have an existing check-in
+    const isExistingAttendance = Boolean(attendance?.CheckInTime);
+
+    // Skip late check-in calculation if we already have attendance
+    const lateCheckInStatus =
+      !isExistingAttendance && attendance?.CheckInTime
+        ? this.calculateLateCheckInStatus(attendance.CheckInTime, periodStart)
+        : { isLate: false, minutesLate: 0 };
 
     // Early check-in only matters for new check-ins
     const isEarlyCheckIn = Boolean(
-      !checkInTime &&
+      !attendance?.CheckInTime &&
         this.isEarlyForPeriod(
           now,
           currentState.timeWindow.start,
@@ -938,7 +941,7 @@ export class PeriodManagementService {
 
     // For check-out flags, only calculate if we have active attendance
     const hasActiveAttendance = Boolean(
-      checkInTime && !attendance?.CheckOutTime,
+      attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
     const isLateCheckOut = Boolean(
       hasActiveAttendance && this.isLateCheckOut(attendance, currentState, now),
@@ -974,7 +977,10 @@ export class PeriodManagementService {
       periodEnd: format(periodEnd, 'HH:mm:ss'),
       currentTime: format(now, 'HH:mm:ss'),
       timeDiff: differenceInMinutes(now, periodEnd),
-      checkInTime: checkInTime ? format(checkInTime, 'HH:mm:ss') : null,
+      hasExistingAttendance: isExistingAttendance,
+      checkInTime: attendance?.CheckInTime
+        ? format(attendance.CheckInTime, 'HH:mm:ss')
+        : null,
       lateCheckInStatus,
       isLateCheckOut,
       isEarlyCheckOut,
@@ -1765,6 +1771,7 @@ export class PeriodManagementService {
     checkInTime: Date,
     shiftStartTime: Date,
   ): LateCheckInStatus {
+    // If we already have an attendance record, don't calculate late status
     const minutesLate = differenceInMinutes(checkInTime, shiftStartTime);
     return {
       isLate: minutesLate > ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
