@@ -636,15 +636,9 @@ export class AttendanceEnhancementService {
     const currentEndTime = format(periodEnd, 'HH:mm');
     const nextStartTime = periodState.overtimeInfo?.startTime;
     // Calculate isLateCheckIn based on actual check-in time only
-    const checkInTime = currentState.activity.checkIn
-      ? parseISO(currentState.activity.checkIn)
-      : null;
-    const shiftStart = parseISO(currentState.timeWindow.start);
+    const isExistingAttendance = Boolean(attendance?.CheckInTime);
 
-    const isLateCheckIn = checkInTime
-      ? differenceInMinutes(checkInTime, shiftStart) >
-        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
-      : false;
+    const isLateCheckIn = !isExistingAttendance && timingFlags.isLateCheckIn;
 
     const hasConnectingPeriod = Boolean(
       nextStartTime && currentEndTime === nextStartTime,

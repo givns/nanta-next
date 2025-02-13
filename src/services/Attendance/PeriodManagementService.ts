@@ -1597,16 +1597,19 @@ export class PeriodManagementService {
       ? parseISO(currentState.activity.checkIn)
       : null;
 
-    // Only calculate for actual check-in time
-    const lateCheckInStatus = checkInTime
-      ? this.calculateLateCheckInStatus(checkInTime, periodStart)
-      : { isLate: false, minutesLate: 0 };
+    const isExistingAttendance = Boolean(checkInTime);
 
     // Early window check (before start time)
     const isInEarlyWindow = isWithinInterval(now, {
       start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
       end: periodStart,
     });
+
+    // Late check-in only for new check-ins
+    const isLateCheckIn =
+      !isExistingAttendance &&
+      differenceInMinutes(now, periodStart) >
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD;
 
     // Parse shift data from currentState
     const shiftData: ShiftData = {
@@ -1636,7 +1639,7 @@ export class PeriodManagementService {
       calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      isLateCheckIn: lateCheckInStatus.isLate,
+      isLateCheckIn,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinShift,
@@ -1646,7 +1649,7 @@ export class PeriodManagementService {
       canCheckIn:
         !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn: lateCheckInStatus.isLate,
+      isLateCheckIn,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinLateAllowance,
@@ -1758,13 +1761,6 @@ export class PeriodManagementService {
       start: subMinutes(periodStart, earlyThreshold),
       end: periodStart,
     });
-  }
-
-  private isLateForPeriod(now: Date, periodStart: Date): boolean {
-    return (
-      differenceInMinutes(now, periodStart) >
-      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
-    );
   }
 
   private calculateLateCheckInStatus(
