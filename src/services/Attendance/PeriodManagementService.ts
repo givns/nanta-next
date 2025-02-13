@@ -927,8 +927,12 @@ export class PeriodManagementService {
       );
 
     // Late check-in - after allowance period
-    const isLateCheckIn =
-      !attendance?.CheckInTime && this.isLateForPeriod(now, periodStart);
+    const checkInTime = attendance?.CheckInTime || null;
+    const isLateCheckIn = checkInTime
+      ? differenceInMinutes(checkInTime, periodStart) >
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
+      : differenceInMinutes(now, periodStart) >
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD;
 
     const isLateCheckOut = this.isLateCheckOut(attendance, currentState, now);
     const isEarlyCheckOut =
@@ -1574,11 +1578,10 @@ export class PeriodManagementService {
         format(parseISO(currentState.timeWindow.end), 'HH:mm:ss'),
     );
 
+    // Calculate late check-in based on actual check-in time
     const checkInTime = currentState.activity.checkIn
       ? parseISO(currentState.activity.checkIn)
       : null;
-
-    // Calculate isLateCheckIn based on actual check-in time, not current time
     const isLateCheckIn = checkInTime
       ? differenceInMinutes(checkInTime, periodStart) >
         ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
@@ -1624,7 +1627,7 @@ export class PeriodManagementService {
       calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      isLateCheckIn: effectiveLateCheckIn, // Use the corrected late check-in flag
+      isLateCheckIn, // Use the corrected late check-in flag
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinShift,
@@ -1634,7 +1637,7 @@ export class PeriodManagementService {
       canCheckIn:
         !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn: effectiveLateCheckIn, // Use the corrected late check-in flag
+      isLateCheckIn,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinLateAllowance,
@@ -1749,11 +1752,6 @@ export class PeriodManagementService {
   }
 
   private isLateForPeriod(now: Date, periodStart: Date): boolean {
-    // After allowance period (start time + 5 minutes) is considered late
-    const allowancePeriodStart = addMinutes(
-      periodStart,
-      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
-    );
     return (
       differenceInMinutes(now, periodStart) >
       ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
