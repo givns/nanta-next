@@ -35,7 +35,6 @@ import { AttendanceMappers } from './utils/AttendanceMappers';
 import { AttendanceEnhancementService } from './AttendanceEnhancementService';
 import { cacheService } from '../cache/CacheService';
 import { PeriodManagementService } from './PeriodManagementService';
-import { current } from '@reduxjs/toolkit';
 
 type LocationDataInput = {
   checkInCoordinates?: Prisma.InputJsonValue | null;
@@ -413,13 +412,18 @@ export class AttendanceProcessingService {
     options: ProcessingOptions,
     currentRecord: AttendanceRecord | null,
   ): boolean {
-    const overtimeMissed = options.activity.overtimeMissed || false;
-
-    if (!overtimeMissed) {
-      return false;
+    // Case 1: Regular -> Overtime transition
+    if (
+      options.transition?.to?.type === PeriodType.OVERTIME &&
+      options.metadata?.overtimeId &&
+      currentRecord?.type === PeriodType.REGULAR &&
+      currentRecord.CheckInTime &&
+      !currentRecord.CheckOutTime
+    ) {
+      return true;
     }
 
-    // Case 1: Regular -> Overtime transition
+    // Case 2: Overtime -> Regular transition
     if (
       options.periodType === PeriodType.REGULAR &&
       currentRecord?.type === PeriodType.OVERTIME &&
@@ -429,7 +433,7 @@ export class AttendanceProcessingService {
       return true;
     }
 
-    // Case 2: Missing check-in
+    // Case 3: Missing check-in
     if (!currentRecord?.CheckInTime && !options.activity.isCheckIn) {
       return true;
     }
