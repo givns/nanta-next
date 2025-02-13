@@ -308,7 +308,11 @@ export class AttendanceEnhancementService {
 
     const timingFlags: TimingFlags = {
       isEarlyCheckIn: currentState.validation.isEarly,
-      isLateCheckIn: currentState.validation.isLate,
+      isLateCheckIn: this.periodManager.calculateTimingFlags(
+        attendance,
+        currentState,
+        now,
+      ).isLateCheckIn,
       isEarlyCheckOut: this.periodManager.calculateTimingFlags(
         attendance,
         currentState,

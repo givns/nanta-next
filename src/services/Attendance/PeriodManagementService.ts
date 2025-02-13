@@ -37,6 +37,7 @@ import {
   isBefore,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
+import { add } from 'lodash';
 
 interface PeriodValidation {
   canCheckIn: boolean;
@@ -963,6 +964,7 @@ export class PeriodManagementService {
       currentTime: format(now, 'HH:mm:ss'),
       timeDiff: differenceInMinutes(now, periodEnd),
       isLateCheckOut,
+      isLateCheckIn,
       isEarlyCheckOut,
     });
 
@@ -1480,7 +1482,11 @@ export class PeriodManagementService {
    */
 
   private isLateCheckIn(now: Date, periodStart: Date): boolean {
-    return isAfter(now, periodStart); // Mark as late immediately after start time
+    const lateStart = addMinutes(
+      periodStart,
+      VALIDATION_THRESHOLDS.LATE_CHECKIN,
+    );
+    return isAfter(now, lateStart); // Mark as late immediately after start time
   }
 
   private canCheckIn(
@@ -1724,11 +1730,11 @@ export class PeriodManagementService {
 
   private isLateForPeriod(now: Date, periodStart: Date): boolean {
     // After allowance period (start time + 5 minutes) is considered late
-    const allowancePeriodEnd = addMinutes(
+    const allowancePeriodStart = addMinutes(
       periodStart,
       ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
     );
-    return isAfter(now, allowancePeriodEnd);
+    return isAfter(now, allowancePeriodStart);
   }
 
   private isLateCheckOut(
