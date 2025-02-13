@@ -483,21 +483,6 @@ export class PeriodManagementService {
       }
     }
 
-    // Add early morning overtime if exists
-    if (overtimeInfo && this.isEarlyMorningOvertime(overtimeInfo, shift)) {
-      periods.push({
-        type: PeriodType.OVERTIME,
-        startTime: overtimeInfo.startTime,
-        endTime: overtimeInfo.endTime,
-        sequence: 1,
-        isOvernight: this.isOvernightPeriod(
-          overtimeInfo.startTime,
-          overtimeInfo.endTime,
-        ),
-        isDayOff: overtimeInfo.isDayOffOvertime,
-      });
-    }
-
     // Always add overtime if it exists, regardless of timing
     if (overtimeInfo) {
       periods.push({
@@ -608,6 +593,26 @@ export class PeriodManagementService {
           start: overtimePeriod.startTime,
           end: overtimePeriod.endTime,
         });
+        return {
+          currentPeriod: overtimePeriod,
+          nextPeriod: null,
+        };
+      }
+    }
+
+    // Prioritize active overtime record
+    if (
+      attendance?.type === PeriodType.OVERTIME &&
+      attendance.CheckInTime &&
+      !attendance.CheckOutTime
+    ) {
+      const overtimePeriod = periods.find(
+        (p) =>
+          p.type === PeriodType.OVERTIME &&
+          p.startTime === format(attendance.CheckInTime!, 'HH:mm'),
+      );
+
+      if (overtimePeriod) {
         return {
           currentPeriod: overtimePeriod,
           nextPeriod: null,
@@ -1439,29 +1444,15 @@ export class PeriodManagementService {
       if (
         attendance?.type === PeriodType.OVERTIME &&
         attendance.CheckInTime &&
-        !attendance.CheckOutTime &&
-        attendance.shiftStartTime &&
-        attendance.shiftEndTime
+        !attendance.CheckOutTime
       ) {
-        const checkInTime = new Date(attendance.CheckInTime);
-        const shiftEnd = new Date(attendance.shiftEndTime);
-
-        const isWithinActiveOvertime = isWithinInterval(now, {
-          start: checkInTime,
-          end: shiftEnd,
+        return isWithinInterval(now, {
+          start: attendance.CheckInTime,
+          end: parseISO(`${format(now, 'yyyy-MM-dd')}T${overtimeInfo.endTime}`),
         });
-
-        console.log('Active overtime check result:', {
-          isWithinActiveOvertime,
-          checkIn: format(checkInTime, 'HH:mm:ss'),
-          shiftEnd: format(shiftEnd, 'HH:mm:ss'),
-          now: format(now, 'HH:mm:ss'),
-        });
-
-        return isWithinActiveOvertime;
       }
 
-      // Get reference date based on now
+      // Standard overtime period detection
       const referenceDate = format(now, 'yyyy-MM-dd');
       let overtimeStart = parseISO(
         `${referenceDate}T${overtimeInfo.startTime}`,
@@ -1470,42 +1461,25 @@ export class PeriodManagementService {
 
       // Handle overnight overtime
       if (overtimeInfo.endTime < overtimeInfo.startTime) {
-        // If we're before the start time, reference previous day's overtime
-        if (now < overtimeStart) {
-          overtimeStart = subDays(overtimeStart, 1);
-          overtimeEnd = subDays(overtimeEnd, 1);
-        } else {
-          overtimeEnd = addDays(overtimeEnd, 1);
-        }
+        overtimeEnd = addDays(overtimeEnd, 1);
       }
 
-      // Include early window for new check-ins
+      // Broader window for overtime detection
       const earlyWindow = subMinutes(
         overtimeStart,
         VALIDATION_THRESHOLDS.OT_EARLY_CHECKIN,
       );
-      const isWithin = isWithinInterval(now, {
+      const lateWindow = addMinutes(
+        overtimeEnd,
+        VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT,
+      );
+
+      return isWithinInterval(now, {
         start: earlyWindow,
-        end: addMinutes(overtimeEnd, VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT),
+        end: lateWindow,
       });
-
-      console.log('General overtime check result:', {
-        isWithin,
-        start: format(earlyWindow, 'HH:mm:ss'),
-        end: format(
-          addMinutes(overtimeEnd, VALIDATION_THRESHOLDS.OVERTIME_CHECKOUT),
-          'HH:mm:ss',
-        ),
-        now: format(now, 'HH:mm:ss'),
-      });
-
-      return isWithin;
     } catch (error) {
-      console.error('Error checking overtime period:', {
-        error,
-        attendance,
-        currentTime: now,
-      });
+      console.error('Overtime period detection error:', error);
       return false;
     }
   }
