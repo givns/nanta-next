@@ -676,7 +676,7 @@ export class AttendanceEnhancementService {
       hasActivePeriod: statusInfo.isActiveAttendance,
 
       // Timing flags - from statusInfo.timingFlags
-      isLateCheckIn: timingFlags.isLateCheckIn,
+      isLateCheckIn: periodValidation.isLateCheckIn,
       isEarlyCheckIn: timingFlags.isEarlyCheckIn,
       isLateCheckOut: timingFlags.isLateCheckOut,
       isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,

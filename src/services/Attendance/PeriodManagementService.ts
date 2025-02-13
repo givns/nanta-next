@@ -1591,6 +1591,8 @@ export class PeriodManagementService {
       workDays: [],
     };
 
+    const isLateCheckIn = this.isLateForPeriod(now, periodStart);
+
     // Calculate late check-in allowance window
     const isWithinLateAllowance = isWithinInterval(now, {
       start: periodStart,
@@ -1608,7 +1610,7 @@ export class PeriodManagementService {
       calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
+      isLateCheckIn, // Use the calculated value
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinShift,
@@ -1618,7 +1620,7 @@ export class PeriodManagementService {
       canCheckIn:
         !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
+      isLateCheckIn, // Use the calculated value
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinLateAllowance,
@@ -1738,7 +1740,10 @@ export class PeriodManagementService {
       periodStart,
       ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD,
     );
-    return isAfter(now, allowancePeriodStart);
+    return (
+      differenceInMinutes(now, periodStart) >
+      ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
+    );
   }
 
   private isLateCheckOut(
