@@ -1574,6 +1574,22 @@ export class PeriodManagementService {
         format(parseISO(currentState.timeWindow.end), 'HH:mm:ss'),
     );
 
+    const checkInTime = currentState.activity.checkIn
+      ? parseISO(currentState.activity.checkIn)
+      : null;
+
+    // Calculate isLateCheckIn based on actual check-in time, not current time
+    const isLateCheckIn = checkInTime
+      ? differenceInMinutes(checkInTime, periodStart) >
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
+      : differenceInMinutes(now, periodStart) >
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD;
+
+    // Only calculate late check-in for active attendance periods
+    const effectiveLateCheckIn = statusInfo.isActiveAttendance
+      ? isLateCheckIn
+      : false;
+
     // Early window check (before start time)
     const isInEarlyWindow = isWithinInterval(now, {
       start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
@@ -1590,8 +1606,6 @@ export class PeriodManagementService {
       shiftCode: 'CURRENT',
       workDays: [],
     };
-
-    const isLateCheckIn = this.isLateForPeriod(now, periodStart);
 
     // Calculate late check-in allowance window
     const isWithinLateAllowance = isWithinInterval(now, {
@@ -1610,7 +1624,7 @@ export class PeriodManagementService {
       calculatedStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       calculatedEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
-      isLateCheckIn, // Use the calculated value
+      isLateCheckIn: effectiveLateCheckIn, // Use the corrected late check-in flag
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinShift,
@@ -1620,7 +1634,7 @@ export class PeriodManagementService {
       canCheckIn:
         !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn, // Use the calculated value
+      isLateCheckIn: effectiveLateCheckIn, // Use the corrected late check-in flag
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
       isWithinLateAllowance,

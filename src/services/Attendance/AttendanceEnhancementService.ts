@@ -635,6 +635,16 @@ export class AttendanceEnhancementService {
     const periodEnd = parseISO(currentState.timeWindow.end);
     const currentEndTime = format(periodEnd, 'HH:mm');
     const nextStartTime = periodState.overtimeInfo?.startTime;
+    // Calculate isLateCheckIn based on actual check-in time only
+    const checkInTime = currentState.activity.checkIn
+      ? parseISO(currentState.activity.checkIn)
+      : null;
+    const shiftStart = parseISO(currentState.timeWindow.start);
+
+    const isLateCheckIn = checkInTime
+      ? differenceInMinutes(checkInTime, shiftStart) >
+        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
+      : false;
 
     const hasConnectingPeriod = Boolean(
       nextStartTime && currentEndTime === nextStartTime,
@@ -652,7 +662,7 @@ export class AttendanceEnhancementService {
         !statusInfo.shiftTiming.isAfterMidshift, // Not after midshift
     );
     console.log('Validation flags:', {
-      isLateCheckIn: periodValidation.isLateCheckIn,
+      isLateCheckIn,
       isEarlyCheckIn: currentState.validation.isEarly,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isVeryLateCheckOut: statusInfo.timingFlags.isVeryLateCheckOut,
@@ -676,7 +686,7 @@ export class AttendanceEnhancementService {
       hasActivePeriod: statusInfo.isActiveAttendance,
 
       // Timing flags - from statusInfo.timingFlags
-      isLateCheckIn: periodValidation.isLateCheckIn,
+      isLateCheckIn,
       isEarlyCheckIn: timingFlags.isEarlyCheckIn,
       isLateCheckOut: timingFlags.isLateCheckOut,
       isVeryLateCheckOut: timingFlags.isVeryLateCheckOut,
