@@ -23,16 +23,16 @@ export function toBangkokTime(date: Date | string | number): Date {
   return toZonedTime(parsedDate, TIMEZONE);
 }
 
-export function getCurrentTime(): Date {
-  return getBangkokTime();
-}
-
 //export function getCurrentTime(): Date {
-//For testing specific scenarios
-//const [datePart, timePart] = '2024-12-17T17:02'.split('T');
-//const time = timePart.split('+')[0];
-//return parseISO(`${datePart}T${time}`);
+  //return getBangkokTime();
 //}
+
+export function getCurrentTime(): Date {
+//For testing specific scenarios
+const [datePart, timePart] = '2025-02-12T07:02'.split('T');
+const time = timePart.split('+')[0];
+return parseISO(`${datePart}T${time}`);
+}
 
 export function formatDateTime(
   date: Date | string | number,
