@@ -917,22 +917,24 @@ export class PeriodManagementService {
     const periodStart = parseISO(currentState.timeWindow.start);
     const periodEnd = parseISO(currentState.timeWindow.end);
 
-    // Use existing isWithinBounds logic if available
+    // If we have check-in time, we should only use that and not do real-time checks
+    const checkInTime = attendance?.CheckInTime;
+    const hasCheckIn = Boolean(checkInTime);
+
+    // For check-in flags, only calculate if we don't have check-in time yet
     const isEarlyCheckIn =
-      !attendance?.CheckInTime &&
+      !hasCheckIn &&
       this.isEarlyForPeriod(
         now,
         currentState.timeWindow.start,
         currentState.type,
       );
 
-    // Late check-in - after allowance period
-    const checkInTime = attendance?.CheckInTime || null;
-    const isLateCheckIn = checkInTime
-      ? differenceInMinutes(checkInTime, periodStart) >
+    // Only calculate late check-in if we have actual check-in time
+    const isLateCheckIn = hasCheckIn
+      ? differenceInMinutes(checkInTime!, periodStart) >
         ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD
-      : differenceInMinutes(now, periodStart) >
-        ATTENDANCE_CONSTANTS.LATE_CHECK_IN_THRESHOLD;
+      : false;
 
     const isLateCheckOut = this.isLateCheckOut(attendance, currentState, now);
     const isEarlyCheckOut =
@@ -967,6 +969,7 @@ export class PeriodManagementService {
       periodEnd: format(periodEnd, 'HH:mm:ss'),
       currentTime: format(now, 'HH:mm:ss'),
       timeDiff: differenceInMinutes(now, periodEnd),
+      checkInTime: checkInTime ? format(checkInTime, 'HH:mm:ss') : null,
       isLateCheckOut,
       isLateCheckIn,
       isEarlyCheckOut,
