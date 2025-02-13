@@ -1580,8 +1580,6 @@ export class PeriodManagementService {
       end: periodStart,
     });
 
-    const isLateCheckIn = this.isLateForPeriod(now, periodStart);
-
     // Parse shift data from currentState
     const shiftData: ShiftData = {
       startTime: format(parseISO(currentState.timeWindow.start), 'HH:mm'),
@@ -1592,6 +1590,12 @@ export class PeriodManagementService {
       shiftCode: 'CURRENT',
       workDays: [],
     };
+
+    // Calculate late check-in allowance window
+    const isWithinLateAllowance = isWithinInterval(now, {
+      start: periodStart,
+      end: addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+    });
 
     // Use isWithinShiftWindow for all window checks
     const isWithinShift = this.isWithinShiftWindow(now, shiftData, {
@@ -1614,10 +1618,10 @@ export class PeriodManagementService {
       canCheckIn:
         !statusInfo.isActiveAttendance && (isInEarlyWindow || isWithinShift),
       canCheckOut: this.canCheckOut(currentState, statusInfo, now),
-      isLateCheckIn,
+      isLateCheckIn: statusInfo.timingFlags.isLateCheckIn,
       isLateCheckOut: statusInfo.timingFlags.isLateCheckOut,
       isEarlyCheckOut: statusInfo.timingFlags.isEarlyCheckOut,
-      isWithinLateAllowance: isLateCheckIn,
+      isWithinLateAllowance,
     };
   }
 
