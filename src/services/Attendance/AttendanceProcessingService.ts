@@ -648,11 +648,39 @@ export class AttendanceProcessingService {
     options: ProcessingOptions,
     now: Date,
   ): Promise<AttendanceRecord> {
-    const completionTime = parseISO(
-      currentRecord.type === PeriodType.OVERTIME
-        ? periodState.current.end
-        : periodState.shift.endTime,
-    );
+    // Calculate completion time based on current time
+    const completionTime = (() => {
+      // For overtime transition, use the transition end time
+      if (
+        options.transition?.to?.type === PeriodType.OVERTIME &&
+        options.transition.from?.endTime
+      ) {
+        return parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${options.transition.from.endTime}`,
+        );
+      }
+
+      // For regular completion during overtime
+      if (currentRecord.type === PeriodType.OVERTIME) {
+        return parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${periodState.overtimeInfo?.endTime || format(now, 'HH:mm:ss')}`,
+        );
+      }
+
+      // For regular periods
+      return parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${periodState.shift.endTime}`,
+      );
+    })();
+
+    console.log('Completing attendance record:', {
+      recordId: currentRecord.id,
+      recordType: currentRecord.type,
+      calculatedCompletionTime: format(completionTime, 'HH:mm:ss'),
+      currentTime: format(now, 'HH:mm:ss'),
+      hasTransition: Boolean(options.transition),
+      transitionType: options.transition?.to?.type,
+    });
 
     const updatedRecord = await tx.attendance.update({
       where: { id: currentRecord.id },
