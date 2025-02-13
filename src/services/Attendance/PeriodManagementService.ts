@@ -793,8 +793,8 @@ export class PeriodManagementService {
       return {
         type: period.type,
         timeWindow: {
-          start: format(shiftStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
-          end: format(shiftEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          start: format(periodStart, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
+          end: format(periodEnd, "yyyy-MM-dd'T'HH:mm:ss.SSS"),
         },
         activity: {
           isActive: !attendance.CheckOutTime,
@@ -807,20 +807,20 @@ export class PeriodManagementService {
           isOvertime: period.type === PeriodType.OVERTIME,
           isDayOffOvertime: period.isDayOff || false,
           isInsideShiftHours: isWithinInterval(now, {
-            start: subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+            start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
             end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           }),
         },
         validation: {
           isConnected,
           isWithinBounds: isWithinInterval(now, {
-            start: subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-            end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+            start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+            end: addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           }),
           isEarly:
-            now < subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+            now < subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
           isLate:
-            now > addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+            now > addMinutes(periodEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           isOvernight: Boolean(period.isOvernight), // Force boolean
         },
       };
