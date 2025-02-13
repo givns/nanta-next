@@ -498,6 +498,21 @@ export class PeriodManagementService {
       });
     }
 
+    // Always add overtime if it exists, regardless of timing
+    if (overtimeInfo) {
+      periods.push({
+        type: PeriodType.OVERTIME,
+        startTime: overtimeInfo.startTime,
+        endTime: overtimeInfo.endTime,
+        sequence: periods.length + 1,
+        isOvernight: this.isOvernightPeriod(
+          overtimeInfo.startTime,
+          overtimeInfo.endTime,
+        ),
+        isDayOff: overtimeInfo.isDayOffOvertime || false,
+      });
+    }
+
     // Add regular shift
     periods.push({
       type: PeriodType.REGULAR,
