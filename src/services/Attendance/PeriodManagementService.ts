@@ -795,7 +795,8 @@ export class PeriodManagementService {
           }),
           isEarly:
             now < subMinutes(shiftStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
-          isLate: false,
+          isLate:
+            now > addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
           isOvernight: Boolean(period.isOvernight), // Force boolean
         },
       };
