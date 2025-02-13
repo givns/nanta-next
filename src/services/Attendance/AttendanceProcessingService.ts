@@ -275,6 +275,50 @@ export class AttendanceProcessingService {
         now,
       );
 
+      // NEW: Create overtime record if transitioning to overtime
+      if (options.transition?.to?.type === PeriodType.OVERTIME) {
+        const overtimeRecord = await this.processCheckIn(
+          tx,
+          periodState,
+          {
+            ...options,
+            periodType: PeriodType.OVERTIME,
+            activity: {
+              ...options.activity,
+              isCheckIn: true,
+            },
+          },
+          undefined, // location data
+          now,
+        );
+
+        // Optionally create time entry for overtime
+        await this.timeEntryService.processTimeEntries(
+          tx,
+          overtimeRecord,
+          this.createStatusUpdateFromProcessing(
+            {
+              ...options,
+              periodType: PeriodType.OVERTIME,
+              activity: {
+                ...options.activity,
+                isCheckIn: true,
+              },
+            },
+            null,
+            now,
+          ),
+          {
+            ...options,
+            periodType: PeriodType.OVERTIME,
+            activity: {
+              ...options.activity,
+              isCheckIn: true,
+            },
+          },
+        );
+      }
+
       // Create validation context for completed record
       const validationContext: ValidationContext = {
         employeeId: options.employeeId,
