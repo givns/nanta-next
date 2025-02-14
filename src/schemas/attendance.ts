@@ -333,6 +333,8 @@ function transformZodErrors(zodErrors: z.ZodError): Record<string, unknown> {
   };
 }
 
+// In schema validation or check-in-out.ts
+
 export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
   try {
     const validated = CheckInOutRequestSchema.parse(data);
@@ -399,44 +401,19 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
     const currentTime = getCurrentTime();
     const requestedTime = new Date(processingOptions.checkTime);
 
-    // Calculate max allowed time based on type
-    const maxAllowedTime = (() => {
-      if (isOvertimeCheckout) {
-        // Prioritize getting overtime end time
-        const overtimeEndTime = processingOptions.transition?.to?.startTime;
+    // For overtime checkout, we need overtimeId
+    if (isOvertimeCheckout && !processingOptions.metadata?.overtimeId) {
+      throw new AppError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Overtime ID is required for checkout',
+        details: {
+          metadata: processingOptions.metadata,
+        },
+      });
+    }
 
-        // If no overtime end time is provided, throw an error
-        if (!overtimeEndTime) {
-          throw new AppError({
-            code: ErrorCode.INVALID_INPUT,
-            message: 'Overtime end time is required for checkout',
-            details: {
-              transition: processingOptions.transition,
-              metadata: processingOptions.metadata,
-            },
-          });
-        }
-
-        // Create period end time using current date
-        const periodEndTime = parseISO(
-          `${format(currentTime, 'yyyy-MM-dd')}T${overtimeEndTime}`,
-        );
-
-        // Calculate latest checkout time
-        const latestCheckoutTime = addMinutes(
-          periodEndTime,
-          ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
-        );
-
-        // Return the earlier of current time extended or period end + threshold
-        return isBefore(latestCheckoutTime, currentTime)
-          ? currentTime
-          : latestCheckoutTime;
-      }
-
-      // For non-overtime checkouts, use current time
-      return currentTime;
-    })();
+    // Calculate max allowed time
+    const maxAllowedTime = currentTime;
 
     console.log('Processing options time validation:', {
       requestedTime: requestedTime.toISOString(),
@@ -450,9 +427,7 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
     if (requestedTime > maxAllowedTime) {
       throw new AppError({
         code: ErrorCode.INVALID_INPUT,
-        message: isOvertimeCheckout
-          ? `Check time exceeds allowed window of ${ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD} minutes`
-          : 'Check time cannot be in the future',
+        message: 'Check time cannot be in the future',
         details: {
           requestedTime: requestedTime.toISOString(),
           maxAllowed: maxAllowedTime.toISOString(),

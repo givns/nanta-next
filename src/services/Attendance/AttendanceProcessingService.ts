@@ -620,7 +620,19 @@ export class AttendanceProcessingService {
       });
     }
 
-    // Handle location update
+    // For overtime checkout, get end time from window response
+    const isOvertimeCheckout =
+      options.periodType === PeriodType.OVERTIME &&
+      options.activity.isOvertime &&
+      options.metadata?.overtimeId;
+
+    const checkOutTime = isOvertimeCheckout
+      ? // Use overtime end time from windowResponse
+        parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${windowResponse.overtimeInfo?.endTime}`,
+        )
+      : now;
+
     // Handle location update
     if (locationData) {
       if (currentRecord.location) {
@@ -655,7 +667,7 @@ export class AttendanceProcessingService {
     const updatedAttendance = await tx.attendance.update({
       where: { id: currentRecord.id },
       data: {
-        CheckOutTime: now,
+        CheckOutTime: checkOutTime,
         state: AttendanceState.PRESENT,
         checkStatus: CheckStatus.CHECKED_OUT,
         ...(options.periodType === PeriodType.OVERTIME && {
