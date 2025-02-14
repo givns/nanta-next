@@ -391,26 +391,9 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
       metadata: validated.metadata,
     };
 
-    // Check if this is an overtime checkout
-    const isOvertimeCheckout =
-      !processingOptions.activity.isCheckIn &&
-      processingOptions.periodType === PeriodType.OVERTIME &&
-      processingOptions.activity.isOvertime;
-
     // Get current time and request time
     const currentTime = getCurrentTime();
     const requestedTime = new Date(processingOptions.checkTime);
-
-    // For overtime checkout, we need overtimeId
-    if (isOvertimeCheckout && !processingOptions.metadata?.overtimeId) {
-      throw new AppError({
-        code: ErrorCode.INVALID_INPUT,
-        message: 'Overtime ID is required for checkout',
-        details: {
-          metadata: processingOptions.metadata,
-        },
-      });
-    }
 
     // Calculate max allowed time
     const maxAllowedTime = currentTime;
@@ -419,7 +402,6 @@ export function validateCheckInOutRequest(data: unknown): ProcessingOptions {
       requestedTime: requestedTime.toISOString(),
       currentTime: currentTime.toISOString(),
       maxAllowed: maxAllowedTime.toISOString(),
-      isOvertimeCheckout,
       allowanceMinutes: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
     });
 

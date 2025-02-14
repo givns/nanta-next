@@ -605,7 +605,23 @@ export class AttendanceProcessingService {
       },
     });
 
-    // Important: Validate checkout time is after check-in
+    // Validate for overtime checkout
+    if (
+      options.periodType === PeriodType.OVERTIME &&
+      options.activity.isOvertime &&
+      !currentRecord.overtimeId
+    ) {
+      throw new AppError({
+        code: ErrorCode.PROCESSING_ERROR,
+        message: 'Invalid overtime record for checkout.',
+        details: {
+          recordId: currentRecord.id,
+          type: currentRecord.type,
+          overtimeId: currentRecord.overtimeId,
+        },
+      });
+    }
+
     const checkInTime = new Date(currentRecord.CheckInTime!);
     const requestedCheckoutTime = new Date(options.checkTime);
 
@@ -620,18 +636,25 @@ export class AttendanceProcessingService {
       });
     }
 
-    // For overtime checkout, get end time from window response
-    const isOvertimeCheckout =
+    // For overtime checkout, verify overtime info matches
+    if (
       options.periodType === PeriodType.OVERTIME &&
-      options.activity.isOvertime &&
-      options.metadata?.overtimeId;
-
-    const checkOutTime = isOvertimeCheckout
-      ? // Use overtime end time from windowResponse
-        parseISO(
-          `${format(now, 'yyyy-MM-dd')}T${windowResponse.overtimeInfo?.endTime}`,
-        )
-      : now;
+      currentRecord.overtimeId
+    ) {
+      if (
+        !windowResponse.overtimeInfo ||
+        windowResponse.overtimeInfo.id !== currentRecord.overtimeId
+      ) {
+        throw new AppError({
+          code: ErrorCode.PROCESSING_ERROR,
+          message: 'Overtime info mismatch',
+          details: {
+            recordOvertimeId: currentRecord.overtimeId,
+            responseOvertimeId: windowResponse.overtimeInfo?.id,
+          },
+        });
+      }
+    }
 
     // Handle location update
     if (locationData) {
@@ -651,6 +674,15 @@ export class AttendanceProcessingService {
         });
       }
     }
+
+    // Get checkout time based on period type
+    const checkOutTime =
+      options.periodType === PeriodType.OVERTIME &&
+      windowResponse.overtimeInfo?.endTime
+        ? parseISO(
+            `${format(now, 'yyyy-MM-dd')}T${windowResponse.overtimeInfo.endTime}`,
+          )
+        : now;
 
     // Calculate overtime duration if needed
     let overtimeDuration = 0;
