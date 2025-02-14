@@ -28,6 +28,7 @@ import {
   format,
   subDays,
   addHours,
+  differenceInMinutes,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { TimeEntryService } from '../TimeEntryService';
@@ -595,6 +596,8 @@ export class AttendanceProcessingService {
         ? {
             type: currentRecord.type,
             checkIn: format(currentRecord.CheckInTime!, 'HH:mm:ss'),
+            locationExists: Boolean(currentRecord.location),
+            overtimeId: currentRecord.overtimeId,
             isOvertime: currentRecord.type === PeriodType.OVERTIME,
           }
         : null,
@@ -656,20 +659,30 @@ export class AttendanceProcessingService {
       }
     }
 
-    // Handle location update
+    // Handle location update - First check if location record exists
     if (locationData) {
-      if (currentRecord.location) {
+      const existingLocation = await tx.attendanceLocation.findUnique({
+        where: { attendanceId: currentRecord.id },
+      });
+
+      if (existingLocation) {
+        // Update existing location with check-out data only
         await tx.attendanceLocation.update({
           where: { attendanceId: currentRecord.id },
-          data: locationData,
+          data: {
+            checkOutCoordinates: locationData.checkOutCoordinates,
+            checkOutAddress: locationData.checkOutAddress,
+          },
         });
       } else {
+        // Create new location record
         await tx.attendanceLocation.create({
           data: {
-            ...locationData,
             attendance: {
               connect: { id: currentRecord.id },
             },
+            checkOutCoordinates: locationData.checkOutCoordinates,
+            checkOutAddress: locationData.checkOutAddress,
           },
         });
       }
@@ -722,6 +735,27 @@ export class AttendanceProcessingService {
         checkTiming: true,
       },
     });
+
+    // Update time entry for overtime
+    if (
+      options.periodType === PeriodType.OVERTIME &&
+      currentRecord.timeEntries[0]
+    ) {
+      await tx.timeEntry.update({
+        where: { id: currentRecord.timeEntries[0].id },
+        data: {
+          endTime: checkOutTime,
+          status: TimeEntryStatus.COMPLETED,
+          hours: {
+            regular: 0,
+            overtime: this.calculateHours(
+              currentRecord.CheckInTime!,
+              checkOutTime,
+            ),
+          },
+        },
+      });
+    }
 
     return AttendanceMappers.toAttendanceRecord(updatedAttendance)!;
   }
@@ -979,10 +1013,8 @@ export class AttendanceProcessingService {
   }
 
   private calculateHours(start: Date, end: Date): number {
-    return (
-      Math.round(((end.getTime() - start.getTime()) / (1000 * 60 * 60)) * 100) /
-      100
-    );
+    const diffInMinutes = differenceInMinutes(end, start);
+    return Math.round((diffInMinutes / 60) * 100) / 100; // Round to 2 decimal places
   }
 
   private handleProcessingError(error: unknown): AppError {
