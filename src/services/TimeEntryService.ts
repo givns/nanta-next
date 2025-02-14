@@ -704,15 +704,22 @@ export class TimeEntryService {
     );
 
     // Find existing entry
-    const existingEntry = await tx.timeEntry.findFirst({
+    let existingEntry = await tx.timeEntry.findFirst({
       where: {
         attendanceId: attendance.id,
         entryType: PeriodType.OVERTIME,
-        status: 'STARTED',
+        status: TimeEntryStatus.STARTED,
       },
     });
 
     if (isCheckIn) {
+      if (existingEntry) {
+        console.log('Found existing overtime entry:', {
+          entryId: existingEntry.id,
+          status: existingEntry.status,
+        });
+      }
+
       return tx.timeEntry.create({
         data: {
           employeeId: attendance.employeeId,
@@ -736,29 +743,61 @@ export class TimeEntryService {
       });
     }
 
+    // Check-out handling
     if (!existingEntry) {
-      throw new Error('No existing overtime entry found for checkout');
+      console.log('Creating missing overtime entry for checkout:', {
+        attendanceId: attendance.id,
+        checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      });
+
+      // Create missing entry if needed
+      const newEntry = await tx.timeEntry.create({
+        data: {
+          employeeId: attendance.employeeId,
+          date: attendance.date,
+          startTime: attendance.CheckInTime!,
+          status: TimeEntryStatus.STARTED,
+          entryType: PeriodType.OVERTIME,
+          attendanceId: attendance.id,
+          overtimeRequestId: overtimeRequest.id,
+          hours: {
+            regular: 0,
+            overtime: 0,
+          },
+          metadata: {
+            source: 'system',
+            version: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        },
+      });
+
+      // Update existingEntry reference for further processing
+      existingEntry = newEntry;
     }
 
-    // Calculate hours based on matched overtime period
-    const { hours, metadata } = this.calculateOvertimeHours(
-      attendance.CheckInTime!,
+    // Calculate worked time based on actual check-in/out times
+    const workMinutes = differenceInMinutes(
       attendance.CheckOutTime!,
-      overtimeRequest,
-      null,
-      null,
+      attendance.CheckInTime!,
     );
 
-    console.log('Updating overtime entry:', {
-      entryId: existingEntry.id,
-      hours,
+    // Round to nearest overtime increment (usually 30 mins)
+    const OVERTIME_INCREMENT = 30;
+    const roundedMinutes =
+      Math.floor(workMinutes / OVERTIME_INCREMENT) * OVERTIME_INCREMENT;
+    const overtimeHours = Math.max(0, roundedMinutes / 60);
+
+    console.log('Calculating overtime hours:', {
+      actualMinutes: workMinutes,
+      roundedMinutes,
+      overtimeHours,
+      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
       checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
-      period: {
-        start: overtimeRequest.startTime,
-        end: overtimeRequest.endTime,
-      },
     });
 
+    // Update entry with actual worked time
     return tx.timeEntry.update({
       where: { id: existingEntry.id },
       data: {
@@ -766,7 +805,7 @@ export class TimeEntryService {
         status: TimeEntryStatus.COMPLETED,
         hours: {
           regular: 0,
-          overtime: hours,
+          overtime: overtimeHours,
         },
         metadata: {
           source: 'system',
