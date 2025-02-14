@@ -703,28 +703,35 @@ export class TimeEntryService {
       attendance.CheckInTime!,
     );
 
-    // Find existing entry
-    let existingEntry = await tx.timeEntry.findFirst({
+    // Find existing entry - more specific query
+    const existingEntry = await tx.timeEntry.findFirst({
       where: {
         attendanceId: attendance.id,
         entryType: PeriodType.OVERTIME,
-        status: TimeEntryStatus.STARTED,
+        status: isCheckIn ? { not: TimeEntryStatus.COMPLETED } : undefined,
       },
+    });
+
+    console.log('Time entry lookup result:', {
+      found: !!existingEntry,
+      entryId: existingEntry?.id,
+      status: existingEntry?.status,
     });
 
     if (isCheckIn) {
       if (existingEntry) {
-        console.log('Found existing overtime entry:', {
+        console.warn('Found existing overtime entry during check-in:', {
           entryId: existingEntry.id,
           status: existingEntry.status,
         });
+        return existingEntry;
       }
 
       return tx.timeEntry.create({
         data: {
           employeeId: attendance.employeeId,
           date: attendance.date,
-          startTime: effectiveStartTime, // Use overtime start time
+          startTime: effectiveStartTime,
           status: TimeEntryStatus.STARTED,
           entryType: PeriodType.OVERTIME,
           attendanceId: attendance.id,
@@ -743,38 +750,9 @@ export class TimeEntryService {
       });
     }
 
-    // Check-out handling
+    // Check-out handling - must have existing entry
     if (!existingEntry) {
-      console.log('Creating missing overtime entry for checkout:', {
-        attendanceId: attendance.id,
-        checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
-      });
-
-      // Create missing entry if needed
-      const newEntry = await tx.timeEntry.create({
-        data: {
-          employeeId: attendance.employeeId,
-          date: attendance.date,
-          startTime: attendance.CheckInTime!,
-          status: TimeEntryStatus.STARTED,
-          entryType: PeriodType.OVERTIME,
-          attendanceId: attendance.id,
-          overtimeRequestId: overtimeRequest.id,
-          hours: {
-            regular: 0,
-            overtime: 0,
-          },
-          metadata: {
-            source: 'system',
-            version: 1,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        },
-      });
-
-      // Update existingEntry reference for further processing
-      existingEntry = newEntry;
+      throw new Error('No existing overtime entry found for checkout');
     }
 
     // Calculate worked time based on actual check-in/out times
@@ -797,7 +775,7 @@ export class TimeEntryService {
       checkOutTime: format(attendance.CheckOutTime!, 'HH:mm:ss'),
     });
 
-    // Update entry with actual worked time
+    // Update existing entry with actual worked time
     return tx.timeEntry.update({
       where: { id: existingEntry.id },
       data: {
