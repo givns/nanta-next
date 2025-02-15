@@ -19,6 +19,7 @@ import {
   StatusUpdateResult,
   TimeEntryHours,
   ValidationContext,
+  ATTENDANCE_CONSTANTS,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import {
@@ -29,6 +30,7 @@ import {
   subDays,
   addHours,
   differenceInMinutes,
+  subMinutes,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { TimeEntryService } from '../TimeEntryService';
@@ -508,10 +510,27 @@ export class AttendanceProcessingService {
       },
     });
 
+    // Calculate timing details
+    const shiftStart = parseISO(periodState.current.start);
+    const earlyWindow = subMinutes(
+      shiftStart,
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
+    ); // 30 minutes early window
+
+    // Determine early/late status
+    const isEarlyCheckIn = now < shiftStart && now >= earlyWindow;
     const lateStatus = this.timeEntryService.calculateLateStatus(
       now,
-      parseISO(periodState.current.start),
+      shiftStart,
     );
+
+    console.log('Check-in timing calculation:', {
+      checkInTime: format(now, 'HH:mm:ss'),
+      shiftStart: format(shiftStart, 'HH:mm:ss'),
+      earlyWindow: format(earlyWindow, 'HH:mm:ss'),
+      isEarlyCheckIn,
+      lateStatus,
+    });
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
 
@@ -529,7 +548,7 @@ export class AttendanceProcessingService {
           options.periodType === PeriodType.OVERTIME
             ? OvertimeState.IN_PROGRESS
             : undefined,
-        shiftStartTime: parseISO(periodState.current.start),
+        shiftStartTime: shiftStart,
         shiftEndTime: parseISO(periodState.current.end),
         CheckInTime: now,
         ...(options.metadata?.overtimeId && {
@@ -549,8 +568,8 @@ export class AttendanceProcessingService {
         },
         checkTiming: {
           create: {
-            isEarlyCheckIn: false,
-            isLateCheckIn: lateStatus.minutesLate > 0, // Use actual late status
+            isEarlyCheckIn,
+            isLateCheckIn: lateStatus.minutesLate > 0,
             lateCheckInMinutes: lateStatus.minutesLate,
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
@@ -564,6 +583,15 @@ export class AttendanceProcessingService {
         location: true,
         metadata: true,
         checkTiming: true,
+      },
+    });
+
+    console.log('Created attendance record timing:', {
+      checkInTime: format(now, 'HH:mm:ss'),
+      timing: {
+        isEarlyCheckIn: attendance.checkTiming?.isEarlyCheckIn,
+        isLateCheckIn: attendance.checkTiming?.isLateCheckIn,
+        lateCheckInMinutes: attendance.checkTiming?.lateCheckInMinutes,
       },
     });
 

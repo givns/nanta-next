@@ -507,21 +507,6 @@ export class PeriodManagementService {
       isOvernight: this.isOvernightPeriod(shift.startTime, shift.endTime),
     });
 
-    // Add evening overtime if exists
-    if (overtimeInfo && !this.isEarlyMorningOvertime(overtimeInfo, shift)) {
-      periods.push({
-        type: PeriodType.OVERTIME,
-        startTime: overtimeInfo.startTime,
-        endTime: overtimeInfo.endTime,
-        sequence: periods.length + 1,
-        isOvernight: this.isOvernightPeriod(
-          overtimeInfo.startTime,
-          overtimeInfo.endTime,
-        ),
-        isDayOff: overtimeInfo.isDayOffOvertime,
-      });
-    }
-
     const sortedPeriods = this.sortPeriodsByChronologicalOrder(periods, now);
 
     console.log('Built period sequence:', {
