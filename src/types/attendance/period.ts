@@ -54,8 +54,8 @@ export interface PeriodAttendance {
 export interface TimingFlags {
   isEarlyCheckIn: boolean;
   isLateCheckIn: boolean;
-  isLateCheckOut: boolean;
   isEarlyCheckOut: boolean;
+  isLateCheckOut: boolean;
   isVeryLateCheckOut: boolean;
   lateCheckOutMinutes: number;
   requiresTransition: boolean;

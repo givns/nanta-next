@@ -46,7 +46,6 @@ import {
 import { PeriodManagementService } from './PeriodManagementService';
 import { VALIDATION_ACTIONS } from '@/types/attendance/interface';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { current } from '@reduxjs/toolkit';
 
 interface PeriodValidation {
   canCheckIn: boolean;
