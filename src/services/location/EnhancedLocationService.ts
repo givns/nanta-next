@@ -4,7 +4,6 @@ import {
   LocationConfidence,
   LocationVerificationState,
   LocationPoint,
-  ValidStateTransition,
   STATE_TRANSITIONS,
 } from '@/types/attendance';
 

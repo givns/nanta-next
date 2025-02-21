@@ -4,7 +4,9 @@ import { ShiftContext, TransitionContext } from './shift';
 import { ValidationMetadata } from './interface';
 import { OvertimeContext } from './overtime';
 import { ValidationResult } from './validation';
-import { PeriodStatusInfo, TransitionStatusInfo } from './period';
+// The types below are imported but not directly used in this file
+// We'll export them to indicate they're being re-exported through this module
+export type { PeriodStatusInfo, TransitionStatusInfo } from './period';
 
 export interface AttendanceStateResponse {
   daily: DailyAttendanceStatus;
@@ -13,7 +15,9 @@ export interface AttendanceStateResponse {
   validation: StateValidation;
 }
 
-export interface AttendanceStatusResponse extends AttendanceStateResponse {}
+// This interface is extending AttendanceStateResponse without adding properties
+// Change to a type alias to fix the empty interface error
+export type AttendanceStatusResponse = AttendanceStateResponse;
 
 export interface DailyAttendanceStatus {
   date: string;

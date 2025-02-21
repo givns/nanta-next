@@ -1,7 +1,6 @@
 // services/LeaveServiceClient.ts
 
 import { PrismaClient, LeaveRequest } from '@prisma/client';
-import { ILeaveServiceClient } from '@/types/LeaveService';
 
 const prisma = new PrismaClient();
 
@@ -12,7 +11,7 @@ interface LeaveBalanceData {
   totalLeaveDays: number;
 }
 
-export class LeaveServiceClient implements ILeaveServiceClient {
+export class LeaveServiceClient implements LeaveServiceClient {
   async createLeaveRequest(
     lineUserId: string,
     leaveType: string,
@@ -135,6 +134,7 @@ export class LeaveServiceClient implements ILeaveServiceClient {
   }
 
   private async notifyAdmins(leaveRequest: LeaveRequest): Promise<void> {
+    console.log('Notifying admins about new leave request:', leaveRequest);
     // Notify admins
   }
 }

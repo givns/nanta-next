@@ -14,7 +14,6 @@ import {
   AppError,
   ErrorCode,
   ShiftWindowResponse,
-  GeoLocationJson,
   GeoLocation,
   StatusUpdateResult,
   TimeEntryHours,
@@ -28,7 +27,6 @@ import {
   parseISO,
   format,
   subDays,
-  addHours,
   differenceInMinutes,
   subMinutes,
 } from 'date-fns';

@@ -31,17 +31,11 @@ import {
   ProcessingOptions,
   AttendanceRecord,
   TimeEntryHours,
-  ATTENDANCE_CONSTANTS,
 } from '../types/attendance';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { th } from 'date-fns/locale';
 import { getCurrentTime } from '@/utils/dateUtils';
-
-interface CheckInCalculationsResult {
-  minutesLate: number;
-  isHalfDayLate: boolean;
-}
 
 interface WorkingHoursResult {
   regularHours: number;
@@ -65,11 +59,7 @@ interface EntryMetricsResult {
 export class TimeEntryService {
   // Constants
   private readonly REGULAR_HOURS_PER_SHIFT = 8;
-  private readonly OVERTIME_INCREMENT = 30;
   private readonly LATE_THRESHOLD = 30;
-  private readonly HALF_DAY_THRESHOLD = 240;
-  private readonly OVERTIME_MINIMUM_MINUTES = 30;
-  private readonly OVERTIME_ROUND_TO_MINUTES = 30;
   private readonly BREAK_DURATION_MINUTES = 60;
   private readonly BREAK_START_OFFSET = 4;
   private readonly CACHE_TTL = 300; // 5 minutes
@@ -99,6 +89,7 @@ export class TimeEntryService {
           periodType: options.periodType,
           isCheckIn: options.activity.isCheckIn,
           isOvertime: options.activity.isOvertime,
+          statusUpdate,
         },
       });
       // For regular period check-in, skip overtime matching

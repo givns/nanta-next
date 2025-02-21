@@ -1,11 +1,6 @@
 import { Redis } from 'ioredis';
 import { z } from 'zod';
 
-interface CacheOptions {
-  ttl?: number;
-  namespace?: string;
-}
-
 interface CacheMetrics {
   hits: number;
   misses: number;
@@ -26,8 +21,6 @@ export class CacheService {
   };
 
   private readonly MEMORY_CACHE_TTL = 5000; // 5 seconds
-  private readonly MAX_RETRY_ATTEMPTS = 3;
-  private readonly RETRY_DELAY = 1000; // 1 second
   private readonly IS_CLIENT = typeof window !== 'undefined';
 
   constructor() {
@@ -109,6 +102,7 @@ export class CacheService {
 
   private recordError(type: string) {
     this.metrics.errors++;
+    console.error(`Cache error: ${type}`);
   }
 
   private async measureOperation<T>(

@@ -31,16 +31,6 @@ interface TimeEntryWithMetadata extends TimeEntry {
   } | null;
 }
 
-interface LeaveTypeMappings {
-  [key: string]: {
-    field:
-      | 'sickLeaveDays'
-      | 'businessLeaveDays'
-      | 'annualLeaveDays'
-      | 'unpaidLeaveDays';
-  };
-}
-
 export class PayrollCalculationService {
   private shiftService!: ShiftManagementService; // Use ! to assert it will be assigned
   private initialized: boolean = false;
@@ -127,6 +117,7 @@ export class PayrollCalculationService {
       // Calculate absents using the effective end date
       const currentDate = new Date();
       const effectiveEndDate = min([currentDate, periodEnd]);
+      console.log('Effective end date:', effectiveEndDate);
       const totalAbsent = totalWorkingDays - totalPresent - leaves.holidays;
 
       // Calculate allowances
@@ -268,7 +259,7 @@ export class PayrollCalculationService {
 
       // Count working days
       let workingDaysCount = 0;
-      let currentDatePointer = new Date(startDate);
+      const currentDatePointer = new Date(startDate);
 
       while (currentDatePointer <= effectiveEndDate) {
         // Get day of week (0 = Sunday, 1 = Monday, etc.)

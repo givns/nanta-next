@@ -190,7 +190,7 @@ export class HolidayService {
               });
               created.push(created_holiday);
             }
-          } catch (err) {
+          } catch (error) {
             console.warn(`Skipping duplicate holiday for date ${holiday.date}`);
           }
         }

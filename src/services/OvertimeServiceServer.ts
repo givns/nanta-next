@@ -145,6 +145,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       },
     });
 
+    console.log('Created overtime entry:', overtimeEntry);
+
     return overtimeRequest;
   }
 
@@ -291,6 +293,13 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
     const currentTimeStr = format(checkTime, 'HH:mm');
     const overtimeDate = format(checkTime, 'yyyy-MM-dd');
 
+    console.log('Checking for approved overtime:', {
+      employeeId,
+      checkTime,
+      currentTimeStr,
+      overtimeDate,
+    });
+
     // First get any approved overtime for the day
     const overtimeRequest = await this.prisma.overtimeRequest.findFirst({
       where: {
@@ -383,7 +392,8 @@ export class OvertimeServiceServer implements IOvertimeServiceServer {
       throw new Error('You have already responded to this overtime request');
     }
 
-    let newStatus = response === 'approve' ? 'pending' : 'declined_by_employee';
+    const newStatus =
+      response === 'approve' ? 'pending' : 'declined_by_employee';
     let updatedRequest;
     let isAutoApproved = false;
     let message = '';

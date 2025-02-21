@@ -352,7 +352,6 @@ export class NotificationService {
     adminId: string,
     adminLineUserId: string,
     approvedRequests: OvertimeRequest[],
-    _type: 'overtime' | 'leave',
   ): Promise<void> {
     const message = this.createBatchApprovalMessage(approvedRequests);
     await this.sendNotification(

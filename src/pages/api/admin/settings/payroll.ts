@@ -1,7 +1,7 @@
 // pages/api/admin/settings/payroll.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 

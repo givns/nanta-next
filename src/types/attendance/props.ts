@@ -1,6 +1,5 @@
 import {
   AttendanceFilters,
-  AttendanceStateResponse,
   AttendanceStatusResponse,
   DailyAttendanceRecord,
   DepartmentInfo,
@@ -19,18 +18,12 @@ import {
   ValidationFlags,
   ValidationMetadata,
 } from '../attendance';
-import { KeyedMutator } from 'swr';
 import {
   AttendanceBaseResponse,
   LocationState,
   SerializedAttendanceRecord,
 } from './base';
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  PeriodType,
-} from '@prisma/client';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 
 export interface StatusChangeParams {
   isCheckingIn: boolean;

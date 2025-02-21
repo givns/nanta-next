@@ -1,20 +1,13 @@
 // services/Attendance/AttendanceStateManager.ts
 
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  PeriodType,
-} from '@prisma/client';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   AttendanceStatusResponse,
-  ProcessingResult,
   AppError,
   ErrorCode,
   ValidationContext,
   UnifiedPeriodState,
   StateValidation,
-  AttendanceStateResponse,
 } from '@/types/attendance';
 import Redis from 'ioredis';
 import { getCurrentTime } from '@/utils/dateUtils';

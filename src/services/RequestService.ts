@@ -25,7 +25,7 @@ export abstract class RequestService {
     replyToken?: string,
   ) {
     return await this.prisma
-      .$transaction(async (tx) => {
+      .$transaction(async () => {
         const [request, denier] = await Promise.all([
           this.getRequestModel().findUnique({
             where: { id: requestId },

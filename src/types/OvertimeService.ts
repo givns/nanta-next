@@ -14,8 +14,6 @@ export interface IOvertimeServiceBase {
   ): Promise<OvertimeRequest>;
 }
 
-export interface IOvertimeServiceClient extends IOvertimeServiceBase {}
-
 export interface IOvertimeServiceServer extends IOvertimeServiceBase {
   employeeRespondToOvertimeRequest(
     requestId: string,

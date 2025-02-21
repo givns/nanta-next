@@ -16,6 +16,8 @@ try {
   client = new Client({
     channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN || '',
   });
+  console.log('LINE client initialized');
+  console.log('Client:', client);
 } catch (error) {
   console.warn('Failed to initialize LINE client:', error);
 }
@@ -113,7 +115,7 @@ export class LeaveServiceServer
           }
         }
         // Prepare leave request data
-        let leaveRequestData: Prisma.LeaveRequestCreateInput = {
+        const leaveRequestData: Prisma.LeaveRequestCreateInput = {
           user: { connect: { employeeId: user.employeeId } },
           leaveType,
           leaveFormat,

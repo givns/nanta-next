@@ -10,7 +10,6 @@ import { normalizeLocation } from '@/utils/locationUtils';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { UserRole } from '@/types/enum';
-import { addMinutes, format, isBefore, parseISO } from 'date-fns';
 import { ATTENDANCE_CONSTANTS } from '@/types/attendance';
 
 // ===================================

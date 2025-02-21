@@ -1,15 +1,6 @@
 // services/ShiftManagementService/utils.ts
 
-import { ATTENDANCE_CONSTANTS } from '../../types/attendance/base';
-import { ShiftWindows } from '../../types/attendance/shift';
-import {
-  set,
-  parseISO,
-  format,
-  addDays,
-  subMinutes,
-  addMinutes,
-} from 'date-fns';
+import { set, parseISO, format } from 'date-fns';
 
 export class ShiftTimeUtils {
   static parseShiftTime(timeString: string, date: Date): Date {

@@ -10,7 +10,7 @@ import {
   PeriodType,
   TimeEntryStatus,
 } from '@prisma/client';
-import { AttendanceRecord, OvertimeMetadata } from './records';
+import { AttendanceRecord } from './records';
 
 // Core interfaces - Keep
 export interface BaseEntity {

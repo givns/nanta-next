@@ -15,8 +15,8 @@ export class LeaveBalanceService {
     const monthsWorked = this.getMonthsDifference(startMonth, now);
 
     // Default balances
-    let sickLeave = this.SICK_LEAVE_PER_YEAR;
-    let businessLeave = this.BUSINESS_LEAVE_PER_YEAR;
+    const sickLeave = this.SICK_LEAVE_PER_YEAR;
+    const businessLeave = this.BUSINESS_LEAVE_PER_YEAR;
     let annualLeave = 0;
 
     // Calculate annual leave only if not in probation
@@ -77,6 +77,7 @@ export class LeaveBalanceService {
   }
 
   static resetYearlyBalances(workStartDate: Date, employeeType: string) {
+    console.log('Resetting yearly balances for', employeeType);
     const monthsWorked = this.getMonthsDifference(workStartDate, new Date());
 
     return {

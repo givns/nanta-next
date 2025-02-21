@@ -1,16 +1,11 @@
 // services/Attendance/AttendanceEnhancementService.ts
 import {
-  AttendanceStateResponse,
   SerializedAttendanceRecord,
   ShiftWindowResponse,
   ValidationContext,
   UnifiedPeriodState,
-  ValidationError,
-  ValidationWarning,
   AttendanceRecord,
   PeriodTransition,
-  TransitionInfo,
-  ValidationMetadata,
   StateValidation,
   PeriodStatusInfo,
   TransitionStatusInfo,
@@ -20,33 +15,18 @@ import {
   SerializedOvertimeEntry,
   OvertimeEntry,
   OvertimeContext,
-  TimingFlags,
-  ATTENDANCE_CONSTANTS,
-  VALIDATION_THRESHOLDS,
   ShiftData,
 } from '@/types/attendance';
-import {
-  AttendanceState,
-  CheckStatus,
-  OvertimeState,
-  PeriodType,
-} from '@prisma/client';
+import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   parseISO,
   format,
-  isWithinInterval,
   addMinutes,
-  subMinutes,
   differenceInMinutes,
   addDays,
-  addHours,
-  isAfter,
-  isBefore,
   startOfDay,
 } from 'date-fns';
 import { PeriodManagementService } from './PeriodManagementService';
-import { VALIDATION_ACTIONS } from '@/types/attendance/interface';
-import { getCurrentTime } from '@/utils/dateUtils';
 import { TimeWindowManager } from '@/utils/timeWindow/TimeWindowManager';
 import { PeriodStateResolver } from './PeriodStateResolver';
 

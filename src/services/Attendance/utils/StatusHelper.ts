@@ -8,7 +8,6 @@ import {
 } from '@prisma/client';
 import {
   StatusUpdateResult,
-  AttendanceStateChange,
   AttendanceCompositeStatus,
 } from '../../../types/attendance';
 

@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import OvertimeRequestForm from '../components/OvertimeRequestForm';
 import liff from '@line/liff';
-import SkeletonLoader from '../components/SkeletonLoader';
-import axios from 'axios';
 import { UserData } from '@/types/user';
 import { UserRole } from '@/types/enum';
 import LoadingBar from '@/components/LoadingBar';
@@ -10,12 +8,12 @@ import { useLiff } from '@/contexts/LiffContext';
 import { useAuth } from '@/hooks/useAuth';
 
 const OvertimeRequestPage: React.FC = () => {
-  const { lineUserId, isInitialized, error: liffError } = useLiff();
-  const { isLoading: authLoading } = useAuth({
+  const { lineUserId } = useLiff();
+  useAuth({
     requiredRoles: ['Admin', 'SuperAdmin', 'Manager'],
   });
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [message, setMessage] = useState('');
+  const [, setMessage] = useState('');
   const [employees, setEmployees] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,30 +41,6 @@ const OvertimeRequestPage: React.FC = () => {
       console.error('Error fetching user data:', error);
       setError('Failed to fetch user data. Please try again.');
       throw error;
-    }
-  }, []);
-
-  // Fetch Employees
-  const fetchEmployees = useCallback(async (lineUserId: string) => {
-    try {
-      const response = await axios.get('/api/employees', {
-        headers: { 'x-line-userid': lineUserId },
-      });
-      setEmployees(response.data);
-    } catch (error) {
-      console.error('Error fetching employees:', error);
-      setMessage('ไม่สามารถดึงข้อมูลพนักงานได้');
-    }
-  }, []);
-
-  // Fetch Departments (Admin only)
-  const fetchDepartments = useCallback(async () => {
-    try {
-      const response = await axios.get('/api/departments');
-      setDepartments(response.data);
-    } catch (error) {
-      console.error('Error fetching departments:', error);
-      setMessage('ไม่สามารถดึงข้อมูลแผนกได้');
     }
   }, []);
 

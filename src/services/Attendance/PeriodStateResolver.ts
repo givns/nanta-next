@@ -8,11 +8,9 @@
 // services/Attendance/PeriodStateResolver.ts
 import {
   UnifiedPeriodState,
-  PeriodState,
   ValidationContext,
   TimeWindow,
   StateValidation,
-  PeriodTransition,
   ValidationResult,
   AttendanceRecord,
   PeriodStatusInfo,
@@ -20,12 +18,8 @@ import {
   ValidationError,
   ValidationWarning,
   ShiftData,
-  TimingFlags,
   VALIDATION_THRESHOLDS,
   OvertimeContext,
-  ATTENDANCE_CONSTANTS,
-  AppError,
-  ErrorCode,
   ValidationFlags,
   TransitionStatusInfo,
   EnhancedTimeWindow,
@@ -40,16 +34,10 @@ import {
   addMinutes,
   differenceInMinutes,
   format,
-  isAfter,
   isWithinInterval,
   parseISO,
   subMinutes,
 } from 'date-fns';
-
-interface LateCheckInStatus {
-  isLate: boolean;
-  minutesLate: number;
-}
 
 export class PeriodStateResolver {
   private cache: Map<
@@ -214,7 +202,6 @@ export class PeriodStateResolver {
   public buildValidationMetadata(
     transitionInfo: TransitionStatusInfo,
     flags: ValidationFlags,
-    now: Date,
   ): ValidationMetadata {
     if (!transitionInfo.isInTransition) {
       return {};
@@ -415,11 +402,7 @@ export class PeriodStateResolver {
     );
 
     // Build metadata
-    const metadata = this.buildValidationMetadata(
-      transitionInfo,
-      flags,
-      context.timestamp,
-    );
+    const metadata = this.buildValidationMetadata(transitionInfo, flags);
 
     return {
       allowed,
@@ -839,7 +822,9 @@ export class PeriodStateResolver {
     // Add overtime window if exists
     if (window.overtimeInfo) {
       const today = format(getCurrentTime(), 'yyyy-MM-dd');
-      let overtimeStart = parseISO(`${today}T${window.overtimeInfo.startTime}`);
+      const overtimeStart = parseISO(
+        `${today}T${window.overtimeInfo.startTime}`,
+      );
       let overtimeEnd = parseISO(`${today}T${window.overtimeInfo.endTime}`);
 
       // Handle overnight overtime
@@ -964,7 +949,7 @@ export class PeriodStateResolver {
 
       // Standard overtime period detection
       const referenceDate = format(now, 'yyyy-MM-dd');
-      let overtimeStart = parseISO(
+      const overtimeStart = parseISO(
         `${referenceDate}T${overtimeInfo.startTime}`,
       );
       let overtimeEnd = parseISO(`${referenceDate}T${overtimeInfo.endTime}`);

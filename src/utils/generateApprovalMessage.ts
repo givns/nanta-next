@@ -1,4 +1,3 @@
-import { FlexMessage, FlexComponent, FlexText } from '@line/bot-sdk';
 import { User, LeaveRequest, OvertimeRequest } from '@prisma/client';
 
 export const generateApprovalMessageForAdmins = (

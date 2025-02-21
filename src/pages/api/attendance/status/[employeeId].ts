@@ -1,6 +1,6 @@
 // pages/api/attendance/status/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, PeriodType } from '@prisma/client';
 import { z } from 'zod';
 import { getServices } from '@/services/ServiceInitializer';
 import {
@@ -12,7 +12,6 @@ import {
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
-import { PeriodType } from '@prisma/client';
 
 // Initialize Prisma client - optimized for serverless
 const prisma = new PrismaClient({
@@ -50,7 +49,7 @@ const QuerySchema = z.object({
             longitude: Number(coords.lng),
           };
         }
-      } catch (e) {}
+      } catch (error) {}
       return undefined;
     }),
   adminVerified: z

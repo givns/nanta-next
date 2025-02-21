@@ -12,10 +12,7 @@ import {
   UnifiedPeriodState,
   AttendanceRecord,
   PeriodDefinition,
-  ValidationResult,
   ValidationContext,
-  ValidationError,
-  ValidationWarning,
   OvertimeContext,
   VALIDATION_THRESHOLDS,
   ApprovedOvertimeInfo,
@@ -23,16 +20,13 @@ import {
   TransitionInfo,
   PeriodState,
   PeriodStatusInfo,
-  TimingFlags,
   ATTENDANCE_CONSTANTS,
-  StateValidation,
   AppError,
   ErrorCode,
   TimeWindow,
   TransitionStatusInfo,
 } from '@/types/attendance';
 import { PeriodType, AttendanceState } from '@prisma/client';
-import { getCurrentTime } from '@/utils/dateUtils';
 import {
   parseISO,
   format,
@@ -42,16 +36,12 @@ import {
   addDays,
   differenceInMinutes,
   startOfDay,
-  endOfDay,
   subDays,
-  addHours,
   isAfter,
-  isBefore,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { TimeWindowManager } from '@/utils/timeWindow/TimeWindowManager';
 import { PeriodStateResolver } from './PeriodStateResolver';
-import { now } from 'lodash';
 
 interface PeriodValidation {
   canCheckIn: boolean;
@@ -61,14 +51,6 @@ interface PeriodValidation {
   isEarlyCheckOut: boolean;
   isWithinLateAllowance: boolean;
 }
-
-const PERIOD_CONSTANTS = {
-  TRANSITION_CONFIG: {
-    EARLY_BUFFER: 15,
-    LATE_BUFFER: 15,
-  },
-  RECENTLY_COMPLETED_THRESHOLD: 15, // 15 minutes threshold after completion
-} as const;
 
 export class PeriodManagementService {
   constructor(
@@ -887,7 +869,7 @@ export class PeriodManagementService {
       })),
     });
 
-    const { currentPeriod, nextPeriod } = this.findRelevantPeriod(
+    const { currentPeriod } = this.findRelevantPeriod(
       periods,
       context.timestamp,
       attendance,

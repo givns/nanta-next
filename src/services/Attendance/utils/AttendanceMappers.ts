@@ -21,7 +21,7 @@ import {
 } from '@prisma/client';
 
 export class AttendanceMappers {
-  static toLatestAttendance(attendance: any) {
+  static toLatestAttendance() {
     throw new Error('Method not implemented.');
   }
   static toUserData(user: any): UserData {
@@ -395,10 +395,7 @@ export class AttendanceMappers {
   }
 
   // Helper method to create UnifiedPeriodState
-  static toUnifiedPeriodState(
-    record: AttendanceRecord,
-    now: Date,
-  ): UnifiedPeriodState {
+  static toUnifiedPeriodState(record: AttendanceRecord): UnifiedPeriodState {
     return {
       type: record.type,
       timeWindow: {

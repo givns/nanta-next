@@ -3,13 +3,7 @@ import { ShiftWindowResponse } from '@/types/attendance';
 import { AttendanceRecord } from '@/types/attendance/records';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { PeriodType } from '@prisma/client';
-import {
-  addHours,
-  format,
-  isWithinInterval,
-  parseISO,
-  subMinutes,
-} from 'date-fns';
+import { format, parseISO, subMinutes } from 'date-fns';
 
 export interface AutoCompleteEntry {
   type: 'check-in' | 'check-out';

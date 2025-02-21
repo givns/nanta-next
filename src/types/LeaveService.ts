@@ -25,8 +25,6 @@ export interface ILeaveServiceBase {
   checkLeaveBalance(userId: string): Promise<LeaveBalanceData>;
 }
 
-export interface ILeaveServiceClient extends ILeaveServiceBase {}
-
 export interface ILeaveServiceServer extends ILeaveServiceBase {
   approveLeaveRequest(
     requestId: string,

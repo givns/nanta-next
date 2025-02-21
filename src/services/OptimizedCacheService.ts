@@ -60,6 +60,9 @@ export class OptimizedCacheService {
     current: LocationState,
     cached: AttendanceStatusResponse,
   ): boolean {
+    console.log('Checking location validity');
+    console.log('Current:', current);
+    console.log('Cached:', cached);
     // Add logic to determine if location change is significant enough to invalidate cache
     return true; // Simplified for example
   }
