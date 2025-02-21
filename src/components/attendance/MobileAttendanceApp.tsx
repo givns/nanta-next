@@ -5,6 +5,7 @@ import {
   isWithinInterval,
   parseISO,
   subMinutes,
+  differenceInMinutes,
 } from 'date-fns';
 import { is, th } from 'date-fns/locale';
 import { AlertCircle, Clock, User, Building2, MapPin } from 'lucide-react';
@@ -19,6 +20,7 @@ import {
   AttendanceBaseResponse,
   ExtendedOvertimeInfo,
   ExtendedValidation,
+  ValidationFlags,
 } from '@/types/attendance';
 
 interface ProgressMetrics {
@@ -36,6 +38,7 @@ interface ProgressSectionProps {
   metrics: ProgressMetrics;
   shiftData: ShiftData | null;
   isOvertimePeriod: boolean;
+  validationFlags: ValidationFlags;
 }
 
 const ProgressSection: React.FC<ProgressSectionProps> = ({
@@ -44,6 +47,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
   metrics,
   shiftData,
   isOvertimePeriod,
+  validationFlags,
 }) => {
   const now = getCurrentTime();
   const isEarlyOvertimePeriod = (() => {
@@ -69,6 +73,10 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
     const periodStartHour = parseInt(periodStartTime.split(':')[0], 10);
     return periodStartHour < 8; // Only morning overtime (e.g. 06:00-08:00) is early
   })();
+
+  // Don't display "late" if we're in the early check-in window
+  const showLateMinutes =
+    metrics.lateMinutes > 0 && !validationFlags.isEarlyCheckIn;
 
   return (
     <div className="space-y-4">
@@ -113,7 +121,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
           </span>
           {!isOvertimePeriod && (
             <>
-              {metrics.lateMinutes > 0 && (
+              {showLateMinutes && (
                 <span className="text-xs text-red-600">
                   สาย {metrics.lateMinutes} นาที
                 </span>
@@ -241,10 +249,21 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
               }
             }
 
+            // Fix for early check-in window display
+            if (validationFlags.isEarlyCheckIn) {
+              return `เวลาทำงานเริ่ม ${shiftData?.startTime} น.`;
+            }
+
             if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
             if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
             if (now < earlyWindow.start) return 'ยังไม่ถึงเวลาทำงาน';
-            return 'อยู่ในเวลาทำงานปกติ';
+
+            // When within normal working hours
+            if (isWithinInterval(now, { start: shiftStart, end: shiftEnd })) {
+              return 'อยู่ในเวลาทำงานปกติ';
+            }
+
+            return '';
           })()}
         </div>
       </div>
@@ -301,6 +320,13 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         activity: currentPeriod?.activity,
         type: currentPeriod?.type,
       },
+      shiftData: shiftData
+        ? {
+            startTime: shiftData.startTime,
+            endTime: shiftData.endTime,
+          }
+        : null,
+      validationFlags: validation.flags,
       latestAttendance: attendanceStatus.latestAttendance
         ? {
             checkIn: attendanceStatus.latestAttendance.CheckInTime,
@@ -371,8 +397,12 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    // Rest of the code for non-overnight periods...
-    if (!currentPeriod?.timeWindow?.start || !currentPeriod?.timeWindow?.end) {
+    // Rest of the code for non-overtime periods...
+    if (
+      !currentPeriod?.timeWindow?.start ||
+      !currentPeriod?.timeWindow?.end ||
+      !shiftData
+    ) {
       return {
         lateMinutes: 0,
         earlyMinutes: 0,
@@ -383,18 +413,34 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    const periodStart = parseISO(currentPeriod.timeWindow.start);
-    const periodEnd = parseISO(currentPeriod.timeWindow.end);
+    // Fix: Use shift hours for regular periods, not the timeWindow which might be the early check-in window
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
+    );
+    const shiftEnd = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`,
+    );
+
+    // For overtime periods, use the timeWindow
+    const periodStart =
+      currentPeriod.type === PeriodType.OVERTIME
+        ? parseISO(currentPeriod.timeWindow.start)
+        : shiftStart;
+
+    const periodEnd =
+      currentPeriod.type === PeriodType.OVERTIME
+        ? parseISO(currentPeriod.timeWindow.end)
+        : shiftEnd;
 
     console.log('Time boundaries:', {
       now: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      shiftStart: format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+      shiftEnd: format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
       periodStart: format(periodStart, 'yyyy-MM-dd HH:mm:ss'),
       periodEnd: format(periodEnd, 'yyyy-MM-dd HH:mm:ss'),
       isOvertime: currentPeriod.activity.isOvertime,
-      usingAttendanceEnd: Boolean(
-        currentPeriod.activity.isOvertime &&
-          attendanceStatus.latestAttendance?.shiftEndTime,
-      ),
+      usingShiftHours: currentPeriod.type !== PeriodType.OVERTIME,
+      isEarlyCheckIn: validation.flags.isEarlyCheckIn,
     });
 
     const checkIn = currentPeriod.activity.checkIn
@@ -423,6 +469,13 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         };
       }
 
+      // Fix: Don't show late minutes if we're in the early check-in window
+      const lateMinutes = validation.flags.isEarlyCheckIn
+        ? 0
+        : Math.floor(
+            Math.max(0, (now.getTime() - periodStart.getTime()) / 60000),
+          );
+
       const progress = Math.min(
         ((now.getTime() - periodStart.getTime()) /
           (periodEnd.getTime() - periodStart.getTime())) *
@@ -433,12 +486,12 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       console.log('Progress without check-in:', {
         progress,
         elapsedMinutes: (now.getTime() - periodStart.getTime()) / 60000,
+        lateMinutes,
+        isEarlyCheckIn: validation.flags.isEarlyCheckIn,
       });
 
       return {
-        lateMinutes: Math.floor(
-          Math.max(0, (now.getTime() - periodStart.getTime()) / 60000),
-        ),
+        lateMinutes,
         earlyMinutes: 0,
         isEarly: false,
         progressPercent: progress,
@@ -484,9 +537,33 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       totalShiftMinutes: totalMinutes,
       isMissed: false,
     };
-  }, [currentPeriod, attendanceStatus.latestAttendance]);
+  }, [
+    currentPeriod,
+    attendanceStatus.latestAttendance,
+    shiftData,
+    validation.flags,
+  ]);
 
   const isOvertimePeriod = currentPeriod.type === PeriodType.OVERTIME;
+
+  // Get proper validation message based on state
+  const getStatusMessage = () => {
+    // If there's a validation reason, use it
+    if (validation.reason) {
+      // Don't show "outside work hours" if we're actually in early check-in window
+      if (
+        validation.reason === 'อยู่นอกช่วงเวลาทำงานที่กำหนด' &&
+        validation.flags.isEarlyCheckIn
+      ) {
+        return `เวลาทำงานเริ่ม ${shiftData?.startTime} น.`;
+      }
+      return validation.reason;
+    }
+
+    return currentPeriod.type === PeriodType.OVERTIME
+      ? 'ช่วงเวลาทำงานล่วงเวลา'
+      : 'อยู่ในเวลาทำงานปกติ';
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -612,6 +689,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
                 metrics={metrics}
                 shiftData={shiftData}
                 isOvertimePeriod={isOvertimePeriod}
+                validationFlags={validation.flags}
               />
             </div>
           )}
