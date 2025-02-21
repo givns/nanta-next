@@ -29,6 +29,7 @@ export enum ErrorCode {
   NOT_FOUND = 'NOT_FOUND',
   RATE_LIMIT_EXCEEDED = 'RATE_LIMIT_EXCEEDED',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
+  INVALID_ID_FORMAT = 'INVALID_ID_FORMAT',
 }
 
 export interface AppErrorParams {

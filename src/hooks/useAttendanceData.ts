@@ -25,6 +25,7 @@ interface UseAttendanceDataState {
   lastOperation: string | null;
   lastError: Error | null;
   pendingRequests: Set<string>;
+  retryCount: number;
 }
 
 const sanitizeResponse = (data: any): AttendanceStatusResponse => {
@@ -34,70 +35,100 @@ const sanitizeResponse = (data: any): AttendanceStatusResponse => {
     hasDaily: !!data.daily,
   });
 
-  // Daily state sanitization
-  const daily = {
-    date: data.daily.date,
-    currentState: data.daily.currentState,
-    transitions: Array.isArray(data.daily.transitions)
-      ? data.daily.transitions
-      : [],
-  };
+  // Check for null/undefined data
+  if (!data || !data.base || !data.context || !data.daily) {
+    console.error('Invalid response data structure:', data);
+    throw new AppError({
+      code: ErrorCode.INVALID_RESPONSE,
+      message: 'Invalid or incomplete response data',
+    });
+  }
 
-  // Base state sanitization
-  const base = {
-    ...data.base,
-    validation: {
-      canCheckIn: Boolean(data.base.validation?.canCheckIn),
-      canCheckOut: Boolean(data.base.validation?.canCheckOut),
-      message: data.base.validation?.message || '',
-    },
-    metadata: {
-      lastUpdated:
-        data.base.metadata?.lastUpdated || getCurrentTime().toISOString(),
-      version: data.base.metadata?.version || 1,
-      source: data.base.metadata?.source || 'system',
-    },
-  };
-
-  // Context sanitization
-  const context = {
-    shift: {
-      id: data.context.shift.id,
-      shiftCode: data.context.shift.shiftCode,
-      name: data.context.shift.name,
-      startTime: data.context.shift.startTime,
-      endTime: data.context.shift.endTime,
-      workDays: Array.isArray(data.context.shift.workDays)
-        ? data.context.shift.workDays
+  try {
+    // Daily state sanitization
+    const daily = {
+      date: data.daily.date || format(getCurrentTime(), 'yyyy-MM-dd'),
+      currentState: data.daily.currentState || {
+        type: 'REGULAR',
+        timeWindow: {
+          start: getCurrentTime().toISOString(),
+          end: getCurrentTime().toISOString(),
+        },
+        activity: {
+          isActive: false,
+          checkIn: null,
+          checkOut: null,
+        },
+        validation: {},
+      },
+      transitions: Array.isArray(data.daily.transitions)
+        ? data.daily.transitions
         : [],
-    },
-    schedule: {
-      isHoliday: Boolean(data.context.schedule.isHoliday),
-      isDayOff: Boolean(data.context.schedule.isDayOff),
-      isAdjusted: Boolean(data.context.schedule.isAdjusted),
-      holidayInfo: data.context.schedule.holidayInfo,
-    },
-    nextPeriod: data.context.nextPeriod,
-    transition: data.context.transition,
-  };
+    };
 
-  // Validation state sanitization
-  const validation = {
-    allowed: Boolean(data.validation.allowed),
-    reason: data.validation.reason || '',
-    flags: {
-      ...data.validation.flags,
-      hasPendingTransition: daily.transitions.length > 0,
-    },
-    metadata: data.validation.metadata,
-  };
+    // Base state sanitization
+    const base = {
+      ...data.base,
+      validation: {
+        canCheckIn: Boolean(data.base.validation?.canCheckIn),
+        canCheckOut: Boolean(data.base.validation?.canCheckOut),
+        message: data.base.validation?.message || '',
+      },
+      metadata: {
+        lastUpdated:
+          data.base.metadata?.lastUpdated || getCurrentTime().toISOString(),
+        version: data.base.metadata?.version || 1,
+        source: data.base.metadata?.source || 'system',
+      },
+    };
 
-  return {
-    daily,
-    base,
-    context,
-    validation,
-  };
+    // Context sanitization with fallbacks
+    const context = {
+      shift: {
+        id: data.context.shift?.id || '',
+        shiftCode: data.context.shift?.shiftCode || '',
+        name: data.context.shift?.name || '',
+        startTime: data.context.shift?.startTime || '',
+        endTime: data.context.shift?.endTime || '',
+        workDays: Array.isArray(data.context.shift?.workDays)
+          ? data.context.shift.workDays
+          : [],
+      },
+      schedule: {
+        isHoliday: Boolean(data.context.schedule?.isHoliday),
+        isDayOff: Boolean(data.context.schedule?.isDayOff),
+        isAdjusted: Boolean(data.context.schedule?.isAdjusted),
+        holidayInfo: data.context.schedule?.holidayInfo,
+      },
+      nextPeriod: data.context.nextPeriod,
+      transition: data.context.transition,
+    };
+
+    // Validation state sanitization
+    const validation = {
+      allowed: Boolean(data.validation?.allowed),
+      reason: data.validation?.reason || '',
+      flags: {
+        ...(data.validation?.flags || {}),
+        hasPendingTransition: daily.transitions.length > 0,
+      },
+      metadata: data.validation?.metadata || {},
+    };
+
+    return {
+      daily,
+      base,
+      context,
+      validation,
+    };
+  } catch (error) {
+    console.error('Error sanitizing response:', error);
+    throw new AppError({
+      code: ErrorCode.INVALID_RESPONSE,
+      message: 'Failed to process response data',
+      originalError: error,
+    });
+  }
 };
 
 // Improved error handling
@@ -129,6 +160,49 @@ function handleAttendanceError(error: unknown): AppError {
       });
     }
 
+    // Handle 500 errors specially
+    if (error.response?.status === 500) {
+      let errorMessage = 'Internal server error';
+
+      // Try to extract more detailed error info
+      try {
+        if (
+          typeof error.response.data === 'object' &&
+          error.response.data.message
+        ) {
+          errorMessage = error.response.data.message;
+
+          // Special handling for MongoDB ObjectID errors
+          if (
+            errorMessage.includes('Malformed ObjectID') &&
+            errorMessage.includes('provided hex string representation')
+          ) {
+            return new AppError({
+              code: ErrorCode.INVALID_ID_FORMAT,
+              message: 'Employee ID format is invalid',
+              details: {
+                employeeId: true,
+                suggestion: 'Please check the employee ID format',
+              },
+              originalError: error,
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Error parsing error response:', e);
+      }
+
+      return new AppError({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: errorMessage,
+        details: {
+          status: error.response?.status,
+          data: error.response?.data,
+        },
+        originalError: error,
+      });
+    }
+
     return new AppError({
       code: ErrorCode.NETWORK_ERROR,
       message: error.message,
@@ -147,6 +221,31 @@ function handleAttendanceError(error: unknown): AppError {
   });
 }
 
+// Implement exponential backoff retry logic
+const backoffRetry = async <T>(
+  fn: () => Promise<T>,
+  retries: number,
+  initialDelay: number,
+  maxDelay: number,
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries <= 0) {
+      throw error;
+    }
+
+    const delay = Math.min(
+      initialDelay * Math.pow(2, RETRY_CONFIG.MAX_RETRIES - retries),
+      maxDelay,
+    );
+    console.log(`Retrying after ${delay}ms. Retries left: ${retries}`);
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    return backoffRetry(fn, retries - 1, initialDelay, maxDelay);
+  }
+};
+
 export function useAttendanceData({
   employeeId,
   lineUserId,
@@ -162,6 +261,7 @@ export function useAttendanceData({
     lastOperation: null,
     lastError: null,
     pendingRequests: new Set(),
+    retryCount: 0,
   });
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -180,7 +280,7 @@ export function useAttendanceData({
     shouldFetch,
   });
 
-  // SWR configuration
+  // SWR configuration with more robust error handling
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
     shouldFetch
       ? [
@@ -192,36 +292,67 @@ export function useAttendanceData({
       : null,
     async ([_, id]): Promise<AttendanceStatusResponse> => {
       try {
-        const response = await axios.get(`/api/attendance/status/${id}`, {
-          params: {
-            inPremises:
-              locationState.verificationStatus === 'verified'
-                ? true
-                : locationState.inPremises,
-            address: locationState.address,
-            confidence: locationState.confidence,
-            coordinates: locationState.coordinates,
-            adminVerified: locationState.verificationStatus === 'verified',
-            _t: new Date().getTime(),
-          },
-          timeout: REQUEST_TIMEOUT,
-        });
+        // Prepare coordinates in a format that works with our updated API
+        const coordinates = locationState.coordinates
+          ? JSON.stringify({
+              lat: locationState.coordinates.lat,
+              lng: locationState.coordinates.lng,
+            })
+          : undefined;
 
-        if (!response.data) {
-          throw new AppError({
-            code: ErrorCode.INVALID_RESPONSE,
-            message: 'Empty response received',
+        const fetchData = async () => {
+          const response = await axios.get(`/api/attendance/status/${id}`, {
+            params: {
+              inPremises:
+                locationState.verificationStatus === 'verified'
+                  ? true
+                  : locationState.inPremises,
+              address: locationState.address || '',
+              confidence: locationState.confidence || 'low',
+              coordinates,
+              adminVerified: locationState.verificationStatus === 'verified',
+              _t: new Date().getTime(),
+            },
+            timeout: REQUEST_TIMEOUT,
           });
-        }
 
-        console.log('Raw API response:', response.data);
+          if (!response.data) {
+            throw new AppError({
+              code: ErrorCode.INVALID_RESPONSE,
+              message: 'Empty response received',
+            });
+          }
 
-        // Use sanitizeResponse
-        const sanitized = sanitizeResponse(response.data);
+          console.log('Raw API response:', response.data);
+          return response.data;
+        };
+
+        // Implement retry with backoff logic
+        const responseData = await backoffRetry(
+          fetchData,
+          RETRY_CONFIG.MAX_RETRIES,
+          RETRY_CONFIG.INITIAL_DELAY,
+          RETRY_CONFIG.MAX_DELAY,
+        );
+
+        // Use sanitizeResponse to ensure consistent data structure
+        const sanitized = sanitizeResponse(responseData);
         console.log('Sanitized response:', sanitized);
+
+        // Reset retry count on success
+        setState((prev) => ({
+          ...prev,
+          retryCount: 0,
+        }));
 
         return sanitized;
       } catch (error) {
+        // Increment retry count on error
+        setState((prev) => ({
+          ...prev,
+          retryCount: prev.retryCount + 1,
+        }));
+
         throw handleAttendanceError(error);
       }
     },

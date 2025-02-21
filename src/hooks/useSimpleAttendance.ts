@@ -20,6 +20,7 @@ export function useSimpleAttendance({
 }: UseSimpleAttendanceProps): UseSimpleAttendanceReturn {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isDataReady, setIsDataReady] = useState(false);
+  const [lastError, setLastError] = useState<Error | null>(null);
 
   const {
     locationState,
@@ -51,6 +52,20 @@ export function useSimpleAttendance({
     initialAttendanceStatus,
     enabled,
   });
+
+  // Update the error handling to catch and transform errors
+  useEffect(() => {
+    if (attendanceError) {
+      console.error('Attendance error detected:', attendanceError);
+      setLastError(
+        attendanceError instanceof Error
+          ? attendanceError
+          : new Error(String(attendanceError)),
+      );
+    } else {
+      setLastError(null);
+    }
+  }, [attendanceError]);
 
   // Add debug logging
   useEffect(() => {
@@ -97,6 +112,17 @@ export function useSimpleAttendance({
     }
   }, [rawData]);
 
+  // Initialize state
+  useEffect(() => {
+    const initTimeout = setTimeout(() => {
+      if (isInitializing) {
+        setIsInitializing(false);
+      }
+    }, 3000); // Set a max initialization time of 3 seconds
+
+    return () => clearTimeout(initTimeout);
+  }, [isInitializing]);
+
   // Modified data ready check
   useEffect(() => {
     if (rawData?.base && !isDataReady) {
@@ -107,6 +133,7 @@ export function useSimpleAttendance({
         hasShift: !!rawData.context?.shift?.id,
       });
       setIsDataReady(true);
+      setIsInitializing(false);
     }
   }, [rawData, isDataReady]);
 
@@ -292,12 +319,27 @@ export function useSimpleAttendance({
     rawData?.validation?.flags.hasPendingTransition,
   ]);
 
-  // Modified loading state check
+  // Modified loading state check with additional error handling
   const isLoading =
     isInitializing ||
     locationLoading ||
     isAttendanceLoading ||
     !context?.shift?.id;
+
+  // Handle the error retry mechanism
+  const retryAttendanceLoad = async () => {
+    setLastError(null);
+    try {
+      await refreshAttendanceStatus();
+    } catch (error) {
+      console.error('Error retrying attendance data load:', error);
+      setLastError(
+        error instanceof Error
+          ? error
+          : new Error('Failed to refresh attendance data'),
+      );
+    }
+  };
 
   // Only return complete data when ready
   if (!rawData?.base) {
@@ -305,6 +347,7 @@ export function useSimpleAttendance({
       hasBase: !!rawData?.base,
       hasContext: !!rawData?.context,
       initialStatus: !!initialAttendanceStatus,
+      hasError: !!lastError || !!attendanceError,
     });
 
     // Return initial or default state while loading
@@ -345,11 +388,11 @@ export function useSimpleAttendance({
       shift: null,
       isLoading: true,
       isLocationLoading: locationLoading,
-      error: attendanceError?.message || locationError,
+      error: lastError?.message || attendanceError?.message || locationError,
       locationReady,
       locationState,
       checkInOut,
-      refreshAttendanceStatus,
+      refreshAttendanceStatus: retryAttendanceLoad, // Use our enhanced retry function
       getCurrentLocation,
     };
   }
@@ -398,7 +441,7 @@ export function useSimpleAttendance({
     // Loading and error states
     isLoading: false,
     isLocationLoading: locationLoading,
-    error: attendanceError?.message || locationError,
+    error: lastError?.message || attendanceError?.message || locationError,
 
     // Location states
     locationReady,

@@ -116,7 +116,13 @@ export default async function handler(
     const services = await getServices(prisma);
 
     // Validate request parameters
-    const validatedParams = QuerySchema.safeParse(req.query);
+    const validatedParams = QuerySchema.safeParse({
+      ...req.query,
+      coordinates: JSON.stringify({
+        lat: req.query['coordinates[lat]'] || null,
+        lng: req.query['coordinates[lng]'] || null,
+      }),
+    });
 
     if (!validatedParams.success) {
       console.warn(`[${requestId}] Invalid request parameters`, {
@@ -143,7 +149,7 @@ export default async function handler(
       timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
-    // Check if user exists and get shift data - Fixed MongoDB query
+    // FIX: Use findFirst with a string comparison instead of findUnique with ObjectId
     const user = await prisma.user.findFirst({
       where: {
         employeeId: {
@@ -172,6 +178,14 @@ export default async function handler(
 
     // Convert null to undefined for shift to satisfy TypeScript
     const shift: ShiftData | undefined = userShift || undefined;
+
+    if (!shift) {
+      return res.status(400).json({
+        error: ErrorCode.SHIFT_DATA_ERROR,
+        message: 'No shift configuration found for user',
+        timestamp: getCurrentTime().toISOString(),
+      });
+    }
 
     // Create validation context
     const context: ValidationContext = {

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { useSimpleAttendance } from '@/hooks/useSimpleAttendance';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { UserData } from '@/types/user';
 import { PeriodType } from '@prisma/client';
 import CheckInOutForm from '@/components/attendance/CheckInOutForm';
@@ -80,7 +80,8 @@ const createSafeAttendance = (props: any) => {
 const CheckInRouter: React.FC = () => {
   // States
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [currentStep, setCurrentStep] = useState<Step>('auth');
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('loading');
   const [showNextDay, setShowNextDay] = useState(false);
@@ -111,7 +112,7 @@ const CheckInRouter: React.FC = () => {
     verifyLocation,
     requestAdminAssistance,
   } = useLocationVerification(userData?.employeeId, {
-    onAdminApproval: refreshAttendanceStatus, // Add this prop
+    onAdminApproval: refreshAttendanceStatus,
   });
 
   // Step management
@@ -263,7 +264,7 @@ const CheckInRouter: React.FC = () => {
     }
   }, [requestAdminAssistance]);
 
-  // Fetch user data
+  // Fetch user data with retry logic
   const fetchUserData = useCallback(async () => {
     if (!lineUserId || authLoading || !isInitialized) return;
 
@@ -272,19 +273,33 @@ const CheckInRouter: React.FC = () => {
         headers: { 'x-line-userid': lineUserId },
       });
 
-      if (!response.ok) throw new Error('Failed to fetch user data');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch user data: ${errorText}`);
+      }
 
       const data = await response.json();
       if (!data?.user) throw new Error('No user data received');
 
       setUserData(data.user);
+      setError(null); // Clear error on success
+      setRetryCount(0); // Reset retry count
     } catch (error) {
       console.error('Error fetching user data:', error);
-      setError(
-        error instanceof Error ? error.message : 'Failed to fetch user data',
-      );
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to fetch user data';
+      setError(errorMessage);
+
+      // Implement retry logic with backoff
+      if (retryCount < 3) {
+        const timeout = Math.pow(2, retryCount) * 1000; // Exponential backoff
+        setTimeout(() => {
+          setRetryCount((prev) => prev + 1);
+          fetchUserData();
+        }, timeout);
+      }
     }
-  }, [lineUserId, authLoading, isInitialized]); // Remove locationState dependency
+  }, [lineUserId, authLoading, isInitialized, retryCount]);
 
   // Next Day Data Handlers
   const fetchNextDayInfo = useCallback(async () => {
@@ -467,7 +482,12 @@ const CheckInRouter: React.FC = () => {
       console.error('Error checking period completion:', error);
       return false;
     }
-  }, [safeAttendanceProps?.base, dailyRecords]);
+  }, [
+    safeAttendanceProps?.base,
+    safeAttendanceProps?.context,
+    safeAttendanceProps?.shift,
+    dailyRecords,
+  ]);
 
   // Location state effect
   useEffect(() => {
@@ -479,6 +499,19 @@ const CheckInRouter: React.FC = () => {
     fetchUserData();
   }, [fetchUserData]);
 
+  // Handle refresh on API error
+  const handleRefreshData = useCallback(async () => {
+    if (attendanceError) {
+      try {
+        setError(null);
+        await refreshAttendanceStatus();
+      } catch (err) {
+        console.error('Error refreshing attendance data:', err);
+        setError('Failed to refresh data. Please try again.');
+      }
+    }
+  }, [attendanceError, refreshAttendanceStatus]);
+
   const mainContent = useMemo(() => {
     // Early return if we don't have required data
     if (!userData?.employeeId) return null;
@@ -486,6 +519,57 @@ const CheckInRouter: React.FC = () => {
     const safeProps = safeAttendanceProps
       ? createSafeAttendance(safeAttendanceProps)
       : null;
+
+    // Show error state if there's an API error
+    if (attendanceError) {
+      // Helper function to safely extract error message
+      const getErrorMessage = (error: unknown): string => {
+        if (error === null || error === undefined) {
+          return 'ไม่สามารถโหลดข้อมูลการลงเวลาได้';
+        }
+
+        if (typeof error === 'string') {
+          return error;
+        }
+
+        if (typeof error === 'object') {
+          // Check if it has a message property
+          if ('message' in error && typeof error.message === 'string') {
+            return error.message;
+          }
+
+          // Try to stringify the object
+          try {
+            return JSON.stringify(error);
+          } catch (e) {
+            // If stringify fails
+            return 'เกิดข้อผิดพลาดที่ไม่สามารถระบุได้';
+          }
+        }
+
+        return 'ไม่สามารถโหลดข้อมูลการลงเวลาได้';
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+          <Alert className="max-w-md w-full mb-4 bg-red-50 border-red-200">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <AlertTitle className="text-red-700 mb-2">
+              เกิดข้อผิดพลาดในการโหลดข้อมูล
+            </AlertTitle>
+            <AlertDescription className="text-red-600">
+              {getErrorMessage(attendanceError)}
+            </AlertDescription>
+          </Alert>
+          <button
+            onClick={handleRefreshData}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors"
+          >
+            <RefreshCw size={16} /> ลองใหม่อีกครั้ง
+          </button>
+        </div>
+      );
+    }
 
     if (!safeProps?.base?.state) {
       console.log('Missing required attendance data', {
@@ -626,7 +710,7 @@ const CheckInRouter: React.FC = () => {
           <CheckInOutForm
             userData={userData}
             onComplete={closeWindow}
-            {...safeAttendanceProps}
+            {...safeProps}
           />
         )}
       </div>
@@ -642,6 +726,8 @@ const CheckInRouter: React.FC = () => {
     handleViewNextDay,
     triggerReason,
     isAdminPending,
+    attendanceError,
+    handleRefreshData,
   ]);
 
   return (
@@ -667,7 +753,7 @@ const CheckInRouter: React.FC = () => {
         <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
           <div className="text-center">
             <div className="text-red-500 font-medium mb-4">
-              ข้อมูลไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง
+              {error || 'ข้อมูลไม่ครบถ้วน กรุณาลองใหม่อีกครั้ง'}
             </div>
             <button
               type="button"
@@ -684,4 +770,5 @@ const CheckInRouter: React.FC = () => {
     </div>
   );
 };
+
 export default React.memo(CheckInRouter);
