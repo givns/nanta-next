@@ -4,7 +4,6 @@ import {
   AnimatePresence,
   useSpring,
   useMotionValue,
-  useTransform,
 } from 'framer-motion';
 import { ArrowDownCircle } from 'lucide-react';
 

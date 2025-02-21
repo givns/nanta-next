@@ -2,11 +2,6 @@
 
 import React, { ErrorInfo, ReactNode } from 'react';
 
-interface FallbackProps {
-  error: Error;
-  resetErrorBoundary: () => void;
-}
-
 interface Props {
   children: ReactNode;
   onError?: (error: Error, errorInfo: ErrorInfo) => void;

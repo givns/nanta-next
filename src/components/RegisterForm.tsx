@@ -8,7 +8,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 import { User } from '@/types/user';
 import { ShiftData } from '@/types/attendance';
-import { useRouter } from 'next/router';
 
 const ExistingEmployeeSchema = Yup.object().shape({
   employeeId: Yup.string().required('กรุณากรอกรหัสพนักงาน'),

@@ -1,11 +1,10 @@
 // services/OvertimeServiceClient.ts
 
 import { PrismaClient, OvertimeRequest, Prisma } from '@prisma/client';
-import { IOvertimeServiceClient } from '../types/OvertimeService';
 
 const prisma = new PrismaClient();
 
-export class OvertimeServiceClient implements IOvertimeServiceClient {
+export class OvertimeServiceClient implements OvertimeServiceClient {
   async createOvertimeRequest(
     lineUserId: string,
     date: string,

@@ -30,7 +30,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Employee, EmployeeFormData } from '@/types/employee';
-import { UserRole } from '@/types/enum';
 
 const employeeFormSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),

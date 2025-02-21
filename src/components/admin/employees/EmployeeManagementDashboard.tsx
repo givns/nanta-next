@@ -1,6 +1,6 @@
 // components/admin/EmployeeManagementDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -52,13 +52,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLiff } from '@/contexts/LiffContext';
 
-interface BulkActionsProps {
-  selectedEmployees: Employee[];
-  onBulkUpdate: (action: string, value: any) => Promise<void>;
-  departments: Department[];
-  shifts: { code: string; name: string }[];
-}
-
 interface Department {
   id: string;
   name: string;
@@ -73,11 +66,7 @@ interface Shift {
 }
 
 export default function EmployeeManagement() {
-  const {
-    user,
-    isLoading: authLoading,
-    isAuthorized,
-  } = useAuth({
+  const { user } = useAuth({
     required: true,
     requiredRoles: ['Admin', 'SuperAdmin'],
   });
@@ -145,7 +134,7 @@ export default function EmployeeManagement() {
     if (lineUserId) {
       fetchInitialData();
     }
-  }, [user]);
+  }, [user, lineUserId, fetchInitialData]);
 
   const handleSubmit = async (data: EmployeeFormData) => {
     try {
