@@ -1,69 +1,44 @@
 // pages/api/attendance/check-in-out.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PeriodType, PrismaClient, TimeEntryStatus } from '@prisma/client';
+import { PeriodType, PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
+import type { InitializedServices } from '@/types/attendance'; // Add this import
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { ATTENDANCE_CONSTANTS, CACHE_CONSTANTS } from '@/types/attendance/base';
 import { getCurrentTime } from '@/utils/dateUtils';
-import BetterQueue from 'better-queue';
-import MemoryStore from 'better-queue-memory';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
-import { AttendanceStateResponse, TimeEntry } from '@/types/attendance';
-import { addMinutes, format, parseISO } from 'date-fns';
+import { AttendanceStateResponse, QueueResult } from '@/types/attendance';
+import { addMinutes, parseISO } from 'date-fns';
+import { createRateLimitMiddleware } from '@/utils/rateLimit';
+import { QueueManager } from '@/utils/QueueManager';
+import { performance } from 'perf_hooks';
+import Redis from 'ioredis';
 
-// Initialize Prisma client
-const prisma = new PrismaClient();
-
-// Define the services type
-type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
-
-// Cache the services initialization promise
-let servicesPromise: Promise<InitializedServices> | null = null;
-
-// Initialize services once
-const getServices = async (): Promise<InitializedServices> => {
-  if (!servicesPromise) {
-    servicesPromise = initializeServices(prisma);
-  }
-
-  const services = await servicesPromise;
-  if (!services) {
-    throw new AppError({
-      code: ErrorCode.INTERNAL_ERROR,
-      message: 'Failed to initialize services',
-    });
-  }
-
-  return services;
-};
-
-// Initialize services at startup
-let services: InitializedServices;
-getServices()
-  .then((s) => {
-    services = s;
-  })
-  .catch((error) => {
-    console.error('Failed to initialize services:', error);
-    process.exit(1); // Exit if services can't be initialized
-  });
-
-// Updated QueueResult interface
-interface QueueResult {
-  status: AttendanceStateResponse;
-  notificationSent: boolean;
-  message?: string;
-  success: boolean;
-  autoCompletedEntries?: {
-    regular?: TimeEntry;
-    overtime?: TimeEntry[];
-  };
+interface ErrorResponse {
+  status: number;
+  code: ErrorCode;
+  message: string;
+  details?: unknown;
 }
+
+// Initialize services
+const prisma = new PrismaClient();
+let servicesPromise: Promise<InitializedServices> | null = null;
+const redis = new Redis(process.env.REDIS_URL!);
+const queueManager = QueueManager.getInstance();
+
+// Rate limit middleware
+const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 5);
+
+// Cache configuration
+const CACHE_PREFIX = 'user:';
+const CACHE_TTL = 3600; // 1 hour
 
 interface CachedUserData {
   employeeId: string;
-  lineUserId?: string | null; // Allow null
+  lineUserId?: string | null;
+  timestamp: number;
 }
 
 // Caching setup with typed data
@@ -103,64 +78,73 @@ function getRequestKey(task: ProcessingOptions): string {
 async function getCachedUser(identifier: {
   employeeId?: string;
   lineUserId?: string;
-}) {
+}): Promise<CachedUserData | null> {
   const key = identifier.employeeId || identifier.lineUserId;
   if (!key) return null;
 
-  const cached = userCache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_CONSTANTS.CACHE_TIMEOUT) {
-    return cached.data;
-  }
+  const cacheKey = `${CACHE_PREFIX}${key}`;
 
-  const user = await prisma.user.findUnique({
-    where: identifier.employeeId
-      ? { employeeId: identifier.employeeId }
-      : { lineUserId: identifier.lineUserId },
-  });
+  try {
+    // Try to get from cache
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      const parsedCache = JSON.parse(cached);
+      if (Date.now() - parsedCache.timestamp < CACHE_TTL * 1000) {
+        return parsedCache;
+      }
+    }
 
-  if (user) {
-    userCache.set(key, {
-      data: user,
-      timestamp: Date.now(),
+    // Get fresh data
+    const user = await prisma.user.findUnique({
+      where: identifier.employeeId
+        ? { employeeId: identifier.employeeId }
+        : { lineUserId: identifier.lineUserId },
+      select: {
+        employeeId: true,
+        lineUserId: true,
+      },
     });
-  }
 
-  return user;
+    if (user) {
+      const userData = {
+        ...user,
+        timestamp: Date.now(),
+      };
+
+      // Cache the result
+      await redis.set(cacheKey, JSON.stringify(userData), 'EX', CACHE_TTL);
+
+      return userData;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Cache error:', error);
+    return null;
+  }
 }
 
-// Queue setup
-const checkInOutQueue = new BetterQueue<ProcessingOptions, QueueResult>(
-  async (task, cb) => {
-    try {
-      const result = await processCheckInOut(task);
-      cb(null, result);
-    } catch (error) {
-      console.error('Queue task error:', error);
-      cb(error as Error);
-    }
-  },
-  {
-    concurrent: 1,
-    store: new MemoryStore(),
-    maxTimeout: CACHE_CONSTANTS.QUEUE_TIMEOUT,
-    retryDelay: CACHE_CONSTANTS.RETRY_DELAY,
-    maxRetries: CACHE_CONSTANTS.MAX_RETRIES,
-    precondition: (cb) => {
-      cb(null, true);
-    },
-  },
-);
+async function getServices(): Promise<InitializedServices> {
+  if (!servicesPromise) {
+    servicesPromise = initializeServices(prisma);
+  }
 
-// Main Processing Function
-async function processCheckInOut(
-  task: ProcessingOptions,
-): Promise<QueueResult> {
+  const services = await servicesPromise;
   if (!services) {
     throw new AppError({
       code: ErrorCode.INTERNAL_ERROR,
-      message: 'Services not initialized',
+      message: 'Failed to initialize services',
     });
   }
+
+  return services;
+}
+
+// Main Processing Function
+export async function processCheckInOut(
+  task: ProcessingOptions,
+): Promise<QueueResult> {
+  const services = await getServices();
 
   const { attendanceService, notificationService } = services;
   const requestKey = getRequestKey(task);
@@ -295,27 +279,63 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  const startTime = performance.now();
+  const requestId = `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
   if (req.method !== 'POST') {
     return res.status(405).json({
       error: 'Method Not Allowed',
       message: 'Only POST method is allowed',
+      requestId,
     });
   }
 
   try {
-    console.log('Incoming request body:', JSON.stringify(req.body, null, 2));
-    const validatedData = validateCheckInOutRequest(req.body);
+    // Apply rate limiting
+    await rateLimitMiddleware(req, res);
 
-    console.log('Processing attendance request:', {
-      type: validatedData.periodType,
-      isCheckIn: validatedData.activity.isCheckIn,
-      overtimeMissed: validatedData.activity.overtimeMissed,
-      requiresAutoCompletion: validatedData.activity.overtimeMissed,
+    console.log('Incoming request:', {
+      requestId,
+      body: JSON.stringify(req.body, null, 2),
     });
 
-    // Get current status first to validate auto-completion
+    // Validate request data
+    const validatedData = validateCheckInOutRequest(req.body);
+
+    // Get user data
+    const user = await getCachedUser({
+      employeeId: validatedData.employeeId,
+      lineUserId: validatedData.lineUserId,
+    });
+
+    if (!user) {
+      throw new AppError({
+        code: ErrorCode.USER_NOT_FOUND,
+        message: 'User not found',
+      });
+    }
+
+    // Check queue status
+    const queueStatus = await queueManager.getQueueStatus(user.employeeId);
+    if (queueStatus.isPending) {
+      return res.status(409).json({
+        success: false,
+        error: 'Concurrent operation in progress',
+        code: ErrorCode.MULTIPLE_ACTIVE_RECORDS,
+        details: {
+          queuePosition: queueStatus.position || 0, // Provide default value
+          estimatedWaitTime: (queueStatus.position || 0) * 5,
+        },
+        requestId,
+      });
+    }
+
+    // Get services
+    const services = await getServices();
+
+    // Get current status
     const currentStatus = await services.attendanceService.getAttendanceStatus(
-      validatedData.employeeId!,
+      user.employeeId,
       {
         inPremises: true,
         address: validatedData.location?.address || '',
@@ -323,161 +343,128 @@ export default async function handler(
       },
     );
 
-    // IMPROVEMENT: Update overtimeMissed based on status flags
+    // Update validation flags
     validatedData.activity.overtimeMissed =
       currentStatus.validation.flags.requiresAutoCompletion;
 
-    // Log the validation result
-    console.log('Attendance validation:', {
-      requiresAutoCompletion:
-        currentStatus.validation.flags.requiresAutoCompletion,
-      finalOvertimeMissed: validatedData.activity.overtimeMissed,
-    });
-
-    // Add timestamp validation
+    // Validate timestamp
     const serverTime = getCurrentTime();
     const requestTime = new Date(validatedData.checkTime);
-
-    // For checkout from overtime, allow period end time plus allowance
-    const isOvertimeCheckout =
-      !validatedData.activity.isCheckIn &&
-      validatedData.periodType === PeriodType.OVERTIME &&
-      validatedData.activity.isOvertime;
-
-    // Calculate max allowed time
-    const maxAllowedTime = isOvertimeCheckout
-      ? addMinutes(serverTime, ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD) // Allow future time within allowance
-      : serverTime; // For other cases, don't allow future time
-
-    console.log('Time validation:', {
-      requestTime: format(requestTime, 'yyyy-MM-dd HH:mm:ss'),
-      serverTime: format(serverTime, 'yyyy-MM-dd HH:mm:ss'),
-      maxAllowed: format(maxAllowedTime, 'yyyy-MM-dd HH:mm:ss'),
-      isOvertimeCheckout,
-    });
+    const maxAllowedTime = addMinutes(
+      serverTime,
+      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+    );
 
     if (requestTime > maxAllowedTime) {
-      return res.status(400).json({
-        error: ErrorCode.INVALID_INPUT,
+      throw new AppError({
+        code: ErrorCode.INVALID_INPUT,
         message: 'Check time exceeds allowed window',
         details: {
           serverTime: serverTime.toISOString(),
           requestTime: requestTime.toISOString(),
           maxAllowed: maxAllowedTime.toISOString(),
-          allowanceMinutes: ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
         },
       });
     }
 
-    const result = await Promise.race<QueueResult>([
-      new Promise<QueueResult>((resolve, reject) => {
-        checkInOutQueue.push(validatedData, async (error, queueResult) => {
-          if (error) reject(error);
-          else if (queueResult) {
-            console.log('Queue processing result:', {
-              success: queueResult.success,
-              requiresAutoComplete:
-                queueResult.status.validation.flags.requiresAutoCompletion,
-              state: queueResult.status.base.state,
-              attendance: queueResult.status.base.latestAttendance
-                ? {
-                    type: queueResult.status.base.latestAttendance.type,
-                    checkIn:
-                      queueResult.status.base.latestAttendance.CheckInTime,
-                    checkOut:
-                      queueResult.status.base.latestAttendance.CheckOutTime,
-                  }
-                : null,
-            });
-            resolve(queueResult);
-          } else {
-            reject(new Error('No result returned from queue'));
-          }
-        });
-      }),
-      new Promise<QueueResult>((_, reject) =>
-        setTimeout(
-          () => reject(new Error('Processing timeout')),
-          CACHE_CONSTANTS.PROCESS_TIMEOUT,
-        ),
-      ),
-    ]);
+    // Process through queue
+    const result = await queueManager.enqueue(validatedData);
 
+    // Handle timeout cases
     if (!result.success) {
-      throw new Error('Failed to process attendance');
+      const currentStatus =
+        await services.attendanceService.getAttendanceStatus(user.employeeId, {
+          inPremises: true,
+          address: '',
+        });
+
+      return res.status(200).json({
+        success: true,
+        data: currentStatus,
+        message: 'Request processing continued in background',
+        timestamp: getCurrentTime().toISOString(),
+        requestId,
+      });
     }
 
-    // Always let processAttendance handle the actual processing
+    const duration = performance.now() - startTime;
+    console.log('Request completed:', {
+      requestId,
+      duration,
+      success: result.success,
+    });
+
     return res.status(200).json({
       success: true,
       data: result.status,
       notificationSent: result.notificationSent,
       timestamp: getCurrentTime().toISOString(),
+      requestId,
     });
-  } catch (error: any) {
-    console.error('Handler error:', error);
+  } catch (error) {
+    console.error('Request failed:', {
+      requestId,
+      error,
+      body: req.body,
+    });
 
-    // Handle timeout cases
-    if (
-      error.message === 'Processing timeout' ||
-      error.message?.includes('timeout')
-    ) {
-      try {
-        const user = await getCachedUser({
-          employeeId: req.body.employeeId,
-          lineUserId: req.body.lineUserId,
-        });
-
-        if (user) {
-          const currentStatus =
-            await services.attendanceService.getAttendanceStatus(
-              user.employeeId,
-              {
-                inPremises: true,
-                address: '',
-              },
-            );
-
-          if (currentStatus) {
-            return res.status(200).json({
-              success: true,
-              data: currentStatus,
-              notificationSent: false,
-              message: 'Request processing continued in background',
-              timestamp: getCurrentTime().toISOString(),
-            });
-          }
-        }
-      } catch (statusError) {
-        console.error('Error getting status after timeout:', statusError);
-      }
-
-      return res.status(504).json({
-        error: ErrorCode.TIMEOUT,
-        message:
-          'Processing took too long. Please check your attendance status.',
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    // Handle validation errors
-    if (error instanceof AppError && error.code === ErrorCode.INVALID_INPUT) {
-      return res.status(400).json({
-        error: error.code,
-        message: error.message,
-        details: error.details,
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    // Handle other errors
-    return res.status(500).json({
-      error: ErrorCode.INTERNAL_ERROR,
-      message:
-        error instanceof Error ? error.message : 'An unexpected error occurred',
-      timestamp: getCurrentTime().toISOString(),
+    const errorResponse = handleApiError(error);
+    return res.status(errorResponse.status).json({
+      success: false,
+      error: errorResponse.message,
+      code: errorResponse.code,
+      details: errorResponse.details,
+      requestId,
     });
   } finally {
     await prisma.$disconnect();
   }
+}
+
+function handleApiError(error: unknown): ErrorResponse {
+  if (error instanceof AppError) {
+    switch (error.code) {
+      case ErrorCode.INVALID_INPUT:
+        return {
+          status: 400,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        };
+
+      case ErrorCode.PROCESSING_ERROR:
+        return {
+          status: 422,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        };
+      case ErrorCode.TIMEOUT:
+        return {
+          status: 504,
+          code: error.code,
+          message:
+            'Processing took too long, please check your attendance status',
+        };
+      case ErrorCode.RATE_LIMIT_EXCEEDED:
+        return {
+          status: 429,
+          code: error.code,
+          message: 'Too many requests, please try again later',
+        };
+      default:
+        return {
+          status: 500,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        };
+    }
+  }
+
+  return {
+    status: 500,
+    code: ErrorCode.UNKNOWN_ERROR,
+    message: 'An unexpected error occurred',
+  };
 }

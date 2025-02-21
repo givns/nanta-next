@@ -905,8 +905,7 @@ export class AttendanceProcessingService {
     return {
       lat: location.lat,
       lng: location.lng,
-      longitude: location.longitude,
-      latitude: location.latitude,
+
       accuracy: location.accuracy,
       timestamp: location.timestamp?.toISOString(),
       provider: location.provider,
@@ -1030,8 +1029,8 @@ export class AttendanceProcessingService {
         source: options.activity.isManualEntry ? 'manual' : 'system',
         location: options.location?.coordinates
           ? {
-              latitude: options.location.coordinates.latitude,
-              longitude: options.location.coordinates.longitude,
+              latitude: options.location.coordinates.lat,
+              longitude: options.location.coordinates.lng,
               accuracy: options.location.coordinates.accuracy,
             }
           : undefined,

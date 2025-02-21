@@ -1,17 +1,15 @@
 // services/cache/CacheManager.ts
 
-import { endOfDay, format, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { cacheService } from './CacheService';
 import { PrismaClient } from '@prisma/client';
 import {
-  AttendanceRecord,
   CACHE_CONSTANTS,
   AttendanceStatusResponse,
 } from '../../types/attendance';
 import { getCurrentTime } from '../../utils/dateUtils';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService';
-import { AttendanceMappers } from '../Attendance/utils/AttendanceMappers';
 
 export class CacheManager {
   private static instance: CacheManager | null = null;

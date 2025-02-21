@@ -16,6 +16,7 @@ import { PeriodType } from '@prisma/client';
 import { AttendanceMappers } from './utils/AttendanceMappers';
 import { PeriodManagementService } from './PeriodManagementService';
 import { format, startOfDay } from 'date-fns';
+import { AttendanceStateManager } from './AttendanceStateManager';
 
 interface GetAttendanceStatusOptions {
   inPremises: boolean;
@@ -24,13 +25,16 @@ interface GetAttendanceStatusOptions {
 }
 
 export class AttendanceStatusService {
+  private readonly stateManager: AttendanceStateManager;
   constructor(
     private readonly shiftService: ShiftManagementService,
     private readonly enhancementService: AttendanceEnhancementService,
     private readonly attendanceRecordService: AttendanceRecordService,
     private readonly cacheManager: CacheManager,
     private readonly periodManager: PeriodManagementService,
-  ) {}
+  ) {
+    this.stateManager = AttendanceStateManager.getInstance();
+  }
 
   async getAttendanceStatus(
     employeeId: string,

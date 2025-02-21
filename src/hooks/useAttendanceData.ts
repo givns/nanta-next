@@ -1,5 +1,5 @@
 // hooks/useAttendanceData.ts
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
@@ -11,7 +11,7 @@ import {
   UseAttendanceDataProps,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
+import { format } from 'date-fns';
 
 const REQUEST_TIMEOUT = 40000;
 const RETRY_CONFIG = {
@@ -20,20 +20,132 @@ const RETRY_CONFIG = {
   MAX_DELAY: 5000,
 };
 
-const retryWithBackoff = async <T>(
-  fn: () => Promise<T>,
-  retries = RETRY_CONFIG.MAX_RETRIES,
-  delay = RETRY_CONFIG.INITIAL_DELAY,
-): Promise<T> => {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries === 0) throw error;
-    const nextDelay = Math.min(delay * 2, RETRY_CONFIG.MAX_DELAY);
-    await new Promise((resolve) => setTimeout(resolve, delay));
-    return retryWithBackoff(fn, retries - 1, nextDelay);
-  }
+interface UseAttendanceDataState {
+  isRefreshing: boolean;
+  lastOperation: string | null;
+  lastError: Error | null;
+  pendingRequests: Set<string>;
+}
+
+const sanitizeResponse = (data: any): AttendanceStatusResponse => {
+  console.log('Sanitizing response data:', {
+    hasBase: !!data.base,
+    hasContext: !!data.context,
+    hasDaily: !!data.daily,
+  });
+
+  // Daily state sanitization
+  const daily = {
+    date: data.daily.date,
+    currentState: data.daily.currentState,
+    transitions: Array.isArray(data.daily.transitions)
+      ? data.daily.transitions
+      : [],
+  };
+
+  // Base state sanitization
+  const base = {
+    ...data.base,
+    validation: {
+      canCheckIn: Boolean(data.base.validation?.canCheckIn),
+      canCheckOut: Boolean(data.base.validation?.canCheckOut),
+      message: data.base.validation?.message || '',
+    },
+    metadata: {
+      lastUpdated:
+        data.base.metadata?.lastUpdated || getCurrentTime().toISOString(),
+      version: data.base.metadata?.version || 1,
+      source: data.base.metadata?.source || 'system',
+    },
+  };
+
+  // Context sanitization
+  const context = {
+    shift: {
+      id: data.context.shift.id,
+      shiftCode: data.context.shift.shiftCode,
+      name: data.context.shift.name,
+      startTime: data.context.shift.startTime,
+      endTime: data.context.shift.endTime,
+      workDays: Array.isArray(data.context.shift.workDays)
+        ? data.context.shift.workDays
+        : [],
+    },
+    schedule: {
+      isHoliday: Boolean(data.context.schedule.isHoliday),
+      isDayOff: Boolean(data.context.schedule.isDayOff),
+      isAdjusted: Boolean(data.context.schedule.isAdjusted),
+      holidayInfo: data.context.schedule.holidayInfo,
+    },
+    nextPeriod: data.context.nextPeriod,
+    transition: data.context.transition,
+  };
+
+  // Validation state sanitization
+  const validation = {
+    allowed: Boolean(data.validation.allowed),
+    reason: data.validation.reason || '',
+    flags: {
+      ...data.validation.flags,
+      hasPendingTransition: daily.transitions.length > 0,
+    },
+    metadata: data.validation.metadata,
+  };
+
+  return {
+    daily,
+    base,
+    context,
+    validation,
+  };
 };
+
+// Improved error handling
+function handleAttendanceError(error: unknown): AppError {
+  console.error('Handling attendance error:', error);
+
+  if (error instanceof AppError) {
+    return error;
+  }
+
+  if (axios.isAxiosError(error)) {
+    if (error.code === 'ECONNABORTED') {
+      return new AppError({
+        code: ErrorCode.TIMEOUT,
+        message: 'Request timed out',
+        details: {
+          timeout: REQUEST_TIMEOUT,
+          url: error.config?.url,
+        },
+        originalError: error,
+      });
+    }
+
+    if (error.response?.status === 404) {
+      return new AppError({
+        code: ErrorCode.NOT_FOUND,
+        message: 'Attendance record not found',
+        originalError: error,
+      });
+    }
+
+    return new AppError({
+      code: ErrorCode.NETWORK_ERROR,
+      message: error.message,
+      details: {
+        status: error.response?.status,
+        data: error.response?.data,
+      },
+      originalError: error,
+    });
+  }
+
+  return new AppError({
+    code: ErrorCode.UNKNOWN_ERROR,
+    message: error instanceof Error ? error.message : 'Unknown error occurred',
+    originalError: error,
+  });
+}
 
 export function useAttendanceData({
   employeeId,
@@ -44,10 +156,16 @@ export function useAttendanceData({
   initialAttendanceStatus,
   enabled = true,
 }: UseAttendanceDataProps) {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastOperation, setLastOperation] = useState<string>('');
+  // State management
+  const [state, setState] = useState<UseAttendanceDataState>({
+    isRefreshing: false,
+    lastOperation: null,
+    lastError: null,
+    pendingRequests: new Set(),
+  });
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Memoized conditions
   const shouldFetch =
     enabled && employeeId && locationReady && locationVerified;
 
@@ -62,24 +180,17 @@ export function useAttendanceData({
     shouldFetch,
   });
 
+  // SWR configuration
   const { data, error, mutate } = useSWR<AttendanceStatusResponse>(
     shouldFetch
       ? [
           '/api/attendance/status/[employeeId]',
           employeeId,
           locationState,
-          lastOperation,
+          state.lastOperation,
         ]
       : null,
-
     async ([_, id]): Promise<AttendanceStatusResponse> => {
-      console.log('Fetching attendance data for:', {
-        employeeId: id,
-        lastOperation,
-        locationState,
-        timestamp: new Date().toISOString(),
-      });
-
       try {
         const response = await axios.get(`/api/attendance/status/${id}`, {
           params: {
@@ -96,8 +207,6 @@ export function useAttendanceData({
           timeout: REQUEST_TIMEOUT,
         });
 
-        console.log('Raw API response:', response.data);
-
         if (!response.data) {
           throw new AppError({
             code: ErrorCode.INVALID_RESPONSE,
@@ -105,21 +214,15 @@ export function useAttendanceData({
           });
         }
 
-        if (!response.data.context?.shift?.id) {
-          console.error('Missing shift data in response');
-          throw new AppError({
-            code: ErrorCode.INVALID_RESPONSE,
-            message: 'Invalid shift data received',
-          });
-        }
+        console.log('Raw API response:', response.data);
 
+        // Use sanitizeResponse
         const sanitized = sanitizeResponse(response.data);
         console.log('Sanitized response:', sanitized);
 
         return sanitized;
       } catch (error) {
-        console.error('Fetch error:', error);
-        throw error;
+        throw handleAttendanceError(error);
       }
     },
     {
@@ -128,11 +231,12 @@ export function useAttendanceData({
       dedupingInterval: 5000,
       fallbackData: initialAttendanceStatus,
       onError: (error) => {
+        setState((prev) => ({ ...prev, lastError: error as Error }));
         console.error('SWR Error:', error);
       },
       revalidateOnMount: true,
       shouldRetryOnError: true,
-      errorRetryCount: 3,
+      errorRetryCount: RETRY_CONFIG.MAX_RETRIES,
     },
   );
 
@@ -147,23 +251,26 @@ export function useAttendanceData({
     console.log('Attendance data changed:', {
       hasData: !!data,
       employeeId,
-      lastOperation,
       timestamp: new Date().toISOString(),
     });
-  }, [data, employeeId, lastOperation]);
+  }, [data, employeeId]);
 
+  // Refresh attendance status with retry logic
   const refreshAttendanceStatus = useCallback(async () => {
-    if (isRefreshing) return;
+    if (state.isRefreshing) return;
 
     try {
-      setIsRefreshing(true);
+      setState((prev) => ({ ...prev, isRefreshing: true }));
+
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
       }
 
-      // Force a new timestamp for the operation
-      const timestamp = new Date().toISOString();
-      setLastOperation(timestamp);
+      const timestamp = getCurrentTime().toISOString();
+      setState((prev) => ({
+        ...prev,
+        lastOperation: `refresh-${timestamp}`,
+      }));
 
       // Clear cache first
       try {
@@ -175,24 +282,31 @@ export function useAttendanceData({
         console.warn('Failed to clear server cache:', error);
       }
 
-      // Then mutate data
-      await mutate(undefined, {
-        revalidate: true,
-        populateCache: true,
-      });
+      await mutate();
     } catch (error) {
       console.error('Error refreshing attendance status:', error);
+      setState((prev) => ({ ...prev, lastError: error as Error }));
     } finally {
-      setIsRefreshing(false);
+      setState((prev) => ({ ...prev, isRefreshing: false }));
     }
-  }, [isRefreshing, mutate, employeeId]);
+  }, [employeeId, mutate, state.isRefreshing]);
 
+  // Check in/out handler
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
+      const requestId = `${params.isCheckIn ? 'checkin' : 'checkout'}-${Date.now()}`;
+
       try {
-        console.log('Attendance data request:', {
-          originalCheckTime: params.checkTime,
-          currentTime: getCurrentTime(),
+        setState((prev) => ({
+          ...prev,
+          pendingRequests: new Set([...prev.pendingRequests, requestId]),
+          lastOperation: requestId, // Update lastOperation here
+        }));
+
+        console.log('Processing attendance request:', {
+          type: params.periodType,
+          isCheckIn: params.activity.isCheckIn,
+          timestamp: format(new Date(params.checkTime), 'HH:mm:ss'),
         });
 
         const response = await axios.post<ProcessingResult>(
@@ -218,150 +332,36 @@ export function useAttendanceData({
           });
         }
 
-        console.log('Check-in/out response:', {
-          success: response.data.success,
-          hasData: !!response.data.data,
-          processingTime: response.data.timestamp,
-        });
+        setState((prev) => ({
+          ...prev,
+          pendingRequests: new Set(
+            [...prev.pendingRequests].filter((id) => id !== requestId),
+          ),
+        }));
 
-        setLastOperation(
-          `${params.isCheckIn ? 'checkin' : 'checkout'}-${new Date().toISOString()}`,
-        );
-
-        // Use the existing refresh function to get fresh data
         await refreshAttendanceStatus();
-
         return response.data;
       } catch (error) {
-        if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
-          throw new AppError({
-            code: ErrorCode.TIMEOUT,
-            message: 'Operation timed out',
-          });
-        }
+        setState((prev) => ({
+          ...prev,
+          lastError: error as Error,
+          pendingRequests: new Set(
+            [...prev.pendingRequests].filter((id) => id !== requestId),
+          ),
+        }));
         throw handleAttendanceError(error);
       }
     },
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
 
-  // Add debug logging for data changes
-  useEffect(() => {
-    if (data) {
-      console.log('useAttendanceData state update:', {
-        hasDaily: !!data.daily,
-        hasBase: !!data.base,
-        hasContext: !!data.context,
-        timestamp: new Date().toISOString(),
-      });
-    }
-  }, [data]);
-
-  const sanitizeResponse = (data: any): AttendanceStatusResponse => {
-    console.log('Sanitizing response data:', {
-      hasBase: !!data.base,
-      hasContext: !!data.context,
-      hasDaily: !!data.daily,
-    });
-
-    const daily = {
-      date: data.daily.date,
-      currentState: data.daily.currentState,
-      transitions: Array.isArray(data.daily.transitions)
-        ? data.daily.transitions
-        : [],
-    };
-
-    const base = {
-      ...data.base,
-      validation: {
-        canCheckIn: Boolean(data.base.validation?.canCheckIn),
-        canCheckOut: Boolean(data.base.validation?.canCheckOut),
-        message: data.base.validation?.message || '',
-      },
-      metadata: {
-        lastUpdated:
-          data.base.metadata?.lastUpdated || getCurrentTime().toISOString(),
-        version: data.base.metadata?.version || 1,
-        source: data.base.metadata?.source || 'system',
-      },
-    };
-
-    const context = {
-      shift: {
-        id: data.context.shift.id,
-        shiftCode: data.context.shift.shiftCode,
-        name: data.context.shift.name,
-        startTime: data.context.shift.startTime,
-        endTime: data.context.shift.endTime,
-        workDays: Array.isArray(data.context.shift.workDays)
-          ? data.context.shift.workDays
-          : [],
-      },
-      schedule: {
-        isHoliday: Boolean(data.context.schedule.isHoliday),
-        isDayOff: Boolean(data.context.schedule.isDayOff),
-        isAdjusted: Boolean(data.context.schedule.isAdjusted),
-        holidayInfo: data.context.schedule.holidayInfo,
-      },
-      nextPeriod: data.context.nextPeriod,
-      transition: data.context.transition,
-    };
-
-    const validation = {
-      allowed: Boolean(data.validation.allowed),
-      reason: data.validation.reason || '',
-      flags: {
-        ...data.validation.flags,
-        hasPendingTransition: daily.transitions.length > 0,
-      },
-      metadata: data.validation.metadata,
-    };
-
-    return {
-      daily,
-      base,
-      context,
-      validation,
-    };
-  };
-
   return {
     data,
-    error,
+    error: error || state.lastError,
     isLoading: !data && !error,
-    isRefreshing,
-    refreshAttendanceStatus: Object.assign(refreshAttendanceStatus, {
-      mutate,
-    }),
+    isRefreshing: state.isRefreshing,
+    refreshAttendanceStatus,
     checkInOut,
     mutate,
   };
-}
-
-function handleAttendanceError(error: unknown): AppError {
-  if (error instanceof AppError) {
-    return error;
-  }
-
-  if (axios.isAxiosError(error)) {
-    if (error.code === 'ECONNABORTED') {
-      return new AppError({
-        code: ErrorCode.TIMEOUT,
-        message: 'Request timed out',
-        originalError: error,
-      });
-    }
-    return new AppError({
-      code: ErrorCode.NETWORK_ERROR,
-      message: error.message,
-      originalError: error,
-    });
-  }
-
-  return new AppError({
-    code: ErrorCode.UNKNOWN_ERROR,
-    message: error instanceof Error ? error.message : 'Unknown error occurred',
-    originalError: error,
-  });
 }

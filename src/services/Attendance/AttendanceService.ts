@@ -1,5 +1,5 @@
 // services/Attendance/AttendanceService.ts
-import { Attendance, PeriodType, PrismaClient } from '@prisma/client';
+import { PeriodType, PrismaClient } from '@prisma/client';
 import { AttendanceProcessingService } from './AttendanceProcessingService';
 import { AttendanceStatusService } from './AttendanceStatusService';
 import {
@@ -8,7 +8,10 @@ import {
   AttendanceStatusResponse,
   SerializedAttendanceRecord,
   StateValidation,
-} from '../../types/attendance';
+  AppError,
+  ErrorCode,
+  ValidationContext,
+} from '@/types/attendance';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { AttendanceMappers } from './utils/AttendanceMappers';
 import { AttendanceEnhancementService } from './AttendanceEnhancementService';
@@ -16,10 +19,14 @@ import { PeriodManagementService } from './PeriodManagementService';
 import { CacheManager } from '../cache/CacheManager';
 import { TimeEntryService } from '../TimeEntryService';
 import { AttendanceRecordService } from './AttendanceRecordService';
+import { AttendanceStateManager } from './AttendanceStateManager';
 
 export class AttendanceService {
   private readonly processingService: AttendanceProcessingService;
   private readonly statusService: AttendanceStatusService;
+  private readonly stateManager: AttendanceStateManager;
+  private readonly mappers: AttendanceMappers;
+  private readonly shiftService: ShiftManagementService;
 
   constructor(
     prisma: PrismaClient,
@@ -30,7 +37,9 @@ export class AttendanceService {
     timeEntryService: TimeEntryService,
     attendanceRecordService: AttendanceRecordService,
   ) {
-    this.mappers = new AttendanceMappers(); // Add mapper instance
+    this.mappers = new AttendanceMappers();
+    this.shiftService = shiftService;
+    this.stateManager = AttendanceStateManager.getInstance();
 
     // Initialize specialized services
     this.processingService = new AttendanceProcessingService(
@@ -40,7 +49,7 @@ export class AttendanceService {
       enhancementService,
       periodManager,
     );
-    this.statusService = new AttendanceStatusService( // Initialize the property
+    this.statusService = new AttendanceStatusService(
       shiftService,
       enhancementService,
       attendanceRecordService,
@@ -49,12 +58,49 @@ export class AttendanceService {
     );
   }
 
-  private readonly mappers: AttendanceMappers;
-
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
-    return this.processingService.processAttendance(options);
+    try {
+      // Check for pending operations
+      const hasPending = await this.stateManager.hasPendingOperation(
+        options.employeeId,
+      );
+      if (hasPending) {
+        throw new AppError({
+          code: ErrorCode.PROCESSING_ERROR,
+          message: 'Another operation is in progress',
+        });
+      }
+
+      // Process attendance using processing service
+      const result = await this.processingService.processAttendance(options);
+
+      // If successful, update state in state manager
+      if (result.success) {
+        // Get full state after processing
+        const updatedState = await this.getAttendanceStatus(
+          options.employeeId,
+          {
+            inPremises: options.location?.inPremises || false,
+            address: options.location?.address || '',
+            periodType: options.periodType,
+          },
+        );
+
+        await this.stateManager.updateState(
+          options.employeeId,
+          updatedState, // Now passing full AttendanceStatusResponse
+          options.activity.isCheckIn ? 'check-in' : 'check-out',
+        );
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error processing attendance:', error);
+      await this.stateManager.invalidateState(options.employeeId);
+      throw error;
+    }
   }
 
   async getAttendanceStatus(
@@ -65,7 +111,94 @@ export class AttendanceService {
       periodType?: PeriodType;
     },
   ): Promise<AttendanceStatusResponse> {
-    return this.statusService.getAttendanceStatus(employeeId, options);
+    try {
+      // Get shift data first for the validation context
+      const shiftData = await this.shiftService.getEffectiveShift(
+        employeeId,
+        new Date(),
+      );
+      if (!shiftData) {
+        throw new AppError({
+          code: ErrorCode.SHIFT_DATA_ERROR,
+          message: 'No shift configuration found',
+        });
+      }
+
+      // Create complete validation context as per interface
+      const validationContext: ValidationContext = {
+        // Core data
+        employeeId,
+        timestamp: new Date(),
+        isCheckIn: true, // Default, will be updated based on current state
+
+        // Current state - will be populated based on current attendance if exists
+        state: undefined,
+        checkStatus: undefined,
+        overtimeState: undefined,
+
+        // Shift data
+        shift: shiftData.current,
+
+        // Additional contexts
+        isOvertime: false, // Will be updated based on period type
+        overtimeInfo: null, // Will be populated if overtime exists
+
+        // Location data
+        location: options.inPremises
+          ? {
+              lat: 0,
+              lng: 0,
+              accuracy: undefined,
+              timestamp: new Date(),
+              provider: 'system',
+            }
+          : undefined,
+        address: options.address,
+
+        // Processing metadata
+        periodType: options.periodType,
+      };
+
+      // Try to get from state manager first
+      const cachedState = await this.stateManager.getState(
+        employeeId,
+        validationContext,
+      );
+
+      if (cachedState) {
+        // Update validation context with cached state data
+        validationContext.isCheckIn = cachedState.base.isCheckingIn;
+        validationContext.state = cachedState.base.state;
+        validationContext.checkStatus = cachedState.base.checkStatus;
+        validationContext.overtimeState =
+          cachedState.base.periodInfo.overtimeState;
+
+        const isValid = await this.validateCachedState(cachedState);
+        if (isValid) {
+          return cachedState;
+        }
+      }
+
+      // Get fresh state from status service
+      const freshState = await this.statusService.getAttendanceStatus(
+        employeeId,
+        options,
+      );
+
+      // Update state manager with fresh state
+      await this.stateManager.updateState(
+        employeeId,
+        freshState,
+        freshState.base.isCheckingIn ? 'check-in' : 'check-out',
+      );
+
+      return freshState;
+    } catch (error) {
+      console.error('Error getting attendance status:', error);
+      // Invalidate state on error to ensure fresh fetch next time
+      await this.stateManager.invalidateState(employeeId);
+      throw error;
+    }
   }
 
   async validateCheckInOut(
@@ -77,7 +210,6 @@ export class AttendanceService {
     },
   ): Promise<StateValidation> {
     const status = await this.getAttendanceStatus(employeeId, options);
-
     return status.validation;
   }
 
@@ -89,6 +221,23 @@ export class AttendanceService {
     return record
       ? AttendanceMappers.toSerializedAttendanceRecord(record)
       : null;
+  }
+
+  private async validateCachedState(
+    state: AttendanceStatusResponse,
+  ): Promise<boolean> {
+    // Add validation logic here
+    // For example, check if the state is not too old
+    const stateTime = new Date(state.base.metadata.lastUpdated);
+    const now = new Date();
+    const maxAge = 30 * 1000; // 30 seconds
+
+    return now.getTime() - stateTime.getTime() < maxAge;
+  }
+
+  // Cleanup method (call this when shutting down the service)
+  async cleanup(): Promise<void> {
+    await this.stateManager.cleanup();
   }
 }
 

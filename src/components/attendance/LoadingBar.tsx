@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { LocationState } from '@/types/attendance';
+
+interface ProgressConfig {
+  target: number;
+  duration: number;
+}
 
 interface LoadingBarProps {
   step: 'auth' | 'user' | 'location' | 'ready';
@@ -18,6 +23,26 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [isRequestingHelp, setIsRequestingHelp] = useState(false);
+
+  const progressConfig: Record<LoadingBarProps['step'], ProgressConfig> = {
+    auth: { target: 25, duration: 500 },
+    user: { target: 50, duration: 500 },
+    location: { target: 75, duration: 800 },
+    ready: { target: 100, duration: 300 },
+  };
+
+  useEffect(() => {
+    const { shouldShowError } = getErrorState(locationState);
+    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
+
+    // Reset progress if we have a location error
+    if (shouldShowError && step === 'location') {
+      setProgress(0);
+      return;
+    }
+
+    setProgress(target);
+  }, [step, locationState]);
 
   // Function to calculate error state based on locationState
   const getErrorState = (locationState: LocationState) => {
@@ -61,24 +86,6 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
       errorMessage: isAdminPending ? null : errorMessage,
     };
   };
-
-  // Update progress bar based on step sequence
-  useEffect(() => {
-    const { shouldShowError } = getErrorState(locationState);
-    const target = { auth: 25, user: 50, location: 75, ready: 100 }[step];
-
-    // Reset progress if we have a location error
-    if (shouldShowError && step === 'location') {
-      setProgress(0);
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setProgress((prev) => Math.min(prev + 1, target));
-    }, 30);
-
-    return () => clearInterval(interval);
-  }, [step, locationState]);
 
   // Handle admin assistance request
   const handleRequestAssistance = async () => {
@@ -127,82 +134,19 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
   };
 
   const currentStep = steps[step];
-
-  // Enhanced error UI rendering - only show on location step
-  const renderLocationStatus = () => {
-    const {
-      shouldShowError,
-      shouldShowAdminAssistance,
-      shouldShowAdminPending,
-      errorMessage,
-    } = getErrorState(locationState);
-
-    if (step !== 'location') return null;
-
-    if (shouldShowAdminPending) {
-      return (
-        <div className="mt-6 space-y-4">
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              รอการยืนยันจากเจ้าหน้าที่
-              {locationState.triggerReason && (
-                <p className="text-sm mt-1 text-gray-600">
-                  เหตุผล: {locationState.triggerReason}
-                </p>
-              )}
-            </AlertDescription>
-          </Alert>
-        </div>
-      );
-    }
-
-    if (!shouldShowError) return null;
-
-    return (
-      <div className="mt-6 space-y-4">
-        {errorMessage && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        )}
-        <div className="flex flex-col space-y-2">
-          {onLocationRetry && (
-            <button
-              type="button"
-              onClick={onLocationRetry}
-              className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              ลองใหม่อีกครั้ง
-            </button>
-          )}
-          {shouldShowAdminAssistance && onRequestAdminAssistance && (
-            <button
-              type="button"
-              onClick={handleRequestAssistance}
-              disabled={isRequestingHelp}
-              className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <i className="fi fi-br-phone-call text-sm"></i>
-              {isRequestingHelp
-                ? 'กำลังส่งคำขอ...'
-                : 'ขอความช่วยเหลือจากเจ้าหน้าที่'}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  };
+  const {
+    shouldShowError,
+    shouldShowAdminAssistance,
+    shouldShowAdminPending,
+    errorMessage,
+  } = getErrorState(locationState);
 
   return (
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-white">
       <div className="w-full max-w-xs text-center px-6">
         <div
           className={`text-6xl mb-8 ${
-            step === 'location' && locationState.status === 'loading'
-              ? 'animate-bounce'
-              : ''
+            locationState.status === 'loading' ? 'animate-bounce' : ''
           }`}
         >
           {currentStep.icon}
@@ -215,13 +159,66 @@ const LoadingBar: React.FC<LoadingBarProps> = ({
           <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all duration-500 ${currentStep.color}`}
-              style={{ width: `${progress}%` }}
+              style={{
+                width: `${progress}%`,
+                transition: 'width 500ms ease-in-out',
+              }}
             />
           </div>
         </div>
 
         <div className="text-gray-700 font-medium">{currentStep.message}</div>
-        {renderLocationStatus()}
+
+        {step === 'location' && (shouldShowError || shouldShowAdminPending) && (
+          <div className="mt-6 space-y-4">
+            {shouldShowAdminPending ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  รอการยืนยันจากเจ้าหน้าที่
+                  {locationState.triggerReason && (
+                    <p className="text-sm mt-1 text-gray-600">
+                      เหตุผล: {locationState.triggerReason}
+                    </p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {errorMessage && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{errorMessage}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="flex flex-col space-y-2">
+                  {onLocationRetry && (
+                    <button
+                      type="button"
+                      onClick={onLocationRetry}
+                      className="w-full px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      ลองใหม่อีกครั้ง
+                    </button>
+                  )}
+                  {shouldShowAdminAssistance && onRequestAdminAssistance && (
+                    <button
+                      type="button"
+                      onClick={handleRequestAssistance}
+                      disabled={isRequestingHelp}
+                      className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                      <i className="fi fi-br-phone-call text-sm"></i>
+                      {isRequestingHelp
+                        ? 'กำลังส่งคำขอ...'
+                        : 'ขอความช่วยเหลือจากเจ้าหน้าที่'}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

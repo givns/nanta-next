@@ -5,10 +5,23 @@ import {
   CheckStatus,
   OvertimeState,
   PeriodType,
+  TimeEntry,
 } from '@prisma/client';
 import { LeaveRequest } from './leave';
 import { ShiftData } from './shift';
 import { ApprovedOvertimeInfo, PeriodStatus } from './status';
+import { AttendanceStateResponse } from './state';
+
+export interface QueueResult {
+  status: AttendanceStateResponse;
+  notificationSent: boolean;
+  message?: string;
+  success: boolean;
+  autoCompletedEntries?: {
+    regular?: TimeEntry;
+    overtime?: TimeEntry[];
+  };
+}
 
 export interface AttendancePeriodContext {
   date: Date;

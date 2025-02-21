@@ -120,20 +120,9 @@ export interface ValidationRuleSet {
 
 // Validation options
 export interface ValidationOptions {
-  employeeId: string;
-  timestamp: Date;
-  isCheckIn: boolean;
-  overtimeContext?: {
-    isOvertime: boolean;
-    bounds?: {
-      plannedStartTime: Date;
-      plannedEndTime: Date;
-    };
-    metadata?: {
-      isDayOffOvertime: boolean;
-      isInsideShiftHours: boolean;
-    };
-  };
+  includeGrace?: boolean;
+  checkEarly?: boolean;
+  forceType?: PeriodType;
 }
 
 // Cache-related validation types

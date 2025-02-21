@@ -34,8 +34,6 @@ export interface Location {
 export interface GeoLocation {
   lat: number;
   lng: number;
-  longitude: number;
-  latitude: number;
   accuracy?: number;
   timestamp?: Date;
   provider?: string;
@@ -336,6 +334,10 @@ export interface TimeWindow {
   type: PeriodType; // Add missing type property
   isFlexible?: boolean; // Enhanced
   gracePeriod?: number; // Enhanced
+}
+
+export interface EnhancedTimeWindow extends TimeWindow {
+  isTransition?: boolean;
 }
 
 export interface Metadata {

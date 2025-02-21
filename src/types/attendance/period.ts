@@ -5,6 +5,14 @@ import {
   PeriodType,
 } from '@prisma/client';
 import { PeriodStatus } from './status';
+import { TimeWindow } from './base';
+import { ShiftWindowResponse } from './response';
+
+export interface PeriodComputeOptions {
+  windows: TimeWindow[];
+  originalState?: ShiftWindowResponse;
+  forceType?: PeriodType;
+}
 
 export interface PeriodWindow {
   start: Date;

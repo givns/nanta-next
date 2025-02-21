@@ -11,6 +11,7 @@ import {
   PeriodType,
 } from '@prisma/client';
 import { StateValidation, UnifiedPeriodState } from './state';
+import { GeoLocation, GeoLocationJson } from './base';
 
 export interface HolidayContext {
   isHoliday: boolean;
@@ -80,7 +81,7 @@ export interface ValidationContext {
   leaveRequest?: LeaveRequest;
 
   // Location data
-  location?: Location;
+  location?: GeoLocation;
   address?: string;
 
   // Processing metadata

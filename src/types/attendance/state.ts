@@ -4,6 +4,7 @@ import { ShiftContext, TransitionContext } from './shift';
 import { ValidationMetadata } from './interface';
 import { OvertimeContext } from './overtime';
 import { ValidationResult } from './validation';
+import { PeriodStatusInfo, TransitionStatusInfo } from './period';
 
 export interface AttendanceStateResponse {
   daily: DailyAttendanceStatus;
