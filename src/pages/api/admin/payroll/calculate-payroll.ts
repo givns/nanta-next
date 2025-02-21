@@ -9,7 +9,6 @@ import {
   PayrollCalculationResult,
   PayrollSettingsData,
 } from '@/types/payroll';
-import { HolidayService } from '@/services/HolidayService';
 import { LeaveRequest } from '../../../../types/attendance';
 
 const prisma = new PrismaClient();
@@ -155,6 +154,8 @@ async function createOrGetProcessingSession(
   periodStart: Date,
   employeeId: string,
 ): Promise<string> {
+  console.log('Creating or getting processing session for:', periodStart);
+  console.log('Employee ID:', employeeId);
   const periodYearMonth = format(periodStart, 'yyyy-MM');
 
   let session = await prisma.payrollProcessingSession.findFirst({

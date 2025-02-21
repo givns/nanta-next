@@ -1,13 +1,10 @@
 // services/PayrollBackgroundJob/PayrollJobHandler.ts
 
-import { PrismaClient, Prisma, PayrollStatus } from '@prisma/client';
+import { PrismaClient, PayrollStatus } from '@prisma/client';
 import { PayrollCalculationService } from '../PayrollCalculation/PayrollCalculationService';
 import { PayrollUtils } from '@/utils/payrollUtils';
 import { parse, startOfMonth, endOfMonth } from 'date-fns';
 import { PayrollCalculationResult, PayrollSettingsData } from '@/types/payroll';
-import { HolidayService } from '../HolidayService';
-
-const prisma = new PrismaClient();
 
 interface BatchProcessResult {
   success: boolean;
@@ -43,6 +40,7 @@ export class PayrollJobHandler {
         this.prisma,
       );
     } catch (error) {
+      console.error('Failed to parse payroll settings:', error);
       throw new Error('Failed to parse payroll settings');
     }
   }

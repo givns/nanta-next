@@ -4,7 +4,6 @@ import { OvertimeStatus } from '../attendance/status';
 import { ProcessingOptions } from './processing';
 import { AttendanceRecord, TimeEntry } from './records';
 
-// types/attendance/index.ts
 export * from './base';
 export * from './records';
 export * from './processing';

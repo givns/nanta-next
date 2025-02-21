@@ -869,7 +869,7 @@ export class PeriodManagementService {
       })),
     });
 
-    const { currentPeriod } = this.findRelevantPeriod(
+    const { currentPeriod, nextPeriod } = this.findRelevantPeriod(
       periods,
       context.timestamp,
       attendance,

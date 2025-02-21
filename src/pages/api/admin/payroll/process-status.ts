@@ -65,7 +65,8 @@ export default async function handler(
           clearInterval(interval);
           res.end();
         }
-      } catch (error: any) {
+      } catch (error) {
+        console.error('Error fetching status:', error);
         clearInterval(interval);
         res.write(
           `data: ${JSON.stringify({ error: 'Failed to fetch status' })}\n\n`,
@@ -78,7 +79,8 @@ export default async function handler(
     res.on('close', () => {
       clearInterval(interval);
     });
-  } catch (error: any) {
+  } catch (error) {
+    console.error('Error in process status:', error);
     res.write(
       `data: ${JSON.stringify({ error: 'Internal server error' })}\n\n`,
     );

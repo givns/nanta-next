@@ -1,12 +1,5 @@
 import axios from 'axios';
-import {
-  parseISO,
-  isSameDay,
-  subDays,
-  addDays,
-  isValid,
-  format,
-} from 'date-fns';
+import { parseISO, isSameDay, addDays, isValid, format } from 'date-fns';
 
 export interface Holiday {
   date: string;

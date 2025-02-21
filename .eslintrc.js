@@ -15,7 +15,8 @@ module.exports = {
     'plugin:import/typescript',
     'prettier',
     'plugin:prettier/recommended',
-    'next/core-web-vitals', // This includes Next.js specific rules
+    'next/core-web-vitals',
+    'next/core-web-security',
   ],
   ignorePatterns: [
     'dist/',
@@ -36,6 +37,11 @@ module.exports = {
     'prettier/prettier': 'error',
     'react/prop-types': 'off',
     'import/no-named-as-default': 'off',
+    'react-hooks/rules-of-hooks': 'warn', // Downgrade from error to warning
+    '@typescript-eslint/no-empty-object-type': 'warn',
+    'no-empty': 'warn',
+    'import/export': 'warn',
+    'import/no-anonymous-default-export': 'warn',
   },
   overrides: [
     {

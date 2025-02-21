@@ -40,10 +40,7 @@ export class RateLimiter {
 export function createRateLimitMiddleware(windowMs: number, max: number) {
   const limiter = new RateLimiter(windowMs, max);
 
-  return function rateLimitMiddleware(
-    req: NextApiRequest,
-    res: NextApiResponse,
-  ) {
+  return function rateLimitMiddleware(req: NextApiRequest) {
     const key =
       req.headers['x-forwarded-for']?.toString() ||
       req.socket.remoteAddress ||

@@ -1,6 +1,6 @@
 import { PeriodDefinition, UnifiedPeriodState } from '@/types/attendance';
 import { PeriodType } from '@prisma/client';
-import { addDays, format, isWithinInterval, parseISO } from 'date-fns';
+import { addDays, format, parseISO } from 'date-fns';
 
 export function determinePeriodAtTime(
   periods: PeriodDefinition[],

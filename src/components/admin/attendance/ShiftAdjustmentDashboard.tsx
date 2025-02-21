@@ -2,20 +2,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLiff } from '@/contexts/LiffContext';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateSelector } from './components/DateSelector';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle, Loader2, Search, Plus } from 'lucide-react';
+import { AlertCircle, Search, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -36,14 +35,6 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/components/ui/use-toast';
 import { LoadingSpinner } from '../../LoadingSpinnner';
 import { ShiftAdjustmentForm } from './ShiftAdjustmentForm';
-
-interface User {
-  id: string;
-  employeeId: string;
-  name: string;
-  departmentName: string;
-  shiftCode?: string;
-}
 
 interface Shift {
   id: string;
@@ -185,6 +176,7 @@ export default function ShiftAdjustmentDashboard() {
         description: `Adjustment ${newStatus} successfully`,
       });
     } catch (error) {
+      console.error('Error updating adjustment status:', error);
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -434,6 +426,7 @@ export default function ShiftAdjustmentDashboard() {
                   description: 'Shift adjustment created successfully',
                 });
               } catch (error) {
+                console.error('Error creating shift adjustment:', error);
                 toast({
                   variant: 'destructive',
                   title: 'Error',

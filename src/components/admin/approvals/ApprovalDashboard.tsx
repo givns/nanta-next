@@ -1,5 +1,5 @@
 // components/admin/approvals/ApprovalDashboard.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Select,
@@ -80,7 +80,8 @@ export default function ApprovalDashboard() {
   const [selectedRequest] = useState<ApprovalRequest | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const fetchRequests = async () => {
+  // In your component:
+  const fetchRequests = useCallback(async () => {
     try {
       const response = await fetch('/api/admin/approvals', {
         headers: { 'x-line-userid': lineUserId || '' },
@@ -100,13 +101,13 @@ export default function ApprovalDashboard() {
       });
       console.error('Error:', error);
     }
-  };
+  }, [lineUserId, toast]); // Include dependencies used inside the function
 
   useEffect(() => {
     if (lineUserId) {
       fetchRequests();
     }
-  }, [user, lineUserId, fetchRequests]);
+  }, [lineUserId, fetchRequests]); // Now fetchRequests won't change unless its dependencies change
 
   // Filter requests based on type and search term
   const filteredRequests = requests.filter((request) => {

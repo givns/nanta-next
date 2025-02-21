@@ -141,13 +141,6 @@ export default async function handler(
             .status(403)
             .json({ error: 'Only Super Admins can delete employees' });
         }
-
-        // Get employee data before deletion for logging
-        const employeesToDelete = await prisma.user.findMany({
-          where: { id: { in: employeeIds } },
-          select: { name: true, employeeId: true },
-        });
-
         // Perform deletion
         const deletedEmployees = await prisma.user.deleteMany({
           where: { id: { in: employeeIds } },

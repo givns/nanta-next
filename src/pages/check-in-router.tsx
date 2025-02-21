@@ -11,10 +11,8 @@ import { closeWindow } from '@/services/liff';
 import LoadingBar from '@/components/attendance/LoadingBar';
 import {
   AttendanceRecord,
-  LocationVerificationState,
   NextDayScheduleInfo,
   SerializedAttendanceRecord,
-  VerificationStatus,
 } from '@/types/attendance';
 import TodaySummary from '@/components/attendance/TodaySummary';
 import NextDayInfo from '@/components/attendance/NextDayInformation';
@@ -24,7 +22,6 @@ import { getCurrentTime } from '@/utils/dateUtils';
 import {
   subMinutes,
   format,
-  isSameDay,
   addDays,
   isAfter,
   parseISO,
@@ -83,7 +80,7 @@ const createSafeAttendance = (props: any) => {
 const CheckInRouter: React.FC = () => {
   // States
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<Step>('auth');
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('loading');
   const [showNextDay, setShowNextDay] = useState(false);
@@ -107,7 +104,6 @@ const CheckInRouter: React.FC = () => {
   });
   const {
     locationState,
-    isLoading: locationLoading,
     needsVerification,
     isVerified,
     isAdminPending,

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import axios from 'axios';
 import liff from '@line/liff';
-import Map from '../components/GoogleMap';
 import { getAddressFromCoordinates } from '../utils/geocoding';
 
 interface Premise {

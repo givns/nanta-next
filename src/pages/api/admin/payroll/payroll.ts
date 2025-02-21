@@ -16,11 +16,6 @@ import { isValid, parseISO } from 'date-fns';
 
 const prisma = new PrismaClient();
 
-interface PayrollMeta {
-  exists: boolean;
-  message: string;
-}
-
 const DEFAULT_OVERTIME_RATES: OvertimeRatesByType = {
   workdayOutside: 0,
   weekendInside: 0,

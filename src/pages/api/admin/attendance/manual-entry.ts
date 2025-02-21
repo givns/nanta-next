@@ -125,6 +125,14 @@ export default async function handler(
       overtimeRequestId,
     } = validatedData;
 
+    // Validate reason type
+    if (!['checkIn', 'checkOut'].includes(reasonType)) {
+      throw new AppError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Invalid reason type',
+      });
+    }
+
     // Start transaction
     return await prisma.$transaction(async (tx) => {
       // Get permissions and data

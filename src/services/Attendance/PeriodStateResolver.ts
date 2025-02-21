@@ -542,6 +542,7 @@ export class PeriodStateResolver {
     shiftData: ShiftData,
     context: ValidationContext,
   ): Promise<UnifiedPeriodState> {
+    console.log(employeeId, records, now, shiftData, context);
     // Handle null records
     const activeRecord =
       records?.find((r) => r.CheckInTime && !r.CheckOutTime) ?? null;

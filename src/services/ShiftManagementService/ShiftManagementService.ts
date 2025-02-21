@@ -1,19 +1,13 @@
 import {
   ApprovedOvertimeInfo,
   EffectiveShift,
-  ShiftData,
   OvertimeContext,
   HolidayInfo,
   ShiftAdjustment,
 } from '@/types/attendance';
-import {
-  PrismaClient,
-  Shift,
-  ShiftAdjustmentRequest,
-  PeriodType,
-} from '@prisma/client';
-import { endOfDay, startOfDay, format, parseISO, subDays } from 'date-fns';
-import { formatDate, getCurrentTime } from '../../utils/dateUtils';
+import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
+import { endOfDay, startOfDay, format, subDays } from 'date-fns';
+import { formatDate } from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { getCacheData, setCacheData } from '../../lib/serverCache';

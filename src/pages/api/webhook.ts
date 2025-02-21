@@ -502,7 +502,7 @@ async function handleOvertimeRequest(
   throw new Error('Invalid action for overtime request');
 }
 
-export default async (req: NextApiRequest, res: NextApiResponse) => {
+const webhookHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   if (req.method === 'GET') {
     return res.status(200).send('Webhook is set up and running!');
   }
@@ -543,3 +543,5 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
 
   return res.status(405).send('Method Not Allowed');
 };
+
+export default webhookHandler;

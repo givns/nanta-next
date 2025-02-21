@@ -2,7 +2,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { initializeServices } from '@/services/ServiceInitializer';
-import { CacheManager } from '@/services/cache/CacheManager';
 import { AppError, ErrorCode } from '@/types/attendance';
 
 // Initialize Prisma client

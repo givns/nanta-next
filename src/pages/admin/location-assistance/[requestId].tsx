@@ -14,18 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import GoogleMap from '@/components/GoogleMap';
-import {
-  LocationAssistanceRequest,
-  LocationCoordinates,
-} from '@/types/attendance';
-import {
-  MapPin,
-  Clock,
-  AlertCircle,
-  User,
-  CheckCircle,
-  XCircle,
-} from 'lucide-react';
+import { LocationAssistanceRequest } from '@/types/attendance';
+import { Clock, AlertCircle, User, CheckCircle, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const LocationAssistanceDetails = () => {
@@ -38,7 +28,7 @@ const LocationAssistanceDetails = () => {
   const [employeeHistory, setEmployeeHistory] = useState<
     LocationAssistanceRequest[]
   >([]);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const [, setMapLoaded] = useState(false);
   const [verificationNote, setVerificationNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);

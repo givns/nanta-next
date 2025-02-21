@@ -292,7 +292,7 @@ export default async function handler(
 
   try {
     // Apply rate limiting
-    await rateLimitMiddleware(req, res);
+    await rateLimitMiddleware(req);
 
     console.log('Incoming request:', {
       requestId,

@@ -7,10 +7,10 @@ const DenyReasonPage = () => {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [denierEmployeeId, setDenierEmployeeId] = useState<string | null>(null);
   const [denialReason, setDenialReason] = useState('');
-  const [lineUserId, setLineUserId] = useState<string | null>(null);
+  const [, setLineUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const initializeLiff = async () => {

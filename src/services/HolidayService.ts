@@ -191,6 +191,7 @@ export class HolidayService {
               created.push(created_holiday);
             }
           } catch (error) {
+            console.error('Error creating holiday:', error);
             console.warn(`Skipping duplicate holiday for date ${holiday.date}`);
           }
         }

@@ -26,12 +26,6 @@ const RegisterForm: React.FC = () => {
   const fetchUserAndShiftDetails = async (employeeId: string) => {
     setIsLoading(true);
     setError(null);
-    // Check if user already has ongoing registration
-    useEffect(() => {
-      if (registrationStatus?.employeeId) {
-        fetchUserAndShiftDetails(registrationStatus.employeeId);
-      }
-    }, [registrationStatus, fetchUserAndShiftDetails]);
 
     try {
       // Fetch user data
@@ -74,6 +68,12 @@ const RegisterForm: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (registrationStatus?.employeeId) {
+      fetchUserAndShiftDetails(registrationStatus.employeeId);
+    }
+  }, []);
 
   const handleConfirmRegistration = async () => {
     if (!userInfo || !lineUserId) return;
