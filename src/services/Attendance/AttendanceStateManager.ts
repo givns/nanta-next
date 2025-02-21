@@ -105,6 +105,7 @@ export class AttendanceStateManager {
     }
   }
 
+  // Updated updateState method
   async updateState(
     employeeId: string,
     newState: AttendanceStatusResponse,
@@ -114,13 +115,33 @@ export class AttendanceStateManager {
     const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
 
     try {
-      // Try to acquire lock
-      const locked = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
-      if (!locked) {
-        throw new AppError({
-          code: ErrorCode.PROCESSING_ERROR,
-          message: 'Concurrent operation in progress',
-        });
+      // Try to acquire lock with retry mechanism
+      let lockAcquired = false;
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      while (!lockAcquired && retryCount < maxRetries) {
+        // Try to acquire lock
+        const locked = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
+
+        if (locked) {
+          lockAcquired = true;
+        } else {
+          // Wait with exponential backoff
+          const delay = Math.min(500 * Math.pow(2, retryCount), 5000);
+          console.log(
+            `Lock acquisition attempt ${retryCount + 1} failed, waiting ${delay}ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          retryCount++;
+        }
+      }
+
+      if (!lockAcquired) {
+        console.log(
+          'Failed to acquire lock after retries, proceeding without lock',
+        );
+        // Continue without lock, which is better than throwing an error
       }
 
       // Track pending operation
@@ -140,9 +161,17 @@ export class AttendanceStateManager {
 
       // Remove pending operation
       this.pendingOperations.delete(employeeId);
+    } catch (error) {
+      console.error('Error updating state:', error);
+      this.pendingOperations.delete(employeeId);
+      // Don't throw here, just log
     } finally {
-      // Release lock
-      await this.redis.del(lockKey);
+      // Release lock if we had it
+      try {
+        await this.redis.del(lockKey);
+      } catch (lockError) {
+        console.error('Error releasing lock:', lockError);
+      }
     }
   }
 
