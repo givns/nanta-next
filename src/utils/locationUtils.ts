@@ -4,8 +4,6 @@ import { GeoLocation, GeoLocationJson, Location } from '@/types/attendance';
 
 export function toLocation(geoLocation: GeoLocation): Location {
   return {
-    latitude: geoLocation.latitude,
-    longitude: geoLocation.longitude,
     lat: geoLocation.lat,
     lng: geoLocation.lng,
     accuracy: geoLocation.accuracy,
@@ -18,8 +16,7 @@ export function toGeoLocation(location: Location): GeoLocation {
   return {
     lat: location.lat,
     lng: location.lng,
-    latitude: location.latitude,
-    longitude: location.longitude,
+
     accuracy: location.accuracy,
     timestamp: location.timestamp,
     provider: location.provider,
@@ -32,8 +29,6 @@ export function toGeoLocationJson(
   return {
     lat: location.lat,
     lng: location.lng,
-    latitude: location.latitude,
-    longitude: location.longitude,
     accuracy: location.accuracy,
     timestamp: location.timestamp?.toISOString(),
     provider: location.provider,
@@ -44,8 +39,6 @@ export function fromGeoLocationJson(json: GeoLocationJson): GeoLocation {
   return {
     lat: json.lat,
     lng: json.lng,
-    latitude: json.latitude,
-    longitude: json.longitude,
     accuracy: json.accuracy,
     timestamp: json.timestamp ? new Date(json.timestamp) : undefined,
     provider: json.provider,
@@ -58,16 +51,14 @@ export function normalizeLocation(
   if (!location) return undefined;
 
   // Get primary coordinates
-  const latitude = location.latitude ?? location.lat;
-  const longitude = location.longitude ?? location.lng;
+  const latitude = location.lat;
+  const longitude = location.lng;
 
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
     return undefined;
   }
 
   return {
-    latitude,
-    longitude,
     lat: latitude,
     lng: longitude,
     accuracy: location.accuracy,
@@ -105,5 +96,5 @@ export function isValidCoordinates(lat: number, lng: number): boolean {
 
 // Helper to format location for display
 export function formatLocation(location: Location): string {
-  return `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
+  return `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
 }

@@ -21,8 +21,6 @@ export interface BaseEntity {
   updatedAt: Date;
 }
 export interface Location {
-  latitude: number;
-  longitude: number;
   lat: number;
   lng: number;
   accuracy?: number;
@@ -43,8 +41,6 @@ export interface GeoLocation {
 export interface GeoLocationJson extends Record<string, any> {
   lat: number;
   lng: number;
-  longitude: number;
-  latitude: number;
   accuracy?: number;
   timestamp?: string; // Note: string for JSON storage
   provider?: string;

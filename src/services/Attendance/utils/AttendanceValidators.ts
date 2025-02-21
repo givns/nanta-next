@@ -47,10 +47,8 @@ export class AttendanceValidators {
     if (options.location?.coordinates) {
       // Create a GeoLocation object with all required fields
       const geoLocation: GeoLocation = {
-        lat: options.location.coordinates.latitude,
-        lng: options.location.coordinates.longitude,
-        latitude: options.location.coordinates.latitude,
-        longitude: options.location.coordinates.longitude,
+        lat: options.location.coordinates.lat,
+        lng: options.location.coordinates.lng,
         accuracy: options.location.coordinates.accuracy,
         timestamp: options.location.coordinates.timestamp,
         provider: options.location.coordinates.provider,
@@ -134,12 +132,7 @@ export class AttendanceValidators {
         timestamp: new Date(),
       });
     }
-
-    // Validate consistency between lat/lng and latitude/longitude
-    if (
-      location.lat !== location.latitude ||
-      location.lng !== location.longitude
-    ) {
+    {
       errors.push({
         code: 'INCONSISTENT_COORDINATES',
         message: 'Inconsistent coordinate values',
