@@ -1,33 +1,35 @@
-// pages/api/attendance/status/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, PeriodType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-import { getServices } from '@/services/ServiceInitializer';
+import { initializeServices } from '@/services/ServiceInitializer';
 import {
   AppError,
   AttendanceStatusResponse,
   ErrorCode,
-  ValidationContext,
-  ShiftData,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { format } from 'date-fns';
+import { createRateLimitMiddleware } from '@/utils/rateLimit';
 
-// Initialize Prisma client - optimized for serverless
-const prisma = new PrismaClient({
-  // MongoDB-specific options
-  log: ['error', 'warn'],
-  // Disable connection pooling for serverless
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
+// Initialize Prisma client
+const prisma = new PrismaClient();
+
+// Type for initialized services
+type InitializedServices = Awaited<ReturnType<typeof initializeServices>>;
+
+// Cache the services initialization promise
+let servicesPromise: Promise<InitializedServices> | null = null;
+
+// Rate limit configuration based on endpoint type
+const rateLimitConfig = {
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
+  message: 'Too many status check requests',
+};
+const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 30); // 30 requests per minute
 
 // Request validation schema
 const QuerySchema = z.object({
-  employeeId: z.string(),
+  employeeId: z.string().min(1, 'Employee ID is required'),
   inPremises: z
     .string()
     .optional()
@@ -35,202 +37,219 @@ const QuerySchema = z.object({
   address: z.string().optional().default(''),
   confidence: z.string().optional().default('low'),
   coordinates: z
-    .string()
-    .optional()
-    .transform((coordsStr) => {
-      if (!coordsStr) return undefined;
-      try {
-        const coords = JSON.parse(coordsStr);
-        if (coords && coords.lat && coords.lng) {
-          return {
-            lat: Number(coords.lat),
-            lng: Number(coords.lng),
-            latitude: Number(coords.lat),
-            longitude: Number(coords.lng),
-          };
+    .record(z.any())
+    .transform((coords) => {
+      if (coords.lat && coords.lng) {
+        const lat = Number(coords.lat);
+        const lng = Number(coords.lng);
+
+        // Validate coordinates
+        if (
+          isNaN(lat) ||
+          isNaN(lng) ||
+          lat < -90 ||
+          lat > 90 ||
+          lng < -180 ||
+          lng > 180
+        ) {
+          return undefined;
         }
-      } catch (error) {}
+
+        return {
+          lat,
+          lng,
+          latitude: lat,
+          longitude: lng,
+        };
+      }
       return undefined;
-    }),
+    })
+    .optional(),
   adminVerified: z
     .string()
     .optional()
     .transform((val) => val === 'true'),
-  _t: z.string().optional(), // Cache busting parameter
 });
 
 type ApiResponse =
-  | AttendanceStatusResponse
+  | { success: true; data: AttendanceStatusResponse; timestamp: string }
   | {
+      success: false;
       error: string;
-      message: string;
+      code: ErrorCode;
       details?: unknown;
-      timestamp?: string;
+      timestamp: string;
+      requestId?: string;
     };
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>,
 ) {
-  // Create request ID for tracking
-  const requestId = `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const startTime = performance.now();
+  const requestId = `att-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-  // Log start of request processing
-  console.log(`[${requestId}] Attendance status request received`, {
-    method: req.method,
-    url: req.url,
-    query: req.query,
-  });
-
-  // Check for valid HTTP method
   if (req.method !== 'GET') {
-    console.warn(`[${requestId}] Method not allowed: ${req.method}`);
     return res.status(405).json({
+      success: false,
       error: 'Method Not Allowed',
-      message: 'Only GET method is allowed',
+      code: ErrorCode.INVALID_INPUT,
+      timestamp: getCurrentTime().toISOString(),
+      requestId,
     });
   }
 
-  // Track processing time
-  const startTime = Date.now();
-
   try {
-    // Get services
-    const services = await getServices(prisma);
+    // Apply rate limiting
+    await rateLimitMiddleware(req);
 
-    // Validate request parameters
-    const validatedParams = QuerySchema.safeParse(req.query);
+    // Get and validate services
+    const services = await getServices();
+    const validatedParams = await validateRequest(req.query);
 
-    if (!validatedParams.success) {
-      console.warn(`[${requestId}] Invalid request parameters`, {
-        errors: validatedParams.error.format(),
-      });
-
-      return res.status(400).json({
-        error: ErrorCode.INVALID_INPUT,
-        message: 'Invalid request parameters',
-        details: validatedParams.error.format(),
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    const { employeeId, inPremises, address, coordinates, adminVerified } =
-      validatedParams.data;
-    const now = getCurrentTime();
-
-    console.log(`[${requestId}] Processing attendance status request`, {
-      employeeId,
-      inPremises: Boolean(inPremises),
-      hasCoordinates: !!coordinates,
-      adminVerified: Boolean(adminVerified),
-      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
-    });
-
-    // Check if user exists and get shift data
-    const user = await prisma.user.findUnique({
-      where: { employeeId },
-      select: {
-        employeeId: true,
-        lineUserId: true,
-        shiftId: true,
-        name: true,
-        departmentName: true,
+    console.log('Processing attendance status request:', {
+      requestId,
+      employeeId: validatedParams.employeeId,
+      timestamp: getCurrentTime().toISOString(),
+      locationData: {
+        inPremises: validatedParams.inPremises,
+        hasCoordinates: !!validatedParams.coordinates,
       },
     });
 
-    if (!user) {
-      return res.status(404).json({
-        error: ErrorCode.USER_NOT_FOUND,
-        message: 'User not found',
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    // Get user's shift
-    const userShift = await services.shiftService.getUserShift(employeeId);
-
-    // Convert null to undefined for shift to satisfy TypeScript
-    const shift: ShiftData | undefined = userShift || undefined;
-
-    // Create validation context
-    const context: ValidationContext = {
-      employeeId,
-      timestamp: now,
-      isCheckIn: true, // Will be updated based on current state
-      shift,
-      periodType: PeriodType.REGULAR,
-      isOvertime: false,
-      overtimeInfo: null,
-      location: coordinates,
-      address: address || '',
-    };
-
-    // Get attendance status with updated parameters structure
+    // Get attendance status
     const attendanceStatus =
-      await services.attendanceService.getAttendanceStatus(employeeId, {
-        inPremises: adminVerified ? true : Boolean(inPremises),
-        address: address || '',
-        periodType: PeriodType.REGULAR, // Default to regular period
-      });
+      await services.attendanceService.getAttendanceStatus(
+        validatedParams.employeeId,
+        {
+          inPremises: validatedParams.inPremises || false,
+          address: validatedParams.address || '',
+        },
+      );
 
-    // Log success and processing time
-    const processingTime = Date.now() - startTime;
-
-    console.log(`[${requestId}] Attendance status processed successfully`, {
-      employeeId,
-      state: attendanceStatus.base.state,
-      checkStatus: attendanceStatus.base.checkStatus,
-      processingTimeMs: processingTime,
-      transitions: attendanceStatus.daily.transitions.length,
-      nextPeriod: attendanceStatus.context.nextPeriod?.type || 'none',
+    // Log performance
+    const duration = performance.now() - startTime;
+    console.log('Attendance status request completed:', {
+      requestId,
+      duration,
+      employeeId: validatedParams.employeeId,
     });
 
-    // Add performance metrics header
-    res.setHeader('X-Processing-Time', processingTime.toString());
-    res.setHeader('X-Request-ID', requestId);
-
-    return res.status(200).json(attendanceStatus);
+    return res.status(200).json({
+      success: true,
+      data: attendanceStatus,
+      timestamp: getCurrentTime().toISOString(),
+    });
   } catch (error) {
-    // Calculate processing time even for errors
-    const processingTime = Date.now() - startTime;
-
-    console.error(`[${requestId}] Error processing attendance status`, {
-      error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined,
-      processingTimeMs: processingTime,
+    console.error('Attendance status error:', {
+      requestId,
+      error,
       query: req.query,
     });
 
-    // Handle specific error types
-    if (error instanceof AppError) {
-      return res.status(400).json({
-        error: error.code,
-        message: error.message,
-        details: error.details,
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: ErrorCode.INVALID_INPUT,
-        message: 'Invalid request parameters',
-        details: error.format(),
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    // Generic error handler
-    return res.status(500).json({
-      error: ErrorCode.INTERNAL_ERROR,
-      message: error instanceof Error ? error.message : 'Internal server error',
-      details: {
-        timestamp: getCurrentTime().toISOString(),
-        requestId,
-      },
+    const errorResponse = handleApiError(error);
+    return res.status(errorResponse.status).json({
+      success: false,
+      error: errorResponse.message,
+      code: errorResponse.code,
+      details: errorResponse.details,
+      timestamp: getCurrentTime().toISOString(),
+      requestId,
     });
   } finally {
-    // Always disconnect Prisma in serverless environment
     await prisma.$disconnect();
   }
+}
+
+// Helper functions
+async function getServices(): Promise<InitializedServices> {
+  if (!servicesPromise) {
+    console.log('Initializing services...');
+    servicesPromise = initializeServices(prisma);
+  }
+
+  const services = await servicesPromise;
+  if (!services) {
+    throw new AppError({
+      code: ErrorCode.INTERNAL_ERROR,
+      message: 'Failed to initialize services',
+    });
+  }
+
+  return services;
+}
+
+async function validateRequest(query: any) {
+  try {
+    return QuerySchema.parse(query);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      throw new AppError({
+        code: ErrorCode.INVALID_INPUT,
+        message: 'Invalid request parameters',
+        details: error.format(),
+      });
+    }
+    throw error;
+  }
+}
+
+interface ErrorResponse {
+  status: number;
+  code: ErrorCode;
+  message: string;
+  details?: unknown;
+}
+
+function handleApiError(error: unknown): ErrorResponse {
+  if (error instanceof AppError) {
+    switch (error.code) {
+      case ErrorCode.INVALID_INPUT:
+        return {
+          status: 400,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        };
+      case ErrorCode.UNAUTHORIZED:
+        return {
+          status: 401,
+          code: error.code,
+          message: error.message,
+        };
+      case ErrorCode.NOT_FOUND:
+        return {
+          status: 404,
+          code: error.code,
+          message: error.message,
+        };
+      case ErrorCode.TIMEOUT:
+        return {
+          status: 504,
+          code: error.code,
+          message: 'Request timed out',
+        };
+      default:
+        return {
+          status: 500,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        };
+    }
+  }
+
+  if (error instanceof Error) {
+    return {
+      status: 500,
+      code: ErrorCode.INTERNAL_ERROR,
+      message: error.message,
+    };
+  }
+
+  return {
+    status: 500,
+    code: ErrorCode.UNKNOWN_ERROR,
+    message: 'An unexpected error occurred',
+  };
 }
