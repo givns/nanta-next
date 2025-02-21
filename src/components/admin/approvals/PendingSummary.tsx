@@ -1,5 +1,4 @@
 // components/admin/approvals/PendingSummary.tsx
-import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ClipboardList, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -40,12 +39,6 @@ export default function PendingSummary() {
     total: 0,
   });
 
-  useEffect(() => {
-    if (lineUserId) {
-      fetchSummaryData();
-    }
-  }, [user]);
-
   const fetchSummaryData = async () => {
     try {
       setIsLoading(true);
@@ -67,6 +60,12 @@ export default function PendingSummary() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchSummaryData();
+    }
+  }, [user, lineUserId, fetchSummaryData]);
 
   // Handle loading state
   if (authLoading) {

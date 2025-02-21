@@ -18,18 +18,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-
 import { format } from 'date-fns';
-import { th } from 'date-fns/locale';
 import {
   CheckCircle2,
   XCircle,
-  Clock,
-  Calendar,
   Search,
   ClipboardList,
 } from 'lucide-react';
-import { toast, useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import PendingSummary from './PendingSummary';
 import {
   LeaveRequestCard,
@@ -40,7 +36,6 @@ import {
   OvertimeRequestTable,
 } from './tables/OvertimeRequestTable';
 import { useLiff } from '@/contexts/LiffContext';
-import { useRouter } from 'next/router';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardSkeleton from '@/components/dashboard/DashboardSkeleton';
 
@@ -87,15 +82,9 @@ export default function ApprovalDashboard() {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  const [selectedRequest, setSelectedRequest] =
+  const [selectedRequest] =
     useState<ApprovalRequest | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-
-  useEffect(() => {
-    if (lineUserId) {
-      fetchRequests();
-    }
-  }, [user]);
 
   const fetchRequests = async () => {
     try {
@@ -118,6 +107,13 @@ export default function ApprovalDashboard() {
       console.error('Error:', error);
     }
   };
+
+  useEffect(() => {
+    if (lineUserId) {
+      fetchRequests();
+    }
+  }, [user, lineUserId, fetchRequests]);
+
 
   // Filter requests based on type and search term
   const filteredRequests = requests.filter((request) => {

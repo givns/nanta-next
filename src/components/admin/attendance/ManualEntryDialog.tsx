@@ -32,7 +32,7 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { format, parseISO, isBefore, isToday, set } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { CalendarIcon, Clock } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import { DetailedTimeEntry, ManualEntryFormData } from '@/types/attendance';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PeriodType } from '@prisma/client';
@@ -156,6 +156,8 @@ export function ManualEntryDialog({
     return isStart ? timeDate >= boundTime : timeDate <= boundTime;
   };
 
+  console.log('validateTime:', validateTime);
+
   // Use useEffect to update form when selectedDate changes
   useEffect(() => {
     form.setValue('date', format(selectedDate, 'yyyy-MM-dd'));
@@ -251,12 +253,11 @@ export function ManualEntryDialog({
                           disabled={(date) => {
                             // Disable future dates and dates before payroll period start
                             const now = new Date();
-                            function subtractMonths(
-                              now: Date,
-                              arg1: number,
-                            ): any {
-                              throw new Error('Function not implemented.');
-                            }
+                            const subtractMonths = (date: Date, months: number) => {
+                              const newDate = new Date(date);
+                              newDate.setMonth(newDate.getMonth() - months);
+                              return newDate;
+                            };
 
                             return (
                               date > now ||

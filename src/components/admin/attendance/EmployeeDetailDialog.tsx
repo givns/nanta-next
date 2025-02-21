@@ -8,9 +8,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO, eachDayOfInterval, isSameDay } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { DetailedTimeEntry, ManualEntryRequest } from '@/types/attendance';
 import {
@@ -39,7 +39,6 @@ export function EmployeeDetailDialog({
   open,
   onOpenChange,
   employeeId,
-  date,
 }: EmployeeDetailDialogProps) {
   const {
     user,
@@ -62,12 +61,6 @@ export function EmployeeDetailDialog({
     const periods = PayrollUtils.generatePayrollPeriods();
     return periods.find((p) => p.isCurrentPeriod)?.value || periods[0].value;
   });
-
-  useEffect(() => {
-    if (open && employeeId) {
-      fetchTimeEntries();
-    }
-  }, [open, employeeId, currentPeriod]);
 
   const fetchTimeEntries = async () => {
     if (!open || !employeeId || !lineUserId) return;
@@ -106,6 +99,12 @@ export function EmployeeDetailDialog({
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (open && employeeId) {
+      fetchTimeEntries();
+    }
+  }, [open, employeeId, currentPeriod, fetchTimeEntries]);
 
   const handleManualEntry = async (
     data: Omit<ManualEntryRequest, 'employeeId'>,

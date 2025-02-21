@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
-import axios from 'axios';
 import liff from '@line/liff';
 import Image from 'next/image';
 import { useAuth } from '@/hooks/useAuth';
@@ -10,34 +9,30 @@ import { useLiff } from '@/contexts/LiffContext';
 import { User } from '@/types/user';
 import { ShiftData } from '@/types/attendance';
 import { useRouter } from 'next/router';
-import { authCache } from '@/hooks/useAuth';
 
 const ExistingEmployeeSchema = Yup.object().shape({
   employeeId: Yup.string().required('กรุณากรอกรหัสพนักงาน'),
 });
 
 const RegisterForm: React.FC = () => {
-  const router = useRouter();
   const { lineUserId } = useLiff();
   const { registrationStatus } = useAuth({ allowRegistration: true });
-
-  const [profilePictureUrl, setProfilePictureUrl] = useState('');
+  const [profilePictureUrl] = useState('');
   const [userInfo, setUserInfo] = useState<User | null>(null);
   const [shiftDetails, setShiftDetails] = useState<ShiftData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmationMessage, setConfirmationMessage] = useState(false);
 
+  const fetchUserAndShiftDetails = async (employeeId: string) => {
+    setIsLoading(true);
+    setError(null);
   // Check if user already has ongoing registration
   useEffect(() => {
     if (registrationStatus?.employeeId) {
       fetchUserAndShiftDetails(registrationStatus.employeeId);
     }
-  }, [registrationStatus]);
-
-  const fetchUserAndShiftDetails = async (employeeId: string) => {
-    setIsLoading(true);
-    setError(null);
+  }, [registrationStatus, fetchUserAndShiftDetails]);
 
     try {
       // Fetch user data

@@ -76,7 +76,7 @@ const ThaiDatePicker: React.FC<ThaiDatePickerProps> = ({
         console.error('Error parsing date:', error);
       }
     }
-  }, [field.value]);
+  }, [field.value, date]);
 
   return (
     <Popover>

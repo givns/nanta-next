@@ -9,7 +9,6 @@ interface LoadingProgressProps {
 
 const LoadingProgress: React.FC<LoadingProgressProps> = ({
   isLiffInitialized = false,
-  isDataLoaded = false,
 }) => {
   const [progress, setProgress] = useState(0);
   const router = useRouter();

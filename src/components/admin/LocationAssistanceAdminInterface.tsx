@@ -21,9 +21,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
-  MapPin,
   Phone,
-  Clock,
   CheckCircle,
   XCircle,
   AlertCircle,

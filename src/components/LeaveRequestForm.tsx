@@ -11,7 +11,7 @@ import {
 import * as Yup from 'yup';
 import { UserData } from '@/types/user';
 import { LeaveBalanceData } from '@/types/LeaveService';
-import { calculateFullDayCount, isValidDateString } from '../lib/holidayUtils';
+import { calculateFullDayCount } from '../lib/holidayUtils';
 import LeaveBalanceCard from './LeaveBalanceCard';
 import ThaiDatePicker from './ThaiDatePicker';
 

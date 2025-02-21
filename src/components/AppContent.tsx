@@ -16,11 +16,10 @@ interface AppContentProps {
 
 export default function AppContent({ Component, pageProps }: AppContentProps) {
   const router = useRouter();
-  const { isInitialized, lineUserId, error: liffError } = useLiff();
+  const { isInitialized, error: liffError } = useLiff();
   const [mounted, setMounted] = useState(false);
 
   const isAdminRoute = router.pathname.startsWith('/admin');
-  const isRegisterPage = router.pathname === '/register';
 
   useEffect(() => {
     setMounted(true);

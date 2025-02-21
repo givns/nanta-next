@@ -23,7 +23,6 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
 
   const pullThreshold = 100; // pixels to trigger refresh
   const y = useMotionValue(0);
-  const pullRange = useTransform(y, [0, pullThreshold], [0, 1]);
   const rotateSpring = useSpring(0, { stiffness: 400, damping: 30 });
 
   const handleTouchStart = () => {

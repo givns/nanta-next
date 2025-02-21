@@ -1,27 +1,11 @@
 // components/ErrorBoundary.tsx
 
 import React, { ErrorInfo, ReactNode } from 'react';
-import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary';
 
 interface FallbackProps {
   error: Error;
   resetErrorBoundary: () => void;
 }
-const ErrorFallback: React.FC<FallbackProps> = ({
-  error,
-  resetErrorBoundary,
-}) => (
-  <div className="p-4 text-center">
-    <h2 className="text-lg font-bold text-red-600 mb-2">เกิดข้อผิดพลาด</h2>
-    <p className="text-gray-600 mb-4">{error.message}</p>
-    <button
-      onClick={resetErrorBoundary}
-      className="px-4 py-2 bg-primary text-white rounded hover:bg-primary-dark"
-    >
-      ลองใหม่อีกครั้ง
-    </button>
-  </div>
-);
 
 interface Props {
   children: ReactNode;

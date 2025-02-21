@@ -3,7 +3,6 @@ import {
   TimeWindow,
   ShiftData,
   ValidationContext,
-  ValidationOptions,
   OvertimeContext,
   ApprovedOvertimeInfo,
   AttendanceRecord,
@@ -74,7 +73,7 @@ export class TimeWindowManager {
     }
 
     // Handle transitional periods
-    windows = this.handleTransitionalPeriods(windows, timestamp);
+    windows = this.handleTransitionalPeriods(windows);
 
     // Sort windows chronologically
     return this.sortWindows(windows);
@@ -307,7 +306,7 @@ export class TimeWindowManager {
    */
   isWithinShiftHours(now: Date, window: TimeWindow): boolean {
     const today = format(now, 'yyyy-MM-dd');
-    let start = parseISO(`${today}T${format(window.start, 'HH:mm:ss')}`);
+    const start = parseISO(`${today}T${format(window.start, 'HH:mm:ss')}`);
     let end = parseISO(`${today}T${format(window.end, 'HH:mm:ss')}`);
 
     if (end < start) {
@@ -463,7 +462,6 @@ export class TimeWindowManager {
    */
   private handleTransitionalPeriods(
     windows: EnhancedTimeWindow[],
-    now: Date,
   ): EnhancedTimeWindow[] {
     const result: EnhancedTimeWindow[] = [];
 

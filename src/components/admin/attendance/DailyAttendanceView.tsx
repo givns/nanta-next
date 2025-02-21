@@ -67,7 +67,6 @@ function ensureValidDate(date: Date | string | null | undefined): Date {
 export default function DailyAttendanceView() {
   const router = useRouter();
   const {
-    user,
     isLoading: authLoading,
     isAuthorized,
   } = useAuth({
@@ -225,6 +224,7 @@ export default function DailyAttendanceView() {
     },
     [],
   );
+  console.log('selectedRecord', selectedRecord);
 
   if (authLoading || !isInitialized) {
     return <LoadingState />;
