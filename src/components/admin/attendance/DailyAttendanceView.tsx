@@ -66,10 +66,7 @@ function ensureValidDate(date: Date | string | null | undefined): Date {
 
 export default function DailyAttendanceView() {
   const router = useRouter();
-  const {
-    isLoading: authLoading,
-    isAuthorized,
-  } = useAuth({
+  const { isLoading: authLoading, isAuthorized } = useAuth({
     required: true,
     requiredRoles: ['Admin', 'SuperAdmin'],
   });

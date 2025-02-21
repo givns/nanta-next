@@ -19,12 +19,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { format } from 'date-fns';
-import {
-  CheckCircle2,
-  XCircle,
-  Search,
-  ClipboardList,
-} from 'lucide-react';
+import { CheckCircle2, XCircle, Search, ClipboardList } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import PendingSummary from './PendingSummary';
 import {
@@ -82,8 +77,7 @@ export default function ApprovalDashboard() {
   const [filterType, setFilterType] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
-  const [selectedRequest] =
-    useState<ApprovalRequest | null>(null);
+  const [selectedRequest] = useState<ApprovalRequest | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchRequests = async () => {
@@ -113,7 +107,6 @@ export default function ApprovalDashboard() {
       fetchRequests();
     }
   }, [user, lineUserId, fetchRequests]);
-
 
   // Filter requests based on type and search term
   const filteredRequests = requests.filter((request) => {

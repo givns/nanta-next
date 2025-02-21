@@ -253,7 +253,10 @@ export function ManualEntryDialog({
                           disabled={(date) => {
                             // Disable future dates and dates before payroll period start
                             const now = new Date();
-                            const subtractMonths = (date: Date, months: number) => {
+                            const subtractMonths = (
+                              date: Date,
+                              months: number,
+                            ) => {
                               const newDate = new Date(date);
                               newDate.setMonth(newDate.getMonth() - months);
                               return newDate;
