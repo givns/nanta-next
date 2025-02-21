@@ -42,8 +42,13 @@ export class ShiftManagementService {
       }
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { employeeId },
+    // FIX: Use findFirst with equals condition instead of findUnique
+    const user = await this.prisma.user.findFirst({
+      where: {
+        employeeId: {
+          equals: employeeId,
+        },
+      },
       select: { shiftCode: true },
     });
 
@@ -55,7 +60,9 @@ export class ShiftManagementService {
     // Get shift adjustment with requested shift included
     const adjustment = await this.prisma.shiftAdjustmentRequest.findFirst({
       where: {
-        employeeId,
+        employeeId: {
+          equals: employeeId, // FIX: Use equals condition
+        },
         date: {
           gte: startOfDay(date),
           lt: endOfDay(date),
@@ -159,13 +166,39 @@ export class ShiftManagementService {
   }
 
   async getUserShift(userId: string): Promise<Shift | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { shiftCode: true },
-    });
+    try {
+      // Try to handle both employeeId and MongoDB id
+      // Find user by id or employeeId
+      const user = await this.prisma.user.findFirst({
+        where: {
+          OR: [{ id: userId }, { employeeId: { equals: userId } }],
+        },
+        select: { shiftCode: true },
+      });
 
-    if (!user || !user.shiftCode) return null;
-    return this.getShiftByCode(user.shiftCode);
+      if (!user || !user.shiftCode) return null;
+      return this.getShiftByCode(user.shiftCode);
+    } catch (error) {
+      console.error('Error in getUserShift:', error);
+
+      // Fallback to find by employeeId explicitly
+      try {
+        const user = await this.prisma.user.findFirst({
+          where: {
+            employeeId: {
+              equals: userId,
+            },
+          },
+          select: { shiftCode: true },
+        });
+
+        if (!user || !user.shiftCode) return null;
+        return this.getShiftByCode(user.shiftCode);
+      } catch (fallbackError) {
+        console.error('Fallback error in getUserShift:', fallbackError);
+        return null;
+      }
+    }
   }
 
   async getShiftById(shiftId: string): Promise<Shift | null> {
@@ -220,7 +253,9 @@ export class ShiftManagementService {
   ): Promise<ShiftAdjustmentRequest | null> {
     return this.prisma.shiftAdjustmentRequest.findFirst({
       where: {
-        employeeId: userId,
+        employeeId: {
+          equals: userId, // FIX: Use equals condition
+        },
         date: {
           gte: startOfDay(date),
           lt: endOfDay(date),
