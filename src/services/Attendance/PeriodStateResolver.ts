@@ -480,11 +480,38 @@ export class PeriodStateResolver {
     context: ValidationContext,
     shiftData: ShiftData,
   ): UnifiedPeriodState {
-    const currentWindow = windows[0]; // Get first window since we're creating state for current period
+    const currentWindow = windows[0];
+    const now = context.timestamp;
+    const isCheckingIn = !attendance?.CheckInTime;
     const isActive = Boolean(
       attendance?.CheckInTime && !attendance?.CheckOutTime,
     );
-    const now = context.timestamp;
+
+    // Calculate if we're in a late check-in scenario
+    const shiftStart = parseISO(
+      `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
+    );
+    const minutesSinceStart = differenceInMinutes(now, shiftStart);
+    const isLateCheckIn =
+      isCheckingIn &&
+      minutesSinceStart > 0 &&
+      minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN;
+
+    // If late check-in, expand time window
+    let effectiveWindow = { ...currentWindow };
+    if (isLateCheckIn) {
+      effectiveWindow = {
+        ...effectiveWindow,
+        // Expand window to include late check-in period
+        end: addMinutes(shiftStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+      };
+
+      console.log('Late check-in detected - Expanded window:', {
+        originalEnd: format(currentWindow.end, 'HH:mm:ss'),
+        expandedEnd: format(effectiveWindow.end, 'HH:mm:ss'),
+        minutesLate: minutesSinceStart,
+      });
+    }
 
     return {
       type: currentWindow.type,
@@ -509,7 +536,7 @@ export class PeriodStateResolver {
           currentWindow,
         ),
         isEarly: this.isEarlyForPeriod(now, currentWindow),
-        isLate: this.isLateForPeriod(now, currentWindow),
+        isLate: isLateCheckIn,
         isOvernight: this.timeManager.isOvernightShift(shiftData),
         isConnected: this.hasConnectingPeriod(windows, currentWindow),
       },

@@ -982,6 +982,7 @@ export class PeriodManagementService {
         end: p.endTime,
         isOvernight: p.isOvernight,
       })),
+      isCheckIn: !attendance?.CheckInTime,
       attendance: attendance
         ? {
             type: attendance.type,
@@ -996,8 +997,44 @@ export class PeriodManagementService {
     let currentPeriod: PeriodDefinition | null = null;
     let nextPeriod: PeriodDefinition | null = null;
 
+    const isCheckingIn = !attendance?.CheckInTime;
     const currentTimeStr = format(now, 'HH:mm');
     const referenceDate = startOfDay(now);
+
+    // If checking in, specifically look for late check-in windows
+    if (isCheckingIn) {
+      // Find if there's a shift that just started
+      const justStartedShift = periods.find(
+        (p) =>
+          p.type === PeriodType.REGULAR &&
+          p.startTime <= currentTimeStr &&
+          currentTimeStr <=
+            addMinutes(
+              parseISO(`${format(now, 'yyyy-MM-dd')}T${p.startTime}`),
+              VALIDATION_THRESHOLDS.LATE_CHECKIN,
+            )
+              .toISOString()
+              .slice(11, 16),
+      );
+
+      if (justStartedShift) {
+        console.log('Found late check-in window for shift that just started:', {
+          shiftStart: justStartedShift.startTime,
+          currentTime: currentTimeStr,
+          minutesLate: differenceInMinutes(
+            now,
+            parseISO(
+              `${format(now, 'yyyy-MM-dd')}T${justStartedShift.startTime}`,
+            ),
+          ),
+        });
+
+        return {
+          currentPeriod: justStartedShift,
+          nextPeriod: null,
+        };
+      }
+    }
 
     // First, check if regular period just completed and we're in overtime start window
     if (

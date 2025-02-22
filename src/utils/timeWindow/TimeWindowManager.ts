@@ -26,6 +26,8 @@ import { PeriodType } from '@prisma/client';
 export interface EnhancedTimeWindow extends TimeWindow {
   isTransition?: boolean;
   gracePeriod?: number;
+  isEarlyCheckin?: boolean;
+  isLateCheckin?: boolean;
 }
 
 export interface TimeWindowValidationResult {
@@ -74,6 +76,17 @@ export class TimeWindowManager {
 
     // Handle transitional periods
     windows = this.handleTransitionalPeriods(windows);
+
+    console.log('Calculated time windows:', {
+      windows: windows.map((w) => ({
+        type: w.type,
+        start: format(w.start, 'HH:mm:ss'),
+        end: format(w.end, 'HH:mm:ss'),
+        isFlexible: w.isFlexible,
+        isEarlyCheckin: w.isEarlyCheckin,
+        isLateCheckin: w.isLateCheckin,
+      })),
+    });
 
     // Sort windows chronologically
     return this.sortWindows(windows);
@@ -388,7 +401,7 @@ export class TimeWindowManager {
       end: parseISO(`${today}T${shiftData.endTime}`),
       type: PeriodType.REGULAR,
       isFlexible: false,
-      gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKIN,
+      gracePeriod: 0,
     };
 
     // Early window
@@ -401,9 +414,20 @@ export class TimeWindowManager {
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+      isEarlyCheckin: true,
     };
 
-    // Late window
+    // NEW: Late check-in window
+    const lateCheckInWindow: EnhancedTimeWindow = {
+      start: regularWindow.start,
+      end: addMinutes(regularWindow.start, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+      type: PeriodType.REGULAR,
+      isFlexible: true,
+      gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKIN,
+      isLateCheckin: true,
+    };
+
+    // Late check-out window
     const lateWindow: EnhancedTimeWindow = {
       start: regularWindow.end,
       end: addMinutes(regularWindow.end, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
@@ -412,7 +436,7 @@ export class TimeWindowManager {
       gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKOUT,
     };
 
-    return [earlyWindow, regularWindow, lateWindow];
+    return [earlyWindow, lateCheckInWindow, regularWindow, lateWindow];
   }
 
   /**
