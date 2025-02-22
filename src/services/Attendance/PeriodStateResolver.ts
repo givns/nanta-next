@@ -475,7 +475,7 @@ export class PeriodStateResolver {
    * Creates a state for a specific period
    */
   public createPeriodState(
-    windows: TimeWindow[],
+    windows: EnhancedTimeWindow[],
     attendance: AttendanceRecord | null,
     context: ValidationContext,
     shiftData: ShiftData,
@@ -483,11 +483,8 @@ export class PeriodStateResolver {
     const currentWindow = windows[0];
     const now = context.timestamp;
     const isCheckingIn = !attendance?.CheckInTime;
-    const isActive = Boolean(
-      attendance?.CheckInTime && !attendance?.CheckOutTime,
-    );
 
-    // Calculate if we're in a late check-in scenario
+    // Detect late check-in scenario
     const shiftStart = parseISO(
       `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
     );
@@ -497,18 +494,26 @@ export class PeriodStateResolver {
       minutesSinceStart > 0 &&
       minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN;
 
-    // If late check-in, expand time window
+    // Create a modified window for late check-in if needed
     let effectiveWindow = { ...currentWindow };
     if (isLateCheckIn) {
       effectiveWindow = {
         ...effectiveWindow,
-        // Expand window to include late check-in period
+        start: shiftStart,
         end: addMinutes(shiftStart, VALIDATION_THRESHOLDS.LATE_CHECKIN),
+        isLateCheckin: true,
+        isEarlyCheckin: false, // Required property
       };
 
-      console.log('Late check-in detected - Expanded window:', {
-        originalEnd: format(currentWindow.end, 'HH:mm:ss'),
-        expandedEnd: format(effectiveWindow.end, 'HH:mm:ss'),
+      console.log('Late check-in detected - Using expanded window:', {
+        originalWindow: {
+          start: format(currentWindow.start, 'HH:mm:ss'),
+          end: format(currentWindow.end, 'HH:mm:ss'),
+        },
+        expandedWindow: {
+          start: format(effectiveWindow.start, 'HH:mm:ss'),
+          end: format(effectiveWindow.end, 'HH:mm:ss'),
+        },
         minutesLate: minutesSinceStart,
       });
     }
@@ -516,11 +521,11 @@ export class PeriodStateResolver {
     return {
       type: currentWindow.type,
       timeWindow: {
-        start: format(currentWindow.start, "yyyy-MM-dd'T'HH:mm:ss"),
-        end: format(currentWindow.end, "yyyy-MM-dd'T'HH:mm:ss"),
+        start: format(effectiveWindow.start, "yyyy-MM-dd'T'HH:mm:ss"),
+        end: format(effectiveWindow.end, "yyyy-MM-dd'T'HH:mm:ss"),
       },
       activity: {
-        isActive,
+        isActive: Boolean(attendance?.CheckInTime && !attendance?.CheckOutTime),
         checkIn: attendance?.CheckInTime?.toISOString() || null,
         checkOut: attendance?.CheckOutTime?.toISOString() || null,
         isOvertime: currentWindow.type === PeriodType.OVERTIME,
@@ -531,12 +536,11 @@ export class PeriodStateResolver {
         ),
       },
       validation: {
-        isWithinBounds: this.timeManager.isWithinValidBounds(
-          now,
-          currentWindow,
-        ),
-        isEarly: this.isEarlyForPeriod(now, currentWindow),
-        isLate: isLateCheckIn,
+        isWithinBounds:
+          isLateCheckIn ||
+          this.timeManager.isWithinValidBounds(now, currentWindow),
+        isEarly: !isLateCheckIn && this.isEarlyForPeriod(now, currentWindow),
+        isLate: isLateCheckIn, // Directly use our late check-in detection
         isOvernight: this.timeManager.isOvernightShift(shiftData),
         isConnected: this.hasConnectingPeriod(windows, currentWindow),
       },

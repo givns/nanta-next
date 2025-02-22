@@ -1003,24 +1003,30 @@ export class PeriodManagementService {
 
     // If checking in, specifically look for late check-in windows
     if (isCheckingIn) {
-      // Find if there's a shift that just started
-      const justStartedShift = periods.find(
-        (p) =>
-          p.type === PeriodType.REGULAR &&
-          p.startTime <= currentTimeStr &&
-          currentTimeStr <=
-            addMinutes(
-              parseISO(`${format(now, 'yyyy-MM-dd')}T${p.startTime}`),
-              VALIDATION_THRESHOLDS.LATE_CHECKIN,
-            )
-              .toISOString()
-              .slice(11, 16),
-      );
+      // Find if we're currently within a late check-in window
+      // (within LATE_CHECKIN minutes after the shift start)
+      const justStartedShift = periods.find((p) => {
+        if (p.type !== PeriodType.REGULAR) return false;
+
+        // Parse the shift start time
+        const shiftStart = parseISO(
+          `${format(now, 'yyyy-MM-dd')}T${p.startTime}`,
+        );
+
+        // Calculate the late check-in window end
+        const lateCheckInEnd = addMinutes(
+          shiftStart,
+          VALIDATION_THRESHOLDS.LATE_CHECKIN,
+        );
+
+        // Check if current time is after shift start but before late window end
+        return now >= shiftStart && now <= lateCheckInEnd;
+      });
 
       if (justStartedShift) {
-        console.log('Found late check-in window for shift that just started:', {
+        console.log('Found shift in late check-in window:', {
           shiftStart: justStartedShift.startTime,
-          currentTime: currentTimeStr,
+          currentTime: format(now, 'HH:mm:ss'),
           minutesLate: differenceInMinutes(
             now,
             parseISO(
@@ -1029,8 +1035,14 @@ export class PeriodManagementService {
           ),
         });
 
+        // Important: Set a flag in the context to indicate this is a late check-in scenario
+        // We'll use this flag in downstream methods
+        if (window) {
+          (window as any).isLateCheckInScenario = true;
+        }
+
         return {
-          currentPeriod: justStartedShift,
+          currentPeriod: justStartedShift, // Use the original period
           nextPeriod: null,
         };
       }

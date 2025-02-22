@@ -9,6 +9,7 @@ import {
   UnifiedPeriodState,
   TimingFlags,
   PeriodDefinition,
+  EnhancedTimeWindow,
 } from '@/types/attendance';
 import {
   addMinutes,
@@ -22,13 +23,6 @@ import {
 } from 'date-fns';
 import { VALIDATION_THRESHOLDS } from '@/types/attendance/interface';
 import { PeriodType } from '@prisma/client';
-
-export interface EnhancedTimeWindow extends TimeWindow {
-  isTransition?: boolean;
-  gracePeriod?: number;
-  isEarlyCheckin?: boolean;
-  isLateCheckin?: boolean;
-}
 
 export interface TimeWindowValidationResult {
   isValid: boolean;
