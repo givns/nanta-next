@@ -42,6 +42,8 @@ export class ShiftManagementService {
       }
     }
 
+    console.log('Getting effective shift:', employeeId, date);
+
     // FIX: Use findFirst with equals condition instead of findUnique
     const user = await this.prisma.user.findFirst({
       where: {
@@ -73,6 +75,8 @@ export class ShiftManagementService {
         requestedShift: true, // Include the relationship
       },
     });
+
+    console.log('Shift adjustment:', adjustment);
 
     const adjustedShift = adjustment?.requestedShift;
 
