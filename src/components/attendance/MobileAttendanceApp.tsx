@@ -166,7 +166,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
 
         {/* Status Message */}
         <div
-          className={`mt-3 ${isOvertimePeriod ? 'text-yellow-600' : 'text-green-800'} text-sm`}
+          className={`mt-3 ${isOvertimePeriod ? 'text-yellow-600' : 'text-black'} text-sm`}
         >
           {(() => {
             if (isOvertimePeriod) {

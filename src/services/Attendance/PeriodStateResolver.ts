@@ -329,8 +329,34 @@ export class PeriodStateResolver {
     statusInfo: PeriodStatusInfo,
     currentState: UnifiedPeriodState,
   ): boolean {
+    console.log('Determining allowed status with flags:', {
+      isInsideShift: flags.isInsideShift,
+      isEarlyCheckIn: flags.isEarlyCheckIn,
+      isLateCheckIn: flags.isLateCheckIn,
+      isCheckingIn: !statusInfo.isActiveAttendance,
+      isLate: currentState.validation.isLate,
+      timeWindow: {
+        start: currentState.timeWindow.start.substring(11, 19),
+        end: currentState.timeWindow.end.substring(11, 19),
+      },
+      currentTime: new Date().toISOString().substring(11, 19),
+    });
+
     // Handle special cases first
     if (flags.isEmergencyLeave) {
+      return true;
+    }
+
+    // Check if this is a late check-in scenario
+    const isLateCheckInScenario =
+      !statusInfo.isActiveAttendance &&
+      currentState.validation.isLate &&
+      currentState.timeWindow.end > currentState.timeWindow.start && // Regular period (not overnight)
+      currentState.timeWindow.end.includes('13:15'); // Late check-in window ends at 13:15
+
+    // Explicitly allow late check-in
+    if (isLateCheckInScenario) {
+      console.log('Explicitly allowing late check-in within window');
       return true;
     }
 
