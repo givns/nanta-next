@@ -266,6 +266,8 @@ export class AttendanceStateManager {
 
   private createInitialValidation(): StateValidation {
     return {
+      errors: {},
+      warnings: {},
       allowed: true,
       reason: '',
       flags: {

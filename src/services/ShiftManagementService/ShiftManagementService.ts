@@ -11,6 +11,7 @@ import { formatDate, getCurrentTime } from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { getCacheData, setCacheData } from '../../lib/serverCache';
+import { da } from 'date-fns/locale';
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -31,8 +32,6 @@ export class ShiftManagementService {
     employeeId: string,
     date: Date,
   ): Promise<EffectiveShift | null> {
-    const now = getCurrentTime();
-    console.log('compare date in getting effective shift:', now, date);
     console.log('Getting effective shift:', employeeId, date);
     const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
     const cached = await getCacheData(cacheKey);
@@ -67,8 +66,8 @@ export class ShiftManagementService {
           equals: employeeId, // FIX: Use equals condition
         },
         date: {
-          gte: startOfDay(now),
-          lt: endOfDay(now),
+          gte: startOfDay(date),
+          lt: endOfDay(date),
         },
         status: 'approved',
       },
@@ -77,9 +76,9 @@ export class ShiftManagementService {
       },
     });
 
-    console.log('Shift adjustment:', adjustment);
+    console.log('Shift adjustment:', adjustment?.requestedShift);
 
-    const adjustedShift = adjustment?.requestedShift;
+    const adjustedShift = adjustment?.requestedShift ?? null;
 
     const result: EffectiveShift = {
       current: {

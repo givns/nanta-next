@@ -106,6 +106,8 @@ const sanitizeResponse = (data: any): AttendanceStatusResponse => {
 
     // Validation state sanitization
     const validation = {
+      errors: data.validation?.errors || {},
+      warnings: data.validation?.warnings || {},
       allowed: Boolean(data.validation?.allowed),
       reason: data.validation?.reason || '',
       flags: {

@@ -425,6 +425,8 @@ export class PeriodStateResolver {
     const metadata = this.buildValidationMetadata(transitionInfo, flags);
 
     return {
+      errors: {},
+      warnings: {},
       allowed,
       reason,
       flags,

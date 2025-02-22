@@ -71,6 +71,8 @@ export interface UnifiedPeriodState {
 }
 
 export interface StateValidation {
+  errors: any;
+  warnings: any;
   allowed: boolean;
   reason: string;
   flags: ValidationFlags;

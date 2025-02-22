@@ -230,6 +230,35 @@ export class PeriodManagementService {
         ? this.convertToOvertimeContext(context.overtimeInfo)
         : undefined;
 
+      console.log(`[${processId}] PERIOD: Completed period state calculation`, {
+        employeeId,
+        timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+        duration: Date.now() - startTime,
+        currentState: currentState.type,
+        activeRecord: activeRecord?.type,
+        hasActiveRecord: !!activeRecord,
+        hasOvertime: !!overtime,
+        validation: {
+          isValid: stateValidation.allowed,
+          state: activeRecord?.state || AttendanceState.ABSENT,
+          errors: stateValidation.errors,
+          warnings: stateValidation.warnings,
+          checkInAllowed:
+            stateValidation.allowed && !statusInfo.isActiveAttendance,
+          checkOutAllowed:
+            stateValidation.allowed && statusInfo.isActiveAttendance,
+          overtimeAllowed:
+            statusInfo.isOvertimePeriod ||
+            (currentState.validation.isConnected &&
+              this.hasOvertimeFollowing(transitions)),
+          metadata: {
+            lastValidated: now,
+            validatedBy: 'system',
+            rules: ['TIME_WINDOW', 'ATTENDANCE_STATE', 'TRANSITION'],
+          },
+        },
+      });
+
       return {
         current: currentState,
         transitions,
