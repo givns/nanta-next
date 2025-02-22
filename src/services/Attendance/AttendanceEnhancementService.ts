@@ -45,21 +45,88 @@ export class AttendanceEnhancementService {
     window: ShiftWindowResponse,
     context: ValidationContext,
   ): Promise<AttendanceStatusResponse> {
+    const enhancementId = `enhance-${context.employeeId}-${Date.now()}`;
+    const startTime = Date.now();
+
+    // Performance tracking
+    const tracker = {
+      steps: [] as { name: string; duration: number; timestamp: string }[],
+      lastStep: startTime,
+      track: function (name: string, data?: any) {
+        const now = Date.now();
+        const duration = now - this.lastStep;
+        this.lastStep = now;
+
+        this.steps.push({
+          name,
+          duration,
+          timestamp: new Date().toISOString(),
+        });
+
+        console.log(
+          `[${enhancementId}] ENHANCE_STEP: ${name} (${duration}ms)`,
+          data || '',
+        );
+        return this;
+      },
+    };
+
+    console.log(`[${enhancementId}] ENHANCE: Starting attendance enhancement`, {
+      employeeId: context.employeeId,
+      timestamp: format(context.timestamp, 'yyyy-MM-dd HH:mm:ss'),
+      hasSerializedAttendance: !!serializedAttendance,
+      windowType: window.type,
+      hasOvertimeInfo: !!window.overtimeInfo,
+      contextData: {
+        isCheckIn: context.isCheckIn,
+        periodType: context.periodType,
+        isOvertime: context.isOvertime,
+        hasShift: !!context.shift,
+      },
+    });
+
+    tracker.track('init');
+
     try {
       // 1. Deserialize attendance record if exists
       const attendance = serializedAttendance
         ? this.deserializeAttendanceRecord(serializedAttendance)
         : null;
 
+      tracker.track('deserialize_attendance', {
+        success: !!attendance,
+        attendanceType: attendance?.type,
+        checkStatus: attendance?.checkStatus,
+        state: attendance?.state,
+      });
+
       // 2. Get period state using PeriodManagementService
-      const periodState = await this.periodManager.getCurrentPeriodState(
+      console.log(`[${enhancementId}] ENHANCE: Calling period manager`, {
+        employeeId: context.employeeId,
+        hasAttendance: !!attendance,
+        recordsCount: attendance ? 1 : 0,
+      });
+
+      // 2. Get period state using PeriodManagementService
+      const periodStatePromise = this.periodManager.getCurrentPeriodState(
         context.employeeId,
         attendance ? [attendance] : [],
         context.timestamp,
       );
 
+      const periodState = await periodStatePromise;
+
+      tracker.track('get_period_state', {
+        periodType: periodState.current.type,
+        hasOvertime: !!periodState.overtime,
+        timeWindow: {
+          start: periodState.current.timeWindow.start,
+          end: periodState.current.timeWindow.end,
+        },
+      });
+
       // 3. Log state tracking information
-      console.log('Enhancement state tracking:', {
+      console.log(`[${enhancementId}] ENHANCE: Enhancement state tracking`, {
         currentTime: format(context.timestamp, 'yyyy-MM-dd HH:mm:ss'),
         hasAttendance: !!attendance,
         hasOvertimeInfo: !!periodState.overtime,
@@ -70,6 +137,7 @@ export class AttendanceEnhancementService {
               endTime: periodState.overtime.endTime,
             }
           : null,
+        isValidState: periodState.validation?.isValid,
       });
 
       // 4. Calculate status info

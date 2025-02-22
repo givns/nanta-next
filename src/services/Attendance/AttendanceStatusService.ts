@@ -41,32 +41,111 @@ export class AttendanceStatusService {
     options: GetAttendanceStatusOptions,
   ): Promise<AttendanceStatusResponse> {
     const now = getCurrentTime();
+    const requestId = `status-${employeeId}-${Date.now()}`;
+
+    console.log(
+      `[${requestId}] STATUS_SERVICE: Starting attendance status request`,
+      {
+        employeeId,
+        options,
+        timestamp: format(now, 'yyyy-MM-dd HH:mm:ss.SSS'),
+      },
+    );
+
+    // Performance tracking
+    const perfTracker = {
+      start: Date.now(),
+      steps: [] as { name: string; duration: number; timestamp: string }[],
+      addStep: function (name: string) {
+        const timestamp = new Date().toISOString();
+        const duration =
+          Date.now() -
+          (this.steps.length
+            ? new Date(this.steps[this.steps.length - 1].timestamp).getTime()
+            : this.start);
+
+        this.steps.push({ name, duration, timestamp });
+        console.log(
+          `[${requestId}] STATUS_SERVICE_STEP: ${name} (${duration}ms)`,
+        );
+        return this;
+      },
+    };
+
+    perfTracker.addStep('init');
+
     const forceRefreshKey = `forceRefresh:${employeeId}`;
     const forceRefresh = await cacheService.get(forceRefreshKey);
 
+    perfTracker.addStep('cache_check');
+
     // If force refresh flag exists, bypass cache
     if (!forceRefresh) {
+      console.log(`[${requestId}] STATUS_SERVICE: Checking cache`);
       const cachedStatus =
         await this.cacheManager.getAttendanceState(employeeId);
+
+      perfTracker.addStep('cache_lookup');
+
       if (cachedStatus) {
+        console.log(
+          `[${requestId}] STATUS_SERVICE: Cache hit, returning cached status`,
+          {
+            state: cachedStatus.base.state,
+            checkStatus: cachedStatus.base.checkStatus,
+            periodType: cachedStatus.base.periodInfo.type,
+            isOvertime: cachedStatus.base.periodInfo.isOvertime,
+            cachedAt: cachedStatus.base.metadata.lastUpdated,
+          },
+        );
+
+        perfTracker.addStep('cache_hit_return');
+
         return cachedStatus;
       }
+
+      console.log(`[${requestId}] STATUS_SERVICE: Cache miss`);
+    } else {
+      console.log(`[${requestId}] STATUS_SERVICE: Force refresh requested`);
     }
+
+    perfTracker.addStep('get_shift_start');
 
     // Get effective shift first
     const shiftData = await this.shiftService.getEffectiveShift(
       employeeId,
       now,
     );
+
+    perfTracker.addStep('get_shift_complete');
+
     if (!shiftData) {
+      console.error(
+        `[${requestId}] STATUS_SERVICE: No shift configuration found`,
+      );
       throw new Error('No shift configuration found');
     }
+
+    console.log(`[${requestId}] STATUS_SERVICE: Shift data retrieved`, {
+      shiftId: shiftData.current.id,
+      workDays: shiftData.current.workDays,
+      times: `${shiftData.current.startTime}-${shiftData.current.endTime}`,
+      isOvernight: shiftData.current.endTime < shiftData.current.startTime,
+    });
+
+    perfTracker.addStep('get_records_start');
 
     // Get all attendance records and ensure it's not null
     const allRecords =
       (await this.attendanceRecordService.getAllAttendanceRecords(
         employeeId,
       )) || [];
+
+    perfTracker.addStep('get_records_complete');
+
+    console.log(
+      `[${requestId}] STATUS_SERVICE: Retrieved ${allRecords.length} attendance records`,
+    );
 
     // Find active record (prioritize overtime)
     const activeRecord =
@@ -78,17 +157,27 @@ export class AttendanceStatusService {
       ) ||
       allRecords.find((record) => record.CheckInTime && !record.CheckOutTime);
 
+    perfTracker.addStep('find_active_record');
+
     // Log the current state before getting period state
-    console.log('Current state before period resolution:', {
-      activeRecord: activeRecord
-        ? {
-            type: activeRecord.type,
-            checkIn: activeRecord.CheckInTime,
-            checkOut: activeRecord.CheckOutTime,
-          }
-        : null,
-      hasAllRecords: allRecords.length > 0,
-    });
+    console.log(
+      `[${requestId}] STATUS_SERVICE: Current state before period resolution`,
+      {
+        activeRecord: activeRecord
+          ? {
+              id: activeRecord.id,
+              type: activeRecord.type,
+              checkIn: format(activeRecord.CheckInTime!, 'HH:mm:ss'),
+              checkOut: activeRecord.CheckOutTime,
+              state: activeRecord.state,
+              checkStatus: activeRecord.checkStatus,
+              isOvertime: activeRecord.isOvertime,
+            }
+          : null,
+        recordsCount: allRecords.length,
+        recordTypes: allRecords.map((r) => r.type),
+      },
+    );
 
     const stateTracker = {
       originalState: null as ShiftWindowResponse | null,
@@ -99,6 +188,8 @@ export class AttendanceStatusService {
       }>,
     };
 
+    perfTracker.addStep('period_manager_start');
+
     // Get period state from period manager
     const periodState = await this.periodManager.getCurrentPeriodState(
       employeeId,
@@ -106,17 +197,28 @@ export class AttendanceStatusService {
       now,
     );
 
-    console.log('Period state after resolution:', {
-      type: periodState.current.type,
-      hasOvertime: !!periodState.overtime,
-      overtimeDetails: periodState.overtime
-        ? {
-            id: periodState.overtime.id,
-            startTime: periodState.overtime.startTime,
-            endTime: periodState.overtime.endTime,
-          }
-        : null,
-    });
+    perfTracker.addStep('period_manager_complete');
+
+    console.log(
+      `[${requestId}] STATUS_SERVICE: Period state after resolution`,
+      {
+        type: periodState.current.type,
+        hasOvertime: !!periodState.overtime,
+        overtimeDetails: periodState.overtime
+          ? {
+              id: periodState.overtime.id,
+              startTime: periodState.overtime.startTime,
+              endTime: periodState.overtime.endTime,
+            }
+          : null,
+        timeWindow: {
+          start: periodState.current.timeWindow.start,
+          end: periodState.current.timeWindow.end,
+        },
+        validationState: periodState.validation?.isValid,
+        currentTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      },
+    );
 
     // Transform period state to window response
     // Create window response with tracking
@@ -141,7 +243,6 @@ export class AttendanceStatusService {
       type: 'initial',
     });
 
-    // Get latest record and serialize it
     // Get latest record and serialize it
     const latestRecord = (() => {
       // First priority: Active records (already handles overnight periods)

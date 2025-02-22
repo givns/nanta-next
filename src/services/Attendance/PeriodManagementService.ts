@@ -67,13 +67,55 @@ export class PeriodManagementService {
     records: AttendanceRecord[] | null,
     now: Date,
   ): Promise<PeriodState> {
+    const processId = `period-${employeeId}-${Date.now()}`;
+    const startTime = Date.now();
+    // Initialize tracker
+    const tracker = {
+      lastTimestamp: Date.now(),
+      steps: [] as { name: string; duration: number }[],
+      track: function (name: string, data?: any) {
+        const current = Date.now();
+        const duration = current - this.lastTimestamp;
+        this.lastTimestamp = current;
+
+        this.steps.push({ name, duration });
+        console.log(
+          `[${processId}] PERIOD_STEP: ${name} (${duration}ms)`,
+          data || '',
+        );
+        return this;
+      },
+    };
+
+    console.log(`[${processId}] PERIOD: Starting period state calculation`, {
+      employeeId,
+      timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      recordsCount: records?.length || 0,
+      hasActiveRecord:
+        records?.some((r) => r.CheckInTime && !r.CheckOutTime) || false,
+    });
+
+    tracker.track('init');
+
     try {
       // Get shift data
+      tracker.track('get_shift_start');
       const shiftData = await this.shiftService.getEffectiveShift(
         employeeId,
         now,
       );
+
+      tracker.track('get_shift_complete', {
+        hasShiftData: !!shiftData,
+        shiftId: shiftData?.current?.id,
+        workDays: shiftData?.current?.workDays?.length,
+        timeRange: shiftData
+          ? `${shiftData.current.startTime}-${shiftData.current.endTime}`
+          : null,
+      });
+
       if (!shiftData) {
+        tracker.track('error_no_shift_data');
         throw new AppError({
           code: ErrorCode.SHIFT_DATA_ERROR,
           message: 'No shift configuration found',
@@ -81,7 +123,16 @@ export class PeriodManagementService {
       }
 
       // Get active record
+      tracker.track('find_active_record_start');
       const activeRecord = this.findActiveRecord(records || []);
+
+      tracker.track('find_active_record_complete', {
+        hasActiveRecord: !!activeRecord,
+        activeRecordType: activeRecord?.type,
+        activeRecordState: activeRecord?.state,
+        hasCheckIn: !!activeRecord?.CheckInTime,
+        hasCheckOut: !!activeRecord?.CheckOutTime,
+      });
 
       // Create validation context
       const context: ValidationContext = {
