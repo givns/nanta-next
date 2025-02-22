@@ -239,6 +239,33 @@ export class TimeWindowManager {
    * Check if a date is within valid bounds of a window
    */
   isWithinValidBounds(now: Date, window: EnhancedTimeWindow): boolean {
+    // For regular windows, we need to handle both early and late check-in differently
+    if (window.type === PeriodType.REGULAR && !window.isTransition) {
+      // For the main shift window, we should add a late check-in grace period to the start
+      if (!window.isFlexible) {
+        const earlyStart = subMinutes(
+          window.start,
+          VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+        );
+        const lateStart = addMinutes(
+          window.start,
+          VALIDATION_THRESHOLDS.LATE_CHECKIN,
+        );
+
+        // For check-in, consider within bounds if before lateStart
+        if (now >= earlyStart && now <= lateStart) {
+          return true;
+        }
+
+        // Also check if within the regular window
+        return isWithinInterval(now, {
+          start: window.start,
+          end: window.end,
+        });
+      }
+    }
+
+    // Original logic for other windows
     const effectiveStart = window.isTransition
       ? window.start
       : subMinutes(window.start, window.gracePeriod || 0);

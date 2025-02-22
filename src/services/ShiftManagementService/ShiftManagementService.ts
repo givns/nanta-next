@@ -302,9 +302,7 @@ export class ShiftManagementService {
 
   /** @deprecated Use PeriodManagementService.isWithinShiftWindow instead */
   async isWithinShiftWindow(): Promise<boolean> {
-    throw new Error(
-      'Deprecated: Use PeriodManagementService.isWithinShiftWindow',
-    );
+    throw new Error('Deprecated: Use timeWindowManager.isWithinShiftWindow');
   }
 
   /** @deprecated Use PeriodManagementService.getNextDayPeriodState instead */
