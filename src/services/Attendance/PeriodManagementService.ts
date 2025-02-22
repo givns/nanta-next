@@ -1074,12 +1074,25 @@ export class PeriodManagementService {
           currentPeriodStart,
           VALIDATION_THRESHOLDS.EARLY_CHECKIN,
         );
+
+        const lateCheckInWindow = addMinutes(
+          currentPeriodStart,
+          VALIDATION_THRESHOLDS.LATE_CHECKIN,
+        );
+
         const lateWindow = addMinutes(
           currentPeriodEnd,
           VALIDATION_THRESHOLDS.LATE_CHECKOUT,
         );
 
-        if (isWithinInterval(now, { start: earlyWindow, end: lateWindow })) {
+        if (
+          // Regular period check
+          isWithinInterval(now, { start: earlyWindow, end: lateWindow }) ||
+          // Explicit late check-in window check
+          (!attendance?.CheckInTime &&
+            now > currentPeriodStart &&
+            now <= lateCheckInWindow)
+        ) {
           // For overtime periods, prioritize exact time match
           if (period.type === PeriodType.OVERTIME) {
             currentPeriod = period;
