@@ -339,7 +339,7 @@ export class PeriodStateResolver {
       return false;
     }
 
-    // For active attendance
+    // For active attendance (check-out)
     if (statusInfo.isActiveAttendance) {
       // Allow checkout if:
       // 1. Inside shift or
@@ -352,18 +352,27 @@ export class PeriodStateResolver {
       );
     }
 
-    // For new check-ins - MODIFY THIS SECTION
-    const now = new Date();
-    const periodStart = parseISO(currentState.timeWindow.start);
-    const isWithinLateWindow =
-      now <= addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN);
+    // IMPORTANT NEW ADDITION: Explicitly check for late check-in
+    // If this is a check-in (not active attendance) and current time is within LATE_CHECKIN threshold
+    // Calculate how many minutes past the shift start time
+    if (!statusInfo.isActiveAttendance) {
+      const now = Date.now();
+      const periodStart = new Date(currentState.timeWindow.end).getTime(); // Using end of window which is shift start
+      const minutesSinceStart = Math.floor((now - periodStart) / 60000);
 
-    // Add explicit handling for late check-in within threshold
-    if (isWithinLateWindow) {
-      return true;
+      // Check if within late check-in threshold (default 5 minutes)
+      if (
+        minutesSinceStart >= 0 &&
+        minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN
+      ) {
+        console.log(
+          `Late check-in allowed: ${minutesSinceStart} minutes after shift start`,
+        );
+        return true;
+      }
     }
 
-    // For new check-ins
+    // The original conditions for check-in
     return (
       // Allow if within shift bounds
       flags.isInsideShift ||
