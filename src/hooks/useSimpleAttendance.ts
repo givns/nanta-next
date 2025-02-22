@@ -246,6 +246,8 @@ export function useSimpleAttendance({
 
   // Default state validation
   const defaultStateValidation: StateValidation = {
+    errors: [],
+    warnings: [],
     allowed: false,
     reason: '',
     flags: {

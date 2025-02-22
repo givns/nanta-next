@@ -339,7 +339,7 @@ export class PeriodStateResolver {
       return false;
     }
 
-    // For active attendance (check-out)
+    // For active attendance
     if (statusInfo.isActiveAttendance) {
       // Allow checkout if:
       // 1. Inside shift or
@@ -352,27 +352,28 @@ export class PeriodStateResolver {
       );
     }
 
-    // IMPORTANT NEW ADDITION: Explicitly check for late check-in
-    // If this is a check-in (not active attendance) and current time is within LATE_CHECKIN threshold
-    // Calculate how many minutes past the shift start time
-    if (!statusInfo.isActiveAttendance) {
-      const now = Date.now();
-      const periodStart = new Date(currentState.timeWindow.end).getTime(); // Using end of window which is shift start
-      const minutesSinceStart = Math.floor((now - periodStart) / 60000);
+    // For new check-ins
+    const now = new Date();
+    const periodStart = parseISO(currentState.timeWindow.start);
+    const periodEnd = parseISO(currentState.timeWindow.end);
 
-      // Check if within late check-in threshold (default 5 minutes)
-      if (
-        minutesSinceStart >= 0 &&
-        minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN
-      ) {
-        console.log(
-          `Late check-in allowed: ${minutesSinceStart} minutes after shift start`,
-        );
-        return true;
-      }
+    // Explicitly check for late check-in window
+    const isInLateCheckInWindow =
+      currentState.validation.isLate && // Already marked as late
+      now >= periodStart && // After period start
+      now <= periodEnd && // Before period end
+      differenceInMinutes(now, periodStart) <=
+        VALIDATION_THRESHOLDS.LATE_CHECKIN; // Within threshold
+
+    if (isInLateCheckInWindow) {
+      // IMPORTANT: Log that we're explicitly allowing late check-in
+      console.log(
+        `Explicitly allowing late check-in (${differenceInMinutes(now, periodStart)} minutes late)`,
+      );
+      return true;
     }
 
-    // The original conditions for check-in
+    // Original check-in conditions
     return (
       // Allow if within shift bounds
       flags.isInsideShift ||
