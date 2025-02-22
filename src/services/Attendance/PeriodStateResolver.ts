@@ -352,6 +352,17 @@ export class PeriodStateResolver {
       );
     }
 
+    // For new check-ins - MODIFY THIS SECTION
+    const now = new Date();
+    const periodStart = parseISO(currentState.timeWindow.start);
+    const isWithinLateWindow =
+      now <= addMinutes(periodStart, VALIDATION_THRESHOLDS.LATE_CHECKIN);
+
+    // Add explicit handling for late check-in within threshold
+    if (isWithinLateWindow) {
+      return true;
+    }
+
     // For new check-ins
     return (
       // Allow if within shift bounds
