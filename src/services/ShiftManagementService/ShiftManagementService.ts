@@ -7,7 +7,7 @@ import {
 } from '@/types/attendance';
 import { PrismaClient, Shift, ShiftAdjustmentRequest } from '@prisma/client';
 import { endOfDay, startOfDay, format, subDays } from 'date-fns';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, getCurrentTime } from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { getCacheData, setCacheData } from '../../lib/serverCache';
@@ -31,6 +31,9 @@ export class ShiftManagementService {
     employeeId: string,
     date: Date,
   ): Promise<EffectiveShift | null> {
+    const now = getCurrentTime();
+    console.log('compare date in getting effective shift:', now, date);
+    console.log('Getting effective shift:', employeeId, date);
     const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
     const cached = await getCacheData(cacheKey);
 
@@ -41,8 +44,6 @@ export class ShiftManagementService {
         console.error('Cache parse error:', err);
       }
     }
-
-    console.log('Getting effective shift:', employeeId, date);
 
     // FIX: Use findFirst with equals condition instead of findUnique
     const user = await this.prisma.user.findFirst({
@@ -66,8 +67,8 @@ export class ShiftManagementService {
           equals: employeeId, // FIX: Use equals condition
         },
         date: {
-          gte: startOfDay(date),
-          lt: endOfDay(date),
+          gte: startOfDay(now),
+          lt: endOfDay(now),
         },
         status: 'approved',
       },
