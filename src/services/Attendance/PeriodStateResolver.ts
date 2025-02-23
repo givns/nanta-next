@@ -312,8 +312,18 @@ export class PeriodStateResolver {
 
     // New check-in cases
     const periodStart = parseISO(currentState.timeWindow.start);
+
     if (flags.isEarlyCheckIn) {
       return `เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}เริ่ม ${format(periodStart, 'HH:mm')} น.`;
+    }
+
+    // Add grace period check
+    const minutesSinceStart = differenceInMinutes(now, periodStart);
+    if (
+      minutesSinceStart > 0 &&
+      minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN
+    ) {
+      return 'อยู่ในช่วงเวลาผ่อนผัน'; // Within grace period
     }
 
     if (flags.isLateCheckIn) {
@@ -326,6 +336,11 @@ export class PeriodStateResolver {
     // Default message for overtime
     if (currentState.type === PeriodType.OVERTIME) {
       return 'ช่วงเวลาทำงานล่วงเวลา';
+    }
+
+    // If we're inside shift, say so
+    if (flags.isInsideShift) {
+      return 'อยู่ในช่วงเวลาทำงาน'; // Within work hours
     }
 
     // Default - outside period

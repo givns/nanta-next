@@ -76,7 +76,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
 
   // Don't display "late" if we're in the early check-in window
   const showLateMinutes =
-    metrics.lateMinutes > 0 && !validationFlags.isEarlyCheckIn;
+    metrics.lateMinutes > 5 && !validationFlags.isEarlyCheckIn;
 
   return (
     <div className="space-y-4">
