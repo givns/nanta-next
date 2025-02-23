@@ -336,7 +336,7 @@ export class PeriodStateResolver {
 
     if (flags.isEarlyCheckIn) {
       return `อยู่ในช่วงลงเวลาก่อนเข้างาน 
-      เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}เริ่ม ${format(periodStart, 'HH:mm')} น.`;
+      เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}`;
     }
 
     if (flags.isLateCheckIn) {
