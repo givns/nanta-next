@@ -29,7 +29,6 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { TimeWindowManager } from '@/utils/timeWindow/TimeWindowManager';
 import { AttendanceState, PeriodType } from '@prisma/client';
-import { current } from '@reduxjs/toolkit';
 import {
   addDays,
   addMinutes,
@@ -39,7 +38,6 @@ import {
   parseISO,
   subMinutes,
 } from 'date-fns';
-import { get } from 'lodash';
 
 export class PeriodStateResolver {
   private cache: Map<
@@ -569,15 +567,7 @@ export class PeriodStateResolver {
       currentWindow,
     );
 
-    console.log('Should use grace period window:', shouldUseGracePeriodWindow);
-    console.log(
-      'Is within bounds in create period state:',
-      this.timeManager.isWithinValidBounds(now, currentWindow),
-    );
-    console.log(
-      'Is early for period:',
-      this.isEarlyForPeriod(now, currentWindow),
-    );
+    console.log('isWithinBounds in createPeriodState', isWithinBounds);
 
     console.log('isEarlyCheckin:', currentWindow.isEarlyCheckin);
 
@@ -664,11 +654,6 @@ export class PeriodStateResolver {
       context.periodType || PeriodType.REGULAR,
       shiftData,
       context,
-    );
-
-    console.log(
-      'Calculated time windows chosen in resolveCurrentState:',
-      windows,
     );
 
     // Find relevant window for current time
