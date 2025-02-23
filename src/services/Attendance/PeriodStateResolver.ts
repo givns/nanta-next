@@ -318,7 +318,8 @@ export class PeriodStateResolver {
     const periodStart = parseISO(currentState.timeWindow.start);
 
     if (flags.isEarlyCheckIn) {
-      return `เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}เริ่ม ${format(periodStart, 'HH:mm')} น.`;
+      return `อยู่ในช่วงลงเวลาก่อนเข้างาน 
+      เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}เริ่ม ${format(periodStart, 'HH:mm')} น.`;
     }
 
     if (flags.isLateCheckIn) {
