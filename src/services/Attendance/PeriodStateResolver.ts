@@ -565,6 +565,7 @@ export class PeriodStateResolver {
     }
 
     console.log('Should use grace period window:', shouldUseGracePeriodWindow);
+    console.log('isWithinBounds:', currentWindow.isWithinBounds);
     console.log(
       'Is within bounds in create period state:',
       this.timeManager.isWithinValidBounds(now, currentWindow),
@@ -573,6 +574,9 @@ export class PeriodStateResolver {
       'Is early for period:',
       this.isEarlyForPeriod(now, currentWindow),
     );
+
+    console.log('isEarlyCheckin:', currentWindow.isEarlyCheckin);
+    console.log('isWithinBounds:', currentWindow.isWithinBounds);
 
     return {
       type: currentWindow.type,

@@ -23,6 +23,7 @@ import {
 } from 'date-fns';
 import { VALIDATION_THRESHOLDS } from '@/types/attendance/interface';
 import { PeriodType } from '@prisma/client';
+import { is } from 'date-fns/locale';
 
 export interface TimeWindowValidationResult {
   isValid: boolean;
@@ -251,6 +252,14 @@ export class TimeWindowManager {
    * Check if a date is within valid bounds of a window
    */
   isWithinValidBounds(now: Date, window: EnhancedTimeWindow): boolean {
+    console.log('Valid bounds check:', {
+      now: format(now, 'HH:mm:ss'),
+      windowStart: format(window.start, 'HH:mm:ss'),
+      windowEnd: format(window.end, 'HH:mm:ss'),
+      isFlexible: window.isFlexible,
+      isEarlyCheckIn: window.isEarlyCheckin,
+      isLateCheckIn: window.isLateCheckin,
+    });
     // For regular windows, we need to handle both early and late check-in differently
     if (window.type === PeriodType.REGULAR && !window.isTransition) {
       // For the main shift window, we should add a late check-in grace period to the start
