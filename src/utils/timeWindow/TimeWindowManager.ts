@@ -272,6 +272,23 @@ export class TimeWindowManager {
       }
     }
 
+    if (window.isLateCheckin) {
+      // For late check-in windows, use exact window bounds
+      const isWithin = isWithinInterval(now, {
+        start: window.start,
+        end: window.end,
+      });
+
+      console.log('Late check-in window bounds check:', {
+        now: format(now, 'HH:mm:ss'),
+        windowStart: format(window.start, 'HH:mm:ss'),
+        windowEnd: format(window.end, 'HH:mm:ss'),
+        isWithin,
+      });
+
+      return isWithin;
+    }
+
     // Original logic for other windows
     const effectiveStart = window.isTransition
       ? window.start
@@ -331,6 +348,13 @@ export class TimeWindowManager {
     if (shiftData.endTime < shiftData.startTime) {
       end = addDays(end, 1);
     }
+
+    console.log('Shift window check:', {
+      currentTime: format(now, 'HH:mm:ss'),
+      shiftStart: format(start, 'yyyy-MM-dd HH:mm:ss'),
+      shiftEnd: format(end, 'yyyy-MM-dd HH:mm:ss'),
+      isWithin: isWithinInterval(now, { start, end }),
+    });
 
     return isWithinInterval(now, { start, end });
   }

@@ -118,11 +118,30 @@ export class PeriodStateResolver {
           isDayOff: false,
         };
 
+    const isLateCheckIn =
+      timingFlags.isLateCheckIn &&
+      !attendance?.CheckInTime &&
+      differenceInMinutes(
+        context.timestamp,
+        parseISO(currentState.timeWindow.start),
+      ) <= VALIDATION_THRESHOLDS.LATE_CHECKIN;
+
+    console.log('Building validation flags:', {
+      currentTime: format(context.timestamp, 'HH:mm:ss'),
+      windowStart: currentState.timeWindow.start.substring(11, 19),
+      windowEnd: currentState.timeWindow.end.substring(11, 19),
+      isWithinBounds: currentState.validation.isWithinBounds,
+      isEarly: currentState.validation.isEarly,
+      isLate: currentState.validation.isLate,
+      isLateCheckIn,
+      timingFlags,
+    });
+
     // Calculate bounds and transitions
     const isInsideShift = Boolean(
       currentState.validation.isWithinBounds &&
-        !currentState.validation.isEarly &&
-        !currentState.validation.isLate,
+        (!currentState.validation.isLate || isLateCheckIn) && // Modified this line
+        !currentState.validation.isEarly,
     );
 
     const hasConnectingPeriod = Boolean(currentState.validation.isConnected);
