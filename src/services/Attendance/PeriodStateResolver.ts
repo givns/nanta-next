@@ -282,6 +282,8 @@ export class PeriodStateResolver {
     now: Date,
     flags: ValidationFlags,
   ): string {
+    console.log('Getting validation message with flags:', flags);
+
     if (flags.isDayOff) {
       return 'วันหยุด';
     }
@@ -317,6 +319,17 @@ export class PeriodStateResolver {
     // New check-in cases
     const periodStart = parseISO(currentState.timeWindow.start);
 
+    if (flags.isOutsideShift) {
+      const earlyCheckInThreshold = addMinutes(
+        periodStart,
+        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+      );
+      const minutesUntilShift = differenceInMinutes(earlyCheckInThreshold, now);
+      return minutesUntilShift < 60
+        ? `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`
+        : '';
+    }
+
     if (flags.isEarlyCheckIn) {
       return `อยู่ในช่วงลงเวลาก่อนเข้างาน 
       เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}เริ่ม ${format(periodStart, 'HH:mm')} น.`;
@@ -339,17 +352,6 @@ export class PeriodStateResolver {
       return 'อยู่ในช่วงเวลาทำงาน'; // Within work hours
     }
 
-    if (flags.isOutsideShift) {
-      const shiftStart = parseISO(currentState.timeWindow.start);
-      const earlyCheckInThreshold = addMinutes(
-        shiftStart,
-        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-      );
-      const minutesUntilShift = differenceInMinutes(earlyCheckInThreshold, now);
-      return minutesUntilShift < 60
-        ? `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`
-        : '';
-    }
     // Default - outside period
     return 'อยู่นอกช่วงเวลาทำงานที่กำหนด';
   }
