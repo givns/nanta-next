@@ -668,6 +668,8 @@ export class PeriodStateResolver {
     // Find relevant window for current time
     const currentWindow = this.findRelevantWindow(windows, now, activeRecord);
 
+    console.log('Found relevant window:', currentWindow);
+
     // If no relevant window found, return default state
     if (!currentWindow) {
       return this.createDefaultState(now, shiftData, context);
