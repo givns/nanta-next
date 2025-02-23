@@ -255,13 +255,9 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
             }
 
             if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
-            const minutestoShiftStart = differenceInMinutes(
-              now,
-              earlyWindow.start,
-            );
             if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
             if (now < earlyWindow.start)
-              return `ยังไม่ถึงเวลาทำงาน กรุณารอ (${format(minutestoShiftStart, 'mm')}  นาที`;
+              return `ยังไม่ถึงเวลาเข้างาน กรุณารอ (${format(earlyWindow.start, 'HH:mm')} น.)`;
 
             // When within normal working hours
             if (isWithinInterval(now, { start: shiftStart, end: shiftEnd })) {

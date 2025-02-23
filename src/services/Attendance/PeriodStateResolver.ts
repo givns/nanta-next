@@ -282,6 +282,9 @@ export class PeriodStateResolver {
     now: Date,
     flags: ValidationFlags,
   ): string {
+    if (flags.isDayOff) {
+      return 'วันหยุด';
+    }
     // Overnight periods
     if (currentState.validation.isOvernight) {
       return 'อยู่ในช่วงเวลาทำงานข้ามวัน';
@@ -318,15 +321,6 @@ export class PeriodStateResolver {
       return `เวลาทำงาน${currentState.type === PeriodType.OVERTIME ? 'ล่วงเวลา' : 'ปกติ'}เริ่ม ${format(periodStart, 'HH:mm')} น.`;
     }
 
-    // Add grace period check
-    const minutesSinceStart = differenceInMinutes(now, periodStart);
-    if (
-      minutesSinceStart > 0 &&
-      minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN
-    ) {
-      return 'อยู่ในช่วงเวลาผ่อนผัน'; // Within grace period
-    }
-
     if (flags.isLateCheckIn) {
       const minutesLate = differenceInMinutes(now, periodStart);
       return minutesLate <= VALIDATION_THRESHOLDS.LATE_CHECKIN
@@ -342,6 +336,18 @@ export class PeriodStateResolver {
     // If we're inside shift, say so
     if (flags.isInsideShift) {
       return 'อยู่ในช่วงเวลาทำงาน'; // Within work hours
+    }
+
+    if (flags.isOutsideShift) {
+      const shiftStart = parseISO(currentState.timeWindow.start);
+      const earlyCheckInThreshold = addMinutes(
+        shiftStart,
+        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+      );
+      const minutesUntilShift = differenceInMinutes(earlyCheckInThreshold, now);
+      return minutesUntilShift < 60
+        ? `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`
+        : '';
     }
 
     // Default - outside period
