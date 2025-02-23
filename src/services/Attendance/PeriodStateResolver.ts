@@ -559,20 +559,17 @@ export class PeriodStateResolver {
         },
         minutesLate: minutesSinceStart,
       });
-
-      console.log(
-        'Should use grace period window:',
-        shouldUseGracePeriodWindow,
-      );
-      console.log(
-        'Is within bounds in create period state:',
-        this.timeManager.isWithinValidBounds(now, currentWindow),
-      );
-      console.log(
-        'Is early for period:',
-        this.isEarlyForPeriod(now, currentWindow),
-      );
     }
+
+    console.log('Should use grace period window:', shouldUseGracePeriodWindow);
+    console.log(
+      'Is within bounds in create period state:',
+      this.timeManager.isWithinValidBounds(now, currentWindow),
+    );
+    console.log(
+      'Is early for period:',
+      this.isEarlyForPeriod(now, currentWindow),
+    );
 
     return {
       type: currentWindow.type,
