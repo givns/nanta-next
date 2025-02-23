@@ -127,8 +127,8 @@ export class PeriodStateResolver {
       windowStart: currentState.timeWindow.start.substring(11, 19),
       windowEnd: currentState.timeWindow.end.substring(11, 19),
       isWithinBounds: currentState.validation.isWithinBounds,
-      isEarly: currentState.validation.isEarly,
-      isLate: currentState.validation.isLate,
+      isEarlyCheckIn: timingFlags.isEarlyCheckIn,
+      isEarlyCheckOut: timingFlags.isEarlyCheckOut,
       timingFlags,
     });
 
@@ -564,6 +564,11 @@ export class PeriodStateResolver {
       });
     }
 
+    const isWithinBounds = this.timeManager.isWithinValidBounds(
+      now,
+      currentWindow,
+    );
+
     console.log('Should use grace period window:', shouldUseGracePeriodWindow);
     console.log('isWithinBounds:', currentWindow.isWithinBounds);
     console.log(
@@ -576,7 +581,6 @@ export class PeriodStateResolver {
     );
 
     console.log('isEarlyCheckin:', currentWindow.isEarlyCheckin);
-    console.log('isWithinBounds:', currentWindow.isWithinBounds);
 
     return {
       type: currentWindow.type,
@@ -596,7 +600,7 @@ export class PeriodStateResolver {
         ),
       },
       validation: {
-        isWithinBounds: currentWindow.isWithinBounds,
+        isWithinBounds,
         isEarly: currentWindow.isEarlyCheckin,
         isLate: currentWindow.isLateCheckin,
         isOvernight: this.timeManager.isOvernightShift(shiftData),

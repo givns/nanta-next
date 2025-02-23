@@ -96,17 +96,6 @@ export class TimeWindowManager {
     currentState: UnifiedPeriodState,
     now: Date,
   ): TimingFlags {
-    // Calculate early check-in
-    const isEarlyCheckIn = this.isEarlyCheckIn(attendance, currentState, now);
-
-    console.log('Early check-in check:', {
-      isEarlyCheckIn,
-      checkInTime: attendance?.CheckInTime,
-    });
-
-    // Calculate late check-in
-    const isLateCheckIn = this.isLateCheckIn(attendance, currentState, now);
-
     // Calculate late checkout flags
     const isLateCheckOut = this.isLateCheckOut(attendance, currentState, now);
     const isEarlyCheckOut = this.isEarlyCheckOut(attendance, currentState, now);
@@ -138,8 +127,8 @@ export class TimeWindowManager {
     );
 
     return {
-      isEarlyCheckIn,
-      isLateCheckIn,
+      isEarlyCheckIn: currentState.validation.isEarly,
+      isLateCheckIn: currentState.validation.isLate,
       isLateCheckOut,
       isEarlyCheckOut,
       isVeryLateCheckOut,
@@ -639,13 +628,6 @@ export class TimeWindowManager {
     state: UnifiedPeriodState,
     now: Date,
   ): boolean {
-    console.log('Early check-in calculation:', {
-      attendanceCheckIn: attendance?.CheckInTime,
-      attendanceCheckOut: attendance?.CheckOutTime,
-      periodStart: state.timeWindow.start,
-      now: format(now, 'yyyy-MM-dd HH:mm:ss'),
-    });
-
     if (attendance?.CheckInTime) return false;
     const periodStart = parseISO(state.timeWindow.start);
     return isWithinInterval(now, {

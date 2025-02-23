@@ -60,8 +60,8 @@ export interface PeriodAttendance {
 }
 
 export interface TimingFlags {
-  isEarlyCheckIn: boolean;
-  isLateCheckIn: boolean;
+  isEarlyCheckIn?: boolean;
+  isLateCheckIn?: boolean;
   isEarlyCheckOut: boolean;
   isLateCheckOut: boolean;
   isVeryLateCheckOut: boolean;

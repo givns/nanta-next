@@ -82,8 +82,8 @@ export interface StateValidation {
 export interface ValidationFlags {
   // Basic check-in/out status
   isCheckingIn: boolean;
-  isLateCheckIn: boolean;
-  isEarlyCheckIn: boolean;
+  isLateCheckIn?: boolean;
+  isEarlyCheckIn?: boolean;
   isEarlyCheckOut: boolean;
   isLateCheckOut: boolean;
   isVeryLateCheckOut: boolean;
