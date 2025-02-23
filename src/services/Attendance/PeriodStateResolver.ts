@@ -329,7 +329,9 @@ export class PeriodStateResolver {
       const minutesUntilShift = differenceInMinutes(earlyWindow.start, now);
       console.log('minutesUntilShift', minutesUntilShift);
 
-      return minutesUntilShift > 60 ? '' : `กรุณารอ ${earlyWindow} เข้างาน`;
+      return minutesUntilShift > 60
+        ? ''
+        : `กรุณารอ ${minutesUntilShift} นาทีเข้างาน`;
     }
 
     if (flags.isEarlyCheckIn) {
