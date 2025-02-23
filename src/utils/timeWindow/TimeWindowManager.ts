@@ -244,29 +244,10 @@ export class TimeWindowManager {
     // For regular windows, we need to handle both early and late check-in differently
     if (window.type === PeriodType.REGULAR && !window.isTransition) {
       // If not flexible, use the current window's start and end
-      if (!window.isFlexible) {
-        return isWithinInterval(now, {
-          start: window.start,
-          end: window.end,
-        });
-      }
-    }
-
-    // For late check-in windows, use exact window bounds
-    if (window.isLateCheckin) {
-      const isWithin = isWithinInterval(now, {
+      return isWithinInterval(now, {
         start: window.start,
         end: window.end,
       });
-
-      console.log('Late check-in window bounds check:', {
-        now: format(now, 'HH:mm:ss'),
-        windowStart: format(window.start, 'HH:mm:ss'),
-        windowEnd: format(window.end, 'HH:mm:ss'),
-        isWithin,
-      });
-
-      return isWithin;
     }
 
     // Original logic for other windows
