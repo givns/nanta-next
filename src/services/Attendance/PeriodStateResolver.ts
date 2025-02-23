@@ -38,6 +38,7 @@ import {
   parseISO,
   subMinutes,
 } from 'date-fns';
+import { get } from 'lodash';
 
 export class PeriodStateResolver {
   private cache: Map<
@@ -118,14 +119,6 @@ export class PeriodStateResolver {
           isDayOff: false,
         };
 
-    const isLateCheckIn =
-      timingFlags.isLateCheckIn &&
-      !attendance?.CheckInTime &&
-      differenceInMinutes(
-        context.timestamp,
-        parseISO(currentState.timeWindow.start),
-      ) <= VALIDATION_THRESHOLDS.LATE_CHECKIN;
-
     console.log('Building validation flags:', {
       currentTime: format(context.timestamp, 'HH:mm:ss'),
       windowStart: currentState.timeWindow.start.substring(11, 19),
@@ -133,14 +126,13 @@ export class PeriodStateResolver {
       isWithinBounds: currentState.validation.isWithinBounds,
       isEarly: currentState.validation.isEarly,
       isLate: currentState.validation.isLate,
-      isLateCheckIn,
       timingFlags,
     });
 
     // Calculate bounds and transitions
     const isInsideShift = Boolean(
       currentState.validation.isWithinBounds &&
-        (!currentState.validation.isLate || isLateCheckIn) && // Modified this line
+        !currentState.validation.isLate &&
         !currentState.validation.isEarly,
     );
 
@@ -348,6 +340,8 @@ export class PeriodStateResolver {
     statusInfo: PeriodStatusInfo,
     currentState: UnifiedPeriodState,
   ): boolean {
+    const now = getCurrentTime();
+
     console.log('Determining allowed status with flags:', {
       isInsideShift: flags.isInsideShift,
       isEarlyCheckIn: flags.isEarlyCheckIn,
@@ -363,19 +357,6 @@ export class PeriodStateResolver {
 
     // Handle special cases first
     if (flags.isEmergencyLeave) {
-      return true;
-    }
-
-    // Check if this is a late check-in scenario
-    const isLateCheckInScenario =
-      !statusInfo.isActiveAttendance &&
-      currentState.validation.isLate &&
-      currentState.timeWindow.end > currentState.timeWindow.start && // Regular period (not overnight)
-      currentState.timeWindow.end.includes('13:15'); // Late check-in window ends at 13:15
-
-    // Explicitly allow late check-in
-    if (isLateCheckInScenario) {
-      console.log('Explicitly allowing late check-in within window');
       return true;
     }
 
@@ -398,7 +379,6 @@ export class PeriodStateResolver {
     }
 
     // For new check-ins
-    const now = new Date();
     const periodStart = parseISO(currentState.timeWindow.start);
     const periodEnd = parseISO(currentState.timeWindow.end);
 
@@ -588,7 +568,7 @@ export class PeriodStateResolver {
           isLateCheckIn ||
           this.timeManager.isWithinValidBounds(now, currentWindow),
         isEarly: !isLateCheckIn && this.isEarlyForPeriod(now, currentWindow),
-        isLate: isLateCheckIn, // Directly use our late check-in detection
+        isLate: minutesSinceStart > VALIDATION_THRESHOLDS.LATE_CHECKIN, // Only late if beyond grace period
         isOvernight: this.timeManager.isOvernightShift(shiftData),
         isConnected: this.hasConnectingPeriod(windows, currentWindow),
       },
