@@ -325,7 +325,7 @@ export class PeriodStateResolver {
         VALIDATION_THRESHOLDS.EARLY_CHECKIN,
       );
       const minutesUntilShift = differenceInMinutes(earlyCheckInThreshold, now);
-      return minutesUntilShift < 60
+      return minutesUntilShift > 60
         ? `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`
         : '';
     }
