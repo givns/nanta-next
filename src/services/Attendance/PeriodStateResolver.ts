@@ -517,14 +517,14 @@ export class PeriodStateResolver {
       `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
     );
     const minutesSinceStart = differenceInMinutes(now, shiftStart);
-    const isLateCheckIn =
+    const shouldUseGracePeriodWindow =
       isCheckingIn &&
       minutesSinceStart > 0 &&
       minutesSinceStart <= VALIDATION_THRESHOLDS.LATE_CHECKIN;
 
     // Create a modified window for late check-in if needed
     let effectiveWindow = { ...currentWindow };
-    if (isLateCheckIn) {
+    if (shouldUseGracePeriodWindow) {
       effectiveWindow = {
         ...effectiveWindow,
         start: shiftStart,
@@ -565,9 +565,11 @@ export class PeriodStateResolver {
       },
       validation: {
         isWithinBounds:
-          isLateCheckIn ||
+          shouldUseGracePeriodWindow ||
           this.timeManager.isWithinValidBounds(now, currentWindow),
-        isEarly: !isLateCheckIn && this.isEarlyForPeriod(now, currentWindow),
+        isEarly:
+          !shouldUseGracePeriodWindow &&
+          this.isEarlyForPeriod(now, currentWindow),
         isLate: minutesSinceStart > VALIDATION_THRESHOLDS.LATE_CHECKIN, // Only late if beyond grace period
         isOvernight: this.timeManager.isOvernightShift(shiftData),
         isConnected: this.hasConnectingPeriod(windows, currentWindow),
