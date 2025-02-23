@@ -350,7 +350,6 @@ export class PeriodStateResolver {
         ? `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`
         : '';
     }
-
     // Default - outside period
     return 'อยู่นอกช่วงเวลาทำงานที่กำหนด';
   }
@@ -454,6 +453,8 @@ export class PeriodStateResolver {
       context,
     );
 
+    console.log('Built validation flags:', flags);
+
     // Determine allowed status
     const allowed = this.determineAllowedStatus(
       flags,
@@ -469,6 +470,8 @@ export class PeriodStateResolver {
       context.timestamp,
       flags,
     );
+
+    console.log('Validation reason:', reason);
 
     // Build metadata
     const metadata = this.buildValidationMetadata(transitionInfo, flags);

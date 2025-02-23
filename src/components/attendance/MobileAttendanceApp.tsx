@@ -256,6 +256,10 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
 
             if (now > shiftEnd) return 'หมดเวลาทำงานปกติ';
             if (isWithinInterval(now, earlyWindow)) return 'ยังไม่ถึงเวลาทำงาน';
+            if (validationFlags.isOutsideShift) {
+              return 'อยู่นอกช่วงเวลาทำงานที่กำหนด';
+            }
+
             if (now < earlyWindow.start) return 'ยังไม่ถึงเวลาทำงาน';
 
             // When within normal working hours
