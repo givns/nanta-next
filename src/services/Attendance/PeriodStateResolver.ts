@@ -319,7 +319,7 @@ export class PeriodStateResolver {
     // New check-in cases
     const periodStart = parseISO(currentState.timeWindow.start);
 
-    if (flags.isOutsideShift) {
+    if (flags.isOutsideShift && !flags.isEarlyCheckIn) {
       const earlyWindow = {
         start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
         end: periodStart,
