@@ -62,9 +62,9 @@ export interface UnifiedPeriodState {
     isInsideShiftHours?: boolean;
   };
   validation: {
-    isWithinBounds: boolean;
-    isEarly: boolean;
-    isLate: boolean;
+    isWithinBounds?: boolean;
+    isEarly?: boolean;
+    isLate?: boolean;
     isOvernight: boolean;
     isConnected: boolean;
   };

@@ -29,6 +29,7 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { TimeWindowManager } from '@/utils/timeWindow/TimeWindowManager';
 import { AttendanceState, PeriodType } from '@prisma/client';
+import { current } from '@reduxjs/toolkit';
 import {
   addDays,
   addMinutes,
@@ -81,6 +82,8 @@ export class PeriodStateResolver {
       shiftData,
       context,
     );
+
+    console.log('Calculated new state:', newState);
 
     // Cache the new state
     this.cache.set(cacheKey, {
@@ -589,13 +592,9 @@ export class PeriodStateResolver {
         ),
       },
       validation: {
-        isWithinBounds:
-          shouldUseGracePeriodWindow ||
-          this.timeManager.isWithinValidBounds(now, currentWindow),
-        isEarly:
-          !shouldUseGracePeriodWindow &&
-          this.isEarlyForPeriod(now, currentWindow),
-        isLate: minutesSinceStart > VALIDATION_THRESHOLDS.LATE_CHECKIN, // Only late if beyond grace period
+        isWithinBounds: currentWindow.isWithinBounds,
+        isEarly: currentWindow.isEarlyCheckin,
+        isLate: currentWindow.isLateCheckin,
         isOvernight: this.timeManager.isOvernightShift(shiftData),
         isConnected: this.hasConnectingPeriod(windows, currentWindow),
       },
