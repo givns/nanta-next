@@ -331,7 +331,7 @@ export class PeriodStateResolver {
 
       return minutesUntilShift > 60
         ? ''
-        : `กรุณารอ ${minutesUntilShift} นาทีเข้างาน`;
+        : `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`;
     }
 
     if (flags.isEarlyCheckIn) {
