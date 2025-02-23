@@ -660,6 +660,11 @@ export class PeriodStateResolver {
       context,
     );
 
+    console.log(
+      'Calculated time windows chosen in resolveCurrentState:',
+      windows,
+    );
+
     // Find relevant window for current time
     const currentWindow = this.findRelevantWindow(windows, now, activeRecord);
 
