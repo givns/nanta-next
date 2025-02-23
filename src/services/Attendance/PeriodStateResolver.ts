@@ -367,7 +367,7 @@ export class PeriodStateResolver {
         start: currentState.timeWindow.start.substring(11, 19),
         end: currentState.timeWindow.end.substring(11, 19),
       },
-      currentTime: new Date().toISOString().substring(11, 19),
+      currentTime: now,
     });
 
     // Handle special cases first
@@ -709,6 +709,12 @@ export class PeriodStateResolver {
     time: Date,
     window: TimeWindow | EnhancedTimeWindow,
   ): boolean {
+    // If it's an early check-in window, just check if time is before window start
+    if ((window as EnhancedTimeWindow).isEarlyCheckin) {
+      return time < window.start;
+    }
+
+    // For regular windows, check if within early threshold
     const earlyThreshold =
       window.type === PeriodType.OVERTIME
         ? VALIDATION_THRESHOLDS.OT_EARLY_CHECKIN
