@@ -248,6 +248,10 @@ export class TimeWindowManager {
       isFlexible: window.isFlexible,
       isEarlyCheckIn: window.isEarlyCheckin,
       isLateCheckIn: window.isLateCheckin,
+      isWithinBounds: isWithinInterval(now, {
+        start: window.start,
+        end: window.end,
+      }),
     });
     // For regular windows, we need to handle both early and late check-in differently
     if (window.type === PeriodType.REGULAR && !window.isTransition) {

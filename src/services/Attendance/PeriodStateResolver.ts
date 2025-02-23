@@ -570,7 +570,6 @@ export class PeriodStateResolver {
     );
 
     console.log('Should use grace period window:', shouldUseGracePeriodWindow);
-    console.log('isWithinBounds:', currentWindow.isWithinBounds);
     console.log(
       'Is within bounds in create period state:',
       this.timeManager.isWithinValidBounds(now, currentWindow),

@@ -335,7 +335,6 @@ export interface TimeWindow {
 export interface EnhancedTimeWindow extends TimeWindow {
   isTransition?: boolean;
   gracePeriod?: number;
-  isWithinBounds?: boolean;
   isEarlyCheckin?: boolean;
   isLateCheckin?: boolean;
 }
