@@ -320,18 +320,16 @@ export class PeriodStateResolver {
     const periodStart = parseISO(currentState.timeWindow.start);
 
     if (flags.isOutsideShift) {
-      const earlyCheckInThreshold = subMinutes(
-        periodStart,
-        VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-      );
-      console.log('earlyCheckInThreshold', earlyCheckInThreshold);
+      const earlyWindow = {
+        start: subMinutes(periodStart, VALIDATION_THRESHOLDS.EARLY_CHECKIN),
+        end: periodStart,
+      };
+      console.log('earlyCheckInThreshold', earlyWindow);
 
-      const minutesUntilShift = differenceInMinutes(earlyCheckInThreshold, now);
+      const minutesUntilShift = differenceInMinutes(earlyWindow.start, now);
       console.log('minutesUntilShift', minutesUntilShift);
 
-      return minutesUntilShift > 60
-        ? ''
-        : `กรุณารอ ${minutesUntilShift} นาทีเพื่อเข้างาน`;
+      return minutesUntilShift > 60 ? '' : `กรุณารอ ${earlyWindow} เข้างาน`;
     }
 
     if (flags.isEarlyCheckIn) {

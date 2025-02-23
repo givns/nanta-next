@@ -21,6 +21,7 @@ import {
   ExtendedOvertimeInfo,
   ExtendedValidation,
   ValidationFlags,
+  VALIDATION_THRESHOLDS,
 } from '@/types/attendance';
 
 interface ProgressMetrics {
@@ -230,7 +231,10 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
             if (!shiftStart || !shiftEnd) return '';
 
             const earlyWindow = {
-              start: subMinutes(shiftStart, 29),
+              start: subMinutes(
+                shiftStart,
+                VALIDATION_THRESHOLDS.EARLY_CHECKIN,
+              ),
               end: shiftStart,
             };
 
