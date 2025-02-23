@@ -562,6 +562,9 @@ export class PeriodStateResolver {
       });
     }
 
+    console.log('currentWindow in createPeriodState', currentWindow);
+    console.log('now in createPeriodState', now);
+
     const isWithinBounds = this.timeManager.isWithinValidBounds(
       now,
       currentWindow,
