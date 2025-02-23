@@ -80,6 +80,7 @@ export class TimeWindowManager {
         isFlexible: w.isFlexible,
         isEarlyCheckin: w.isEarlyCheckin,
         isLateCheckin: w.isLateCheckin,
+        isTransition: w.isTransition,
       })),
     });
 
@@ -395,7 +396,7 @@ export class TimeWindowManager {
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-      isEarlyCheckin: false, // We're within early window, not before it
+      isEarlyCheckin: true,
       isLateCheckin: false,
     };
 
