@@ -200,7 +200,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
               // Check if it's an upcoming overtime
               const isUpcoming = now < targetOvertime.start;
               if (isUpcoming) {
-                const approachWindow = subMinutes(targetOvertime.start, 30);
+                const approachWindow = subMinutes(targetOvertime.start, 29);
                 if (now >= approachWindow) {
                   return 'กำลังจะถึงเวลาทำงานล่วงเวลา';
                 }
@@ -230,7 +230,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
             if (!shiftStart || !shiftEnd) return '';
 
             const earlyWindow = {
-              start: subMinutes(shiftStart, 30),
+              start: subMinutes(shiftStart, 29),
               end: shiftStart,
             };
 
@@ -240,7 +240,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
                 `${format(now, 'yyyy-MM-dd')}T${overtimeInfo.startTime}`,
               );
               const approachingOvertime = isWithinInterval(now, {
-                start: subMinutes(overtimeStart, 30),
+                start: subMinutes(overtimeStart, 29),
                 end: overtimeStart,
               });
 

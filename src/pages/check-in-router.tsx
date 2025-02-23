@@ -469,9 +469,9 @@ const CheckInRouter: React.FC = () => {
               `${format(addDays(now, 1), 'yyyy-MM-dd')}T${nextShiftTime}:00.000Z`,
             );
 
-        const approachingNextShift = subMinutes(nextShiftStart, 30);
+        const approachingNextShift = subMinutes(nextShiftStart, 29);
 
-        // Only return false if we're within 30 minutes of next shift
+        // Only return false if we're within 29 minutes of next shift
         if (isAfter(now, approachingNextShift)) {
           return false;
         }
