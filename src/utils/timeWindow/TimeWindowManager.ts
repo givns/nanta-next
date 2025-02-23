@@ -420,9 +420,11 @@ export class TimeWindowManager {
       type: PeriodType.REGULAR,
       isFlexible: false,
       gracePeriod: 0,
+      isEarlyCheckin: false,
+      isLateCheckin: false,
     };
 
-    // Early window
+    // Early window (starts at shift start - 29 mins)
     const earlyWindow: EnhancedTimeWindow = {
       start: subMinutes(
         regularWindow.start,
@@ -432,16 +434,18 @@ export class TimeWindowManager {
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.EARLY_CHECKIN,
-      isEarlyCheckin: true,
+      isEarlyCheckin: false, // We're within early window, not before it
+      isLateCheckin: false,
     };
 
-    // NEW: Late check-in window
+    // Late check-in window (grace period)
     const lateCheckInWindow: EnhancedTimeWindow = {
       start: regularWindow.start,
       end: addMinutes(regularWindow.start, VALIDATION_THRESHOLDS.LATE_CHECKIN),
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKIN,
+      isEarlyCheckin: false,
       isLateCheckin: true,
     };
 
@@ -452,6 +456,8 @@ export class TimeWindowManager {
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKOUT,
+      isEarlyCheckin: false,
+      isLateCheckin: false,
     };
 
     return [earlyWindow, lateCheckInWindow, regularWindow, lateWindow];
