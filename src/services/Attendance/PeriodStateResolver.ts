@@ -568,6 +568,10 @@ export class PeriodStateResolver {
         'Is within bounds in create period state:',
         this.timeManager.isWithinValidBounds(now, currentWindow),
       );
+      console.log(
+        'Is early for period:',
+        this.isEarlyForPeriod(now, currentWindow),
+      );
     }
 
     return {
