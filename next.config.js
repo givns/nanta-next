@@ -85,6 +85,7 @@ const nextConfig = {
         net: false,
         tls: false,
         dns: false,
+        path: require.resolve('path-browserify'), // Add this line
       };
     }
     return config;
