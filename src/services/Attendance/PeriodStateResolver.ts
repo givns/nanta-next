@@ -133,7 +133,6 @@ export class PeriodStateResolver {
     // Calculate bounds and transitions
     const isInsideShift = Boolean(
       currentState.validation.isWithinBounds &&
-        !currentState.validation.isLate &&
         !currentState.validation.isEarly,
     );
 
@@ -594,8 +593,8 @@ export class PeriodStateResolver {
     return {
       type: currentWindow.type,
       timeWindow: {
-        start: format(effectiveWindow.start, "yyyy-MM-dd'T'HH:mm:ss"),
-        end: format(effectiveWindow.end, "yyyy-MM-dd'T'HH:mm:ss"),
+        start: format(currentWindow.start, "yyyy-MM-dd'T'HH:mm:ss"),
+        end: format(currentWindow.end, "yyyy-MM-dd'T'HH:mm:ss"),
       },
       activity: {
         isActive: Boolean(attendance?.CheckInTime && !attendance?.CheckOutTime),
