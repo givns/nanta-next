@@ -24,7 +24,6 @@ interface ErrorResponse {
 
 // Initialize services
 const prisma = new PrismaClient();
-let servicesPromise: Promise<InitializedServices> | null = null;
 const redis = new Redis(process.env.REDIS_URL!);
 const queueManager = QueueManager.getInstance();
 
@@ -75,6 +74,39 @@ function getRequestKey(task: ProcessingOptions): string {
   return `${task.employeeId || task.lineUserId}-${task.checkTime}`;
 }
 
+class ServiceInitializationQueue {
+  private static instance: ServiceInitializationQueue;
+  private initializationPromise: Promise<InitializedServices> | null = null;
+
+  private constructor() {}
+
+  static getInstance(): ServiceInitializationQueue {
+    if (!this.instance) {
+      this.instance = new ServiceInitializationQueue();
+    }
+    return this.instance;
+  }
+
+  async getInitializedServices(): Promise<InitializedServices> {
+    if (!this.initializationPromise) {
+      this.initializationPromise = initializeServices(prisma).then(
+        (services) => {
+          if (!services.attendanceService || !services.notificationService) {
+            throw new AppError({
+              code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
+              message: 'Required services are not initialized',
+            });
+          }
+          return services;
+        },
+      );
+    }
+    return this.initializationPromise;
+  }
+}
+
+const serviceQueue = ServiceInitializationQueue.getInstance();
+
 async function getCachedUser(identifier: {
   employeeId?: string;
   lineUserId?: string;
@@ -124,20 +156,25 @@ async function getCachedUser(identifier: {
   }
 }
 
+// REPLACE the current getServices function with:
 async function getServices(): Promise<InitializedServices> {
-  if (!servicesPromise) {
-    servicesPromise = initializeServices(prisma);
-  }
-
-  const services = await servicesPromise;
-  if (!services) {
+  try {
+    const services = await serviceQueue.getInitializedServices();
+    if (!services) {
+      throw new AppError({
+        code: ErrorCode.INTERNAL_ERROR,
+        message: 'Failed to initialize services',
+      });
+    }
+    return services;
+  } catch (error) {
+    console.error('Service initialization error:', error);
     throw new AppError({
-      code: ErrorCode.INTERNAL_ERROR,
-      message: 'Failed to initialize services',
+      code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
+      message: 'Service initialization failed',
+      originalError: error,
     });
   }
-
-  return services;
 }
 
 // Main Processing Function
@@ -291,6 +328,9 @@ export default async function handler(
   }
 
   try {
+    // Initialize services first
+    const services = await getServices();
+
     // Apply rate limiting
     await rateLimitMiddleware(req);
 
@@ -329,9 +369,6 @@ export default async function handler(
         requestId,
       });
     }
-
-    // Get services
-    const services = await getServices();
 
     // Get current status
     const currentStatus = await services.attendanceService.getAttendanceStatus(
@@ -452,6 +489,14 @@ function handleApiError(error: unknown): ErrorResponse {
           code: error.code,
           message: 'Too many requests, please try again later',
         };
+      case ErrorCode.SERVICE_INITIALIZATION_ERROR:
+        return {
+          status: 503,
+          code: error.code,
+          message: 'Service temporarily unavailable, please try again',
+          details: error.details,
+        };
+
       default:
         return {
           status: 500,
