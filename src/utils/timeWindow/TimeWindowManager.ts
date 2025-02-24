@@ -406,7 +406,7 @@ export class TimeWindowManager {
         regularWindow.start,
         VALIDATION_THRESHOLDS.LATE_CHECKIN,
       ),
-      end: regularWindow.end,
+      end: regularWindow.end, // Late check-in is allowed until shift end
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKIN,
