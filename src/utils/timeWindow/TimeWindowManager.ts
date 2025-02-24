@@ -402,11 +402,8 @@ export class TimeWindowManager {
 
     // Late check-in window (grace period)
     const lateCheckInWindow: EnhancedTimeWindow = {
-      start: addMinutes(
-        regularWindow.start,
-        VALIDATION_THRESHOLDS.LATE_CHECKIN,
-      ),
-      end: addMinutes(regularWindow.start, 240),
+      start: regularWindow.start,
+      end: addMinutes(regularWindow.start, VALIDATION_THRESHOLDS.LATE_CHECKIN),
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKIN,

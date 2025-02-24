@@ -722,6 +722,14 @@ export class PeriodStateResolver {
       if (activeWindow) return activeWindow;
     }
 
+    const shiftStart = windows.find((w) => !w.isFlexible)?.start;
+    if (shiftStart && now > shiftStart) {
+      const lateWindow = windows.find((w) => w.isLateCheckin);
+      if (lateWindow && this.timeManager.isWithinValidBounds(now, lateWindow)) {
+        return lateWindow;
+      }
+    }
+
     // For non-active attendance, check all windows
     return (
       windows.find((window) =>
