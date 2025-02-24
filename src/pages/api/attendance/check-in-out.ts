@@ -147,9 +147,10 @@ async function getServices(): Promise<InitializedServices> {
 
 // Main Processing Function
 export async function processCheckInOut(
-  task: ProcessingOptions,
+  task: ProcessingOptions & { services?: InitializedServices },
 ): Promise<QueueResult> {
-  const services = await getServices();
+  // Use passed services if available, otherwise initialize
+  const services = task.services || (await getServices());
 
   const { attendanceService, notificationService } = services;
   const requestKey = getRequestKey(task);

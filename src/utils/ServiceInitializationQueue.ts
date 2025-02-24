@@ -8,6 +8,7 @@ export class ServiceInitializationQueue {
   private static instance: ServiceInitializationQueue;
   private initializationPromise: Promise<InitializedServices> | null = null;
   private prisma: PrismaClient;
+  private initialized: boolean = false;
 
   private constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -33,6 +34,7 @@ export class ServiceInitializationQueue {
               message: 'Required services are not initialized',
             });
           }
+          this.initialized = true;
           return services;
         },
       );
