@@ -466,9 +466,14 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     if (!checkIn) {
       if (now < periodStart) {
         console.log('Before period start, no progress');
+
         return {
           lateMinutes: 0,
-          earlyMinutes: 0,
+          earlyMinutes: validation.flags.isEarlyCheckIn
+            ? Math.floor(
+                Math.max(0, (periodStart.getTime() - now.getTime()) / 60000),
+              )
+            : 0,
           isEarly: validation.flags.isEarlyCheckIn,
           progressPercent: 0,
           totalShiftMinutes: totalMinutes,
