@@ -5,10 +5,9 @@ import {
   isWithinInterval,
   parseISO,
   subMinutes,
-  differenceInMinutes,
 } from 'date-fns';
-import { is, th } from 'date-fns/locale';
-import { AlertCircle, Clock, User, Building2, MapPin } from 'lucide-react';
+import { th } from 'date-fns/locale';
+import { AlertCircle, Clock, MapPin } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -27,7 +26,7 @@ import {
 interface ProgressMetrics {
   lateMinutes: number;
   earlyMinutes: number;
-  isEarly: boolean;
+  isEarly?: boolean;
   progressPercent: number;
   totalShiftMinutes: number;
   isMissed: boolean;
@@ -470,7 +469,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
         return {
           lateMinutes: 0,
           earlyMinutes: 0,
-          isEarly: false,
+          isEarly: validation.flags.isEarlyCheckIn,
           progressPercent: 0,
           totalShiftMinutes: totalMinutes,
           isMissed: false,
