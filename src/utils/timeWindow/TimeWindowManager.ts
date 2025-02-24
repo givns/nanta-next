@@ -406,7 +406,7 @@ export class TimeWindowManager {
         regularWindow.start,
         VALIDATION_THRESHOLDS.LATE_CHECKIN,
       ),
-      end: addMinutes(regularWindow.start, 4),
+      end: regularWindow.end,
       type: PeriodType.REGULAR,
       isFlexible: true,
       gracePeriod: VALIDATION_THRESHOLDS.LATE_CHECKIN,
