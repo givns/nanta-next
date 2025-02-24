@@ -9,7 +9,7 @@ import {
   AppError,
   ErrorCode,
 } from '@/types/attendance';
-import type { InitializedServices } from '@/types/attendance';
+import { ServiceInitializationQueue } from '@/utils/ServiceInitializationQueue';
 import { processCheckInOut } from '@/pages/api/attendance/check-in-out';
 
 export class QueueManager {
@@ -17,10 +17,11 @@ export class QueueManager {
   private queue!: BetterQueue<ProcessingOptions, QueueResult>;
   private redis: Redis;
   private queueSize: number = 0;
-  private services: InitializedServices | null = null;
+  private serviceQueue: ServiceInitializationQueue;
 
   private constructor() {
     this.redis = new Redis(process.env.REDIS_URL!);
+    this.serviceQueue = ServiceInitializationQueue.getInstance();
     this.initializeQueue();
   }
 
@@ -29,10 +30,6 @@ export class QueueManager {
       this.instance = new QueueManager();
     }
     return this.instance;
-  }
-
-  setServices(services: InitializedServices) {
-    this.services = services;
   }
 
   private initializeQueue() {
@@ -70,7 +67,7 @@ export class QueueManager {
         maxRetries: CACHE_CONSTANTS.MAX_RETRIES,
         retryDelay: CACHE_CONSTANTS.RETRY_DELAY,
         maxTimeout: CACHE_CONSTANTS.PROCESS_TIMEOUT,
-        store: new MemoryStore(), // Fixed MemoryStore usage
+        store: new MemoryStore(),
       },
     );
 
@@ -88,20 +85,39 @@ export class QueueManager {
   }
 
   private async processTask(task: ProcessingOptions): Promise<QueueResult> {
-    if (!this.services) {
-      throw new AppError({
-        code: ErrorCode.INTERNAL_ERROR,
-        message: 'Services not initialized',
-      });
-    }
-
     try {
-      // Use the existing processCheckInOut function from the original file
-      const result = await processCheckInOut(task);
+      // Get initialized services before processing
+      const services = await this.serviceQueue.getInitializedServices();
+      if (!services) {
+        throw new AppError({
+          code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
+          message: 'Services not initialized',
+        });
+      }
+
+      // Create a new context with services
+      const processingContext = {
+        ...task,
+        services,
+      };
+
+      // Use the existing processCheckInOut function with context
+      const result = await processCheckInOut(processingContext);
       return result;
     } catch (error) {
       console.error('Task processing error:', error);
-      throw error;
+
+      // Enhanced error handling with proper service errors
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      throw new AppError({
+        code: ErrorCode.PROCESSING_ERROR,
+        message:
+          error instanceof Error ? error.message : 'Task processing failed',
+        originalError: error,
+      });
     }
   }
 
@@ -126,7 +142,6 @@ export class QueueManager {
     };
   }
 
-  // Fixed cleanup method
   async cleanup(): Promise<void> {
     return new Promise((resolve) => {
       this.queue.destroy(() => {

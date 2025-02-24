@@ -1,7 +1,6 @@
 // pages/api/attendance/check-in-out.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PeriodType, PrismaClient } from '@prisma/client';
-import { initializeServices } from '@/services/ServiceInitializer';
 import type { InitializedServices } from '@/types/attendance'; // Add this import
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
@@ -14,6 +13,7 @@ import { createRateLimitMiddleware } from '@/utils/rateLimit';
 import { QueueManager } from '@/utils/QueueManager';
 import { performance } from 'perf_hooks';
 import Redis from 'ioredis';
+import { ServiceInitializationQueue } from '@/utils/ServiceInitializationQueue';
 
 interface ErrorResponse {
   status: number;
@@ -25,6 +25,7 @@ interface ErrorResponse {
 // Initialize services
 const prisma = new PrismaClient();
 const redis = new Redis(process.env.REDIS_URL!);
+const serviceQueue = ServiceInitializationQueue.getInstance(prisma);
 const queueManager = QueueManager.getInstance();
 
 // Rate limit middleware
@@ -73,39 +74,6 @@ setInterval(() => {
 function getRequestKey(task: ProcessingOptions): string {
   return `${task.employeeId || task.lineUserId}-${task.checkTime}`;
 }
-
-class ServiceInitializationQueue {
-  private static instance: ServiceInitializationQueue;
-  private initializationPromise: Promise<InitializedServices> | null = null;
-
-  private constructor() {}
-
-  static getInstance(): ServiceInitializationQueue {
-    if (!this.instance) {
-      this.instance = new ServiceInitializationQueue();
-    }
-    return this.instance;
-  }
-
-  async getInitializedServices(): Promise<InitializedServices> {
-    if (!this.initializationPromise) {
-      this.initializationPromise = initializeServices(prisma).then(
-        (services) => {
-          if (!services.attendanceService || !services.notificationService) {
-            throw new AppError({
-              code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
-              message: 'Required services are not initialized',
-            });
-          }
-          return services;
-        },
-      );
-    }
-    return this.initializationPromise;
-  }
-}
-
-const serviceQueue = ServiceInitializationQueue.getInstance();
 
 async function getCachedUser(identifier: {
   employeeId?: string;
