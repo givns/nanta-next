@@ -30,6 +30,9 @@ import {
   subDays,
   differenceInMinutes,
   subMinutes,
+  addDays,
+  addHours,
+  set,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { TimeEntryService } from '../TimeEntryService';
@@ -514,7 +517,25 @@ export class AttendanceProcessingService {
     });
 
     // Calculate timing details
-    const shiftStart = parseISO(periodState.shift.startTime);
+    // Fix: Convert time strings to full date objects using the current day as context
+    const today = format(now, 'yyyy-MM-dd');
+    const shiftStartTime = `${today}T${periodState.shift.startTime}:00`;
+    let shiftStart = parseISO(shiftStartTime);
+
+    // Validate the date is valid before proceeding
+    if (isNaN(shiftStart.getTime())) {
+      console.error('Invalid shift start time:', {
+        rawStartTime: periodState.shift.startTime,
+        shiftStartTime,
+        periodState: JSON.stringify(periodState.shift),
+      });
+      // Fallback to a sensible default to prevent crashing
+      // Use noon as a fallback if the shift start time is invalid
+      const fallbackTime = set(startOfDay(now), { hours: 12 });
+      console.log('Using fallback time:', format(fallbackTime, 'HH:mm:ss'));
+      shiftStart = fallbackTime;
+    }
+
     const earlyWindow = subMinutes(
       shiftStart,
       ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
@@ -522,7 +543,17 @@ export class AttendanceProcessingService {
 
     // Determine early/late status
     const isEarlyCheckIn = now < shiftStart && now >= earlyWindow;
-    const minutesLate = differenceInMinutes(now, shiftStart);
+
+    // Protect against invalid date calculation
+    let minutesLate = 0;
+    try {
+      if (now > shiftStart) {
+        minutesLate = differenceInMinutes(now, shiftStart);
+      }
+    } catch (error) {
+      console.error('Error calculating minutes late:', error);
+    }
+
     const lateStatus = {
       isLate: minutesLate > 5,
       minutesLate: minutesLate > 5 ? minutesLate : 0,
@@ -537,6 +568,24 @@ export class AttendanceProcessingService {
     });
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
+
+    // Create attendance record - similarly fix the shift end time parsing
+    const shiftEndTime = `${today}T${periodState.current.end.split('T')[1] || periodState.shift.endTime}:00`;
+    let shiftEnd;
+    try {
+      shiftEnd = parseISO(shiftEndTime);
+      if (isNaN(shiftEnd.getTime())) {
+        // Handle overnight shifts where end time might be for the next day
+        shiftEnd = parseISO(shiftEndTime);
+        if (shiftEnd < shiftStart) {
+          shiftEnd = addDays(shiftEnd, 1); // Add a day if end time is earlier than start time
+        }
+      }
+    } catch (error) {
+      console.error('Error parsing shift end time:', error);
+      // Fallback to 8 hours after start time
+      shiftEnd = addHours(shiftStart, 8);
+    }
 
     // Create attendance record
     const attendance = await tx.attendance.create({
@@ -553,7 +602,7 @@ export class AttendanceProcessingService {
             ? OvertimeState.IN_PROGRESS
             : undefined,
         shiftStartTime: shiftStart,
-        shiftEndTime: parseISO(periodState.current.end),
+        shiftEndTime: shiftEnd,
         CheckInTime: now,
         ...(options.metadata?.overtimeId && {
           overtimeId: options.metadata.overtimeId,

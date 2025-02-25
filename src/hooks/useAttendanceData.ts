@@ -499,13 +499,11 @@ export function useAttendanceData({
   // In useAttendanceData.ts
   async function pollForCompletion(
     requestId: string,
-    maxAttempts = 15, // Consider reducing this
-    maxTotalWaitTime = 180000, // 3 minutes is very long, could reduce to 60000 (1 minute)
+    maxAttempts = 10, // Reduced from 15
+    maxTotalWaitTime = 60000, // Reduced from 180000 to 60000 (1 minute)
   ): Promise<ProcessingResult> {
-    // Add more aggressive timeouts
     const startTime = Date.now();
     for (let i = 0; i < maxAttempts; i++) {
-      // Check both the max attempts and max total time
       if (Date.now() - startTime > maxTotalWaitTime) {
         throw new AppError({
           code: ErrorCode.TIMEOUT,
@@ -513,7 +511,7 @@ export function useAttendanceData({
         });
       }
 
-      // Consider reducing the exponential growth
+      // Reduce delay scaling to reduce wait times
       const delay =
         Math.min(1000 * Math.pow(1.3, i), 5000) * (0.9 + 0.2 * Math.random());
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -523,24 +521,33 @@ export function useAttendanceData({
           `/api/attendance/task-status/${requestId}`,
         );
 
+        // Added error detection - if we see an error in the status response, fail fast
+        if (
+          response.data.status === 'failed' ||
+          response.data.error ||
+          (response.data.data && response.data.data.error)
+        ) {
+          console.error(`Request ${requestId} failed:`, response.data);
+          throw new AppError({
+            code: ErrorCode.PROCESSING_ERROR,
+            message: response.data.error || 'Processing failed',
+            details: response.data,
+          });
+        }
+
         if (response.data.completed) {
           console.log(`Request ${requestId} completed successfully`);
           return response.data.data;
         }
-
-        // Add specific error detection - if we see an error in the data, stop polling
-        if (response.data.status === 'failed' || response.data.error) {
-          throw new AppError({
-            code: ErrorCode.PROCESSING_ERROR,
-            message: response.data.error || 'Task processing failed',
-            details: response.data,
-          });
-        }
       } catch (error) {
-        // Consider rethrowing after a certain number of polling errors
         console.error(`Polling error for request ${requestId}:`, error);
-        if (i > maxAttempts / 2) {
-          throw error; // Rethrow after half the max attempts to fail faster
+        // Rethrow after 3 consecutive errors to fail faster
+        if (i > 2) {
+          throw new AppError({
+            code: ErrorCode.POLLING_ERROR,
+            message: 'Failed to check request status after multiple attempts',
+            originalError: error,
+          });
         }
       }
     }
