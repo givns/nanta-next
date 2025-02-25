@@ -217,35 +217,6 @@ export default async function handler(
       lineUserIdExists: !!user.lineUserId,
     });
 
-    // Get user's shift
-    tracker.addStep('get_user_shift_start');
-    const userShift = await services.shiftService.getUserShift(employeeId);
-    tracker.addStep('get_user_shift_complete', {
-      hasShift: !!userShift,
-      shiftId: userShift?.id,
-      workDays: userShift?.workDays,
-      shiftTimes: userShift
-        ? `${userShift.startTime}-${userShift.endTime}`
-        : null,
-    });
-
-    // Convert null to undefined for shift to satisfy TypeScript
-    const shift: ShiftData | undefined = userShift || undefined;
-
-    // Create validation context
-    tracker.addStep('create_validation_context');
-    const context: ValidationContext = {
-      employeeId,
-      timestamp: now,
-      isCheckIn: true, // Will be updated based on current state
-      shift,
-      periodType: PeriodType.REGULAR,
-      isOvertime: false,
-      overtimeInfo: null,
-      location: coordinates,
-      address: address || '',
-    };
-
     // Get attendance status with updated parameters structure
     tracker.addStep('get_attendance_status_start');
 
