@@ -849,7 +849,16 @@ export class TimeEntryService {
     attendance: AttendanceRecord,
     periodState: PeriodState,
   ): { minutesLate: number; isHalfDayLate: boolean } {
-    // Extensive debugging for late status calculation
+    // First, validate CheckInTime - this is the critical fix
+    if (!attendance.CheckInTime) {
+      console.warn('No CheckInTime available for late status calculation', {
+        employeeId: attendance.employeeId,
+        recordId: attendance.id,
+      });
+      return { minutesLate: 0, isHalfDayLate: false };
+    }
+
+    // Proceed only if we have a valid CheckInTime
     const isLateCheckIn = periodState.current.validation.isLate;
     const minutesLate = attendance.checkTiming.lateCheckInMinutes;
     const isHalfDayLate = minutesLate >= 240;
@@ -857,7 +866,6 @@ export class TimeEntryService {
 
     console.log('Detailed Late Status Logging:', {
       employeeId: attendance.employeeId,
-      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
       isLateCheckIn,
       minutesLate,
       isHalfDayLate,

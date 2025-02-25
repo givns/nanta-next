@@ -148,12 +148,18 @@ export async function processCheckInOut(
   task: ProcessingOptions,
 ): Promise<QueueResult> {
   const serverTime = getCurrentTime();
+  if (isNaN(serverTime.getTime())) {
+    console.error('Invalid server time:', serverTime);
+    throw new AppError({
+      code: ErrorCode.PROCESSING_ERROR,
+      message: 'Invalid server time',
+    });
+  }
   const requestKey = `${task.employeeId || task.lineUserId}-${task.checkTime}`;
 
   console.log('Processing check-in/out task:', {
     requestKey,
     serverTime: serverTime.toISOString(),
-    clientTime: task.checkTime,
   });
 
   const startTime = performance.now();

@@ -496,13 +496,16 @@ export function useAttendanceData({
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
 
+  // In useAttendanceData.ts
   async function pollForCompletion(
     requestId: string,
-    maxAttempts = 15,
-    maxTotalWaitTime = 180000, // 3 minutes total
+    maxAttempts = 15, // Consider reducing this
+    maxTotalWaitTime = 180000, // 3 minutes is very long, could reduce to 60000 (1 minute)
   ): Promise<ProcessingResult> {
+    // Add more aggressive timeouts
     const startTime = Date.now();
     for (let i = 0; i < maxAttempts; i++) {
+      // Check both the max attempts and max total time
       if (Date.now() - startTime > maxTotalWaitTime) {
         throw new AppError({
           code: ErrorCode.TIMEOUT,
@@ -510,8 +513,9 @@ export function useAttendanceData({
         });
       }
 
+      // Consider reducing the exponential growth
       const delay =
-        Math.min(1000 * Math.pow(1.5, i), 8000) * (0.9 + 0.2 * Math.random());
+        Math.min(1000 * Math.pow(1.3, i), 5000) * (0.9 + 0.2 * Math.random());
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       try {
@@ -523,9 +527,21 @@ export function useAttendanceData({
           console.log(`Request ${requestId} completed successfully`);
           return response.data.data;
         }
+
+        // Add specific error detection - if we see an error in the data, stop polling
+        if (response.data.status === 'failed' || response.data.error) {
+          throw new AppError({
+            code: ErrorCode.PROCESSING_ERROR,
+            message: response.data.error || 'Task processing failed',
+            details: response.data,
+          });
+        }
       } catch (error) {
+        // Consider rethrowing after a certain number of polling errors
         console.error(`Polling error for request ${requestId}:`, error);
-        // Optionally add more granular error handling
+        if (i > maxAttempts / 2) {
+          throw error; // Rethrow after half the max attempts to fail faster
+        }
       }
     }
 

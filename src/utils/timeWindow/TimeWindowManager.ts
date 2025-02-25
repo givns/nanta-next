@@ -216,8 +216,35 @@ export class TimeWindowManager {
     periodStart: Date,
     allowanceMinutes: number = VALIDATION_THRESHOLDS.LATE_CHECKIN,
   ): LateCheckInStatus {
-    // If no check-in time or check-in before period start, not late
-    if (!checkInTime || checkInTime <= periodStart) {
+    // Validate inputs
+    if (!checkInTime) {
+      return {
+        isLate: false,
+        minutesLate: 0,
+        isWithinAllowance: true,
+      };
+    }
+
+    // Ensure both dates are valid
+    const checkInTimeMs = checkInTime.getTime();
+    const periodStartMs = periodStart.getTime();
+
+    if (isNaN(checkInTimeMs) || isNaN(periodStartMs)) {
+      console.error('Invalid date detected:', {
+        checkInTime,
+        periodStart,
+        checkInTimeValid: !isNaN(checkInTimeMs),
+        periodStartValid: !isNaN(periodStartMs),
+      });
+      return {
+        isLate: false,
+        minutesLate: 0,
+        isWithinAllowance: true,
+      };
+    }
+
+    // If check-in before period start, not late
+    if (checkInTime <= periodStart) {
       return {
         isLate: false,
         minutesLate: 0,

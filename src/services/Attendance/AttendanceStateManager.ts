@@ -2,11 +2,11 @@
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   AttendanceStatusResponse,
-  AppError,
-  ErrorCode,
   ValidationContext,
   UnifiedPeriodState,
   StateValidation,
+  ErrorCode,
+  AppError,
 } from '@/types/attendance';
 import Redis from 'ioredis';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -149,11 +149,11 @@ export class AttendanceStateManager {
       }
 
       // Create and return initial state
-      return this.createInitialState(employeeId, context);
+      return this.createInitialState(context);
     } catch (error) {
       console.error('Error getting attendance state:', error);
       // Always return a valid state even if there's an error
-      return this.createInitialState(employeeId, context);
+      return this.createInitialState(context);
     }
   }
 
@@ -162,6 +162,21 @@ export class AttendanceStateManager {
     newState: AttendanceStatusResponse,
     operationType: 'check-in' | 'check-out',
   ): Promise<void> {
+    // Validate state transitions for check-out operations
+    if (operationType === 'check-out') {
+      const attendanceRecord = newState.base.latestAttendance;
+      if (!attendanceRecord?.CheckInTime) {
+        console.error('Invalid state transition: Check-out without Check-in', {
+          employeeId,
+          operationType,
+        });
+        throw new AppError({
+          code: ErrorCode.INVALID_STATE_TRANSITION,
+          message: 'Cannot check out without checking in first',
+        });
+      }
+    }
+
     const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
     const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
 
@@ -450,10 +465,12 @@ export class AttendanceStateManager {
   }
 
   private createInitialState(
-    employeeId: string,
     context: ValidationContext,
   ): AttendanceStatusResponse {
-    const now = getCurrentTime();
+    const now =
+      context.timestamp instanceof Date && !isNaN(context.timestamp.getTime())
+        ? context.timestamp
+        : getCurrentTime();
 
     return {
       daily: {
