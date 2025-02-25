@@ -63,10 +63,11 @@ export class AttendanceService {
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     try {
-      // Simple memory-based check for pending operations
+      // Check for pending operations - fast in-memory check
       const hasPending = await this.stateManager.hasPendingOperation(
         options.employeeId,
       );
+
       if (hasPending) {
         throw new AppError({
           code: ErrorCode.PROCESSING_ERROR,
@@ -79,38 +80,49 @@ export class AttendanceService {
 
       // If successful, update state in state manager
       if (result.success) {
-        // Get full state after processing
-        const updatedState = await this.getAttendanceStatus(
-          options.employeeId,
-          {
-            inPremises: options.location?.inPremises || false,
-            address: options.location?.address || '',
-            periodType: options.periodType,
-          },
-        );
-
-        // Update state but don't wait for completion
-        this.stateManager
-          .updateState(
+        try {
+          // Get full state after processing
+          const updatedState = await this.getAttendanceStatus(
             options.employeeId,
-            updatedState,
-            options.activity.isCheckIn ? 'check-in' : 'check-out',
-          )
-          .catch((err) => {
-            console.warn('Background state update error (ignored):', err);
-          });
+            {
+              inPremises: options.location?.inPremises || false,
+              address: options.location?.address || '',
+              periodType: options.periodType,
+            },
+          );
+
+          // Update state in the background - don't wait
+          this.stateManager
+            .updateState(
+              options.employeeId,
+              updatedState,
+              options.activity.isCheckIn ? 'check-in' : 'check-out',
+            )
+            .catch((err) => {
+              console.warn('State update error (non-critical):', err);
+            });
+        } catch (stateError) {
+          console.warn(
+            'State update preparation error (non-critical):',
+            stateError,
+          );
+          // Continue with the result - state update is not critical to success
+        }
       }
 
       return result;
     } catch (error) {
       console.error('Error processing attendance:', error);
 
-      // Invalidate state but don't wait
-      this.stateManager
-        .invalidateState(options.employeeId)
-        .catch((err) =>
-          console.warn('State invalidation error (ignored):', err),
+      try {
+        // Try to invalidate state but don't block on it
+        await this.stateManager.invalidateState(options.employeeId);
+      } catch (invalidateError) {
+        console.warn(
+          'State invalidation error (non-critical):',
+          invalidateError,
         );
+      }
 
       throw error;
     }

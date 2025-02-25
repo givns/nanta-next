@@ -1,7 +1,11 @@
 // services/Attendance/AttendanceStateManager.ts
+// services/Attendance/AttendanceStateManager.ts
+
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   AttendanceStatusResponse,
+  AppError,
+  ErrorCode,
   ValidationContext,
   UnifiedPeriodState,
   StateValidation,
@@ -9,7 +13,6 @@ import {
 import Redis from 'ioredis';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
-import { redisManager } from '../RedisConnectionManager';
 
 interface StateEntry {
   status: AttendanceStatusResponse;
@@ -28,8 +31,14 @@ export class AttendanceStateManager {
   private redis: Redis | null = null;
   private stateCache: Map<string, StateEntry> = new Map();
   private pendingOperations: Map<string, PendingOperation> = new Map();
-  private cleanupInterval: NodeJS.Timeout | null = null;
-  private readonly useRedisAsFallbackOnly: boolean = true;
+
+  // Circuit breaker properties
+  private redisFailureCount: number = 0;
+  private redisDisabled: boolean = false;
+  private lastFailureTime: number = 0;
+  private readonly REDIS_TIMEOUT = 500; // 500ms timeout for Redis operations
+  private readonly MAX_FAILURES = 3; // After 3 failures, disable Redis temporarily
+  private readonly CIRCUIT_RESET_TIME = 60000; // Try to use Redis again after 1 minute
 
   // Cache configuration
   private readonly CACHE_TTL = 30 * 1000; // 30 seconds
@@ -37,24 +46,23 @@ export class AttendanceStateManager {
   private readonly LOCK_PREFIX = 'attendance:lock:';
 
   private constructor() {
-    this.initializeRedisConnection();
-    this.initializeCleanup();
-  }
-
-  private async initializeRedisConnection() {
     try {
-      await redisManager.initialize();
-      this.redis = redisManager.getClient();
-      if (!this.redis) {
-        console.warn('Redis client not available in AttendanceStateManager');
-      }
-    } catch (error) {
-      console.error(
-        'Failed to initialize Redis in AttendanceStateManager:',
-        error,
-      );
-      // Continue without Redis - we'll fall back to memory cache
+      this.redis = new Redis(process.env.REDIS_URL!, {
+        connectTimeout: 2000, // Connection timeout
+        maxRetriesPerRequest: 1, // Reduce retries to fail faster
+      });
+
+      // Set up error handling for Redis
+      this.redis.on('error', (err) => {
+        console.error('Redis connection error:', err);
+        this.recordRedisFailure();
+      });
+    } catch (e) {
+      console.error('Failed to initialize Redis:', e);
+      this.redis = null;
     }
+
+    this.initializeCleanup();
   }
 
   static getInstance(): AttendanceStateManager {
@@ -65,49 +73,124 @@ export class AttendanceStateManager {
   }
 
   private initializeCleanup() {
-    this.cleanupInterval = setInterval(() => {
+    setInterval(() => {
       const now = Date.now();
 
-      // 1. Cleanup memory state cache
-      let expiredStateEntries = 0;
+      // Cleanup state cache
       for (const [key, entry] of this.stateCache.entries()) {
         if (now - entry.timestamp > entry.ttl) {
           this.stateCache.delete(key);
-          expiredStateEntries++;
         }
       }
 
-      // 2. Cleanup pending operations
-      let expiredOperations = 0;
+      // Cleanup pending operations
       for (const [key, operation] of this.pendingOperations.entries()) {
         if (now - operation.timestamp > 60000) {
           // 1 minute timeout
           this.pendingOperations.delete(key);
-          expiredOperations++;
         }
       }
 
-      // 3. Try to clean up stale Redis locks if Redis is available
-      if (this.redis) {
-        this.clearStaleLocks().catch((err) => {
-          console.error(
-            'Error clearing stale locks during cleanup interval:',
-            err,
-          );
-        });
-      }
-
-      if (expiredStateEntries > 0 || expiredOperations > 0) {
+      // Reset circuit breaker if enough time has passed
+      if (
+        this.redisDisabled &&
+        now - this.lastFailureTime > this.CIRCUIT_RESET_TIME
+      ) {
         console.log(
-          `Cleanup completed: removed ${expiredStateEntries} expired states and ${expiredOperations} expired operations`,
+          'Resetting Redis circuit breaker, attempting to use Redis again',
         );
+        this.redisDisabled = false;
+        this.redisFailureCount = 0;
       }
     }, 30000); // Run cleanup every 30 seconds
   }
 
-  async hasPendingOperation(employeeId: string): Promise<boolean> {
-    // Only check memory - much faster and more reliable
-    return this.pendingOperations.has(employeeId);
+  // Record Redis failure for circuit breaker
+  private recordRedisFailure() {
+    this.redisFailureCount++;
+    this.lastFailureTime = Date.now();
+
+    if (this.redisFailureCount >= this.MAX_FAILURES) {
+      console.log(
+        `Redis failed ${this.redisFailureCount} times, disabling temporarily`,
+      );
+      this.redisDisabled = true;
+    }
+  }
+
+  // Helper method to run Redis commands with timeout
+  private async executeRedisCommand<T>(
+    operation: () => Promise<T>,
+    fallback: T,
+  ): Promise<T> {
+    // Skip Redis if disabled by circuit breaker
+    if (this.redisDisabled || !this.redis) {
+      return fallback;
+    }
+
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<T>((_, reject) => {
+        setTimeout(
+          () => reject(new Error('Redis operation timed out')),
+          this.REDIS_TIMEOUT,
+        );
+      });
+
+      // Race the operation against the timeout
+      return await Promise.race([operation(), timeoutPromise]);
+    } catch (error) {
+      console.warn('Redis operation failed:', error);
+      this.recordRedisFailure();
+      return fallback;
+    }
+  }
+
+  async getState(
+    employeeId: string,
+    context: ValidationContext,
+  ): Promise<AttendanceStatusResponse> {
+    const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
+
+    // Check memory cache first
+    const cachedState = this.stateCache.get(cacheKey);
+    if (cachedState && Date.now() - cachedState.timestamp < cachedState.ttl) {
+      return cachedState.status;
+    }
+
+    // Try Redis with timeout if not disabled
+    if (!this.redisDisabled && this.redis) {
+      try {
+        const redisState = await this.executeRedisCommand(
+          async () => this.redis!.get(cacheKey),
+          null,
+        );
+
+        if (redisState && typeof redisState === 'string') {
+          try {
+            const parsedState = JSON.parse(
+              redisState,
+            ) as AttendanceStatusResponse;
+
+            // Update memory cache
+            this.stateCache.set(cacheKey, {
+              status: parsedState,
+              timestamp: Date.now(),
+              ttl: this.CACHE_TTL,
+            });
+
+            return parsedState;
+          } catch (parseError) {
+            console.warn('Failed to parse Redis state:', parseError);
+          }
+        }
+      } catch (error) {
+        // Error already logged in executeRedisCommand
+      }
+    }
+
+    // Fallback to creating a new state
+    return this.createInitialState(employeeId, context);
   }
 
   async updateState(
@@ -117,89 +200,42 @@ export class AttendanceStateManager {
   ): Promise<void> {
     const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
 
-    // Always update memory cache immediately
+    // Always update memory cache first
     this.stateCache.set(cacheKey, {
       status: newState,
       timestamp: Date.now(),
       ttl: this.CACHE_TTL,
     });
 
-    // Track operation briefly then remove immediately
+    // Track pending operation - set it before Redis operations
     this.pendingOperations.set(employeeId, {
       timestamp: Date.now(),
       type: operationType,
       employeeId,
     });
 
-    // Only attempt Redis update if available and not configured to use as fallback only
-    if (this.redis && !this.useRedisAsFallbackOnly) {
+    // Try to update Redis in the background
+    if (!this.redisDisabled && this.redis) {
       try {
-        // Fire and forget Redis update - don't wait
-        this.redis
-          .set(
-            cacheKey,
-            JSON.stringify(newState),
-            'EX',
-            Math.floor(this.CACHE_TTL / 1000),
-          )
-          .catch((err) => console.error('Redis update error (ignored):', err));
+        // Use fire-and-forget pattern - don't await
+        this.executeRedisCommand(
+          async () =>
+            this.redis!.set(
+              cacheKey,
+              JSON.stringify(newState),
+              'EX',
+              Math.floor(this.CACHE_TTL / 1000),
+            ),
+          'OK',
+        ).catch((err) => console.warn('Background Redis update failed:', err));
       } catch (error) {
-        // Ignore Redis errors - memory cache is already updated
-        console.error(`Redis error in updateState (ignored): ${error}`);
+        // Errors already handled in executeRedisCommand
       }
     }
 
-    // Important: Always remove the pending operation immediately
-    // This ensures we don't block future operations
+    // Always remove pending operation to avoid deadlocks
+    // Do this AFTER initiating Redis operations but don't wait for them
     this.pendingOperations.delete(employeeId);
-  }
-
-  async getState(
-    employeeId: string,
-    context: ValidationContext,
-  ): Promise<AttendanceStatusResponse> {
-    const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
-
-    // Always check memory cache first
-    const cachedState = this.stateCache.get(cacheKey);
-    if (cachedState && Date.now() - cachedState.timestamp < cachedState.ttl) {
-      return cachedState.status;
-    }
-
-    // Only attempt Redis if available and not in fallback-only mode
-    if (this.redis && !this.useRedisAsFallbackOnly) {
-      try {
-        // Set a short timeout for Redis operation
-        const redisPromise = this.redis.get(cacheKey);
-        const timeoutPromise = new Promise((resolve) =>
-          setTimeout(resolve, 500, null),
-        );
-
-        // Race the Redis operation against a timeout
-        const redisState = await Promise.race([redisPromise, timeoutPromise]);
-
-        if (redisState && typeof redisState === 'string') {
-          try {
-            const parsedState = JSON.parse(
-              redisState,
-            ) as AttendanceStatusResponse;
-            this.stateCache.set(cacheKey, {
-              status: parsedState,
-              timestamp: Date.now(),
-              ttl: this.CACHE_TTL,
-            });
-            return parsedState;
-          } catch (error) {
-            console.error('Error parsing Redis state:', error);
-          }
-        }
-      } catch (error) {
-        console.error('Redis error in getState:', error);
-      }
-    }
-
-    // Fallback to creating initial state
-    return this.createInitialState(context);
   }
 
   async invalidateState(employeeId: string): Promise<void> {
@@ -207,145 +243,29 @@ export class AttendanceStateManager {
 
     // Always clear memory cache
     this.stateCache.delete(cacheKey);
+
+    // Remove pending operations
     this.pendingOperations.delete(employeeId);
 
-    // Try Redis if available, but don't wait
-    if (this.redis) {
-      this.redis.del(cacheKey).catch(() => {});
-    }
-  }
-
-  /**
-   * Check for and clear stale locks
-   * This can help recover from deadlock situations
-   */
-  async clearStaleLocks(): Promise<number> {
-    if (!this.redis) return 0;
-
-    try {
-      // Find all active locks
-      const lockPattern = `${this.LOCK_PREFIX}*`;
-      const lockKeys = await this.redis.keys(lockPattern);
-
-      if (lockKeys.length === 0) return 0;
-
-      console.log(
-        `Found ${lockKeys.length} active locks, checking for stale ones...`,
+    // Try to clear Redis in the background
+    if (!this.redisDisabled && this.redis) {
+      // Fire and forget - don't await
+      this.executeRedisCommand(async () => this.redis!.del(cacheKey), 0).catch(
+        (err) => console.warn('Background Redis delete failed:', err),
       );
-
-      let clearedLocks = 0;
-
-      // Check each lock
-      for (const lockKey of lockKeys) {
-        // Skip info keys - we'll handle them with their parent lock
-        if (lockKey.endsWith(':info')) continue;
-
-        const infoKey = `${lockKey}:info`;
-        const lockInfo = await this.redis.get(infoKey);
-
-        if (lockInfo) {
-          try {
-            const lockData = JSON.parse(lockInfo);
-            const lockTime = new Date(lockData.timestamp);
-            const now = new Date();
-
-            // If lock is older than 1 minute, consider it stale
-            if (now.getTime() - lockTime.getTime() > 60000) {
-              console.warn(
-                `Clearing stale lock: ${lockKey}, created at ${lockData.timestamp}`,
-              );
-              await this.redis.del(lockKey);
-              await this.redis.del(infoKey);
-              clearedLocks++;
-            }
-          } catch (error) {
-            console.error(`Error processing lock info for ${lockKey}:`, error);
-            // Force clear if we can't parse the info
-            await this.redis.del(lockKey);
-            await this.redis.del(infoKey);
-            clearedLocks++;
-          }
-        } else {
-          // No info key found, this could be a lock without info
-          // Get the TTL to see how old it is
-          const ttl = await this.redis.ttl(lockKey);
-
-          // If TTL is less than 20 seconds (out of 30), it's older than 10 seconds
-          if (ttl < 20) {
-            console.warn(
-              `Clearing potential stale lock without info: ${lockKey}, TTL: ${ttl}`,
-            );
-            await this.redis.del(lockKey);
-            clearedLocks++;
-          }
-        }
-      }
-
-      return clearedLocks;
-    } catch (error) {
-      console.error('Error clearing stale locks:', error);
-      return 0;
     }
   }
 
-  /**
-   * Check if a specific employee has a lock
-   * @param employeeId The employee ID to check
-   * @returns Information about the lock if it exists
-   */
-  async checkEmployeeLock(employeeId: string): Promise<{
-    hasLock: boolean;
-    isStale: boolean;
-    timestamp?: string;
-    type?: 'check-in' | 'check-out';
-  }> {
-    if (!this.redis) {
-      return { hasLock: false, isStale: false };
-    }
-
-    const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
-    const infoKey = `${lockKey}:info`;
-
-    try {
-      const exists = await this.redis.exists(lockKey);
-
-      if (exists === 0) {
-        return { hasLock: false, isStale: false };
-      }
-
-      const lockInfo = await this.redis.get(infoKey);
-
-      if (!lockInfo) {
-        return { hasLock: true, isStale: true };
-      }
-
-      try {
-        const lockData = JSON.parse(lockInfo);
-        const lockTime = new Date(lockData.timestamp);
-        const now = new Date();
-
-        return {
-          hasLock: true,
-          isStale: now.getTime() - lockTime.getTime() > 60000,
-          timestamp: lockData.timestamp,
-          type: lockData.type,
-        };
-      } catch (error) {
-        return { hasLock: true, isStale: true };
-      }
-    } catch (error) {
-      console.error(`Error checking lock for employee ${employeeId}:`, error);
-      return { hasLock: false, isStale: false };
-    }
+  async hasPendingOperation(employeeId: string): Promise<boolean> {
+    // Only check memory - much more reliable
+    return this.pendingOperations.has(employeeId);
   }
 
   private createInitialState(
+    employeeId: string,
     context: ValidationContext,
   ): AttendanceStatusResponse {
-    const now =
-      context.timestamp instanceof Date && !isNaN(context.timestamp.getTime())
-        ? context.timestamp
-        : getCurrentTime();
+    const now = getCurrentTime();
 
     return {
       daily: {
@@ -453,12 +373,9 @@ export class AttendanceStateManager {
   }
 
   async cleanup(): Promise<void> {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-      this.cleanupInterval = null;
+    if (this.redis) {
+      await this.redis.quit();
+      this.redis = null;
     }
-
-    // No need to quit Redis here as the connection is managed by RedisConnectionManager
-    this.redis = null;
   }
 }
