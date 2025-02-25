@@ -23,7 +23,31 @@ interface ErrorResponse {
 }
 
 // Initialize services
+// In your Prisma client initialization
 const prisma = new PrismaClient();
+
+prisma.$use(async (params, next) => {
+  const start = Date.now();
+
+  // Add request ID for tracking
+  const requestId = `prisma-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  console.log(
+    `[${requestId}] Starting Prisma operation: ${params.model}.${params.action}`,
+  );
+
+  const result = await next(params);
+
+  const duration = Date.now() - start;
+  if (duration > 1000) {
+    // Log queries that take more than 1 second
+    console.log(
+      `[${requestId}] Slow query alert: ${params.model}.${params.action} took ${duration}ms`,
+    );
+  }
+
+  return result;
+});
+
 const redis = new Redis(process.env.REDIS_URL!);
 const serviceQueue = getServiceQueue(prisma);
 const queueManager = QueueManager.getInstance();

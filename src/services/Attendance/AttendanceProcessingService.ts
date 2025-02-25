@@ -218,7 +218,7 @@ export class AttendanceProcessingService {
           };
         },
         {
-          timeout: 22000,
+          timeout: 60000,
           maxWait: 25000,
         },
       );
