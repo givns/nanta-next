@@ -8,10 +8,13 @@ import Redis from 'ioredis';
 export class RedisConnectionManager {
   private static instance: RedisConnectionManager;
   private client: Redis | null = null;
-  private subscribers: Map<string, Redis> = new Map();
   private isInitialized = false;
 
-  private constructor() {}
+  private constructor() {
+    this.initialize().catch((err) => {
+      console.error('Failed to initialize Redis connection:', err);
+    });
+  }
 
   static getInstance(): RedisConnectionManager {
     if (!RedisConnectionManager.instance) {
@@ -35,32 +38,44 @@ export class RedisConnectionManager {
         return;
       }
 
+      // Create Redis client with optimized settings for serverless
       this.client = new Redis(redisUrl, {
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times: number) => {
-          // Exponential backoff with a maximum delay
-          return Math.min(times * 500, 3000);
+        maxRetriesPerRequest: 2,
+        connectTimeout: 5000,
+        retryStrategy: (times) => {
+          if (times > 2) return null; // Stop retrying after 2 attempts
+          return Math.min(times * 100, 300); // 100ms, 200ms, 300ms
         },
-        connectTimeout: 10000,
         enableReadyCheck: true,
         enableOfflineQueue: true,
+        lazyConnect: false, // Connect immediately
       });
 
-      // Set up event listeners
-      this.client.on('connect', () =>
-        console.info('Redis: Connection established'),
-      );
-      this.client.on('error', (err) => console.error('Redis error:', err));
-      this.client.on('close', () => console.warn('Redis: Connection closed'));
-      this.client.on('reconnecting', () =>
-        console.info('Redis: Reconnecting...'),
-      );
+      // Set up event listeners for better observability
+      this.client.on('connect', () => {
+        console.info('Redis: Connection established');
+      });
 
+      this.client.on('error', (err) => {
+        console.error('Redis error:', err);
+      });
+
+      this.client.on('close', () => {
+        console.warn('Redis: Connection closed');
+        this.isInitialized = false;
+      });
+
+      this.client.on('reconnecting', () => {
+        console.info('Redis: Reconnecting...');
+      });
+
+      // Wait for connection to be ready
+      await this.client.ping();
       this.isInitialized = true;
       console.log('Redis connection manager initialized');
     } catch (error) {
       console.error('Failed to initialize Redis connection manager:', error);
-      throw error;
+      this.client = null;
     }
   }
 
@@ -72,39 +87,74 @@ export class RedisConnectionManager {
   }
 
   /**
-   * Get a dedicated subscriber connection for pub/sub operations
-   * This is necessary because a Redis client used for pub/sub cannot be used for other commands
+   * Check if Redis is available
    */
-  getSubscriber(id: string): Redis | null {
-    if (!this.client) return null;
-
-    if (!this.subscribers.has(id)) {
-      // Create a new connection with the same config
-      const subscriber = new Redis(this.client.options as any);
-      this.subscribers.set(id, subscriber);
-    }
-
-    return this.subscribers.get(id) || null;
+  isAvailable(): boolean {
+    return this.isInitialized && this.client !== null;
   }
 
   /**
-   * Close all connections - important for cleanup
+   * Perform a Redis operation with built-in error handling and fallback
+   */
+  async safeExecute<T>(
+    operation: (redis: Redis) => Promise<T>,
+    fallbackValue: T,
+  ): Promise<T> {
+    if (!this.client || !this.isInitialized) {
+      return fallbackValue;
+    }
+
+    try {
+      return await operation(this.client);
+    } catch (error) {
+      console.error('Redis operation failed:', error);
+      return fallbackValue;
+    }
+  }
+
+  /**
+   * Safely get a value from Redis with fallback
+   */
+  async safeGet(key: string): Promise<string | null> {
+    return this.safeExecute((redis) => redis.get(key), null);
+  }
+
+  /**
+   * Safely set a value in Redis, ignoring errors
+   */
+  async safeSet(
+    key: string,
+    value: string,
+    ttlSeconds?: number,
+  ): Promise<void> {
+    if (!this.client || !this.isInitialized) return;
+
+    try {
+      if (ttlSeconds) {
+        await this.client.set(key, value, 'EX', ttlSeconds);
+      } else {
+        await this.client.set(key, value);
+      }
+    } catch (error) {
+      console.error('Redis set operation failed:', error);
+      // Continue without failing
+    }
+  }
+
+  /**
+   * Closes the Redis connection - should be called when shutting down
    */
   async cleanup(): Promise<void> {
-    const closePromises: Promise<void>[] = [];
-
     if (this.client) {
-      closePromises.push(this.client.quit().then(() => {}));
+      try {
+        await this.client.quit();
+        this.client = null;
+        this.isInitialized = false;
+        console.log('Redis connection closed');
+      } catch (error) {
+        console.error('Error closing Redis connection:', error);
+      }
     }
-
-    for (const subscriber of this.subscribers.values()) {
-      closePromises.push(subscriber.quit().then(() => {}));
-    }
-
-    await Promise.all(closePromises);
-    this.subscribers.clear();
-    this.client = null;
-    this.isInitialized = false;
   }
 }
 
