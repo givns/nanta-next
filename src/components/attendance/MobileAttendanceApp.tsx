@@ -11,7 +11,7 @@ import { AlertCircle, Clock, MapPin } from 'lucide-react';
 import { PeriodType } from '@prisma/client';
 import { StatusHelpers } from '@/services/Attendance/utils/StatusHelper';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { formatSafeTime } from '@/shared/timeUtils';
+import { formatSafeTime, formatTimeDisplay } from '@/shared/timeUtils';
 import {
   UserData,
   ShiftData,
@@ -49,6 +49,22 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
   isOvertimePeriod,
   validationFlags,
 }) => {
+  const safeISOToDate = (isoString: string | null | undefined): Date | null => {
+    if (!isoString) return null;
+
+    try {
+      // Remove the 'Z' suffix if it exists to avoid timezone conversion
+      const localISOString = isoString.endsWith('Z')
+        ? isoString.substring(0, isoString.length - 1)
+        : isoString;
+
+      return new Date(localISOString);
+    } catch (e) {
+      console.error('Error parsing date:', e);
+      return null;
+    }
+  };
+
   const now = getCurrentTime();
   const isEarlyOvertimePeriod = (() => {
     if (!currentPeriod.timeWindow.start) return false;
@@ -74,6 +90,8 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
     return periodStartHour < 8; // Only morning overtime (e.g. 06:00-08:00) is early
   })();
 
+  const checkInTime = safeISOToDate(currentPeriod.activity.checkIn);
+  const checkOutTime = safeISOToDate(currentPeriod.activity.checkOut);
   // Don't display "late" if we're in the early check-in window
   const showLateMinutes =
     metrics.lateMinutes > 5 && !validationFlags.isEarlyCheckIn;
@@ -141,7 +159,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
               {isOvertimePeriod ? 'เข้า OT' : 'เข้างาน'}
             </div>
             <div className="font-medium">
-              {formatSafeTime(currentPeriod.activity.checkIn)}
+              {formatTimeDisplay(checkInTime) || '--:--'}
             </div>
           </div>
           <div>
@@ -149,7 +167,7 @@ const ProgressSection: React.FC<ProgressSectionProps> = ({
               {isOvertimePeriod ? 'ออก OT' : 'ออกงาน'}
             </div>
             <div className="font-medium">
-              {formatSafeTime(currentPeriod.activity.checkOut) || '--:--'}
+              {formatTimeDisplay(checkOutTime) || '--:--'}
             </div>
           </div>
         </div>
@@ -595,25 +613,6 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
   ]);
 
   const isOvertimePeriod = currentPeriod.type === PeriodType.OVERTIME;
-
-  // Get proper validation message based on state
-  const getStatusMessage = () => {
-    // If there's a validation reason, use it
-    if (validation.reason) {
-      // Don't show "outside work hours" if we're actually in early check-in window
-      if (
-        validation.reason === 'อยู่นอกช่วงเวลาทำงานที่กำหนด' &&
-        validation.flags.isEarlyCheckIn
-      ) {
-        return `เวลาทำงานเริ่ม ${shiftData?.startTime} น.`;
-      }
-      return validation.reason;
-    }
-
-    return currentPeriod.type === PeriodType.OVERTIME
-      ? 'ช่วงเวลาทำงานล่วงเวลา'
-      : 'อยู่ในเวลาทำงานปกติ';
-  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
