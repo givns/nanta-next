@@ -297,9 +297,6 @@ export default async function handler(
   }
 
   try {
-    // Initialize services first
-    const services = await getServices();
-
     // Apply rate limiting
     await rateLimitMiddleware(req);
 
@@ -324,6 +321,25 @@ export default async function handler(
       });
     }
 
+    // Initialize services with timeout to prevent long-running requests
+    try {
+      await Promise.race([
+        serviceQueue.getInitializedServices(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Service initialization timeout')),
+            5000,
+          ),
+        ),
+      ]);
+    } catch (initError) {
+      console.warn(
+        'Service initialization timeout, continuing in background:',
+        initError,
+      );
+      // Continue processing - we'll initialize services in the background
+    }
+
     // Check queue status
     const queueStatus = await queueManager.getQueueStatus(user.employeeId);
     if (queueStatus.isPending) {
@@ -332,26 +348,12 @@ export default async function handler(
         error: 'Concurrent operation in progress',
         code: ErrorCode.MULTIPLE_ACTIVE_RECORDS,
         details: {
-          queuePosition: queueStatus.position || 0, // Provide default value
+          queuePosition: queueStatus.position || 0,
           estimatedWaitTime: (queueStatus.position || 0) * 5,
         },
         requestId,
       });
     }
-
-    // Get current status
-    const currentStatus = await services.attendanceService.getAttendanceStatus(
-      user.employeeId,
-      {
-        inPremises: true,
-        address: validatedData.location?.address || '',
-        periodType: validatedData.periodType,
-      },
-    );
-
-    // Update validation flags
-    validatedData.activity.overtimeMissed =
-      currentStatus.validation.flags.requiresAutoCompletion;
 
     // Validate timestamp
     const serverTime = getCurrentTime();
@@ -373,39 +375,22 @@ export default async function handler(
       });
     }
 
-    // Process through queue
-    const result = await queueManager.enqueue(validatedData);
-
-    // Handle timeout cases
-    if (!result.success) {
-      const currentStatus =
-        await services.attendanceService.getAttendanceStatus(user.employeeId, {
-          inPremises: true,
-          address: '',
-        });
-
-      return res.status(200).json({
-        success: true,
-        data: currentStatus,
-        message: 'Request processing continued in background',
-        timestamp: getCurrentTime().toISOString(),
-        requestId,
-      });
-    }
-
-    const duration = performance.now() - startTime;
-    console.log('Request completed:', {
+    // Enqueue the task but don't wait for completion - respond immediately
+    const taskData = {
+      ...validatedData,
       requestId,
-      duration,
-      success: result.success,
+    };
+
+    queueManager.enqueue(taskData).catch((error) => {
+      console.error('Background task error:', error);
     });
 
-    return res.status(200).json({
+    // Return immediate acceptance response
+    return res.status(202).json({
       success: true,
-      data: result.status,
-      notificationSent: result.notificationSent,
-      timestamp: getCurrentTime().toISOString(),
+      message: 'Request accepted, processing in background',
       requestId,
+      timestamp: getCurrentTime().toISOString(),
     });
   } catch (error) {
     console.error('Request failed:', {

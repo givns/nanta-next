@@ -73,11 +73,13 @@ export interface ProcessingOptions {
     source?: 'manual' | 'system' | 'auto';
     updatedBy?: string;
   };
+  requestId?: string; // Add this field
 }
 
 export interface ProcessingResult {
   success: boolean;
   timestamp: string; // ISO string
+  requestId?: string;
   data: {
     state: {
       current: UnifiedPeriodState;
@@ -94,6 +96,7 @@ export interface ProcessingResult {
     };
     [key: string]: unknown;
   };
+  message?: string;
 }
 
 export interface RawAttendanceData {
