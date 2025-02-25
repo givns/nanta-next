@@ -13,6 +13,7 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
+import { get } from 'lodash';
 
 // Request flow tracking
 const RequestTracker = {
@@ -213,7 +214,6 @@ export default async function handler(
 
     tracker.addStep('find_user_success', {
       userFound: true,
-      hasShiftId: !!user.shiftId,
       lineUserIdExists: !!user.lineUserId,
     });
 

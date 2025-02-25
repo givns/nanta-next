@@ -20,6 +20,8 @@ import { CacheManager } from '../cache/CacheManager';
 import { TimeEntryService } from '../TimeEntryService';
 import { AttendanceRecordService } from './AttendanceRecordService';
 import { AttendanceStateManager } from './AttendanceStateManager';
+import { time } from 'console';
+import { getCurrentTime } from '@/utils/dateUtils';
 
 export class AttendanceService {
   private readonly processingService: AttendanceProcessingService;
@@ -111,11 +113,13 @@ export class AttendanceService {
       periodType?: PeriodType;
     },
   ): Promise<AttendanceStatusResponse> {
+    const now = getCurrentTime();
+
     try {
       // Get shift data first for the validation context
       const shiftData = await this.shiftService.getEffectiveShift(
         employeeId,
-        new Date(),
+        now,
       );
       if (!shiftData) {
         throw new AppError({
@@ -128,7 +132,7 @@ export class AttendanceService {
       const validationContext: ValidationContext = {
         // Core data
         employeeId,
-        timestamp: new Date(),
+        timestamp: now,
         isCheckIn: true, // Default, will be updated based on current state
 
         // Current state - will be populated based on current attendance if exists

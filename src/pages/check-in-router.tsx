@@ -428,7 +428,7 @@ const CheckInRouter: React.FC = () => {
 
       // Log for debugging
       console.log('Regular period check:', {
-        today: startOfDay(now).toISOString(),
+        today: startOfDay(now),
         recordFound: regularRecord
           ? {
               date: regularRecord.record.date,
