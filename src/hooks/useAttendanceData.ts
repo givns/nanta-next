@@ -427,13 +427,13 @@ export function useAttendanceData({
   // Check in/out handler
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
-      const localRequestId = `${params.isCheckIn ? 'checkin' : 'checkout'}-${Date.now()}`;
+      const requestId = `${params.isCheckIn ? 'checkin' : 'checkout'}-${Date.now()}`;
 
       try {
         setState((prev) => ({
           ...prev,
-          pendingRequests: new Set([...prev.pendingRequests, localRequestId]),
-          lastOperation: localRequestId,
+          pendingRequests: new Set([...prev.pendingRequests, requestId]),
+          lastOperation: requestId, // Update lastOperation here
         }));
 
         console.log('Processing attendance request:', {
@@ -446,7 +446,6 @@ export function useAttendanceData({
           '/api/attendance/check-in-out',
           {
             ...params,
-            requestId: localRequestId, // Include requestId in the payload
             employeeId,
             lineUserId,
             address: locationState.address,
@@ -455,13 +454,6 @@ export function useAttendanceData({
           },
           { timeout: REQUEST_TIMEOUT },
         );
-
-        // Handle 202 Accepted status (async processing)
-        if (response.status === 202) {
-          console.log('Request accepted for async processing');
-          const serverRequestId = response.data.requestId || localRequestId;
-          return pollForCompletion(serverRequestId);
-        }
 
         if (!response.data.success) {
           throw new AppError({
@@ -476,7 +468,7 @@ export function useAttendanceData({
         setState((prev) => ({
           ...prev,
           pendingRequests: new Set(
-            [...prev.pendingRequests].filter((id) => id !== localRequestId),
+            [...prev.pendingRequests].filter((id) => id !== requestId),
           ),
         }));
 
@@ -487,7 +479,7 @@ export function useAttendanceData({
           ...prev,
           lastError: error as Error,
           pendingRequests: new Set(
-            [...prev.pendingRequests].filter((id) => id !== localRequestId),
+            [...prev.pendingRequests].filter((id) => id !== requestId),
           ),
         }));
         throw handleAttendanceError(error);
@@ -495,49 +487,6 @@ export function useAttendanceData({
     },
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
-
-  // In useAttendanceData.ts
-  async function pollForCompletion(
-    requestId: string,
-    maxAttempts = 15,
-  ): Promise<ProcessingResult> {
-    console.log(`Starting polling for request ${requestId}`);
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        console.log(
-          `Polling attempt ${i + 1}/${maxAttempts} for request ${requestId}`,
-        );
-        // Updated path to match the new API route
-        const response = await axios.get(
-          `/api/attendance/task-status/${requestId}`,
-        );
-
-        if (response.data.completed) {
-          console.log(`Request ${requestId} completed successfully`);
-          await refreshAttendanceStatus();
-          return response.data.data;
-        }
-
-        // Exponential backoff with jitter
-        const delay =
-          Math.min(1000 * Math.pow(1.5, i), 8000) * (0.9 + 0.2 * Math.random());
-        console.log(
-          `Request ${requestId} still processing, waiting ${delay.toFixed(0)}ms`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      } catch (error) {
-        console.error(`Error polling for request ${requestId}:`, error);
-        // Don't throw here, continue polling on errors
-      }
-    }
-
-    console.error(`Polling timed out for request ${requestId}`);
-    throw new AppError({
-      code: ErrorCode.TIMEOUT,
-      message:
-        'Processing timed out. Please check your attendance status and try again.',
-    });
-  }
 
   return {
     data,
