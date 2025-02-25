@@ -156,6 +156,12 @@ export async function processCheckInOut(
     clientTime: task.checkTime,
   });
 
+  const startTime = performance.now();
+  console.log('Start of processCheckInOut', {
+    task,
+    timestamp: new Date().toISOString(),
+  });
+
   try {
     // Get services
     const services = await serviceQueue.getInitializedServices();
@@ -241,6 +247,11 @@ export async function processCheckInOut(
         console.error('Notification error:', notificationError);
       }
     }
+    const endTime = performance.now();
+    console.log('End of processCheckInOut', {
+      duration: endTime - startTime,
+      task: task.requestId,
+    });
 
     return {
       success: true,
