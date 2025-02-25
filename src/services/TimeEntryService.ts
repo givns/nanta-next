@@ -8,7 +8,6 @@ import {
   TimeEntryStatus,
 } from '@prisma/client';
 import {
-  addDays,
   addHours,
   addMinutes,
   differenceInMinutes,
@@ -18,7 +17,6 @@ import {
   max,
   min,
   parse,
-  parseISO,
   startOfDay,
   subDays,
 } from 'date-fns';
@@ -31,11 +29,13 @@ import {
   ProcessingOptions,
   AttendanceRecord,
   TimeEntryHours,
+  PeriodState,
 } from '../types/attendance';
 import { OvertimeServiceServer } from './OvertimeServiceServer';
 import { LeaveServiceServer } from './LeaveServiceServer';
 import { th } from 'date-fns/locale';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { late } from 'zod';
 
 interface WorkingHoursResult {
   regularHours: number;
@@ -54,6 +54,11 @@ interface EntryMetricsResult {
   regularHours: number;
   overtimeHours: number;
   overtimeMetadata: any | null;
+}
+
+interface lateStatus {
+  minutesLate: number;
+  isHalfDayLate: boolean;
 }
 
 export class TimeEntryService {
@@ -77,6 +82,7 @@ export class TimeEntryService {
     attendance: AttendanceRecord,
     statusUpdate: StatusUpdateResult,
     options: ProcessingOptions,
+    periodState: PeriodState,
   ): Promise<{
     regular?: TimeEntry;
     overtime?: TimeEntry[];
@@ -90,6 +96,7 @@ export class TimeEntryService {
           isCheckIn: options.activity.isCheckIn,
           isOvertime: options.activity.isOvertime,
           statusUpdate,
+          periodState,
         },
       });
       // For regular period check-in, skip overtime matching
@@ -106,6 +113,9 @@ export class TimeEntryService {
           ),
         ]);
 
+        // Calculate late status
+        const lateStatus = this.calculateLateStatus(attendance, periodState);
+
         const result = await this.processEntriesWithContext(
           tx,
           attendance,
@@ -115,6 +125,7 @@ export class TimeEntryService {
             leaveRequests,
             shift,
           },
+          lateStatus,
         );
         console.log('Shift data before post-processing:', {
           employeeId: attendance.employeeId,
@@ -125,6 +136,7 @@ export class TimeEntryService {
                 current: shift.current,
               }
             : 'No shift data',
+          periodState,
         });
 
         await this.handlePostProcessing(
@@ -133,6 +145,7 @@ export class TimeEntryService {
           result,
           shift,
           leaveRequests,
+          lateStatus,
         );
 
         return {
@@ -148,6 +161,8 @@ export class TimeEntryService {
         startOfDay(subDays(new Date(options.checkTime), 1)),
         endOfDay(new Date(options.checkTime)),
       );
+
+      const lateStatus = this.calculateLateStatus(attendance, periodState);
 
       // Match overtime only if needed (for overtime periods or check-outs)
       const matchedOvertime = overtimes?.find((ot) => {
@@ -227,6 +242,7 @@ export class TimeEntryService {
           leaveRequests,
           shift,
         },
+        lateStatus,
       );
 
       // Handle post-processing
@@ -278,6 +294,7 @@ export class TimeEntryService {
       leaveRequests: LeaveRequest[];
       shift: any;
     },
+    lateStatus: lateStatus,
   ): Promise<{
     regular?: TimeEntry;
     overtime?: TimeEntry[];
@@ -300,6 +317,7 @@ export class TimeEntryService {
       options.activity.isCheckIn,
       leaveRequests,
       context.shift,
+      lateStatus,
     );
     return { regular: this.ensureProcessedEntry(regularEntry) };
   }
@@ -310,6 +328,7 @@ export class TimeEntryService {
     isCheckIn: boolean,
     leaveRequests: LeaveRequest[],
     shift: any,
+    lateStatus: lateStatus,
   ): Promise<TimeEntry> {
     // Safely access shift data
     const shiftStartTime =
@@ -321,19 +340,6 @@ export class TimeEntryService {
       });
       throw new Error('Invalid shift configuration');
     }
-
-    const lateStatus = this.calculateLateStatus(
-      attendance.CheckInTime!,
-      this.parseShiftTime(shiftStartTime, attendance.date),
-    );
-
-    console.log('Detailed Late Status Logging:', {
-      employeeId: attendance.employeeId,
-      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
-      shiftStartTime,
-      minutesLate: lateStatus.minutesLate,
-      isHalfDayLate: lateStatus.isHalfDayLate,
-    });
 
     console.log('Handle regular entry:', {
       isCheckIn,
@@ -366,6 +372,7 @@ export class TimeEntryService {
       isCheckIn,
       shiftTimes,
       leaveRequests,
+      lateStatus,
     );
 
     // Prepare regular entry data
@@ -450,6 +457,7 @@ export class TimeEntryService {
     result: { regular?: TimeEntry; overtime?: TimeEntry[] },
     shift: any,
     leaveRequests: LeaveRequest[],
+    lateStatus: lateStatus,
   ) {
     try {
       console.log('Post-processing:', {
@@ -506,7 +514,12 @@ export class TimeEntryService {
           },
         });
 
-        await this.processLateCheckIn(attendance, shift, leaveRequests);
+        await this.processLateCheckIn(
+          attendance,
+          shift,
+          leaveRequests,
+          lateStatus,
+        );
       } else {
         console.log('Skipping late check-in processing:', {
           reason: !options.activity.isCheckIn
@@ -531,6 +544,7 @@ export class TimeEntryService {
     attendance: AttendanceRecord,
     shift: any,
     leaveRequests: LeaveRequest[],
+    lateStatus: lateStatus,
   ) {
     console.log('Processing late check-in:', {
       employeeId: attendance.employeeId,
@@ -566,10 +580,8 @@ export class TimeEntryService {
       attendanceDate: format(attendance.date, 'yyyy-MM-dd'),
     });
 
-    const { minutesLate, isHalfDayLate } = this.calculateLateStatus(
-      attendance.CheckInTime,
-      shiftStart,
-    );
+    const minutesLate = lateStatus.minutesLate;
+    const isHalfDayLate = lateStatus.isHalfDayLate;
 
     console.log('Late Check-In Processing:', {
       minutesLate,
@@ -732,13 +744,8 @@ export class TimeEntryService {
     isCheckIn: boolean,
     shiftTimes: { start: Date | null; end: Date | null },
     leaveRequests: LeaveRequest[],
+    lateStatus: lateStatus,
   ): EntryMetricsResult {
-    // Calculate late status if it's a check-in and shift start time exists
-    const lateStatus =
-      shiftTimes.start && isCheckIn
-        ? this.calculateLateStatus(attendance.CheckInTime!, shiftTimes.start)
-        : { minutesLate: 0, isHalfDayLate: false };
-
     // Calculate working hours for check-out if all required times exist
     const workingHours =
       !isCheckIn && shiftTimes.start && shiftTimes.end
@@ -839,49 +846,30 @@ export class TimeEntryService {
 
   // Simplified late status calculation (no notifications)
   public calculateLateStatus(
-    checkInTime: Date,
-    shiftStartTime: Date,
+    attendance: AttendanceRecord,
+    periodState: PeriodState,
   ): { minutesLate: number; isHalfDayLate: boolean } {
     // Extensive debugging for late status calculation
-    console.log('Late Status Calculation Debug:', {
-      checkInTime: {
-        formatted: format(checkInTime, 'yyyy-MM-dd HH:mm:ss'),
-        timestamp: checkInTime.getTime(),
-        iso: checkInTime.toISOString(),
-      },
-      shiftStartTime: {
-        formatted: format(shiftStartTime, 'yyyy-MM-dd HH:mm:ss'),
-        timestamp: shiftStartTime.getTime(),
-        iso: shiftStartTime.toISOString(),
-      },
+    const isLateCheckIn = periodState.current.validation.isLate;
+    const minutesLate = attendance.checkTiming.lateCheckInMinutes;
+    const isHalfDayLate = minutesLate >= 240;
+    const periodType = periodState.current.type;
+
+    console.log('Detailed Late Status Logging:', {
+      employeeId: attendance.employeeId,
+      checkInTime: format(attendance.CheckInTime!, 'HH:mm:ss'),
+      isLateCheckIn,
+      minutesLate,
+      isHalfDayLate,
     });
 
-    // Use absolute time comparison with full timestamps
-    const checkInTimestamp = checkInTime.getTime();
-    const shiftStartTimestamp = shiftStartTime.getTime();
-
     // Calculate late status considering full timestamp precision
-    if (checkInTimestamp > shiftStartTimestamp) {
-      const minutesLate = differenceInMinutes(checkInTime, shiftStartTime);
-      const isHalfDayLate = minutesLate >= 240; // 4 hours threshold
-
-      console.log('Late Calculation Details:', {
-        checkIn: format(checkInTime, 'HH:mm:ss'),
-        shiftStart: format(shiftStartTime, 'HH:mm:ss'),
-        minutesLate,
-        isHalfDayLate,
-        checkInTimestamp,
-        shiftStartTimestamp,
-        timestampDifference: checkInTimestamp - shiftStartTimestamp,
-      });
-
+    if (isLateCheckIn && periodType === PeriodType.REGULAR) {
       return { minutesLate, isHalfDayLate };
     }
 
     console.log('No Late Time Detected', {
       reason: 'Check-in not after shift start',
-      checkInTimestamp,
-      shiftStartTimestamp,
     });
 
     return { minutesLate: 0, isHalfDayLate: false };

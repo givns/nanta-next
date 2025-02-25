@@ -19,6 +19,7 @@ import {
   TimeEntryHours,
   ValidationContext,
   ATTENDANCE_CONSTANTS,
+  PeriodState,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import {
@@ -142,6 +143,7 @@ export class AttendanceProcessingService {
               windowResponse,
               validatedOptions,
               now,
+              periodState,
             );
           }
 
@@ -197,6 +199,7 @@ export class AttendanceProcessingService {
               now,
             ),
             validatedOptions,
+            periodState,
           );
 
           return {
@@ -258,6 +261,7 @@ export class AttendanceProcessingService {
     periodState: ShiftWindowResponse,
     options: ProcessingOptions,
     now: Date,
+    validation: PeriodState,
   ): Promise<ProcessingResult> {
     try {
       // Verify we have a record to complete
@@ -317,6 +321,7 @@ export class AttendanceProcessingService {
               isCheckIn: true,
             },
           },
+          validation,
         );
       }
 
@@ -517,17 +522,18 @@ export class AttendanceProcessingService {
 
     // Determine early/late status
     const isEarlyCheckIn = now < shiftStart && now >= earlyWindow;
-    const lateStatus = this.timeEntryService.calculateLateStatus(
-      now,
-      shiftStart,
-    );
+    const minutesLate = differenceInMinutes(now, shiftStart);
+    const lateStatus = {
+      isLate: minutesLate > 5,
+      minutesLate: minutesLate > 5 ? minutesLate : 0,
+    };
 
     console.log('Check-in timing calculation:', {
       checkInTime: format(now, 'HH:mm:ss'),
       shiftStart: format(shiftStart, 'HH:mm:ss'),
       earlyWindow: format(earlyWindow, 'HH:mm:ss'),
       isEarlyCheckIn,
-      lateStatus,
+      minutesLate,
     });
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
