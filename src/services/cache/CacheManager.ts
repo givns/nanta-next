@@ -16,19 +16,7 @@ export class CacheManager {
   private static initPromise: Promise<void> | null = null;
   private initialized = false;
 
-  private constructor(
-    private readonly prisma: PrismaClient,
-    private readonly shiftService: ShiftManagementService,
-    private readonly enhancementService: AttendanceEnhancementService,
-  ) {
-    this.initialized = true;
-  }
-
-  static async initialize(
-    prisma: PrismaClient,
-    shiftService: ShiftManagementService,
-    enhancementService: AttendanceEnhancementService,
-  ): Promise<void> {
+  static async initialize(): Promise<void> {
     if (!this.initPromise) {
       this.initPromise = (async () => {
         try {
@@ -36,14 +24,6 @@ export class CacheManager {
           if (CacheManager.instance?.initialized) {
             return;
           }
-
-          // Create new instance
-          CacheManager.instance = new CacheManager(
-            prisma,
-            shiftService,
-            enhancementService,
-          );
-
           // Any additional async initialization can go here
           // Note: Removed the connect call since it's not available
         } catch (error) {

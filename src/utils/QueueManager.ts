@@ -10,6 +10,7 @@ import {
   ErrorCode,
 } from '@/types/attendance';
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
+import { cacheService } from '../services/cache/CacheService'; // Import the centralized cache service
 
 // Global reference to the processing function
 let processingFunction:
@@ -35,7 +36,7 @@ export class QueueManager {
 
   private constructor() {
     console.log('QueueManager constructor called');
-    this.redis = new Redis(process.env.REDIS_URL!);
+    this.redis = cacheService.getRedisClient() || new Redis(); // Add null check and provide default value
     this.serviceQueue = getServiceQueue();
     this.initializeQueue();
   }

@@ -48,9 +48,13 @@ export class CacheService {
 
       const Redis = await import('ioredis');
       this.client = new Redis.default(redisUrl, {
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times: number) => Math.min(times * 1000, 3000),
-        connectTimeout: 10000,
+        maxRetriesPerRequest: 5,
+        retryStrategy: (times: number) => {
+          // Exponential backoff with jitter
+          const delay = Math.min(times * 1000, 10000);
+          return delay + Math.random() * 1000;
+        },
+        connectTimeout: 15000,
         enableReadyCheck: true,
         enableOfflineQueue: true,
         lazyConnect: true, // Add this to prevent immediate connection
@@ -82,6 +86,10 @@ export class CacheService {
       this.recordError('redis_init_failed');
       console.info('Falling back to memory-only cache');
     }
+  }
+
+  getRedisClient(): Redis | null {
+    return this.client;
   }
 
   private setupRedisEventListeners() {

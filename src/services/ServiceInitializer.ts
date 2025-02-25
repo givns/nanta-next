@@ -116,7 +116,7 @@ export async function initializeServices(
   let cacheManager: CacheManager | NullCacheManager;
   try {
     // Try to initialize and get the singleton instance
-    await CacheManager.initialize(prisma, shiftService, enhancementService);
+    await CacheManager.initialize();
     const instance = CacheManager.getInstance();
 
     if (instance) {
