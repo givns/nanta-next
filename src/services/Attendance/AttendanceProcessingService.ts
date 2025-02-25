@@ -504,6 +504,12 @@ export class AttendanceProcessingService {
     locationData: LocationDataInput | undefined,
     now: Date,
   ): Promise<AttendanceRecord> {
+    console.log('Starting processCheckIn with data:', {
+      employeeId: options.employeeId,
+      nowTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
+      periodType: options.periodType,
+    });
+
     // Get latest sequence number for this date
     const latestRecord = await tx.attendance.findFirst({
       where: {
@@ -517,41 +523,59 @@ export class AttendanceProcessingService {
     });
 
     // Calculate timing details
-    // Fix: Convert time strings to full date objects using the current day as context
     const today = format(now, 'yyyy-MM-dd');
-    const shiftStartTime = `${today}T${periodState.shift.startTime}:00`;
-    let shiftStart = parseISO(shiftStartTime);
 
-    // Validate the date is valid before proceeding
-    if (isNaN(shiftStart.getTime())) {
-      console.error('Invalid shift start time:', {
-        rawStartTime: periodState.shift.startTime,
-        shiftStartTime,
-        periodState: JSON.stringify(periodState.shift),
+    // Properly parse shift start time
+    let shiftStart: Date;
+    try {
+      // First try to extract from period state if it's a complete ISO string
+      if (
+        periodState.current &&
+        periodState.current.start &&
+        periodState.current.start.includes('T')
+      ) {
+        shiftStart = parseISO(periodState.current.start);
+      } else {
+        // Build a proper ISO date string using today's date and shift time
+        const timeString = periodState.shift.startTime || '08:00';
+        const fullDateString = `${today}T${timeString}:00`;
+        shiftStart = parseISO(fullDateString);
+      }
+
+      // Validate date is valid
+      if (isNaN(shiftStart.getTime())) {
+        throw new Error('Invalid shift start time after parsing');
+      }
+    } catch (error) {
+      console.error('Error parsing shift start time:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        startTimeValue: periodState.shift.startTime,
+        currentStart: periodState.current?.start,
       });
-      // Fallback to a sensible default to prevent crashing
-      // Use noon as a fallback if the shift start time is invalid
-      const fallbackTime = set(startOfDay(now), { hours: 12 });
-      console.log('Using fallback time:', format(fallbackTime, 'HH:mm:ss'));
-      shiftStart = fallbackTime;
+      // Fallback to 8:00 AM today
+      shiftStart = set(startOfDay(now), { hours: 8 });
+      console.log(
+        'Using fallback shift start time:',
+        format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+      );
     }
 
     const earlyWindow = subMinutes(
       shiftStart,
       ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
-    ); // 30 minutes early window
+    );
 
     // Determine early/late status
     const isEarlyCheckIn = now < shiftStart && now >= earlyWindow;
 
-    // Protect against invalid date calculation
+    // Safe calculation of minutes late
     let minutesLate = 0;
-    try {
-      if (now > shiftStart) {
+    if (now > shiftStart) {
+      try {
         minutesLate = differenceInMinutes(now, shiftStart);
+      } catch (error) {
+        console.error('Error calculating minutes late:', error);
       }
-    } catch (error) {
-      console.error('Error calculating minutes late:', error);
     }
 
     const lateStatus = {
@@ -569,22 +593,42 @@ export class AttendanceProcessingService {
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
 
-    // Create attendance record - similarly fix the shift end time parsing
-    const shiftEndTime = `${today}T${periodState.current.end.split('T')[1] || periodState.shift.endTime}:00`;
-    let shiftEnd;
+    // Parse shift end time
+    let shiftEnd: Date;
     try {
-      shiftEnd = parseISO(shiftEndTime);
+      if (
+        periodState.current &&
+        periodState.current.end &&
+        periodState.current.end.includes('T')
+      ) {
+        shiftEnd = parseISO(periodState.current.end);
+      } else {
+        const timeString = periodState.shift.endTime || '17:00';
+        const fullDateString = `${today}T${timeString}:00`;
+        shiftEnd = parseISO(fullDateString);
+      }
+
+      // Validate date
       if (isNaN(shiftEnd.getTime())) {
-        // Handle overnight shifts where end time might be for the next day
-        shiftEnd = parseISO(shiftEndTime);
-        if (shiftEnd < shiftStart) {
-          shiftEnd = addDays(shiftEnd, 1); // Add a day if end time is earlier than start time
-        }
+        throw new Error('Invalid shift end time after parsing');
+      }
+
+      // Handle overnight shifts
+      if (shiftEnd < shiftStart) {
+        shiftEnd = addDays(shiftEnd, 1);
       }
     } catch (error) {
-      console.error('Error parsing shift end time:', error);
-      // Fallback to 8 hours after start time
+      console.error('Error parsing shift end time:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        endTimeValue: periodState.shift.endTime,
+        currentEnd: periodState.current?.end,
+      });
+      // Fallback to 8 hours after the start time
       shiftEnd = addHours(shiftStart, 8);
+      console.log(
+        'Using fallback shift end time:',
+        format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
+      );
     }
 
     // Create attendance record
@@ -622,7 +666,7 @@ export class AttendanceProcessingService {
         checkTiming: {
           create: {
             isEarlyCheckIn,
-            isLateCheckIn: lateStatus.minutesLate > 0,
+            isLateCheckIn: lateStatus.isLate,
             lateCheckInMinutes: lateStatus.minutesLate,
             isLateCheckOut: false,
             isVeryLateCheckOut: false,
@@ -639,13 +683,14 @@ export class AttendanceProcessingService {
       },
     });
 
-    console.log('Created attendance record timing:', {
-      checkInTime: format(now, 'HH:mm:ss'),
-      timing: {
-        isEarlyCheckIn: attendance.checkTiming?.isEarlyCheckIn,
-        isLateCheckIn: attendance.checkTiming?.isLateCheckIn,
-        lateCheckInMinutes: attendance.checkTiming?.lateCheckInMinutes,
-      },
+    console.log('Created attendance record:', {
+      id: attendance.id,
+      employeeId: attendance.employeeId,
+      checkInTime: attendance.CheckInTime
+        ? format(attendance.CheckInTime, 'HH:mm:ss')
+        : null,
+      state: attendance.state,
+      checkStatus: attendance.checkStatus,
     });
 
     return AttendanceMappers.toAttendanceRecord(attendance)!;

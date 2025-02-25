@@ -20,7 +20,6 @@ import { CacheManager } from '../cache/CacheManager';
 import { TimeEntryService } from '../TimeEntryService';
 import { AttendanceRecordService } from './AttendanceRecordService';
 import { AttendanceStateManager } from './AttendanceStateManager';
-import { time } from 'console';
 import { getCurrentTime } from '@/utils/dateUtils';
 
 export class AttendanceService {

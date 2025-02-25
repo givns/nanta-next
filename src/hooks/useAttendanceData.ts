@@ -496,24 +496,36 @@ export function useAttendanceData({
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
 
-  // In useAttendanceData.ts
+  // Modify pollForCompletion to be more responsive and fail faster
   async function pollForCompletion(
     requestId: string,
-    maxAttempts = 10, // Reduced from 15
-    maxTotalWaitTime = 60000, // Reduced from 180000 to 60000 (1 minute)
+    maxAttempts = 6, // Reduced from 15
+    maxTotalWaitTime = 30000, // 30 seconds instead of minutes
   ): Promise<ProcessingResult> {
     const startTime = Date.now();
+
+    // Try immediate status check
+    try {
+      const response = await axios.get(
+        `/api/attendance/task-status/${requestId}`,
+      );
+      if (response.data.completed) {
+        return response.data.data;
+      }
+    } catch (e) {
+      // Ignore errors on first try
+    }
+
     for (let i = 0; i < maxAttempts; i++) {
       if (Date.now() - startTime > maxTotalWaitTime) {
         throw new AppError({
           code: ErrorCode.TIMEOUT,
-          message: 'Total polling time exceeded maximum allowed time',
+          message: 'Processing timed out',
         });
       }
 
-      // Reduce delay scaling to reduce wait times
-      const delay =
-        Math.min(1000 * Math.pow(1.3, i), 5000) * (0.9 + 0.2 * Math.random());
+      // Simple linear backoff - start with 1s, then 2s, 3s, etc. up to 5s max
+      const delay = Math.min(1000 * (i + 1), 5000);
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       try {
@@ -521,33 +533,21 @@ export function useAttendanceData({
           `/api/attendance/task-status/${requestId}`,
         );
 
-        // Added error detection - if we see an error in the status response, fail fast
-        if (
-          response.data.status === 'failed' ||
-          response.data.error ||
-          (response.data.data && response.data.data.error)
-        ) {
-          console.error(`Request ${requestId} failed:`, response.data);
+        if (response.data.completed) {
+          return response.data.data;
+        }
+
+        // Check for errors to fail fast
+        if (response.data.status === 'failed' || response.data.error) {
           throw new AppError({
             code: ErrorCode.PROCESSING_ERROR,
             message: response.data.error || 'Processing failed',
-            details: response.data,
           });
-        }
-
-        if (response.data.completed) {
-          console.log(`Request ${requestId} completed successfully`);
-          return response.data.data;
         }
       } catch (error) {
-        console.error(`Polling error for request ${requestId}:`, error);
-        // Rethrow after 3 consecutive errors to fail faster
-        if (i > 2) {
-          throw new AppError({
-            code: ErrorCode.POLLING_ERROR,
-            message: 'Failed to check request status after multiple attempts',
-            originalError: error,
-          });
+        // Fail after 3 consecutive errors
+        if (i >= 2) {
+          throw error;
         }
       }
     }
