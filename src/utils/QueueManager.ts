@@ -10,7 +10,7 @@ import {
   ErrorCode,
 } from '@/types/attendance';
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
-import { cacheService } from '../services/cache/CacheService'; // Import the centralized cache service
+import { redisManager } from '../services/RedisConnectionManager';
 
 // Global reference to the processing function
 let processingFunction:
@@ -20,7 +20,7 @@ let processingFunction:
 export class QueueManager {
   private static instance: QueueManager | null = null;
   private queue!: BetterQueue<ProcessingOptions, QueueResult>; // Using ! to tell TypeScript this will be assigned
-  private redis: Redis;
+  private redis: Redis | null = null;
   private queueSize: number = 0;
   private serviceQueue: ReturnType<typeof getServiceQueue>;
 
@@ -36,9 +36,31 @@ export class QueueManager {
 
   private constructor() {
     console.log('QueueManager constructor called');
-    this.redis = cacheService.getRedisClient() || new Redis(); // Add null check and provide default value
+    this.initializeRedis();
     this.serviceQueue = getServiceQueue();
     this.initializeQueue();
+  }
+
+  private async initializeRedis() {
+    try {
+      // Initialize the Redis manager first
+      await redisManager.initialize();
+
+      // Get the shared Redis client
+      this.redis = redisManager.getClient();
+
+      if (!this.redis) {
+        console.warn('QueueManager: Redis client not available');
+      } else {
+        console.log('QueueManager: Using shared Redis connection');
+      }
+    } catch (error) {
+      console.error(
+        'QueueManager: Failed to initialize Redis connection:',
+        error,
+      );
+      // Continue without Redis - queue will work in memory only
+    }
   }
 
   static getInstance(): QueueManager {
@@ -62,25 +84,35 @@ export class QueueManager {
       async (task, cb) => {
         try {
           // Try to acquire lock using Redis SET with options
-          const lockKey = `lock:${task.employeeId}`;
-          const lockAcquired = await this.redis.set(
-            lockKey,
-            '1',
-            'EX',
-            30, // 30 second expiry
-            'NX', // Only set if key doesn't exist
-          );
+          let lockAcquired = true;
 
-          if (!lockAcquired) {
-            throw new Error('Concurrent operation in progress');
-          }
+          if (this.redis) {
+            const lockKey = `lock:${task.employeeId}`;
+            lockAcquired =
+              (await this.redis.set(
+                lockKey,
+                '1',
+                'EX',
+                30, // 30 second expiry
+                'NX', // Only set if key doesn't exist
+              )) === 'OK';
 
-          try {
+            if (!lockAcquired) {
+              throw new Error('Concurrent operation in progress');
+            }
+
+            try {
+              const result = await this.processTask(task);
+              this.queueSize--;
+              cb(null, result);
+            } finally {
+              await this.redis.del(lockKey);
+            }
+          } else {
+            // No Redis, just process the task without lock
             const result = await this.processTask(task);
             this.queueSize--;
             cb(null, result);
-          } finally {
-            await this.redis.del(lockKey);
           }
         } catch (error) {
           this.queueSize--;
@@ -212,10 +244,19 @@ export class QueueManager {
     isPending: boolean;
     position?: number;
   }> {
-    const lockKey = `lock:${employeeId}`;
-    const isLocked = await this.redis.exists(lockKey);
+    // Check if we have Redis
+    if (this.redis) {
+      const lockKey = `lock:${employeeId}`;
+      const isLocked = await this.redis.exists(lockKey);
+      return {
+        isPending: isLocked === 1,
+        position: this.queueSize,
+      };
+    }
+
+    // Otherwise use memory-based approach
     return {
-      isPending: isLocked === 1,
+      isPending: this.queueSize > 0,
       position: this.queueSize,
     };
   }
@@ -223,7 +264,8 @@ export class QueueManager {
   async cleanup(): Promise<void> {
     return new Promise<void>((resolve) => {
       this.queue.destroy(() => {
-        this.redis.quit().then(() => resolve());
+        // No need to quit Redis as it's now managed centrally
+        resolve();
       });
     });
   }

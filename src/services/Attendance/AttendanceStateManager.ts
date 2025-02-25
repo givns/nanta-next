@@ -1,5 +1,4 @@
 // services/Attendance/AttendanceStateManager.ts
-
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   AttendanceStatusResponse,
@@ -12,6 +11,7 @@ import {
 import Redis from 'ioredis';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
+import { redisManager } from '../RedisConnectionManager';
 
 interface StateEntry {
   status: AttendanceStatusResponse;
@@ -27,9 +27,10 @@ interface PendingOperation {
 
 export class AttendanceStateManager {
   private static instance: AttendanceStateManager;
-  private redis: Redis;
+  private redis: Redis | null = null;
   private stateCache: Map<string, StateEntry> = new Map();
   private pendingOperations: Map<string, PendingOperation> = new Map();
+  private cleanupInterval: NodeJS.Timeout | null = null;
 
   // Cache configuration
   private readonly CACHE_TTL = 30 * 1000; // 30 seconds
@@ -37,8 +38,24 @@ export class AttendanceStateManager {
   private readonly LOCK_PREFIX = 'attendance:lock:';
 
   private constructor() {
-    this.redis = new Redis(process.env.REDIS_URL!);
+    this.initializeRedisConnection();
     this.initializeCleanup();
+  }
+
+  private async initializeRedisConnection() {
+    try {
+      await redisManager.initialize();
+      this.redis = redisManager.getClient();
+      if (!this.redis) {
+        console.warn('Redis client not available in AttendanceStateManager');
+      }
+    } catch (error) {
+      console.error(
+        'Failed to initialize Redis in AttendanceStateManager:',
+        error,
+      );
+      // Continue without Redis - we'll fall back to memory cache
+    }
   }
 
   static getInstance(): AttendanceStateManager {
@@ -49,7 +66,7 @@ export class AttendanceStateManager {
   }
 
   private initializeCleanup() {
-    setInterval(() => {
+    this.cleanupInterval = setInterval(() => {
       const now = Date.now();
 
       // Cleanup state cache
@@ -82,16 +99,25 @@ export class AttendanceStateManager {
         return cachedState.status;
       }
 
-      // Check Redis cache
-      const redisState = await this.redis.get(cacheKey);
-      if (redisState) {
-        const parsedState = JSON.parse(redisState) as AttendanceStatusResponse;
-        this.stateCache.set(cacheKey, {
-          status: parsedState,
-          timestamp: Date.now(),
-          ttl: this.CACHE_TTL,
-        });
-        return parsedState;
+      // Check Redis cache if available
+      if (this.redis) {
+        const redisState = await this.redis.get(cacheKey);
+        if (redisState) {
+          try {
+            const parsedState = JSON.parse(
+              redisState,
+            ) as AttendanceStatusResponse;
+            this.stateCache.set(cacheKey, {
+              status: parsedState,
+              timestamp: Date.now(),
+              ttl: this.CACHE_TTL,
+            });
+            return parsedState;
+          } catch (error) {
+            console.error('Error parsing Redis state:', error);
+            // Continue and return initial state
+          }
+        }
       }
 
       return this.createInitialState(employeeId, context);
@@ -105,7 +131,6 @@ export class AttendanceStateManager {
     }
   }
 
-  // Updated updateState method
   async updateState(
     employeeId: string,
     newState: AttendanceStatusResponse,
@@ -115,33 +140,16 @@ export class AttendanceStateManager {
     const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
 
     try {
-      // Try to acquire lock with retry mechanism
-      let lockAcquired = false;
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      while (!lockAcquired && retryCount < maxRetries) {
-        // Try to acquire lock
-        const locked = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
-
-        if (locked) {
-          lockAcquired = true;
-        } else {
-          // Wait with exponential backoff
-          const delay = Math.min(500 * Math.pow(2, retryCount), 5000);
-          console.log(
-            `Lock acquisition attempt ${retryCount + 1} failed, waiting ${delay}ms...`,
-          );
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          retryCount++;
+      // Try to acquire lock if Redis is available
+      let locked = true;
+      if (this.redis) {
+        locked = (await this.redis.set(lockKey, '1', 'EX', 30, 'NX')) === 'OK';
+        if (!locked) {
+          throw new AppError({
+            code: ErrorCode.PROCESSING_ERROR,
+            message: 'Concurrent operation in progress',
+          });
         }
-      }
-
-      if (!lockAcquired) {
-        console.log(
-          'Failed to acquire lock after retries, proceeding without lock',
-        );
-        // Continue without lock, which is better than throwing an error
       }
 
       // Track pending operation
@@ -151,26 +159,33 @@ export class AttendanceStateManager {
         employeeId,
       });
 
-      // Update both caches
-      await this.redis.set(cacheKey, JSON.stringify(newState), 'EX', 30);
+      // Update memory cache
       this.stateCache.set(cacheKey, {
         status: newState,
         timestamp: Date.now(),
         ttl: this.CACHE_TTL,
       });
 
+      // Update Redis cache if available
+      if (this.redis) {
+        try {
+          await this.redis.set(cacheKey, JSON.stringify(newState), 'EX', 30);
+        } catch (error) {
+          console.error('Error updating Redis state:', error);
+          // Continue - we've already updated the memory cache
+        }
+      }
+
       // Remove pending operation
       this.pendingOperations.delete(employeeId);
-    } catch (error) {
-      console.error('Error updating state:', error);
-      this.pendingOperations.delete(employeeId);
-      // Don't throw here, just log
     } finally {
-      // Release lock if we had it
-      try {
-        await this.redis.del(lockKey);
-      } catch (lockError) {
-        console.error('Error releasing lock:', lockError);
+      // Release lock if Redis is available
+      if (this.redis) {
+        try {
+          await this.redis.del(lockKey);
+        } catch (error) {
+          console.error('Error releasing lock:', error);
+        }
       }
     }
   }
@@ -179,9 +194,17 @@ export class AttendanceStateManager {
     const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
 
     try {
-      // Remove from both caches
-      await this.redis.del(cacheKey);
+      // Remove from memory cache
       this.stateCache.delete(cacheKey);
+
+      // Remove from Redis if available
+      if (this.redis) {
+        try {
+          await this.redis.del(cacheKey);
+        } catch (error) {
+          console.error('Error deleting Redis key:', error);
+        }
+      }
     } catch (error) {
       console.error('Error invalidating state:', error);
     }
@@ -266,8 +289,8 @@ export class AttendanceStateManager {
 
   private createInitialValidation(): StateValidation {
     return {
-      errors: {},
-      warnings: {},
+      errors: [],
+      warnings: [],
       allowed: true,
       reason: '',
       flags: {
@@ -303,6 +326,12 @@ export class AttendanceStateManager {
   }
 
   async cleanup(): Promise<void> {
-    await this.redis.quit();
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+
+    // No need to quit Redis here as the connection is managed by RedisConnectionManager
+    this.redis = null;
   }
 }

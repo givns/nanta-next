@@ -1,5 +1,7 @@
+// services/cache/CacheService.ts
 import { Redis } from 'ioredis';
 import { z } from 'zod';
+import { redisManager } from '../RedisConnectionManager';
 
 interface CacheMetrics {
   hits: number;
@@ -22,6 +24,7 @@ export class CacheService {
 
   private readonly MEMORY_CACHE_TTL = 5000; // 5 seconds
   private readonly IS_CLIENT = typeof window !== 'undefined';
+  private isInitialized = false;
 
   constructor() {
     if (!this.IS_CLIENT) {
@@ -32,57 +35,27 @@ export class CacheService {
   }
 
   private async initializeRedis() {
-    if (this.IS_CLIENT) return;
-
-    const redisUrl = process.env.REDIS_URL;
-    if (!redisUrl) {
-      console.warn('REDIS_URL is not set. Using memory-only cache.');
-      return;
-    }
+    if (this.IS_CLIENT || this.isInitialized) return;
 
     try {
-      console.debug(
-        'Initializing Redis with URL pattern:',
-        redisUrl.replace(/(:.*@)/, ':****@'),
-      );
+      console.debug('Initializing Redis connection for CacheService');
 
-      const Redis = await import('ioredis');
-      this.client = new Redis.default(redisUrl, {
-        maxRetriesPerRequest: 5,
-        retryStrategy: (times: number) => {
-          // Exponential backoff with jitter
-          const delay = Math.min(times * 1000, 10000);
-          return delay + Math.random() * 1000;
-        },
-        connectTimeout: 15000,
-        enableReadyCheck: true,
-        enableOfflineQueue: true,
-        lazyConnect: true, // Add this to prevent immediate connection
-        reconnectOnError: (err) => {
-          console.error('Redis reconnect error:', err.message);
-          return true;
-        },
-      });
+      // Initialize the Redis manager
+      await redisManager.initialize();
 
-      // Wait for connection before proceeding
-      await new Promise<void>((resolve, reject) => {
-        this.client!.once('ready', () => {
-          console.info('Redis: Connection established and ready');
-          resolve();
-        });
+      // Get the shared client
+      this.client = redisManager.getClient();
 
-        this.client!.once('error', (err) => {
-          console.error('Redis initial connection error:', err);
-          reject(err);
-        });
-
-        // Add connection timeout
-        setTimeout(() => reject(new Error('Redis connection timeout')), 10000);
-      });
-
-      this.setupRedisEventListeners();
+      if (this.client) {
+        this.isInitialized = true;
+        console.info('CacheService: Using shared Redis connection');
+      } else {
+        console.warn(
+          'CacheService: Redis client not available, using memory-only cache',
+        );
+      }
     } catch (error) {
-      console.error('Failed to initialize Redis:', error);
+      console.error('Failed to initialize Redis for CacheService:', error);
       this.recordError('redis_init_failed');
       console.info('Falling back to memory-only cache');
     }
@@ -90,22 +63,6 @@ export class CacheService {
 
   getRedisClient(): Redis | null {
     return this.client;
-  }
-
-  private setupRedisEventListeners() {
-    if (!this.client) return;
-
-    this.client
-      .on('connect', () => console.info('Redis: Establishing connection...'))
-      .on('ready', () =>
-        console.info('Redis: Connection established and ready'),
-      )
-      .on('error', (err) => console.error('Redis error:', err.message))
-      .on('close', () => console.warn('Redis: Connection closed'))
-      .on('reconnecting', (ms: any) =>
-        console.info(`Redis: Reconnecting in ${ms}ms`),
-      )
-      .on('end', () => console.warn('Redis: Connection ended'));
   }
 
   private recordError(type: string) {
@@ -166,7 +123,8 @@ export class CacheService {
         return null;
       } catch (error) {
         this.recordError('get_failed');
-        throw error;
+        console.error('Cache get failed:', error);
+        return null; // Return null instead of throwing to avoid breaking the application
       }
     }, 'get');
   }
@@ -182,7 +140,10 @@ export class CacheService {
     }
 
     return this.measureOperation(async () => {
-      if (!this.client) return;
+      if (!this.client) {
+        this.setInMemoryCache(key, value);
+        return;
+      }
 
       try {
         if (expirationInSeconds) {
@@ -193,7 +154,9 @@ export class CacheService {
         this.setInMemoryCache(key, value);
       } catch (error) {
         this.recordError('set_failed');
-        throw error;
+        console.error('Cache set failed:', error);
+        // Still set in memory cache as fallback
+        this.setInMemoryCache(key, value);
       }
     }, 'set');
   }
@@ -246,35 +209,41 @@ export class CacheService {
 
   async invalidatePattern(pattern: string): Promise<void> {
     return this.measureOperation(async () => {
+      // Remove from memory cache by pattern matching
+      for (const key of this.memoryCache.keys()) {
+        if (key.includes(pattern.replace('*', ''))) {
+          this.memoryCache.delete(key);
+        }
+      }
+
       if (!this.client) return;
 
       try {
         const keys = await this.client.keys(pattern);
         if (keys.length > 0) {
           await this.client.del(...keys);
-          for (const key of this.memoryCache.keys()) {
-            if (key.includes(pattern.replace('*', ''))) {
-              this.memoryCache.delete(key);
-            }
-          }
         }
       } catch (error) {
         this.recordError('invalidate_pattern_failed');
-        throw error;
+        console.error('Failed to invalidate pattern:', error);
+        // Continue without throwing to avoid breaking the application
       }
     }, 'invalidatePattern');
   }
 
   async del(key: string): Promise<void> {
     return this.measureOperation(async () => {
+      // Always clean memory cache
+      this.memoryCache.delete(key);
+
       if (!this.client) return;
 
       try {
         await this.client.del(key);
-        this.memoryCache.delete(key);
       } catch (error) {
         this.recordError('del_failed');
-        throw error;
+        console.error('Failed to delete key:', error);
+        // Continue without throwing to avoid breaking the application
       }
     }, 'del');
   }
