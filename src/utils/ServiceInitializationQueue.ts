@@ -4,8 +4,11 @@ import { initializeServices } from '@/services/ServiceInitializer';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { PrismaClient } from '@prisma/client';
 
+// Create private variables outside the class to avoid initialization order issues
+let instanceRef: ServiceInitializationQueue | null = null;
+let prismaRef: PrismaClient | null = null;
+
 export class ServiceInitializationQueue {
-  private static instance: ServiceInitializationQueue;
   private initializationPromise: Promise<InitializedServices> | null = null;
   private prisma: PrismaClient;
   private initialized: boolean = false;
@@ -14,16 +17,25 @@ export class ServiceInitializationQueue {
 
   private constructor(prisma: PrismaClient) {
     this.prisma = prisma;
+    console.log('ServiceInitializationQueue constructor called');
   }
 
   static getInstance(prisma?: PrismaClient): ServiceInitializationQueue {
-    if (!this.instance) {
-      if (!prisma) {
+    // Use the external variables instead of static class properties
+    if (!instanceRef) {
+      if (!prisma && !prismaRef) {
         throw new Error('PrismaClient required for first initialization');
       }
-      this.instance = new ServiceInitializationQueue(prisma);
+
+      // Store the prisma reference if provided
+      if (prisma) {
+        prismaRef = prisma;
+      }
+
+      console.log('Creating new ServiceInitializationQueue instance');
+      instanceRef = new ServiceInitializationQueue(prismaRef!);
     }
-    return this.instance;
+    return instanceRef;
   }
 
   async getInitializedServices(): Promise<InitializedServices> {
@@ -31,31 +43,43 @@ export class ServiceInitializationQueue {
       console.log('Starting service initialization...');
       const startTime = Date.now();
 
-      this.initializationPromise = initializeServices(this.prisma)
-        .then((services) => {
-          if (!services.attendanceService || !services.notificationService) {
-            throw new AppError({
-              code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
-              message: 'Required services are not initialized',
+      // Create a new promise to prevent re-entrancy issues
+      this.initializationPromise = new Promise<InitializedServices>(
+        (resolve, reject) => {
+          initializeServices(this.prisma)
+            .then((services) => {
+              if (
+                !services.attendanceService ||
+                !services.notificationService
+              ) {
+                const error = new AppError({
+                  code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
+                  message: 'Required services are not initialized',
+                });
+                this.lastError = error;
+                this.initialized = false;
+                reject(error);
+                return;
+              }
+
+              const duration = Date.now() - startTime;
+              console.log(`Services initialized successfully in ${duration}ms`);
+
+              this.initialized = true;
+              this.initializationTime = Date.now();
+              this.lastError = null;
+
+              resolve(services);
+            })
+            .catch((error) => {
+              this.lastError =
+                error instanceof Error ? error : new Error(String(error));
+              this.initialized = false;
+              console.error('Service initialization failed:', error);
+              reject(error);
             });
-          }
-
-          const duration = Date.now() - startTime;
-          console.log(`Services initialized successfully in ${duration}ms`);
-
-          this.initialized = true;
-          this.initializationTime = Date.now();
-          this.lastError = null;
-
-          return services;
-        })
-        .catch((error) => {
-          this.lastError =
-            error instanceof Error ? error : new Error(String(error));
-          this.initialized = false;
-          console.error('Service initialization failed:', error);
-          throw error;
-        });
+        },
+      );
     }
 
     return this.initializationPromise;
@@ -113,4 +137,11 @@ export class ServiceInitializationQueue {
       status: 'initializing',
     };
   }
+}
+
+// Export a direct function to get the instance to avoid potential initialization issues
+export function getServiceQueue(
+  prisma?: PrismaClient,
+): ServiceInitializationQueue {
+  return ServiceInitializationQueue.getInstance(prisma);
 }

@@ -13,7 +13,7 @@ import { createRateLimitMiddleware } from '@/utils/rateLimit';
 import { QueueManager } from '@/utils/QueueManager';
 import { performance } from 'perf_hooks';
 import Redis from 'ioredis';
-import { ServiceInitializationQueue } from '@/utils/ServiceInitializationQueue';
+import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 
 interface ErrorResponse {
   status: number;
@@ -25,7 +25,7 @@ interface ErrorResponse {
 // Initialize services
 const prisma = new PrismaClient();
 const redis = new Redis(process.env.REDIS_URL!);
-const serviceQueue = ServiceInitializationQueue.getInstance(prisma);
+const serviceQueue = getServiceQueue(prisma);
 const queueManager = QueueManager.getInstance();
 
 // Rate limit middleware
@@ -69,11 +69,6 @@ setInterval(() => {
     }
   }
 }, CACHE_CONSTANTS.CACHE_TIMEOUT);
-
-// Helper Functions
-function getRequestKey(task: ProcessingOptions): string {
-  return `${task.employeeId || task.lineUserId}-${task.checkTime}`;
-}
 
 async function getCachedUser(identifier: {
   employeeId?: string;
@@ -124,37 +119,12 @@ async function getCachedUser(identifier: {
   }
 }
 
-// REPLACE the current getServices function with:
-async function getServices(): Promise<InitializedServices> {
-  try {
-    const services = await serviceQueue.getInitializedServices();
-    if (!services) {
-      throw new AppError({
-        code: ErrorCode.INTERNAL_ERROR,
-        message: 'Failed to initialize services',
-      });
-    }
-    return services;
-  } catch (error) {
-    console.error('Service initialization error:', error);
-    throw new AppError({
-      code: ErrorCode.SERVICE_INITIALIZATION_ERROR,
-      message: 'Service initialization failed',
-      originalError: error,
-    });
-  }
-}
-
 // Main Processing Function
 export async function processCheckInOut(
-  task: ProcessingOptions & { services?: InitializedServices },
+  task: ProcessingOptions,
 ): Promise<QueueResult> {
-  // Use passed services if available, otherwise initialize
-  const services = task.services || (await getServices());
-
-  const { attendanceService, notificationService } = services;
-  const requestKey = getRequestKey(task);
   const serverTime = getCurrentTime();
+  const requestKey = `${task.employeeId || task.lineUserId}-${task.checkTime}`;
 
   console.log('Processing check-in/out task:', {
     requestKey,
@@ -162,18 +132,11 @@ export async function processCheckInOut(
     clientTime: task.checkTime,
   });
 
-  // Check cache first
-  const existingResult = processedRequests.get(requestKey);
-  if (existingResult) {
-    console.log('Request already processed:', requestKey);
-    return {
-      status: existingResult.status,
-      notificationSent: false,
-      success: true,
-    };
-  }
-
   try {
+    // Get services
+    const services = await serviceQueue.getInitializedServices();
+    const { attendanceService, notificationService } = services;
+
     // Get current status first to check if auto-completion needed
     const currentStatus = await attendanceService.getAttendanceStatus(
       task.employeeId!,
@@ -231,19 +194,12 @@ export async function processCheckInOut(
       }),
     ]);
 
-    // Rest of the function remains the same...
     if (!processedAttendance.success) {
       throw new AppError({
         code: ErrorCode.PROCESSING_ERROR,
         message: 'Failed to process attendance',
       });
     }
-
-    // Cache handling
-    processedRequests.set(requestKey, {
-      timestamp: Date.now(),
-      status: updatedStatus,
-    });
 
     // Handle notifications
     let notificationSent = false;
@@ -263,9 +219,26 @@ export async function processCheckInOut(
     }
 
     return {
+      success: true,
       status: updatedStatus,
       notificationSent,
-      success: true,
+      timestamp: serverTime.toISOString(),
+      requestId: task.requestId,
+      data: {
+        state: {
+          current: updatedStatus.daily.currentState,
+          previous: activeAttendance
+            ? currentStatus.daily.currentState
+            : undefined,
+        },
+        validation: updatedStatus.validation,
+      },
+      metadata: {
+        source: task.activity.isManualEntry ? 'manual' : 'system',
+      },
+      message: needsAutoCompletion
+        ? 'Attendance auto-completed due to missing check-in or overtime end'
+        : undefined,
     };
   } catch (error) {
     if (error instanceof AppError) {
@@ -279,6 +252,9 @@ export async function processCheckInOut(
     });
   }
 }
+
+// Set the processing function for the queue manager
+QueueManager.setProcessingFunction(processCheckInOut);
 
 // API Handler
 export default async function handler(

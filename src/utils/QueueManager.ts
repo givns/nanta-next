@@ -9,21 +9,19 @@ import {
   AppError,
   ErrorCode,
 } from '@/types/attendance';
-import { ServiceInitializationQueue } from '@/utils/ServiceInitializationQueue';
-import { processCheckInOut } from '@/pages/api/attendance/check-in-out';
+import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
+
+// Global reference to the processing function
+let processingFunction:
+  | ((task: ProcessingOptions) => Promise<QueueResult>)
+  | null = null;
 
 export class QueueManager {
-  private static instance: QueueManager;
-  private queue!: BetterQueue<ProcessingOptions, QueueResult>;
+  private static instance: QueueManager | null = null;
+  private queue!: BetterQueue<ProcessingOptions, QueueResult>; // Using ! to tell TypeScript this will be assigned
   private redis: Redis;
   private queueSize: number = 0;
-  private serviceQueue: ServiceInitializationQueue;
-
-  private constructor() {
-    this.redis = new Redis(process.env.REDIS_URL!);
-    this.serviceQueue = ServiceInitializationQueue.getInstance();
-    this.initializeQueue();
-  }
+  private serviceQueue: ReturnType<typeof getServiceQueue>;
 
   private requestStatusMap = new Map<
     string,
@@ -35,11 +33,27 @@ export class QueueManager {
     }
   >();
 
+  private constructor() {
+    console.log('QueueManager constructor called');
+    this.redis = new Redis(process.env.REDIS_URL!);
+    this.serviceQueue = getServiceQueue();
+    this.initializeQueue();
+  }
+
   static getInstance(): QueueManager {
-    if (!this.instance) {
-      this.instance = new QueueManager();
+    if (!QueueManager.instance) {
+      console.log('Creating new QueueManager instance');
+      QueueManager.instance = new QueueManager();
     }
-    return this.instance;
+    return QueueManager.instance;
+  }
+
+  // Set the processing function - to be called by the API route
+  static setProcessingFunction(
+    fn: (task: ProcessingOptions) => Promise<QueueResult>,
+  ): void {
+    processingFunction = fn;
+    console.log('Processing function set');
   }
 
   private initializeQueue() {
@@ -115,7 +129,7 @@ export class QueueManager {
     );
   }
 
-  // Add method to get request status
+  // Get request status
   async getRequestStatus(requestId: string): Promise<{
     status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
     completed: boolean;
@@ -134,14 +148,14 @@ export class QueueManager {
     return status;
   }
 
-  // Update the enqueue method
+  // Enqueue task
   async enqueue(task: ProcessingOptions): Promise<QueueResult> {
     // Set initial status
     if (task.requestId) {
       this.setRequestStatus(task.requestId, 'pending');
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise<QueueResult>((resolve, reject) => {
       this.queue.push(task, (error, result) => {
         if (error) {
           if (task.requestId) {
@@ -160,7 +174,7 @@ export class QueueManager {
     });
   }
 
-  // Update the processTask method
+  // Process task
   private async processTask(task: ProcessingOptions): Promise<QueueResult> {
     try {
       if (task.requestId) {
@@ -176,12 +190,19 @@ export class QueueManager {
         });
       }
 
-      // Use the existing processCheckInOut function
-      const result = await processCheckInOut(task);
+      // Check if processing function is set
+      if (!processingFunction) {
+        throw new AppError({
+          code: ErrorCode.PROCESSING_ERROR,
+          message: 'Processing function not initialized',
+        });
+      }
+
+      // Use the processing function
+      const result = await processingFunction(task);
       return result;
     } catch (error) {
       console.error('Task processing error:', error);
-
       throw error;
     }
   }
@@ -199,7 +220,7 @@ export class QueueManager {
   }
 
   async cleanup(): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise<void>((resolve) => {
       this.queue.destroy(() => {
         this.redis.quit().then(() => resolve());
       });

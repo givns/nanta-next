@@ -10,11 +10,27 @@ import {
 import { LeaveRequest } from './leave';
 import { ShiftData } from './shift';
 import { ApprovedOvertimeInfo, PeriodStatus } from './status';
-import { AttendanceStateResponse } from './state';
+import {
+  AttendanceStateResponse,
+  StateValidation,
+  UnifiedPeriodState,
+} from './state';
 
 export interface QueueResult {
   status: AttendanceStateResponse;
   notificationSent: boolean;
+  timestamp: string;
+  requestId?: string;
+  data: {
+    state: {
+      current: UnifiedPeriodState;
+      previous: UnifiedPeriodState | undefined;
+    };
+    validation: StateValidation;
+  };
+  metadata: {
+    source: string;
+  };
   message?: string;
   success: boolean;
   autoCompletedEntries?: {
