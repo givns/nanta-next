@@ -1,4 +1,4 @@
-// pages/api/attendance/status/[requestId].ts
+// pages/api/attendance/task-status/[requestId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { QueueManager } from '@/utils/QueueManager';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -7,8 +7,7 @@ import { createRateLimitMiddleware } from '@/utils/rateLimit';
 // Rate limit middleware - lower limits for status checks
 const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 20);
 
-// Add a task status tracking mechanism to the QueueManager
-// We'll need to update QueueManager to track task status
+// Get the queue manager instance
 const queueManager = QueueManager.getInstance();
 
 export default async function handler(
@@ -42,7 +41,7 @@ export default async function handler(
       status: taskStatus.status,
       completed: taskStatus.completed,
       data: taskStatus.data,
-      timestamp: getCurrentTime(),
+      timestamp: getCurrentTime().toISOString(),
     });
   } catch (error) {
     console.error('Error getting task status:', error);
@@ -51,7 +50,7 @@ export default async function handler(
       status: 'error',
       message: 'Failed to get task status',
       error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: getCurrentTime(),
+      timestamp: getCurrentTime().toISOString(),
     });
   }
 }

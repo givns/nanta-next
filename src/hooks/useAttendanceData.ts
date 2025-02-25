@@ -496,6 +496,7 @@ export function useAttendanceData({
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
 
+  // In useAttendanceData.ts
   async function pollForCompletion(
     requestId: string,
     maxAttempts = 15,
@@ -506,7 +507,10 @@ export function useAttendanceData({
         console.log(
           `Polling attempt ${i + 1}/${maxAttempts} for request ${requestId}`,
         );
-        const response = await axios.get(`/api/attendance/status/${requestId}`);
+        // Updated path to match the new API route
+        const response = await axios.get(
+          `/api/attendance/task-status/${requestId}`,
+        );
 
         if (response.data.completed) {
           console.log(`Request ${requestId} completed successfully`);
