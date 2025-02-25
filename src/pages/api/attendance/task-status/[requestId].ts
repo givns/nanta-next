@@ -1,13 +1,19 @@
 // pages/api/attendance/task-status/[requestId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { QueueManager } from '@/utils/QueueManager';
+import { PrismaClient } from '@prisma/client';
+import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
 
 // Rate limit middleware - lower limits for status checks
 const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 20);
 
-// Get the queue manager instance
+// Initialize services with PrismaClient - IMPORTANT
+const prisma = new PrismaClient();
+// Initialize service queue first with PrismaClient
+const serviceQueue = getServiceQueue(prisma);
+// Then initialize QueueManager
 const queueManager = QueueManager.getInstance();
 
 export default async function handler(
@@ -52,5 +58,7 @@ export default async function handler(
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: getCurrentTime().toISOString(),
     });
+  } finally {
+    await prisma.$disconnect();
   }
 }
