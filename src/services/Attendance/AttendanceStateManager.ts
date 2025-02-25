@@ -101,33 +101,39 @@ export class AttendanceStateManager {
 
       // Check Redis cache if available
       if (this.redis) {
-        const redisState = await this.redis.get(cacheKey);
-        if (redisState) {
-          try {
-            const parsedState = JSON.parse(
-              redisState,
-            ) as AttendanceStatusResponse;
-            this.stateCache.set(cacheKey, {
-              status: parsedState,
-              timestamp: Date.now(),
-              ttl: this.CACHE_TTL,
-            });
-            return parsedState;
-          } catch (error) {
-            console.error('Error parsing Redis state:', error);
-            // Continue and return initial state
+        try {
+          const redisState = await this.redis.get(cacheKey);
+          if (redisState) {
+            try {
+              const parsedState = JSON.parse(
+                redisState,
+              ) as AttendanceStatusResponse;
+              this.stateCache.set(cacheKey, {
+                status: parsedState,
+                timestamp: Date.now(),
+                ttl: this.CACHE_TTL,
+              });
+              return parsedState;
+            } catch (parseError) {
+              console.error('Error parsing Redis state:', parseError);
+              // Continue and return initial state
+            }
           }
+        } catch (redisError) {
+          console.error(
+            'Redis error when getting state, continuing with initial state:',
+            redisError,
+          );
+          // Continue to initial state creation
         }
       }
 
+      // Create and return initial state
       return this.createInitialState(employeeId, context);
     } catch (error) {
       console.error('Error getting attendance state:', error);
-      throw new AppError({
-        code: ErrorCode.CACHE_ERROR,
-        message: 'Failed to get attendance state',
-        originalError: error,
-      });
+      // Always return a valid state even if there's an error
+      return this.createInitialState(employeeId, context);
     }
   }
 
@@ -141,18 +147,67 @@ export class AttendanceStateManager {
 
     try {
       // Try to acquire lock if Redis is available
-      let locked = true;
+      let lockAcquired = true;
       if (this.redis) {
-        locked = (await this.redis.set(lockKey, '1', 'EX', 30, 'NX')) === 'OK';
-        if (!locked) {
-          throw new AppError({
-            code: ErrorCode.PROCESSING_ERROR,
-            message: 'Concurrent operation in progress',
-          });
+        try {
+          const result = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
+          lockAcquired = result === 'OK';
+
+          if (!lockAcquired) {
+            console.warn(
+              `Failed to acquire Redis lock for ${employeeId}, checking if lock is stale`,
+            );
+
+            // Check if the lock exists and when it was set
+            const lockInfo = await this.redis.get(`${lockKey}:info`);
+
+            if (lockInfo) {
+              try {
+                const lockData = JSON.parse(lockInfo);
+                const lockTime = new Date(lockData.timestamp);
+                const now = new Date();
+
+                // If lock is older than 1 minute, consider it stale and force release
+                if (now.getTime() - lockTime.getTime() > 60000) {
+                  console.warn(
+                    `Forcing release of stale lock for ${employeeId}`,
+                  );
+                  await this.redis.del(lockKey);
+                  await this.redis.del(`${lockKey}:info`);
+                  lockAcquired = true;
+                } else {
+                  throw new AppError({
+                    code: ErrorCode.PROCESSING_ERROR,
+                    message: 'Concurrent operation in progress',
+                  });
+                }
+              } catch (parseError) {
+                console.error('Error parsing lock info:', parseError);
+              }
+            }
+          } else {
+            // Set lock info with timestamp
+            await this.redis.set(
+              `${lockKey}:info`,
+              JSON.stringify({
+                timestamp: new Date().toISOString(),
+                type: operationType,
+              }),
+              'EX',
+              30,
+            );
+          }
+        } catch (redisError) {
+          // Log Redis error but continue with memory operations
+          console.error(
+            'Redis error when acquiring lock, continuing with memory cache only:',
+            redisError,
+          );
+          lockAcquired = true; // Assume lock acquired when Redis fails
         }
       }
 
-      // Track pending operation
+      // Track pending operation in memory
       this.pendingOperations.set(employeeId, {
         timestamp: Date.now(),
         type: operationType,
@@ -166,13 +221,16 @@ export class AttendanceStateManager {
         ttl: this.CACHE_TTL,
       });
 
-      // Update Redis cache if available
-      if (this.redis) {
+      // Update Redis cache if available and lock was acquired
+      if (this.redis && lockAcquired) {
         try {
           await this.redis.set(cacheKey, JSON.stringify(newState), 'EX', 30);
-        } catch (error) {
-          console.error('Error updating Redis state:', error);
-          // Continue - we've already updated the memory cache
+        } catch (redisError) {
+          console.error(
+            'Error updating Redis state, continuing with memory cache only:',
+            redisError,
+          );
+          // Continue with memory cache only - don't fail the operation
         }
       }
 
@@ -183,8 +241,10 @@ export class AttendanceStateManager {
       if (this.redis) {
         try {
           await this.redis.del(lockKey);
-        } catch (error) {
-          console.error('Error releasing lock:', error);
+          await this.redis.del(`${lockKey}:info`);
+        } catch (redisError) {
+          console.error('Error releasing Redis lock:', redisError);
+          // Continue even if lock release fails
         }
       }
     }
@@ -212,6 +272,130 @@ export class AttendanceStateManager {
 
   async hasPendingOperation(employeeId: string): Promise<boolean> {
     return this.pendingOperations.has(employeeId);
+  }
+
+  /**
+   * Check for and clear stale locks
+   * This can help recover from deadlock situations
+   */
+  async clearStaleLocks(): Promise<number> {
+    if (!this.redis) return 0;
+
+    try {
+      // Find all active locks
+      const lockPattern = `${this.LOCK_PREFIX}*`;
+      const lockKeys = await this.redis.keys(lockPattern);
+
+      if (lockKeys.length === 0) return 0;
+
+      console.log(
+        `Found ${lockKeys.length} active locks, checking for stale ones...`,
+      );
+
+      let clearedLocks = 0;
+
+      // Check each lock
+      for (const lockKey of lockKeys) {
+        // Skip info keys - we'll handle them with their parent lock
+        if (lockKey.endsWith(':info')) continue;
+
+        const infoKey = `${lockKey}:info`;
+        const lockInfo = await this.redis.get(infoKey);
+
+        if (lockInfo) {
+          try {
+            const lockData = JSON.parse(lockInfo);
+            const lockTime = new Date(lockData.timestamp);
+            const now = new Date();
+
+            // If lock is older than 1 minute, consider it stale
+            if (now.getTime() - lockTime.getTime() > 60000) {
+              console.warn(
+                `Clearing stale lock: ${lockKey}, created at ${lockData.timestamp}`,
+              );
+              await this.redis.del(lockKey);
+              await this.redis.del(infoKey);
+              clearedLocks++;
+            }
+          } catch (error) {
+            console.error(`Error processing lock info for ${lockKey}:`, error);
+            // Force clear if we can't parse the info
+            await this.redis.del(lockKey);
+            await this.redis.del(infoKey);
+            clearedLocks++;
+          }
+        } else {
+          // No info key found, this could be a lock without info
+          // Get the TTL to see how old it is
+          const ttl = await this.redis.ttl(lockKey);
+
+          // If TTL is less than 20 seconds (out of 30), it's older than 10 seconds
+          if (ttl < 20) {
+            console.warn(
+              `Clearing potential stale lock without info: ${lockKey}, TTL: ${ttl}`,
+            );
+            await this.redis.del(lockKey);
+            clearedLocks++;
+          }
+        }
+      }
+
+      return clearedLocks;
+    } catch (error) {
+      console.error('Error clearing stale locks:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Check if a specific employee has a lock
+   * @param employeeId The employee ID to check
+   * @returns Information about the lock if it exists
+   */
+  async checkEmployeeLock(employeeId: string): Promise<{
+    hasLock: boolean;
+    isStale: boolean;
+    timestamp?: string;
+    type?: 'check-in' | 'check-out';
+  }> {
+    if (!this.redis) {
+      return { hasLock: false, isStale: false };
+    }
+
+    const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
+    const infoKey = `${lockKey}:info`;
+
+    try {
+      const exists = await this.redis.exists(lockKey);
+
+      if (exists === 0) {
+        return { hasLock: false, isStale: false };
+      }
+
+      const lockInfo = await this.redis.get(infoKey);
+
+      if (!lockInfo) {
+        return { hasLock: true, isStale: true };
+      }
+
+      try {
+        const lockData = JSON.parse(lockInfo);
+        const lockTime = new Date(lockData.timestamp);
+        const now = new Date();
+
+        return {
+          hasLock: true,
+          isStale: now.getTime() - lockTime.getTime() > 60000,
+          timestamp: lockData.timestamp,
+          type: lockData.type,
+        };
+      } catch (error) {
+        return { hasLock: true, isStale: true };
+      }
+    } catch (error) {
+      console.error(`Error checking lock for employee ${employeeId}:`, error);
+      return { hasLock: false, isStale: false };
+    }
   }
 
   private createInitialState(
