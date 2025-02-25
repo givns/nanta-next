@@ -496,36 +496,23 @@ export function useAttendanceData({
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
 
-  // Modify pollForCompletion to be more responsive and fail faster
   async function pollForCompletion(
     requestId: string,
-    maxAttempts = 6, // Reduced from 15
-    maxTotalWaitTime = 30000, // 30 seconds instead of minutes
+    maxAttempts = 5, // Reduced from previous values
+    maxTotalWaitTime = 20000, // 20 seconds maximum
   ): Promise<ProcessingResult> {
     const startTime = Date.now();
-
-    // Try immediate status check
-    try {
-      const response = await axios.get(
-        `/api/attendance/task-status/${requestId}`,
-      );
-      if (response.data.completed) {
-        return response.data.data;
-      }
-    } catch (e) {
-      // Ignore errors on first try
-    }
 
     for (let i = 0; i < maxAttempts; i++) {
       if (Date.now() - startTime > maxTotalWaitTime) {
         throw new AppError({
           code: ErrorCode.TIMEOUT,
-          message: 'Processing timed out',
+          message: 'Total polling time exceeded maximum allowed time',
         });
       }
 
-      // Simple linear backoff - start with 1s, then 2s, 3s, etc. up to 5s max
-      const delay = Math.min(1000 * (i + 1), 5000);
+      // Linear backoff instead of exponential - 1s, 2s, 3s, 4s, 5s
+      const delay = Math.min((i + 1) * 1000, 5000);
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       try {
@@ -533,20 +520,25 @@ export function useAttendanceData({
           `/api/attendance/task-status/${requestId}`,
         );
 
-        if (response.data.completed) {
-          return response.data.data;
-        }
-
-        // Check for errors to fail fast
-        if (response.data.status === 'failed' || response.data.error) {
+        // Check for error first to fail fast
+        if (
+          response.data.error ||
+          response.data.status === 'failed' ||
+          (response.data.data && response.data.data.error)
+        ) {
           throw new AppError({
             code: ErrorCode.PROCESSING_ERROR,
             message: response.data.error || 'Processing failed',
+            details: response.data,
           });
         }
+
+        if (response.data.completed) {
+          return response.data.data;
+        }
       } catch (error) {
-        // Fail after 3 consecutive errors
-        if (i >= 2) {
+        // Fail faster - after just 2 errors
+        if (i > 1) {
           throw error;
         }
       }

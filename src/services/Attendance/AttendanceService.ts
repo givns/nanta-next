@@ -63,11 +63,20 @@ export class AttendanceService {
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     try {
-      // Check for pending operations
-      const hasPending = await this.stateManager.hasPendingOperation(
+      // Check for pending operations with a timeout
+      const checkPendingPromise = this.stateManager.hasPendingOperation(
         options.employeeId,
       );
-      if (hasPending) {
+      const timeoutPromise = new Promise((resolve) =>
+        setTimeout(() => resolve(false), 500),
+      );
+
+      const hasPending = await Promise.race([
+        checkPendingPromise,
+        timeoutPromise,
+      ]);
+
+      if (hasPending === true) {
         throw new AppError({
           code: ErrorCode.PROCESSING_ERROR,
           message: 'Another operation is in progress',
@@ -77,7 +86,7 @@ export class AttendanceService {
       // Process attendance using processing service
       const result = await this.processingService.processAttendance(options);
 
-      // If successful, update state in state manager
+      // If successful, update state in state manager - but don't wait for Redis
       if (result.success) {
         // Get full state after processing
         const updatedState = await this.getAttendanceStatus(
@@ -89,17 +98,25 @@ export class AttendanceService {
           },
         );
 
-        await this.stateManager.updateState(
-          options.employeeId,
-          updatedState, // Now passing full AttendanceStatusResponse
-          options.activity.isCheckIn ? 'check-in' : 'check-out',
-        );
+        // Don't block on updating state
+        this.stateManager
+          .updateState(
+            options.employeeId,
+            updatedState,
+            options.activity.isCheckIn ? 'check-in' : 'check-out',
+          )
+          .catch((err) => {
+            console.error('Background state update error:', err);
+          });
       }
 
       return result;
     } catch (error) {
       console.error('Error processing attendance:', error);
-      await this.stateManager.invalidateState(options.employeeId);
+      // Still invalidate state on error to ensure fresh fetch next time
+      this.stateManager
+        .invalidateState(options.employeeId)
+        .catch((err) => console.error('Failed to invalidate state:', err));
       throw error;
     }
   }

@@ -5,8 +5,6 @@ import {
   ValidationContext,
   UnifiedPeriodState,
   StateValidation,
-  ErrorCode,
-  AppError,
 } from '@/types/attendance';
 import Redis from 'ioredis';
 import { getCurrentTime } from '@/utils/dateUtils';
@@ -157,7 +155,44 @@ export class AttendanceStateManager {
     }
   }
 
-  // Modify the AttendanceStateManager.updateState method
+  // In AttendanceStateManager.ts, modify the hasPendingOperation method
+  async hasPendingOperation(employeeId: string): Promise<boolean> {
+    // Check memory first (fast)
+    if (this.pendingOperations.has(employeeId)) {
+      return true;
+    }
+    if (this.redis) {
+      try {
+        const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
+        const exists = await this.redis.exists(lockKey);
+
+        if (exists) {
+          // Check if lock is stale (older than 2 minutes)
+          const ttl = await this.redis.ttl(lockKey);
+          console.log(`Lock exists for ${employeeId} with TTL: ${ttl}`);
+
+          if (ttl < 0 || ttl > 100) {
+            // Either expired or set with too long TTL - could be stale
+            console.log(
+              `Potential stale lock detected for ${employeeId}, clearing`,
+            );
+            await this.redis.del(lockKey);
+            return false;
+          }
+          return true;
+        }
+
+        return false;
+      } catch (error) {
+        // If Redis fails, don't block the operation
+        console.error(`Redis error checking locks: ${error}`);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  // Simplified updateState method with null checks
   async updateState(
     employeeId: string,
     newState: AttendanceStatusResponse,
@@ -166,89 +201,87 @@ export class AttendanceStateManager {
     const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
     const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
 
-    // Always update memory cache first (this is fast and reliable)
+    // Always update memory cache immediately
     this.stateCache.set(cacheKey, {
       status: newState,
       timestamp: Date.now(),
       ttl: this.CACHE_TTL,
     });
 
-    // Track operation in memory
+    // Track pending operation
     this.pendingOperations.set(employeeId, {
       timestamp: Date.now(),
       type: operationType,
       employeeId,
     });
 
-    try {
-      // Try to acquire lock with a short timeout (1 second max)
-      if (this.redis) {
-        const lockPromise = this.redis.set(lockKey, '1', 'EX', 30, 'NX');
-        const timeoutPromise = new Promise((resolve) =>
-          setTimeout(resolve, 1000, null),
-        );
-        const locked = await Promise.race([lockPromise, timeoutPromise]);
+    // Skip Redis operations if Redis is not available
+    if (this.redis) {
+      try {
+        // Set a short TTL for the lock - only 30 seconds max
+        const locked = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
 
         if (!locked) {
           console.log(
-            `Using memory-only mode for ${employeeId} - Redis lock timeout`,
+            `Using memory-only mode for ${employeeId} - Redis lock unavailable`,
           );
-          return; // Early return, memory cache is already updated
+          // Continue execution since memory cache is already updated
+        } else {
+          // We got the lock, try to update Redis cache
+          await this.redis.set(
+            cacheKey,
+            JSON.stringify(newState),
+            'EX',
+            Math.floor(this.CACHE_TTL / 1000),
+          );
+
+          // Release lock right after operation
+          await this.redis.del(lockKey);
         }
-      } else {
-        console.log(
-          `Using memory-only mode for ${employeeId} - Redis is not available`,
-        );
-        return; // Early return, memory cache is already updated
-      }
-
-      try {
-        // Update Redis cache with a timeout
-        const setPromise = this.redis.set(
-          cacheKey,
-          JSON.stringify(newState),
-          'EX',
-          30,
-        );
-        await Promise.race([
-          setPromise,
-          new Promise((resolve) => setTimeout(resolve, 1000, null)),
-        ]);
+      } catch (error) {
+        console.error(`Redis error in updateState: ${error}`);
+        // Memory cache is already updated, so functionality is preserved
       } finally {
-        // Always attempt to release the lock
-        await this.redis.del(lockKey);
-      }
+        // Remove pending operation
+        this.pendingOperations.delete(employeeId);
 
-      // Remove pending operation after Redis operations complete
+        // Try to release lock regardless of what happened
+        try {
+          await this.redis.del(lockKey);
+        } catch (e) {
+          // Ignore errors in cleanup
+        }
+      }
+    } else {
+      // No Redis available, just use memory cache
+      console.log(
+        `Using memory-only mode for ${employeeId} - Redis not available`,
+      );
+      // Remove pending operation after memory update
       this.pendingOperations.delete(employeeId);
-    } catch (error) {
-      console.error(`Redis error in updateState for ${employeeId}:`, error);
-      // Memory cache is already updated, so we can continue
     }
   }
 
+  // Override the invalidateState method with null checks
   async invalidateState(employeeId: string): Promise<void> {
     const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
+    const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
 
-    try {
-      // Remove from memory cache
-      this.stateCache.delete(cacheKey);
+    // Always remove from memory cache first
+    this.stateCache.delete(cacheKey);
 
-      // Remove from Redis if available
-      if (this.redis) {
-        try {
-          await this.redis.del(cacheKey);
-        } catch (error) {
-          console.error('Error deleting Redis key:', error);
-        }
+    // Remove any pending operations
+    this.pendingOperations.delete(employeeId);
+
+    // Release any locks if Redis is available
+    if (this.redis) {
+      try {
+        await this.redis.del(lockKey);
+        await this.redis.del(cacheKey);
+      } catch (error) {
+        console.error(`Error invalidating state: ${error}`);
       }
-    } catch (error) {
-      console.error('Error invalidating state:', error);
     }
-  }
-
-  async hasPendingOperation(employeeId: string): Promise<boolean> {
-    return this.pendingOperations.has(employeeId);
   }
 
   /**
