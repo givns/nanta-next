@@ -509,7 +509,7 @@ export class AttendanceProcessingService {
     });
 
     // Calculate timing details
-    const shiftStart = parseISO(periodState.current.start);
+    const shiftStart = parseISO(periodState.shift.startTime);
     const earlyWindow = subMinutes(
       shiftStart,
       ATTENDANCE_CONSTANTS.EARLY_CHECK_IN_THRESHOLD,
