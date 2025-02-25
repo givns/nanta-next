@@ -498,8 +498,8 @@ export function useAttendanceData({
 
   async function pollForCompletion(
     requestId: string,
-    maxAttempts = 5, // Reduced from previous values
-    maxTotalWaitTime = 20000, // 20 seconds maximum
+    maxAttempts = 5,
+    maxTotalWaitTime = 15000, // 15 seconds maximum
   ): Promise<ProcessingResult> {
     const startTime = Date.now();
 
@@ -507,12 +507,12 @@ export function useAttendanceData({
       if (Date.now() - startTime > maxTotalWaitTime) {
         throw new AppError({
           code: ErrorCode.TIMEOUT,
-          message: 'Total polling time exceeded maximum allowed time',
+          message: 'Processing timed out',
         });
       }
 
-      // Linear backoff instead of exponential - 1s, 2s, 3s, 4s, 5s
-      const delay = Math.min((i + 1) * 1000, 5000);
+      // Linear backoff - 1s intervals
+      const delay = 1000;
       await new Promise((resolve) => setTimeout(resolve, delay));
 
       try {
@@ -520,33 +520,49 @@ export function useAttendanceData({
           `/api/attendance/task-status/${requestId}`,
         );
 
-        // Check for error first to fail fast
-        if (
-          response.data.error ||
-          response.data.status === 'failed' ||
-          (response.data.data && response.data.data.error)
-        ) {
-          throw new AppError({
-            code: ErrorCode.PROCESSING_ERROR,
-            message: response.data.error || 'Processing failed',
-            details: response.data,
-          });
-        }
-
+        // Detect completion
         if (response.data.completed) {
           return response.data.data;
         }
+
+        // Detect errors
+        if (response.data.error || response.data.status === 'failed') {
+          throw new AppError({
+            code: ErrorCode.PROCESSING_ERROR,
+            message: response.data.error || 'Processing failed',
+          });
+        }
       } catch (error) {
-        // Fail faster - after just 2 errors
-        if (i > 1) {
+        // Fail on the third error
+        if (i >= 2) {
           throw error;
         }
       }
     }
 
+    // After max attempts, try to get status from another endpoint
+    try {
+      const statusResponse = await axios.get(
+        `/api/attendance/status/${employeeId}`,
+      );
+      // Check if status shows check-in completed
+      if (statusResponse.data?.base?.checkStatus === 'CHECKED_IN') {
+        return {
+          success: true,
+          message: 'Check-in completed successfully',
+          // Construct a basic result with the available data
+          data: statusResponse.data, // assuming ProcessingResult has a 'data' property
+          timestamp: new Date().toISOString(),
+          requestId: requestId,
+        };
+      }
+    } catch (e) {
+      // Ignore errors from fallback
+    }
+
     throw new AppError({
       code: ErrorCode.TIMEOUT,
-      message: 'Processing timed out after maximum attempts',
+      message: 'Processing timed out',
     });
   }
 
