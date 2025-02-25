@@ -189,11 +189,9 @@ export default async function handler(
 
     // Check if user exists and get shift data
     tracker.addStep('find_user_start');
-    const user = await prisma.user.findFirst({
+    const user = await prisma.user.findUnique({
       where: {
-        employeeId: {
-          equals: employeeId,
-        },
+        employeeId: employeeId,
       },
       select: {
         employeeId: true,

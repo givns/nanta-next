@@ -171,52 +171,33 @@ export class ShiftManagementService {
 
   async getUserShift(userId: string): Promise<Shift | null> {
     try {
-      console.log('Getting user shift with safer approach:', userId);
-
-      // First try a safer query approach where we select all users
-      // and filter in JavaScript rather than at the database level
-      const allUsers = await this.prisma.user.findMany({
+      // Direct, efficient query
+      const user = await this.prisma.user.findUnique({
+        where: { employeeId: userId },
         select: {
-          employeeId: true,
           shiftCode: true,
+          shiftId: true, // If you have a direct shift relationship
         },
       });
 
-      // Find the matching user by employeeId
-      const user = allUsers.find((u) => u.employeeId === userId);
-
-      console.log('Query results:', {
-        userCount: allUsers.length,
-        matchFound: !!user,
-        shiftCode: user?.shiftCode,
-      });
-
       if (!user || !user.shiftCode) {
-        console.log('No shift code found for user');
         return null;
       }
 
-      // Now get the shift by code
+      // Prefer direct shift retrieval if possible
       return this.getShiftByCode(user.shiftCode);
     } catch (error) {
-      console.error('Error in getUserShift with safer approach:', error);
+      console.error('Error retrieving user shift:', error);
 
-      // Last resort fallback - try with a hardcoded valid shift
-      try {
-        console.log('Attempting to return a default shift for now');
-        // Return a default shift as fallback so the application can continue
-        return {
-          id: 'default',
-          name: 'Default Shift',
-          shiftCode: 'DEFAULT',
-          startTime: '09:00',
-          endTime: '18:00',
-          workDays: [1, 2, 3, 4, 5],
-        } as Shift;
-      } catch (fallbackError) {
-        console.error('Even fallback failed:', fallbackError);
-        return null;
-      }
+      // Fallback with more robust error handling
+      return {
+        id: 'default',
+        name: 'Default Shift',
+        shiftCode: 'DEFAULT',
+        startTime: '09:00',
+        endTime: '18:00',
+        workDays: [1, 2, 3, 4, 5],
+      } as Shift;
     }
   }
 
