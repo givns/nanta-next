@@ -69,19 +69,39 @@ export class AttendanceStateManager {
     this.cleanupInterval = setInterval(() => {
       const now = Date.now();
 
-      // Cleanup state cache
+      // 1. Cleanup memory state cache
+      let expiredStateEntries = 0;
       for (const [key, entry] of this.stateCache.entries()) {
         if (now - entry.timestamp > entry.ttl) {
           this.stateCache.delete(key);
+          expiredStateEntries++;
         }
       }
 
-      // Cleanup pending operations
+      // 2. Cleanup pending operations
+      let expiredOperations = 0;
       for (const [key, operation] of this.pendingOperations.entries()) {
         if (now - operation.timestamp > 60000) {
           // 1 minute timeout
           this.pendingOperations.delete(key);
+          expiredOperations++;
         }
+      }
+
+      // 3. Try to clean up stale Redis locks if Redis is available
+      if (this.redis) {
+        this.clearStaleLocks().catch((err) => {
+          console.error(
+            'Error clearing stale locks during cleanup interval:',
+            err,
+          );
+        });
+      }
+
+      if (expiredStateEntries > 0 || expiredOperations > 0) {
+        console.log(
+          `Cleanup completed: removed ${expiredStateEntries} expired states and ${expiredOperations} expired operations`,
+        );
       }
     }, 30000); // Run cleanup every 30 seconds
   }
@@ -145,10 +165,13 @@ export class AttendanceStateManager {
     const cacheKey = `${this.STATE_PREFIX}${employeeId}`;
     const lockKey = `${this.LOCK_PREFIX}${employeeId}`;
 
+    // Keep track of whether we're using Redis or memory-only mode
+    let usingRedis = this.redis !== null;
+    let lockAcquired = false;
+
     try {
       // Try to acquire lock if Redis is available
-      let lockAcquired = true;
-      if (this.redis) {
+      if (usingRedis && this.redis) {
         try {
           const result = await this.redis.set(lockKey, '1', 'EX', 30, 'NX');
           lockAcquired = result === 'OK';
@@ -158,92 +181,120 @@ export class AttendanceStateManager {
               `Failed to acquire Redis lock for ${employeeId}, checking if lock is stale`,
             );
 
-            // Check if the lock exists and when it was set
-            const lockInfo = await this.redis.get(`${lockKey}:info`);
+            try {
+              // Check if the lock exists and when it was set
+              const lockInfo = await this.redis.get(`${lockKey}:info`);
 
-            if (lockInfo) {
-              try {
-                const lockData = JSON.parse(lockInfo);
-                const lockTime = new Date(lockData.timestamp);
-                const now = new Date();
+              if (lockInfo) {
+                try {
+                  const lockData = JSON.parse(lockInfo);
+                  const lockTime = new Date(lockData.timestamp);
+                  const now = new Date();
 
-                // If lock is older than 1 minute, consider it stale and force release
-                if (now.getTime() - lockTime.getTime() > 60000) {
-                  console.warn(
-                    `Forcing release of stale lock for ${employeeId}`,
-                  );
-                  await this.redis.del(lockKey);
-                  await this.redis.del(`${lockKey}:info`);
-                  lockAcquired = true;
-                } else {
-                  throw new AppError({
-                    code: ErrorCode.PROCESSING_ERROR,
-                    message: 'Concurrent operation in progress',
-                  });
+                  // If lock is older than 1 minute, consider it stale and force release
+                  if (now.getTime() - lockTime.getTime() > 60000) {
+                    console.warn(
+                      `Forcing release of stale lock for ${employeeId}`,
+                    );
+                    await this.redis.del(lockKey);
+                    await this.redis.del(`${lockKey}:info`);
+                    lockAcquired = true;
+                  }
+                } catch (parseError) {
+                  console.error('Error parsing lock info:', parseError);
+                  // Continue with memory mode - don't fail the operation
+                  usingRedis = false;
                 }
-              } catch (parseError) {
-                console.error('Error parsing lock info:', parseError);
               }
+            } catch (lockCheckError) {
+              console.error(
+                'Error checking lock info, falling back to memory-only mode:',
+                lockCheckError,
+              );
+              // Fall back to memory-only mode
+              usingRedis = false;
+            }
+
+            // If we didn't acquire the lock and we're still using Redis, log and use memory mode
+            if (!lockAcquired && usingRedis) {
+              console.warn(
+                `Using memory-only mode for ${employeeId} due to Redis lock issues`,
+              );
+              usingRedis = false;
             }
           } else {
-            // Set lock info with timestamp
-            await this.redis.set(
-              `${lockKey}:info`,
-              JSON.stringify({
-                timestamp: new Date().toISOString(),
-                type: operationType,
-              }),
-              'EX',
-              30,
-            );
+            // Successfully acquired lock, try to set lock info with timestamp
+            try {
+              await this.redis.set(
+                `${lockKey}:info`,
+                JSON.stringify({
+                  timestamp: new Date().toISOString(),
+                  type: operationType,
+                }),
+                'EX',
+                30,
+              );
+            } catch (infoError) {
+              console.warn(
+                'Failed to set lock info, but lock was acquired:',
+                infoError,
+              );
+              // Continue since the main lock was acquired
+            }
           }
         } catch (redisError) {
-          // Log Redis error but continue with memory operations
+          // Log Redis error and switch to memory-only mode
           console.error(
-            'Redis error when acquiring lock, continuing with memory cache only:',
+            'Redis error when acquiring lock, switching to memory-only mode:',
             redisError,
           );
-          lockAcquired = true; // Assume lock acquired when Redis fails
+          usingRedis = false;
         }
       }
 
-      // Track pending operation in memory
+      // Track pending operation in memory (always do this regardless of Redis status)
       this.pendingOperations.set(employeeId, {
         timestamp: Date.now(),
         type: operationType,
         employeeId,
       });
 
-      // Update memory cache
+      // Update memory cache (always do this regardless of Redis status)
       this.stateCache.set(cacheKey, {
         status: newState,
         timestamp: Date.now(),
         ttl: this.CACHE_TTL,
       });
 
-      // Update Redis cache if available and lock was acquired
-      if (this.redis && lockAcquired) {
+      // Update Redis cache if available, lock was acquired, and we're still using Redis
+      if (usingRedis && this.redis && lockAcquired) {
         try {
           await this.redis.set(cacheKey, JSON.stringify(newState), 'EX', 30);
         } catch (redisError) {
-          console.error(
-            'Error updating Redis state, continuing with memory cache only:',
-            redisError,
-          );
+          console.error('Error updating Redis state:', redisError);
           // Continue with memory cache only - don't fail the operation
         }
       }
-
-      // Remove pending operation
-      this.pendingOperations.delete(employeeId);
+    } catch (error) {
+      // Log any unexpected errors but don't fail the operation
+      console.error(
+        `Unexpected error in updateState for ${employeeId}:`,
+        error,
+      );
+      // Continue with memory operation even if there's an error
     } finally {
-      // Release lock if Redis is available
-      if (this.redis) {
+      // Clean up:
+
+      // 1. Always remove pending operation from memory
+      this.pendingOperations.delete(employeeId);
+
+      // 2. Try to release Redis lock if we acquired it
+      if (usingRedis && this.redis && lockAcquired) {
         try {
           await this.redis.del(lockKey);
           await this.redis.del(`${lockKey}:info`);
-        } catch (redisError) {
-          console.error('Error releasing Redis lock:', redisError);
+        } catch (unlockError) {
+          console.error('Error releasing Redis lock:', unlockError);
           // Continue even if lock release fails
         }
       }

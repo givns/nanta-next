@@ -318,6 +318,24 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     [status.isDayOff, status.isHoliday, currentPeriod.activity.isOvertime],
   );
 
+  // Helper function to safely convert ISO string to Date without timezone conversion
+  const safeISOToDate = (isoString: string | null | undefined): Date | null => {
+    if (!isoString) return null;
+
+    try {
+      // Remove the 'Z' suffix if it exists to avoid timezone conversion
+      const localISOString = isoString.endsWith('Z')
+        ? isoString.substring(0, isoString.length - 1)
+        : isoString;
+
+      return new Date(localISOString);
+    } catch (e) {
+      console.error('Error parsing date:', e);
+      return null;
+    }
+  };
+
+  // Use this helper in your metrics calculation
   const metrics = useMemo((): ProgressMetrics => {
     const now = getCurrentTime();
     console.log('Progress Calculation Input:', {
@@ -350,14 +368,26 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       attendanceStatus.latestAttendance?.CheckInTime &&
       !attendanceStatus.latestAttendance?.CheckOutTime
     ) {
-      const shiftStart = parseISO(
-        attendanceStatus.latestAttendance.shiftStartTime || '',
+      const shiftStart = safeISOToDate(
+        attendanceStatus.latestAttendance.shiftStartTime,
       );
-      const shiftEnd = parseISO(
-        attendanceStatus.latestAttendance.shiftEndTime || '',
+      const shiftEnd = safeISOToDate(
+        attendanceStatus.latestAttendance.shiftEndTime,
       );
-      const overtimeStart = parseISO(currentPeriod.timeWindow.start);
-      const overtimeEnd = parseISO(currentPeriod.timeWindow.end);
+      const overtimeStart = safeISOToDate(currentPeriod.timeWindow.start);
+      const overtimeEnd = safeISOToDate(currentPeriod.timeWindow.end);
+
+      // If any date is null, return a default
+      if (!shiftStart || !shiftEnd || !overtimeStart || !overtimeEnd) {
+        return {
+          lateMinutes: 0,
+          earlyMinutes: 0,
+          isEarly: false,
+          progressPercent: 0,
+          totalShiftMinutes: 0,
+          isMissed: true,
+        };
+      }
 
       let elapsedMinutes;
       let totalMinutes;
@@ -420,24 +450,33 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       };
     }
 
-    // Fix: Use shift hours for regular periods, not the timeWindow which might be the early check-in window
-    const shiftStart = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${shiftData.startTime}`,
-    );
-    const shiftEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${shiftData.endTime}`,
-    );
+    // Create dates for shift start/end using today's date and the time strings
+    const todayStr = format(now, 'yyyy-MM-dd');
+    const shiftStart = new Date(`${todayStr}T${shiftData.startTime}:00`);
+    const shiftEnd = new Date(`${todayStr}T${shiftData.endTime}:00`);
 
     // For overtime periods, use the timeWindow
     const periodStart =
       currentPeriod.type === PeriodType.OVERTIME
-        ? parseISO(currentPeriod.timeWindow.start)
+        ? safeISOToDate(currentPeriod.timeWindow.start)
         : shiftStart;
 
     const periodEnd =
       currentPeriod.type === PeriodType.OVERTIME
-        ? parseISO(currentPeriod.timeWindow.end)
+        ? safeISOToDate(currentPeriod.timeWindow.end)
         : shiftEnd;
+
+    // Handle null case for periodStart or periodEnd
+    if (!periodStart || !periodEnd) {
+      return {
+        lateMinutes: 0,
+        earlyMinutes: 0,
+        isEarly: false,
+        progressPercent: 0,
+        totalShiftMinutes: 0,
+        isMissed: true,
+      };
+    }
 
     console.log('Time boundaries:', {
       now: format(now, 'yyyy-MM-dd HH:mm:ss'),
@@ -448,11 +487,10 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
       isOvertime: currentPeriod.activity.isOvertime,
       usingShiftHours: currentPeriod.type !== PeriodType.OVERTIME,
       isEarlyCheckIn: validation.flags.isEarlyCheckIn,
+      checkIn: currentPeriod.activity.checkIn,
     });
 
-    const checkIn = currentPeriod.activity.checkIn
-      ? parseISO(currentPeriod.activity.checkIn)
-      : null;
+    const checkIn = safeISOToDate(currentPeriod.activity.checkIn);
 
     const totalMinutes =
       Math.abs(periodEnd.getTime() - periodStart.getTime()) / 60000;

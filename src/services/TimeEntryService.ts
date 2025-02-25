@@ -610,64 +610,6 @@ export class TimeEntryService {
     );
   }
 
-  private prepareOvertimeData(
-    attendance: AttendanceRecord,
-    overtimeRequest: ApprovedOvertimeInfo,
-    isCheckIn: boolean,
-  ) {
-    const baseData = {
-      date: attendance.date,
-      regularHours: 0,
-      entryType: PeriodType.OVERTIME,
-      overtimeMetadata: {
-        create: {
-          isDayOffOvertime: overtimeRequest.isDayOffOvertime,
-          isInsideShiftHours: overtimeRequest.isInsideShiftHours,
-        },
-      },
-    };
-
-    if (isCheckIn) {
-      return {
-        ...baseData,
-        startTime: attendance.CheckInTime!,
-        endTime: null,
-        hours: {
-          regular: 0,
-          overtime: 0,
-        },
-        status: TimeEntryStatus.STARTED,
-        metadata: {
-          source: 'system',
-          version: 1,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      };
-    }
-
-    const workMinutes = differenceInMinutes(
-      attendance.CheckOutTime!,
-      attendance.CheckInTime!,
-    );
-
-    return {
-      ...baseData,
-      startTime: attendance.CheckInTime!,
-      endTime: attendance.CheckOutTime!,
-      hours: {
-        regular: 0,
-        overtime: workMinutes / 60,
-      },
-      status: TimeEntryStatus.COMPLETED,
-      metadata: {
-        source: 'system',
-        version: 1,
-        updatedAt: new Date(),
-      },
-    };
-  }
-
   private async handleOvertimeEntry(
     tx: Prisma.TransactionClient,
     attendance: AttendanceRecord,
@@ -783,17 +725,6 @@ export class TimeEntryService {
         },
       },
     });
-  }
-
-  private getShiftTimes(shift: any, date: Date) {
-    return {
-      start: shift?.effectiveShift
-        ? this.parseShiftTime(shift.effectiveShift.startTime, date)
-        : null,
-      end: shift?.effectiveShift
-        ? this.parseShiftTime(shift.effectiveShift.endTime, date)
-        : null,
-    };
   }
 
   private calculateEntryMetrics(
