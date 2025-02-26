@@ -9,6 +9,9 @@ export class RedisConnectionManager {
   private static instance: RedisConnectionManager;
   private client: Redis | null = null;
   private isInitialized = false;
+  private failureCount = 0;
+  private circuitOpen = false;
+  private lastFailureTime = 0;
 
   private constructor() {
     this.initialize().catch((err) => {
@@ -42,8 +45,8 @@ export class RedisConnectionManager {
       // Update in RedisConnectionManager.ts
       this.client = new Redis(redisUrl, {
         maxRetriesPerRequest: 5, // Increased from 2
-        connectTimeout: 10000, // Increased from 5000
-        commandTimeout: 3000, // Add explicit command timeout
+        connectTimeout: 15000, // Increased from 5000
+        commandTimeout: 5000, // Add explicit command timeout
         retryStrategy: (times) => {
           if (times > 5) return null; // Increased from 2
           return Math.min(times * 200, 1000); // More aggressive backoff
@@ -109,14 +112,38 @@ export class RedisConnectionManager {
     operation: (redis: Redis) => Promise<T>,
     fallbackValue: T,
   ): Promise<T> {
-    if (!this.client || !this.isInitialized) {
-      return fallbackValue;
+    if (this.circuitOpen) {
+      // Check if circuit should be closed again
+      if (Date.now() - this.lastFailureTime > 30000) {
+        // 30 seconds
+        this.circuitOpen = false;
+        this.failureCount = 0;
+      } else {
+        return fallbackValue; // Circuit is open, use fallback immediately
+      }
     }
 
+    // Rest of your existing method...
     try {
-      return await operation(this.client);
+      // Operation with timeout
+      const result = await Promise.race([
+        operation(this.client!),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Operation timeout')), 3000),
+        ),
+      ]);
+      this.failureCount = 0;
+      return result;
     } catch (error) {
-      console.error('Redis operation failed:', error);
+      this.failureCount++;
+      this.lastFailureTime = Date.now();
+
+      // Open circuit if too many failures
+      if (this.failureCount >= 5) {
+        this.circuitOpen = true;
+        console.warn('Redis circuit opened due to multiple failures');
+      }
+
       return fallbackValue;
     }
   }
