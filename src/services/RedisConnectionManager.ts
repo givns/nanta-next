@@ -92,7 +92,7 @@ export class RedisConnectionManager {
       this.client = new Redis(redisUrl, {
         maxRetriesPerRequest: 5, // Increased from 2
         connectTimeout: 15000, // Increased from 5000
-        commandTimeout: 5000, // Add explicit command timeout
+        commandTimeout: 10000, // Add explicit command timeout
         retryStrategy: (times) => {
           if (times > 5) return null; // Increased from 2
           return Math.min(times * 200, 1000); // More aggressive backoff
@@ -188,6 +188,35 @@ export class RedisConnectionManager {
         console.warn('Redis circuit opened due to multiple failures');
       }
 
+      return fallbackValue;
+    }
+  }
+
+  // Add to RedisConnectionManager.ts
+  async executeWithTimeout<T>(
+    operation: (redis: Redis) => Promise<T>,
+    fallbackValue: T,
+    timeoutMs: number = 8000,
+  ): Promise<T> {
+    if (!this.client || !this.isInitialized) {
+      return fallbackValue;
+    }
+
+    try {
+      return await Promise.race([
+        operation(this.client),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(`Redis operation timed out after ${timeoutMs}ms`),
+              ),
+            timeoutMs,
+          ),
+        ),
+      ]);
+    } catch (error) {
+      console.error('Redis operation failed with timeout control:', error);
       return fallbackValue;
     }
   }

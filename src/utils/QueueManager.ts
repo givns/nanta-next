@@ -17,10 +17,12 @@ let processingFunction:
   | null = null;
 
 export class QueueManager {
+  [x: string]: any;
   private static instance: QueueManager | null = null;
   private queue!: BetterQueue<ProcessingOptions, QueueResult>;
   private queueSize: number = 0;
   private serviceQueue: ReturnType<typeof getServiceQueue>;
+  private memoryLocks = new Map<string, number>();
 
   // In-memory request status cache
   private requestStatusMap = new Map<
@@ -65,8 +67,27 @@ export class QueueManager {
         try {
           // Try to acquire lock
           const lockKey = `lock:${task.employeeId}`;
-          let lockAcquired = this.acquireLock(lockKey);
-
+          const lockAcquired =
+            await this.RedisConnectionManager.safeExecutesafeExecuteRedis(
+              async (redis: {
+                set: (
+                  arg0: string,
+                  arg1: string,
+                  arg2: string,
+                  arg3: number,
+                  arg4: string,
+                ) => any;
+              }) => {
+                return await redis.set(
+                  lockKey,
+                  '1',
+                  'EX',
+                  30, // 30 second expiry
+                  'NX', // Only set if key doesn't exist
+                );
+              },
+              false,
+            );
           if (!lockAcquired) {
             throw new Error('Concurrent operation in progress');
           }
@@ -130,32 +151,38 @@ export class QueueManager {
   }
 
   // Memory-based lock implementation
-  private acquireLock(key: string): boolean {
-    if (this.locks.has(key)) {
-      // Check for stale lock (older than 1 minute)
-      const lock = this.locks.get(key)!;
-      if (Date.now() - lock.timestamp > 60 * 1000) {
-        // Force release stale lock
-        this.locks.delete(key);
-      } else {
-        return false; // Lock is active
+  async acquireLock(
+    employeeId: string,
+    ttlSeconds: number = 30,
+  ): Promise<boolean> {
+    const lockKey = `lock:${employeeId}`;
+
+    try {
+      // Try Redis first
+      const result = await this.redis
+        .set(lockKey, '1', 'EX', ttlSeconds, 'NX')
+        .timeout(3000)
+        .catch(() => null);
+
+      if (result === 'OK') return true;
+
+      // Fall back to memory locks if Redis fails
+      if (result === null) {
+        console.warn('Redis lock failed, using memory lock');
+        const now = Date.now();
+        const existing = this.memoryLocks.get(employeeId);
+
+        if (existing && existing > now) return false;
+
+        this.memoryLocks.set(employeeId, now + ttlSeconds * 1000);
+        return true;
       }
-    }
 
-    // Try Redis lock first
-    if (redisManager.isAvailable()) {
-      redisManager
-        .safeExecute(async (redis) => {
-          // Try to set lock with NX (only if not exists)
-          const result = await redis.set(key, '1', 'EX', 30, 'NX');
-          return result === 'OK';
-        }, false)
-        .catch(() => false); // Ignore Redis errors
+      return false;
+    } catch (error) {
+      console.error('Lock acquisition failed:', error);
+      return false;
     }
-
-    // Always set memory lock
-    this.locks.set(key, { timestamp: Date.now() });
-    return true;
   }
 
   private releaseLock(key: string): void {
@@ -259,7 +286,19 @@ export class QueueManager {
 
   // Process task with improved error handling
   private async processTask(task: ProcessingOptions): Promise<QueueResult> {
+    const lockKey = `lock:${task.employeeId}`;
+    let lockAcquired = false;
+
     try {
+      // Try to acquire lock with shorter timeout
+      lockAcquired = await this.redis
+        .set(lockKey, '1', 'EX', 30, 'NX')
+        .timeout(3000)
+        .catch(() => false);
+
+      if (!lockAcquired) {
+        throw new Error('Concurrent operation in progress');
+      }
       if (task.requestId) {
         this.setRequestStatus(task.requestId, 'processing');
       }
@@ -287,6 +326,11 @@ export class QueueManager {
     } catch (error) {
       console.error('Task processing error:', error);
       throw error;
+    } finally {
+      // Always try to release lock, with backoff if needed
+      if (lockAcquired) {
+        await this.safeDelKey(lockKey);
+      }
     }
   }
 
