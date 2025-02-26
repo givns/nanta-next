@@ -19,6 +19,48 @@ export class RedisConnectionManager {
     });
   }
 
+  /**
+   * Checks if the Redis connection is working properly
+   * @returns A detailed status object with connection health information
+   */
+  async checkConnection(): Promise<{
+    isConnected: boolean;
+    pingLatency?: number;
+    errorMessage?: string;
+    lastConnectAttempt: Date;
+  }> {
+    const result = {
+      isConnected: false,
+      lastConnectAttempt: new Date(),
+    };
+
+    if (!this.client) {
+      return {
+        ...result,
+        errorMessage: 'Redis client is not initialized',
+      };
+    }
+
+    try {
+      // Measure ping latency
+      const startTime = performance.now();
+      await this.client.ping();
+      const pingLatency = performance.now() - startTime;
+
+      return {
+        isConnected: true,
+        pingLatency,
+        lastConnectAttempt: new Date(),
+      };
+    } catch (error) {
+      console.error('Redis connection check failed:', error);
+      return {
+        ...result,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   static getInstance(): RedisConnectionManager {
     if (!RedisConnectionManager.instance) {
       RedisConnectionManager.instance = new RedisConnectionManager();
@@ -41,8 +83,12 @@ export class RedisConnectionManager {
         return;
       }
 
+      console.log('Initializing Redis connection...', {
+        url: redisUrl.replace(/(:.*@)/, ':****@'), // Hide credentials
+        timestamp: new Date().toISOString(),
+      });
+
       // Create Redis client with optimized settings for serverless
-      // Update in RedisConnectionManager.ts
       this.client = new Redis(redisUrl, {
         maxRetriesPerRequest: 5, // Increased from 2
         connectTimeout: 15000, // Increased from 5000
@@ -63,31 +109,29 @@ export class RedisConnectionManager {
         db: 0, // Explicitly set database
       });
 
-      // Set up event listeners for better observability
-      this.client.on('connect', () => {
-        console.info('Redis: Connection established');
-      });
+      try {
+        const pingResult = await Promise.race([
+          this.client.ping(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timeout')), 5000),
+          ),
+        ]);
 
-      this.client.on('error', (err) => {
-        console.error('Redis error:', err);
-      });
+        this.isInitialized = true;
+        console.log('Redis connection successful:', {
+          pingResult,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (timeoutError) {
+        console.error('Redis connection timeout:', timeoutError);
+        throw timeoutError;
+      }
 
-      this.client.on('close', () => {
-        console.warn('Redis: Connection closed');
-        this.isInitialized = false;
-      });
-
-      this.client.on('reconnecting', () => {
-        console.info('Redis: Reconnecting...');
-      });
-
-      // Wait for connection to be ready
-      await this.client.ping();
-      this.isInitialized = true;
-      console.log('Redis connection manager initialized');
+      // Set up event listeners...
     } catch (error) {
       console.error('Failed to initialize Redis connection manager:', error);
       this.client = null;
+      throw error;
     }
   }
 
