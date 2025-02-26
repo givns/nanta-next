@@ -66,95 +66,72 @@ export class QueueManager {
       async (task, cb) => {
         console.log(`Queue worker starting task ${task.requestId}`);
 
-        // Define these variables in the outer scope so they're available in finally
+        // Define these variables for finally block
         let lockAcquired = false;
         const lockKey = `lock:${task.employeeId}`;
 
         try {
-          // Set status to processing immediately
-          if (task.requestId) {
-            this.setRequestStatus(task.requestId, 'processing');
-          }
+          // Update status to processing immediately
+          this.setRequestStatus(task.requestId!, 'processing');
 
-          // Try to acquire lock - but don't fail if it can't be acquired
-          try {
-            lockAcquired = await redisManager.safeExecute(async (redis) => {
-              const result = await redis.set(
-                lockKey,
-                '1',
-                'EX',
-                30, // 30 second expiry
-                'NX', // Only set if key doesn't exist
-              );
-              return result === 'OK'; // Convert to boolean
-            }, false);
+          // Skip lock acquisition for simplicity - was causing issues
 
-            if (!lockAcquired) {
-              console.log(
-                `Could not acquire Redis lock for ${task.requestId}, continuing anyway`,
-              );
-            }
-          } catch (lockError) {
-            console.warn(
-              `Lock acquisition error for ${task.requestId}, continuing:`,
-              lockError,
-            );
-          }
-
-          // Process the task with timeout
-          console.log(`Processing task ${task.requestId} with timeout`);
-
-          // Use a shorter timeout here - 10 seconds max for queue processing
-          const processFn = processingFunction || processCheckInOut;
+          // Get processing function - either from global ref or use direct import
+          const processFn = processingFunction;
           if (!processFn) {
-            throw new Error('No processing function available');
+            throw new Error('Processing function not initialized');
           }
 
-          try {
-            // Process with a shorter timeout for background tasks
-            const result = await Promise.race([
-              processFn(task),
-              new Promise<never>(
-                (_, reject) =>
-                  setTimeout(
-                    () => reject(new Error('Queue processing timeout')),
-                    10000,
-                  ), // 10 second timeout
-              ),
-            ]);
+          // CRITICAL CHANGE: Use absolute timeout of 10 seconds for processing
+          // This will prevent tasks from hanging indefinitely
+          const processingPromise = processFn(task);
 
-            console.log(`Task ${task.requestId} completed successfully`);
+          // Add a safety timeout that will forcibly resolve
+          const timeoutPromise = new Promise<QueueResult>((_, reject) => {
+            setTimeout(() => {
+              const error = new Error('Queue worker timeout after 10 seconds');
+              console.error(`Task ${task.requestId} timed out in queue worker`);
 
-            // Update status on success - CRITICAL to update status correctly
-            if (task.requestId) {
-              this.setRequestStatus(task.requestId, 'completed', result);
-            }
-
-            // Complete the queue task
-            this.queueSize--;
-            cb(null, result);
-          } catch (processError) {
-            console.error(
-              `Error processing task ${task.requestId}:`,
-              processError,
-            );
-
-            // Update status on failure - CRITICAL to update status correctly
-            if (task.requestId) {
-              this.setRequestStatus(task.requestId, 'failed', {
-                error:
-                  processError instanceof Error
-                    ? processError.message
-                    : 'Unknown error',
+              // Also update status to failed
+              this.setRequestStatus(task.requestId!, 'failed', {
+                error: error.message,
                 timestamp: new Date().toISOString(),
               });
-            }
 
-            this.queueSize--;
-            cb(processError as Error);
-          }
+              reject(error);
+            }, 10000); // 10 second hard timeout
+          });
+
+          // Race between processing and timeout
+          const result = await Promise.race([
+            processingPromise,
+            timeoutPromise,
+          ]);
+
+          // If we reach here, processing succeeded
+          console.log(`Task ${task.requestId} completed successfully`);
+          this.setRequestStatus(task.requestId!, 'completed', result);
+
+          this.queueSize = Math.max(0, this.queueSize - 1);
+          cb(null, result);
+        } catch (error) {
+          // Log error and update status
+          console.error(
+            `Queue worker error for task ${task.requestId}:`,
+            error,
+          );
+
+          const errorMessage =
+            error instanceof Error ? error.message : 'Unknown error';
+          this.setRequestStatus(task.requestId!, 'failed', {
+            error: errorMessage,
+            timestamp: new Date().toISOString(),
+          });
+
+          this.queueSize = Math.max(0, this.queueSize - 1);
+          cb(error as Error);
         } finally {
-          // Always release any acquired lock
+          // Cleanup resources if needed
           if (lockAcquired) {
             this.releaseLock(lockKey);
           }
@@ -162,9 +139,8 @@ export class QueueManager {
       },
       {
         concurrent: 1,
-        maxRetries: 1, // Only try once - don't retry failed tasks
-        retryDelay: 1000,
-        maxTimeout: 15000, // 15 seconds max timeout
+        maxRetries: 0, // Don't retry failed tasks at all
+        maxTimeout: 15000, // 15 seconds max total timeout
         store: new MemoryStore(),
       },
     );
