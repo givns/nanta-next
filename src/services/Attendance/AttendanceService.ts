@@ -59,6 +59,14 @@ export class AttendanceService {
     );
   }
 
+  private attendanceStateCache = new Map<
+    string,
+    {
+      state: AttendanceStatusResponse;
+      timestamp: number;
+    }
+  >();
+
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
@@ -137,6 +145,12 @@ export class AttendanceService {
     },
   ): Promise<AttendanceStatusResponse> {
     const now = getCurrentTime();
+
+    // Check memory cache first with a short TTL (5 seconds)
+    const cached = this.attendanceStateCache.get(employeeId);
+    if (cached && Date.now() - cached.timestamp < 5000) {
+      return cached.state;
+    }
 
     try {
       // Get shift data first for the validation context
@@ -218,6 +232,11 @@ export class AttendanceService {
         freshState,
         freshState.base.isCheckingIn ? 'check-in' : 'check-out',
       );
+
+      this.attendanceStateCache.set(employeeId, {
+        state: freshState,
+        timestamp: Date.now(),
+      });
 
       return freshState;
     } catch (error) {
