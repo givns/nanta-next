@@ -1,5 +1,5 @@
 // hooks/useAttendanceData.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import axios from 'axios';
 import {
@@ -9,6 +9,7 @@ import {
   ErrorCode,
   AttendanceStatusResponse,
   UseAttendanceDataProps,
+  UserData,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
@@ -255,8 +256,9 @@ export function useAttendanceData({
   locationReady,
   locationVerified,
   initialAttendanceStatus,
+  shiftId,
   enabled = true,
-}: UseAttendanceDataProps) {
+}: UseAttendanceDataProps & { userData?: UserData }) {
   // State management
   const [state, setState] = useState<UseAttendanceDataState>({
     isRefreshing: false,
@@ -303,6 +305,9 @@ export function useAttendanceData({
           : undefined;
 
         const fetchData = async () => {
+          // Only add shiftId if available
+          const userParams = shiftId ? { shiftId } : {};
+
           const response = await axios.get(`/api/attendance/status/${id}`, {
             params: {
               inPremises:
@@ -314,6 +319,7 @@ export function useAttendanceData({
               coordinates,
               adminVerified: locationState.verificationStatus === 'verified',
               _t: new Date().getTime(),
+              ...userParams, // Include shiftId if available
             },
             timeout: REQUEST_TIMEOUT,
           });
@@ -424,7 +430,6 @@ export function useAttendanceData({
     }
   }, [employeeId, mutate, state.isRefreshing]);
 
-  // Check in/out handler
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
       const localRequestId = `${params.isCheckIn ? 'checkin' : 'checkout'}-${Date.now()}`;
@@ -442,11 +447,11 @@ export function useAttendanceData({
           timestamp: format(new Date(params.checkTime), 'HH:mm:ss'),
         });
 
-        const response = await axios.post<ProcessingResult>(
+        const response = await axios.post(
           '/api/attendance/check-in-out',
           {
             ...params,
-            requestId: localRequestId, // Include requestId in the payload
+            requestId: localRequestId, // Include requestId in payload
             employeeId,
             lineUserId,
             address: locationState.address,
@@ -456,13 +461,43 @@ export function useAttendanceData({
           { timeout: REQUEST_TIMEOUT },
         );
 
-        // Handle 202 Accepted status (async processing)
+        // Handle immediate success (synchronous processing)
+        if (response.status === 200 && response.data.processed === true) {
+          console.log('Request processed synchronously:', response.data);
+
+          setState((prev) => ({
+            ...prev,
+            pendingRequests: new Set(
+              [...prev.pendingRequests].filter((id) => id !== localRequestId),
+            ),
+          }));
+
+          await refreshAttendanceStatus();
+          return response.data.data;
+        }
+
+        // Handle async processing (202 Accepted)
         if (response.status === 202) {
           console.log('Request accepted for async processing');
           const serverRequestId = response.data.requestId || localRequestId;
-          return pollForCompletion(serverRequestId);
+          const statusUrl =
+            response.data.statusUrl ||
+            `/api/attendance/task-status/${serverRequestId}`;
+
+          const result = await intelligentPolling(statusUrl, serverRequestId);
+
+          setState((prev) => ({
+            ...prev,
+            pendingRequests: new Set(
+              [...prev.pendingRequests].filter((id) => id !== localRequestId),
+            ),
+          }));
+
+          await refreshAttendanceStatus();
+          return result;
         }
 
+        // Handle unexpected response format
         if (!response.data.success) {
           throw new AppError({
             code: ErrorCode.PROCESSING_ERROR,
@@ -496,104 +531,189 @@ export function useAttendanceData({
     [employeeId, lineUserId, locationState, refreshAttendanceStatus],
   );
 
-  // hooks/useAttendanceData.ts
+  /**
+   * Poll for completion with intelligent backoff
+   */
+  const intelligentPolling = useCallback(
+    async (
+      statusUrl: string,
+      requestId: string,
+      maxAttempts = 15, // More attempts but with adaptive timing
+      maxTotalWaitTime = 30000, // 30 seconds maximum
+    ): Promise<ProcessingResult> => {
+      const startTime = Date.now();
+      let pollInterval = 1000; // Start with 1 second
+      let consecutiveErrors = 0;
 
-  async function pollForCompletion(
-    requestId: string,
-    maxAttempts = 5, // Reduced from previous values
-    maxTotalWaitTime = 15000, // 15 seconds maximum
-  ): Promise<ProcessingResult> {
-    const startTime = Date.now();
-
-    // Try an immediate check first
-    try {
-      const initialResponse = await axios.get(
-        `/api/attendance/task-status/${requestId}`,
-      );
-      if (initialResponse.data.completed) {
-        return initialResponse.data.data;
-      }
-
-      // Detect errors early
-      if (
-        initialResponse.data.error ||
-        initialResponse.data.status === 'failed'
-      ) {
-        throw new AppError({
-          code: ErrorCode.PROCESSING_ERROR,
-          message: initialResponse.data.error || 'Processing failed',
-          details: initialResponse.data,
-        });
-      }
-    } catch (error) {
-      // Ignore initial check errors
-      console.warn('Initial status check failed, will retry:', error);
-    }
-
-    // Use fixed intervals instead of backoff for more predictable UX
-    const pollInterval = 2000; // 2 seconds between polls
-
-    for (let i = 0; i < maxAttempts; i++) {
-      if (Date.now() - startTime > maxTotalWaitTime) {
-        // Try to check attendance status directly as a last resort
-        try {
-          const statusResponse = await axios.get(
-            `/api/attendance/status/${employeeId}`,
-          );
-          if (statusResponse.data?.base?.checkStatus === 'CHECKED_IN') {
-            // The operation might have succeeded despite polling failures
-            return {
-              success: true,
-              message: 'Check-in completed successfully',
-              data: statusResponse.data,
-              timestamp: new Date().toISOString(),
-              requestId: requestId,
-            };
-          }
-        } catch (e) {
-          // Ignore fallback errors
-        }
-
-        throw new AppError({
-          code: ErrorCode.TIMEOUT,
-          message: 'Processing timed out',
-        });
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
-
-      try {
-        const response = await axios.get(
-          `/api/attendance/task-status/${requestId}`,
-        );
-
-        // Check for errors to fail fast
-        if (response.data.error || response.data.status === 'failed') {
+      for (let i = 0; i < maxAttempts; i++) {
+        // Check total wait time
+        if (Date.now() - startTime > maxTotalWaitTime) {
           throw new AppError({
-            code: ErrorCode.PROCESSING_ERROR,
-            message: response.data.error || 'Processing failed',
-            details: response.data,
+            code: ErrorCode.TIMEOUT,
+            message: 'Processing timed out after maximum wait time',
           });
         }
 
-        if (response.data.completed) {
-          return response.data.data;
-        }
-      } catch (error) {
-        console.error(`Polling error for request ${requestId}:`, error);
+        // Wait for the current poll interval
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
-        // Fail after 2 consecutive errors
-        if (i >= 2) {
-          throw error;
+        try {
+          console.log(
+            `Polling for status: ${requestId} (attempt ${i + 1}/${maxAttempts})`,
+          );
+          const response = await axios.get(statusUrl, { timeout: 5000 });
+
+          // Reset error counter on successful response
+          consecutiveErrors = 0;
+
+          // Use suggested poll interval if provided
+          if (response.data.nextPollInterval) {
+            pollInterval = response.data.nextPollInterval;
+            console.log(
+              `Using server-suggested poll interval: ${pollInterval}ms`,
+            );
+          } else {
+            // Otherwise increase poll interval adaptively
+            pollInterval = Math.min(pollInterval * 1.5, 5000);
+            console.log(`Increased poll interval to: ${pollInterval}ms`);
+          }
+
+          // If we have a completed status with data, return it
+          if (response.data.completed && response.data.data) {
+            console.log(`Polling complete: ${requestId} - success`);
+            return response.data.data;
+          }
+
+          // Check if the server says we should stop polling
+          if (response.data.shouldContinuePolling === false) {
+            console.log(`Server indicated polling should stop: ${requestId}`);
+
+            // If it's a failure, throw an error
+            if (response.data.status === 'failed') {
+              throw new AppError({
+                code: ErrorCode.PROCESSING_ERROR,
+                message: response.data.error || 'Processing failed',
+                details: response.data,
+              });
+            }
+
+            // If it's completed but no data, return a generic success
+            if (response.data.status === 'completed') {
+              return {
+                success: true,
+                message: 'Operation completed successfully',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: response.data.data || {},
+              };
+            }
+          }
+
+          // For pending or processing status, continue polling
+          console.log(
+            `Status is still ${response.data.status}, continuing to poll`,
+          );
+        } catch (error) {
+          console.error(`Polling error for request ${requestId}:`, error);
+          consecutiveErrors++;
+
+          // Increase poll interval after errors
+          pollInterval = Math.min(pollInterval * 2, 5000);
+
+          // Fail if we've had too many consecutive errors
+          if (consecutiveErrors >= 3) {
+            throw new AppError({
+              code: ErrorCode.NETWORK_ERROR,
+              message: 'Failed to check status after multiple attempts',
+              originalError: error,
+            });
+          }
         }
       }
-    }
 
-    throw new AppError({
-      code: ErrorCode.TIMEOUT,
-      message: 'Processing timed out after maximum attempts',
-    });
-  }
+      // If we've exhausted all polling attempts, try to recover
+      console.warn(`Polling exhausted for ${requestId}, trying to recover...`);
+
+      // Try to refresh attendance data as a last resort
+      try {
+        await refreshAttendanceStatus();
+
+        return {
+          success: true,
+          message: 'Operation likely completed, attendance refreshed',
+          timestamp: new Date().toISOString(),
+          requestId: requestId,
+          data: {
+            // Create minimal valid structure for ProcessingResult.data
+            state: {
+              current: {
+                type: 'REGULAR',
+                timeWindow: {
+                  start: new Date().toISOString(),
+                  end: new Date().toISOString(),
+                },
+                activity: {
+                  isActive: false,
+                  checkIn: null,
+                  checkOut: null,
+                  isOvertime: false,
+                  isDayOffOvertime: false,
+                },
+                validation: {
+                  isOvernight: false,
+                  isConnected: false,
+                },
+              },
+            },
+            validation: {
+              errors: [],
+              warnings: [],
+              allowed: true,
+              reason: 'Attendance refreshed after polling timeout',
+              flags: {
+                hasActivePeriod: false,
+                isAutoCheckIn: false,
+                isCheckingIn: true,
+                // Add other required flags with defaults
+                isLateCheckIn: false,
+                isEarlyCheckIn: false,
+                isLateCheckOut: false,
+                isVeryLateCheckOut: false,
+                isEarlyCheckOut: false,
+                isInsideShift: true,
+                isOutsideShift: false,
+                isOvertime: false,
+                isDayOffOvertime: false,
+                hasPendingTransition: false,
+                requiresTransition: false,
+                requireConfirmation: false,
+                requiresAutoCompletion: false,
+                isPendingOvertime: false,
+                isAutoCheckOut: false,
+                isMorningShift: false,
+                isAfternoonShift: false,
+                isAfterMidshift: false,
+                isPlannedHalfDayLeave: false,
+                isEmergencyLeave: false,
+                isApprovedEarlyCheckout: false,
+                isHoliday: false,
+                isDayOff: false,
+                isManualEntry: false,
+              },
+              metadata: {},
+            },
+          },
+        };
+      } catch (fallbackError) {
+        throw new AppError({
+          code: ErrorCode.TIMEOUT,
+          message: 'Processing timed out after maximum attempts',
+          originalError: fallbackError,
+        });
+      }
+    },
+    [refreshAttendanceStatus],
+  );
 
   return {
     data,

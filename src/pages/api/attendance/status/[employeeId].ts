@@ -7,13 +7,10 @@ import {
   AppError,
   AttendanceStatusResponse,
   ErrorCode,
-  ValidationContext,
-  ShiftData,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
-import { get } from 'lodash';
 
 // Request flow tracking
 const RequestTracker = {
@@ -96,6 +93,7 @@ const QuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => val === 'true'),
+  shiftId: z.string().optional(), // Add this field
   _t: z.string().optional(), // Cache busting parameter
 });
 
@@ -176,8 +174,15 @@ export default async function handler(
       });
     }
 
-    const { employeeId, inPremises, address, coordinates, adminVerified } =
-      validatedParams.data;
+    const {
+      employeeId,
+      inPremises,
+      address,
+      coordinates,
+      adminVerified,
+      shiftId,
+    } = validatedParams.data;
+
     const now = getCurrentTime();
 
     tracker.addStep('validate_params_success', {
@@ -185,37 +190,68 @@ export default async function handler(
       inPremises: Boolean(inPremises),
       hasCoordinates: !!coordinates,
       adminVerified: Boolean(adminVerified),
+      shiftId,
       timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
-    // Check if user exists and get shift data
-    tracker.addStep('find_user_start');
-    const user = await prisma.user.findUnique({
-      where: {
-        employeeId: employeeId,
-      },
-      select: {
-        employeeId: true,
-        lineUserId: true,
-        shiftId: true,
-        name: true,
-        departmentName: true,
-      },
-    });
+    let user;
 
-    if (!user) {
-      tracker.addStep('find_user_not_found');
-      return res.status(404).json({
-        error: ErrorCode.USER_NOT_FOUND,
-        message: 'User not found',
-        timestamp: getCurrentTime().toISOString(),
+    // Use shiftId if provided to avoid database lookup
+    if (shiftId) {
+      user = {
+        employeeId,
+        shiftId,
+        // Include other essential fields with defaults
+        lineUserId: req.headers['x-line-userid'] || null,
+        name: null,
+        departmentName: null,
+      };
+
+      tracker.addStep('use_provided_shift_data', {
+        employeeId,
+        shiftId,
+      });
+    } else {
+      // Only fetch from database if shiftId not provided
+      tracker.addStep('find_user_start');
+      user = await prisma.user.findUnique({
+        where: {
+          employeeId: employeeId,
+        },
+        select: {
+          employeeId: true,
+          lineUserId: true,
+          shiftId: true,
+          name: true,
+          departmentName: true,
+        },
+      });
+
+      if (!user) {
+        tracker.addStep('find_user_not_found');
+        return res.status(404).json({
+          error: ErrorCode.USER_NOT_FOUND,
+          message: 'User not found',
+          timestamp: getCurrentTime().toISOString(),
+        });
+      }
+
+      tracker.addStep('find_user_success', {
+        userFound: true,
+        lineUserIdExists: !!user.lineUserId,
+        hasShiftId: !!user.shiftId,
       });
     }
 
-    tracker.addStep('find_user_success', {
-      userFound: true,
-      lineUserIdExists: !!user.lineUserId,
-    });
+    // Make sure we have a shiftId, either from params or database
+    if (!user.shiftId) {
+      tracker.addStep('missing_shift_id');
+      return res.status(400).json({
+        error: ErrorCode.INVALID_INPUT,
+        message: 'Shift configuration not found',
+        timestamp: getCurrentTime().toISOString(),
+      });
+    }
 
     // Get attendance status with updated parameters structure
     tracker.addStep('get_attendance_status_start');

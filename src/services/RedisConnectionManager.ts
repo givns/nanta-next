@@ -1,37 +1,76 @@
 // services/RedisConnectionManager.ts
 import Redis from 'ioredis';
 
+type CircuitState = {
+  failures: number;
+  lastFailureTime: number;
+  isOpen: boolean;
+};
+
+type OperationType = 'get' | 'set' | 'del' | 'keys' | 'other';
+
 /**
  * Singleton class to manage Redis connections across the application
- * to prevent connection limit issues
+ * with improved error handling and circuit breaking
  */
 export class RedisConnectionManager {
   private static instance: RedisConnectionManager;
   private client: Redis | null = null;
   private isInitialized = false;
-  private failureCount = 0;
-  private circuitOpen = false;
-  private lastFailureTime = 0;
+
+  // Circuit breaker states by operation type
+  private operationCircuits = new Map<OperationType, CircuitState>();
+  private globalCircuitOpen = false;
+  private lastGlobalFailureTime = 0;
+
+  // Configuration
+  private readonly REDIS_TIMEOUT = 5000; // 5 seconds timeout (increased from 2s)
+  private readonly MAX_FAILURES_PER_OPERATION = 3; // After 3 failures, disable specific operation
+  private readonly MAX_GLOBAL_FAILURES = 10; // Open global circuit after 10 total failures
+  private readonly CIRCUIT_RESET_TIME = 60000; // Try to use Redis again after 1 minute
+  private readonly GLOBAL_CIRCUIT_RESET_TIME = 300000; // 5 minutes for global reset
 
   private constructor() {
     this.initialize().catch((err) => {
       console.error('Failed to initialize Redis connection:', err);
     });
+
+    // Initialize circuit states
+    const operations: OperationType[] = ['get', 'set', 'del', 'keys', 'other'];
+    operations.forEach((op) => {
+      this.operationCircuits.set(op, {
+        failures: 0,
+        lastFailureTime: 0,
+        isOpen: false,
+      });
+    });
+
+    // Set up automatic circuit reset checking
+    setInterval(() => this.checkCircuitReset(), 30000);
   }
 
   /**
    * Checks if the Redis connection is working properly
-   * @returns A detailed status object with connection health information
    */
   async checkConnection(): Promise<{
     isConnected: boolean;
     pingLatency?: number;
     errorMessage?: string;
     lastConnectAttempt: Date;
+    circuitStatus: {
+      globalOpen: boolean;
+      operationsDisabled: string[];
+    };
   }> {
     const result = {
       isConnected: false,
       lastConnectAttempt: new Date(),
+      circuitStatus: {
+        globalOpen: this.globalCircuitOpen,
+        operationsDisabled: Array.from(this.operationCircuits.entries())
+          .filter(([_, state]) => state.isOpen)
+          .map(([op]) => op),
+      },
     };
 
     if (!this.client) {
@@ -44,13 +83,18 @@ export class RedisConnectionManager {
     try {
       // Measure ping latency
       const startTime = performance.now();
-      await this.client.ping();
+      await this.executeWithTimeout(
+        () => this.client!.ping(),
+        'other',
+        3000, // Special timeout for ping
+      );
       const pingLatency = performance.now() - startTime;
 
       return {
         isConnected: true,
         pingLatency,
         lastConnectAttempt: new Date(),
+        circuitStatus: result.circuitStatus,
       };
     } catch (error) {
       console.error('Redis connection check failed:', error);
@@ -90,27 +134,28 @@ export class RedisConnectionManager {
 
       // Create Redis client with optimized settings for serverless
       this.client = new Redis(redisUrl, {
-        maxRetriesPerRequest: 5, // Increased from 2
-        connectTimeout: 15000, // Increased from 5000
-        commandTimeout: 10000, // Add explicit command timeout
+        maxRetriesPerRequest: 3, // Reduced from 5
+        connectTimeout: 5000, // Reduced from 15000
+        commandTimeout: 5000, // Reduced from 10000
         retryStrategy: (times) => {
-          if (times > 5) return null; // Increased from 2
-          return Math.min(times * 200, 1000); // More aggressive backoff
+          if (times > 3) return null; // Avoid excessive retries
+          return Math.min(times * 200, 1000);
         },
         enableReadyCheck: true,
-        enableOfflineQueue: true,
+        enableOfflineQueue: false, // Don't queue commands when disconnected
         reconnectOnError: (err) => {
-          // Only reconnect on specific errors
+          // Only reconnect on specific errors that indicate temporary issues
           const targetErrors = ['READONLY', 'ETIMEDOUT', 'ECONNREFUSED'];
-          return targetErrors.includes(err.message);
+          return targetErrors.some((e) => err.message.includes(e));
         },
-        lazyConnect: false,
+        lazyConnect: true, // Connect only when needed
         family: 4, // Explicitly use IPv4
         db: 0, // Explicitly set database
       });
 
       try {
-        const pingResult = await Promise.race([
+        // Test connection with timeout
+        await Promise.race([
           this.client.ping(),
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('Connection timeout')), 5000),
@@ -119,15 +164,21 @@ export class RedisConnectionManager {
 
         this.isInitialized = true;
         console.log('Redis connection successful:', {
-          pingResult,
           timestamp: new Date().toISOString(),
         });
+
+        // Reset circuit breakers on successful connection
+        this.resetCircuits();
       } catch (timeoutError) {
         console.error('Redis connection timeout:', timeoutError);
         throw timeoutError;
       }
 
-      // Set up event listeners...
+      // Set up error event listener
+      this.client.on('error', (err) => {
+        console.error('Redis client error:', err);
+        this.recordGlobalFailure();
+      });
     } catch (error) {
       console.error('Failed to initialize Redis connection manager:', error);
       this.client = null;
@@ -146,77 +197,155 @@ export class RedisConnectionManager {
    * Check if Redis is available
    */
   isAvailable(): boolean {
-    return this.isInitialized && this.client !== null;
+    return (
+      this.isInitialized && this.client !== null && !this.globalCircuitOpen
+    );
   }
 
   /**
-   * Perform a Redis operation with built-in error handling and fallback
+   * Execute a Redis operation with timeout
+   */
+  private async executeWithTimeout<T>(
+    operation: () => Promise<T>,
+    operationType: OperationType = 'other',
+    customTimeout?: number,
+  ): Promise<T> {
+    // Check global circuit first
+    if (this.globalCircuitOpen) {
+      throw new Error('Redis global circuit open');
+    }
+
+    // Check operation-specific circuit
+    const circuitState = this.operationCircuits.get(operationType);
+    if (circuitState && circuitState.isOpen) {
+      throw new Error(`Redis ${operationType} circuit open`);
+    }
+
+    try {
+      // Execute with timeout
+      return await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => {
+            const error = new Error(
+              `Redis ${operationType} operation timed out`,
+            );
+            error.name = 'RedisTimeoutError';
+            reject(error);
+          }, customTimeout || this.REDIS_TIMEOUT),
+        ),
+      ]);
+    } catch (error) {
+      // Record failure and rethrow
+      this.recordFailure(operationType);
+      throw error;
+    }
+  }
+
+  /**
+   * Record a failure for specific operation type
+   */
+  private recordFailure(operationType: OperationType): void {
+    const circuitState = this.operationCircuits.get(operationType);
+    if (!circuitState) return;
+
+    circuitState.failures++;
+    circuitState.lastFailureTime = Date.now();
+
+    if (circuitState.failures >= this.MAX_FAILURES_PER_OPERATION) {
+      circuitState.isOpen = true;
+      console.warn(
+        `Redis ${operationType} circuit opened after ${circuitState.failures} failures`,
+      );
+    }
+
+    // Also track global failures
+    this.recordGlobalFailure();
+  }
+
+  /**
+   * Record a global failure (regardless of operation type)
+   */
+  private recordGlobalFailure(): void {
+    this.lastGlobalFailureTime = Date.now();
+
+    // Count total recent failures across all operations
+    const totalFailures = Array.from(this.operationCircuits.values()).reduce(
+      (sum, state) => sum + state.failures,
+      0,
+    );
+
+    if (totalFailures >= this.MAX_GLOBAL_FAILURES) {
+      this.globalCircuitOpen = true;
+      console.error(
+        `Redis global circuit opened after ${totalFailures} total failures`,
+      );
+    }
+  }
+
+  /**
+   * Check if circuits should be reset based on elapsed time
+   */
+  private checkCircuitReset(): void {
+    const now = Date.now();
+
+    // Check operation-specific circuits
+    for (const [op, state] of this.operationCircuits.entries()) {
+      if (
+        state.isOpen &&
+        now - state.lastFailureTime > this.CIRCUIT_RESET_TIME
+      ) {
+        state.isOpen = false;
+        state.failures = 0;
+        console.log(
+          `Redis ${op} circuit reset after ${this.CIRCUIT_RESET_TIME}ms`,
+        );
+      }
+    }
+
+    // Check global circuit
+    if (
+      this.globalCircuitOpen &&
+      now - this.lastGlobalFailureTime > this.GLOBAL_CIRCUIT_RESET_TIME
+    ) {
+      this.globalCircuitOpen = false;
+      console.log(
+        `Redis global circuit reset after ${this.GLOBAL_CIRCUIT_RESET_TIME}ms`,
+      );
+    }
+  }
+
+  /**
+   * Reset all circuits on successful operation
+   */
+  private resetCircuits(): void {
+    this.globalCircuitOpen = false;
+
+    for (const state of this.operationCircuits.values()) {
+      state.isOpen = false;
+      state.failures = 0;
+    }
+  }
+
+  /**
+   * Safely execute a Redis operation with fallback value
    */
   async safeExecute<T>(
     operation: (redis: Redis) => Promise<T>,
     fallbackValue: T,
+    operationType: OperationType = 'other',
   ): Promise<T> {
-    if (this.circuitOpen) {
-      // Check if circuit should be closed again
-      if (Date.now() - this.lastFailureTime > 30000) {
-        // 30 seconds
-        this.circuitOpen = false;
-        this.failureCount = 0;
-      } else {
-        return fallbackValue; // Circuit is open, use fallback immediately
-      }
-    }
-
-    // Rest of your existing method...
-    try {
-      // Operation with timeout
-      const result = await Promise.race([
-        operation(this.client!),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Operation timeout')), 3000),
-        ),
-      ]);
-      this.failureCount = 0;
-      return result;
-    } catch (error) {
-      this.failureCount++;
-      this.lastFailureTime = Date.now();
-
-      // Open circuit if too many failures
-      if (this.failureCount >= 5) {
-        this.circuitOpen = true;
-        console.warn('Redis circuit opened due to multiple failures');
-      }
-
-      return fallbackValue;
-    }
-  }
-
-  // Add to RedisConnectionManager.ts
-  async executeWithTimeout<T>(
-    operation: (redis: Redis) => Promise<T>,
-    fallbackValue: T,
-    timeoutMs: number = 8000,
-  ): Promise<T> {
-    if (!this.client || !this.isInitialized) {
+    if (!this.client || !this.isInitialized || this.globalCircuitOpen) {
       return fallbackValue;
     }
 
     try {
-      return await Promise.race([
-        operation(this.client),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(
-                new Error(`Redis operation timed out after ${timeoutMs}ms`),
-              ),
-            timeoutMs,
-          ),
-        ),
-      ]);
+      return await this.executeWithTimeout(
+        () => operation(this.client!),
+        operationType,
+      );
     } catch (error) {
-      console.error('Redis operation failed with timeout control:', error);
+      console.warn(`Redis ${operationType} operation failed:`, error);
       return fallbackValue;
     }
   }
@@ -225,7 +354,7 @@ export class RedisConnectionManager {
    * Safely get a value from Redis with fallback
    */
   async safeGet(key: string): Promise<string | null> {
-    return this.safeExecute((redis) => redis.get(key), null);
+    return this.safeExecute((redis) => redis.get(key), null, 'get');
   }
 
   /**
@@ -236,18 +365,44 @@ export class RedisConnectionManager {
     value: string,
     ttlSeconds?: number,
   ): Promise<void> {
-    if (!this.client || !this.isInitialized) return;
+    if (!this.client || !this.isInitialized || this.globalCircuitOpen) return;
 
     try {
       if (ttlSeconds) {
-        await this.client.set(key, value, 'EX', ttlSeconds);
+        await this.executeWithTimeout(
+          () => this.client!.set(key, value, 'EX', ttlSeconds),
+          'set',
+        );
       } else {
-        await this.client.set(key, value);
+        await this.executeWithTimeout(
+          () => this.client!.set(key, value),
+          'set',
+        );
       }
     } catch (error) {
-      console.error('Redis set operation failed:', error);
+      console.warn('Redis set operation failed:', error);
       // Continue without failing
     }
+  }
+
+  /**
+   * Safely delete a key from Redis, ignoring errors
+   */
+  async safeDel(key: string): Promise<void> {
+    if (!this.client || !this.isInitialized || this.globalCircuitOpen) return;
+
+    try {
+      await this.executeWithTimeout(() => this.client!.del(key), 'del');
+    } catch (error) {
+      console.warn('Redis del operation failed:', error);
+    }
+  }
+
+  /**
+   * Safely find keys matching a pattern
+   */
+  async safeKeys(pattern: string): Promise<string[]> {
+    return this.safeExecute((redis) => redis.keys(pattern), [], 'keys');
   }
 
   /**

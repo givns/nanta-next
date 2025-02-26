@@ -157,6 +157,7 @@ export interface UseAttendanceDataProps {
   locationReady: boolean;
   locationVerified: boolean;
   initialAttendanceStatus?: AttendanceStatusResponse;
+  shiftId?: string;
   enabled?: boolean;
 }
 

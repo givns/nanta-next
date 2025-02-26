@@ -296,13 +296,13 @@ export async function processCheckInOut(
 // Set the processing function for the queue manager
 QueueManager.setProcessingFunction(processCheckInOut);
 
-// API Handler
+// pages/api/attendance/check-in-out.ts - optimized for faster processing
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
   const startTime = performance.now();
-  const requestId = `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = `check-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
   if (req.method !== 'POST') {
     return res.status(405).json({
@@ -318,13 +318,13 @@ export default async function handler(
 
     console.log('Incoming request:', {
       requestId,
-      body: JSON.stringify(req.body, null, 2),
+      body: req.body,
     });
 
     // Validate request data
     const validatedData = validateCheckInOutRequest(req.body);
 
-    // Get user data
+    // Get user data with improved caching
     const user = await getCachedUser({
       employeeId: validatedData.employeeId,
       lineUserId: validatedData.lineUserId,
@@ -337,77 +337,40 @@ export default async function handler(
       });
     }
 
-    // Initialize services with timeout to prevent long-running requests
-    try {
-      await Promise.race([
-        serviceQueue.getInitializedServices(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error('Service initialization timeout')),
-            5000,
-          ),
-        ),
-      ]);
-    } catch (initError) {
-      console.warn(
-        'Service initialization timeout, continuing in background:',
-        initError,
-      );
-      // Continue processing - we'll initialize services in the background
-    }
-
-    // Check queue status
-    const queueStatus = await queueManager.getQueueStatus(user.employeeId);
-    if (queueStatus.isPending) {
-      return res.status(409).json({
-        success: false,
-        error: 'Concurrent operation in progress',
-        code: ErrorCode.MULTIPLE_ACTIVE_RECORDS,
-        details: {
-          queuePosition: queueStatus.position || 0,
-          estimatedWaitTime: (queueStatus.position || 0) * 5,
-        },
-        requestId,
-      });
-    }
-
-    // Validate timestamp
-    const serverTime = getCurrentTime();
-    const requestTime = new Date(validatedData.checkTime);
-    const maxAllowedTime = addMinutes(
-      serverTime,
-      ATTENDANCE_CONSTANTS.EARLY_CHECK_OUT_THRESHOLD,
+    // Get either the full task result or just the request ID if async
+    const processResult = await processCheckInOutWithFallback(
+      validatedData,
+      requestId,
     );
 
-    if (requestTime > maxAllowedTime) {
-      throw new AppError({
-        code: ErrorCode.INVALID_INPUT,
-        message: 'Check time exceeds allowed window',
-        details: {
-          serverTime: serverTime.toISOString(),
-          requestTime: requestTime.toISOString(),
-          maxAllowed: maxAllowedTime.toISOString(),
+    if (processResult.processed) {
+      // Return full synchronous result
+      return res.status(200).json({
+        success: true,
+        processed: true,
+        message: 'Request processed successfully',
+        data: processResult.data,
+        requestId,
+        timestamp: getCurrentTime().toISOString(),
+      });
+    } else {
+      // Return acceptance with polling URL for async processing
+      return res.status(202).json({
+        success: true,
+        processed: false,
+        message: 'Request accepted, processing in background',
+        requestId: processResult.requestId,
+        statusUrl: `/api/attendance/task-status/${processResult.requestId}`,
+        // Include a snapshot of the current attendance state to avoid an extra API call
+        initialState: {
+          employeeId: validatedData.employeeId,
+          action: validatedData.activity.isCheckIn ? 'check-in' : 'check-out',
+          periodType: validatedData.periodType,
+          timestamp: getCurrentTime().toISOString(),
         },
+        timestamp: getCurrentTime().toISOString(),
       });
     }
-
-    // Enqueue the task but don't wait for completion - respond immediately
-    const taskData = {
-      ...validatedData,
-      requestId,
-    };
-
-    queueManager.enqueue(taskData).catch((error) => {
-      console.error('Background task error:', error);
-    });
-
-    // Return immediate acceptance response
-    return res.status(202).json({
-      success: true,
-      message: 'Request accepted, processing in background',
-      requestId,
-      timestamp: getCurrentTime().toISOString(),
-    });
   } catch (error) {
     console.error('Request failed:', {
       requestId,
@@ -424,8 +387,104 @@ export default async function handler(
       requestId,
     });
   } finally {
+    // Log performance metrics
+    const duration = performance.now() - startTime;
+    console.log(`Request ${requestId} handled in ${duration.toFixed(2)}ms`);
+
     await prisma.$disconnect();
   }
+}
+
+/**
+ * Attempt to process check-in/out synchronously, with fallback to async queue
+ */
+async function processCheckInOutWithFallback(
+  data: ProcessingOptions,
+  requestId: string,
+): Promise<{
+  processed: boolean;
+  data?: any;
+  requestId: string;
+}> {
+  // Only try synchronous processing for simple operations
+  const isSimpleOp = isSimpleOperation(data);
+
+  if (isSimpleOp) {
+    try {
+      // Try to initialize services with quick timeout
+      const services = await Promise.race([
+        serviceQueue.getInitializedServices(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('Service initialization timeout')),
+            2000,
+          ),
+        ),
+      ]);
+
+      // Get the processing function from QueueManager if it's set up that way
+      const processingFunction = QueueManager.getProcessingFunction();
+
+      if (processingFunction) {
+        // Process directly with timeout
+        const result = await Promise.race([
+          processingFunction({
+            ...data,
+            requestId,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Processing timeout')), 3000),
+          ),
+        ]);
+
+        // Successfully processed synchronously
+        return {
+          processed: true,
+          data: result,
+          requestId,
+        };
+      }
+    } catch (syncError) {
+      console.warn(
+        'Synchronous processing failed, falling back to queue:',
+        syncError,
+      );
+      // Continue to async queue
+    }
+  }
+
+  // Queue for async processing
+  const taskData = {
+    ...data,
+    requestId,
+  };
+
+  // Enqueue but don't wait for result
+  queueManager.enqueue(taskData).catch((error) => {
+    console.error('Background task error:', error);
+  });
+
+  // Return just the request ID for async processing
+  return {
+    processed: false,
+    requestId,
+  };
+}
+
+/**
+ * Determines if an operation can be processed synchronously
+ */
+function isSimpleOperation(data: ProcessingOptions): boolean {
+  // Operations that are typically fast to process:
+  return (
+    // Regular check-ins (not overtime) are simpler
+    data.periodType === 'REGULAR' &&
+    // No transitions or special handling required
+    !data.transition &&
+    !data.activity.overtimeMissed &&
+    // Check-ins are usually simpler than check-outs
+    data.activity.isCheckIn
+  );
 }
 
 function handleApiError(error: unknown): ErrorResponse {

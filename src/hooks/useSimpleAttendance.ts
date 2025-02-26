@@ -16,8 +16,9 @@ export function useSimpleAttendance({
   employeeId,
   lineUserId,
   initialAttendanceStatus,
+  shiftId,
   enabled = true,
-}: UseSimpleAttendanceProps): UseSimpleAttendanceReturn {
+}: UseSimpleAttendanceProps & { shiftId?: string }): UseSimpleAttendanceReturn {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isDataReady, setIsDataReady] = useState(false);
   const [lastError, setLastError] = useState<Error | null>(null);
@@ -50,6 +51,7 @@ export function useSimpleAttendance({
     locationVerified:
       locationVerified || locationState.verificationStatus === 'admin_pending',
     initialAttendanceStatus,
+    shiftId,
     enabled,
   });
 

@@ -61,6 +61,12 @@ export class QueueManager {
     console.log('Processing function set');
   }
 
+  static getProcessingFunction():
+    | ((task: ProcessingOptions) => Promise<QueueResult>)
+    | null {
+    return processingFunction;
+  }
+
   private initializeQueue() {
     this.queue = new BetterQueue<ProcessingOptions, QueueResult>(
       async (task, cb) => {

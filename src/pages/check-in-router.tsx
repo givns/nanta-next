@@ -78,21 +78,30 @@ const createSafeAttendance = (props: any) => {
 };
 
 const CheckInRouter: React.FC = () => {
-  // States
+  // Core states grouped into functional categories
+  // 1. User data state
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+
+  // 2. Routing/step state
   const [currentStep, setCurrentStep] = useState<Step>('auth');
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>('loading');
-  const [showNextDay, setShowNextDay] = useState(false);
-  const [isLoadingNextDay, setIsLoadingNextDay] = useState(false);
-  const [nextDayData, setNextDayData] = useState<NextDayScheduleInfo | null>(
-    null,
-  );
+
+  // 3. Error handling state
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // 4. Next day data state
+  const [nextDayState, setNextDayState] = useState({
+    showNextDay: false,
+    isLoadingNextDay: false,
+    nextDayData: null as NextDayScheduleInfo | null,
+  });
+  const { showNextDay, isLoadingNextDay, nextDayData } = nextDayState;
 
   // Core Hooks
   const { lineUserId, isInitialized } = useLiff();
   const { isLoading: authLoading } = useAuth({ required: true });
+
   const {
     isLoading: attendanceLoading,
     error: attendanceError,
@@ -101,8 +110,10 @@ const CheckInRouter: React.FC = () => {
   } = useSimpleAttendance({
     employeeId: userData?.employeeId,
     lineUserId: lineUserId || '',
+    shiftId: userData?.shiftId || undefined, // Pass the shiftId or undefined
     enabled: Boolean(userData?.employeeId && !authLoading),
   });
+
   const {
     locationState,
     needsVerification,
@@ -115,109 +126,61 @@ const CheckInRouter: React.FC = () => {
     onAdminApproval: refreshAttendanceStatus,
   });
 
-  // Step management
-  const evaluateStep = useCallback(() => {
-    // 1. First check auth
-    if (authLoading) {
-      return 'auth';
-    }
+  /// Optimized step evaluation
+  const evaluateStep = useCallback((): Step => {
+    if (authLoading) return 'auth';
+    if (!userData?.employeeId) return 'user';
 
-    // 2. Then check user data
-    if (!userData?.employeeId) {
-      return 'user';
-    }
-
-    // Modified location state handling
-    if (
+    const locationPending =
       locationState.verificationStatus === 'admin_pending' ||
-      locationState.status === 'waiting_admin'
-    ) {
-      return 'location';
-    }
+      locationState.status === 'waiting_admin';
 
-    if (locationState.verificationStatus === 'verified') {
-      return 'ready';
-    }
+    if (locationPending) return 'location';
+    if (locationState.verificationStatus === 'verified') return 'ready';
 
-    // 3. Finally handle location states
-    const hasLocationIssue = Boolean(
+    const hasLocationIssue =
       locationState.status === 'error' ||
-        locationState.error ||
-        locationState.verificationStatus === 'needs_verification' ||
-        locationState.triggerReason === 'Location permission denied',
-    );
+      locationState.error ||
+      locationState.verificationStatus === 'needs_verification' ||
+      locationState.triggerReason === 'Location permission denied';
 
-    if (hasLocationIssue) {
-      return 'location';
-    }
-
-    return 'ready';
+    return hasLocationIssue ? 'location' : 'ready';
   }, [authLoading, userData, locationState]);
 
-  // Debug effect to track state changes
-  useEffect(() => {
-    console.log('Step Evaluation State:', {
-      locationStatus: locationState.status,
-      error: locationState.error,
-      verificationStatus: locationState.verificationStatus,
-      currentStep,
-      hasError: Boolean(
-        locationState.status === 'error' ||
-          locationState.error ||
-          locationState.verificationStatus === 'needs_verification',
-      ),
-      needsVerification,
-      isVerified,
-    });
-  }, [locationState, currentStep, needsVerification, isVerified]);
-
-  // Unified step management
+  // Update step when dependencies change
   useEffect(() => {
     const nextStep = evaluateStep();
     if (nextStep !== currentStep) {
       console.log('Step Transition:', {
         from: currentStep,
         to: nextStep,
-        locationState: {
-          status: locationState.status,
-          error: locationState.error,
-          verificationStatus: locationState.verificationStatus,
-        },
-        needsVerification,
-        isVerified,
-        userData: Boolean(userData),
+        locationStatus: locationState.status,
+        verificationStatus: locationState.verificationStatus,
       });
+
       setCurrentStep(nextStep);
     }
-  }, [
-    evaluateStep,
-    currentStep,
-    locationState,
-    needsVerification,
-    isVerified,
-    userData,
-  ]);
+  }, [evaluateStep, currentStep, locationState]);
 
-  // Loading Phase Management
+  // Loading Phase Management - simplified
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
-    const shouldShowLoading =
-      currentStep === 'auth' ||
-      currentStep === 'user' ||
-      currentStep === 'location' ||
+    // Determine if we should show loading or complete state
+    const isLoading =
+      currentStep !== 'ready' ||
+      attendanceLoading ||
+      !userData ||
       locationState.status === 'error' ||
       locationState.verificationStatus === 'needs_verification' ||
       isAdminPending;
 
-    if (shouldShowLoading) {
+    if (isLoading) {
       setLoadingPhase('loading');
-    } else if (currentStep === 'ready' && !attendanceLoading && userData) {
-      if (loadingPhase === 'loading') {
-        setLoadingPhase('fadeOut');
-      } else if (loadingPhase === 'fadeOut') {
-        timer = setTimeout(() => setLoadingPhase('complete'), 500);
-      }
+    } else if (loadingPhase === 'loading') {
+      setLoadingPhase('fadeOut');
+    } else if (loadingPhase === 'fadeOut') {
+      timer = setTimeout(() => setLoadingPhase('complete'), 500);
     }
 
     return () => {
@@ -228,8 +191,7 @@ const CheckInRouter: React.FC = () => {
     attendanceLoading,
     userData,
     loadingPhase,
-    locationState.status,
-    locationState.verificationStatus,
+    locationState,
     isAdminPending,
   ]);
 
@@ -269,9 +231,16 @@ const CheckInRouter: React.FC = () => {
     if (!lineUserId || authLoading || !isInitialized) return;
 
     try {
+      // Add request timeout handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const response = await fetch('/api/user-data', {
         headers: { 'x-line-userid': lineUserId },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -281,49 +250,60 @@ const CheckInRouter: React.FC = () => {
       const data = await response.json();
       if (!data?.user) throw new Error('No user data received');
 
+      // Success - reset error state and set user data
       setUserData(data.user);
-      setError(null); // Clear error on success
-      setRetryCount(0); // Reset retry count
+      setError(null);
+      setRetryCount(0);
     } catch (error) {
       console.error('Error fetching user data:', error);
       const errorMessage =
         error instanceof Error ? error.message : 'Failed to fetch user data';
+
       setError(errorMessage);
 
-      // Implement retry logic with backoff
+      // Implement retry with backoff
       if (retryCount < 3) {
-        const timeout = Math.pow(2, retryCount) * 1000; // Exponential backoff
-        setTimeout(() => {
-          setRetryCount((prev) => prev + 1);
-          fetchUserData();
-        }, timeout);
+        const nextRetryCount = retryCount + 1;
+        setRetryCount(nextRetryCount);
+
+        const timeout = Math.pow(2, nextRetryCount) * 1000; // Exponential backoff
+        setTimeout(fetchUserData, timeout);
       }
     }
   }, [lineUserId, authLoading, isInitialized, retryCount]);
 
-  // Next Day Data Handlers
+  // Simplified next day handlers
   const fetchNextDayInfo = useCallback(async () => {
     if (!userData?.employeeId) return;
 
+    setNextDayState((prev) => ({ ...prev, isLoadingNextDay: true }));
+
     try {
-      setIsLoadingNextDay(true);
       const response = await fetch(
         `/api/attendance/next-day/${userData.employeeId}`,
       );
       if (!response.ok) throw new Error('Failed to fetch next day info');
       const data = await response.json();
-      setNextDayData(data);
+      setNextDayState((prev) => ({
+        ...prev,
+        nextDayData: data,
+        isLoadingNextDay: false,
+      }));
     } catch (error) {
       console.error('Error fetching next day info:', error);
-    } finally {
-      setIsLoadingNextDay(false);
+      setNextDayState((prev) => ({ ...prev, isLoadingNextDay: false }));
     }
   }, [userData?.employeeId]);
 
   const handleViewNextDay = useCallback(() => {
-    setShowNextDay(true);
+    setNextDayState((prev) => ({ ...prev, showNextDay: true }));
     fetchNextDayInfo();
   }, [fetchNextDayInfo]);
+
+  // Initial data fetch
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
 
   // Process attendance props
   const safeAttendanceProps = useMemo(
@@ -493,11 +473,6 @@ const CheckInRouter: React.FC = () => {
   useEffect(() => {
     console.log('Location state updated:', locationState);
   }, [locationState]);
-
-  // Initial data fetch
-  useEffect(() => {
-    fetchUserData();
-  }, [fetchUserData]);
 
   // Handle refresh on API error
   const handleRefreshData = useCallback(async () => {
@@ -695,7 +670,9 @@ const CheckInRouter: React.FC = () => {
             ) : (
               <NextDayInfo
                 nextDayInfo={nextDayData}
-                onClose={() => setShowNextDay(false)}
+                onClose={() =>
+                  setNextDayState((prev) => ({ ...prev, showNextDay: false }))
+                }
               />
             )
           ) : (
@@ -720,9 +697,7 @@ const CheckInRouter: React.FC = () => {
     safeAttendanceProps,
     dailyRecords,
     isAllPeriodsCompleted,
-    showNextDay,
-    nextDayData,
-    isLoadingNextDay,
+    nextDayState,
     handleViewNextDay,
     triggerReason,
     isAdminPending,

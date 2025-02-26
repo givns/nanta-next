@@ -7,41 +7,33 @@ import { getCurrentTime } from '@/utils/dateUtils';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
 import { redisManager } from '@/services/RedisConnectionManager';
 
-// In-memory cache for task status to reduce Redis dependency
-const taskStatusCache = new Map<
-  string,
-  {
-    status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
-    completed: boolean;
-    data: any;
-    timestamp: number;
-  }
->();
+// Task status interface
+interface TaskStatus {
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
+  completed: boolean;
+  data: any;
+  error?: string;
+  source?: string;
+  timestamp: number;
+}
+
+// In-memory cache with TTL
+const taskStatusCache = new Map<string, TaskStatus>();
 
 // Rate limit middleware - lower limits for status checks
 const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 20);
 
-// Initialize services with PrismaClient
+// Initialize services
 const prisma = new PrismaClient();
-
-// Initialize service queue with PrismaClient - and actually use it
 const serviceQueue = getServiceQueue(prisma);
-console.log('Service queue initialized:', !!serviceQueue);
-
-// Initialize QueueManager
 const queueManager = QueueManager.getInstance();
-
-// Initialize Redis status
-const redisInitialized = redisManager.isAvailable();
-console.log(
-  'Redis connection status:',
-  redisInitialized ? 'available' : 'unavailable',
-);
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  const requestTrackingId = `status-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
   if (req.method !== 'GET') {
     return res.status(405).json({
       error: 'Method Not Allowed',
@@ -62,177 +54,35 @@ export default async function handler(
       });
     }
 
-    // Check memory cache first
-    const cachedStatus = taskStatusCache.get(requestId);
-    if (cachedStatus && Date.now() - cachedStatus.timestamp < 60000) {
-      // 1 minute TTL
-      return res.status(200).json({
-        ...cachedStatus,
-        timestamp: getCurrentTime().toISOString(),
-        source: 'memory_cache',
-      });
-    }
+    console.log(`[${requestTrackingId}] Task status request for ${requestId}`);
 
-    // Check Redis cache if available
-    if (redisManager.isAvailable()) {
-      try {
-        const redisKey = `request:${requestId}`;
-        const redisValue = await redisManager.safeGet(redisKey);
+    // Get status with all fallback mechanisms
+    const status = await getTaskStatusWithFallbacks(requestId);
 
-        if (redisValue) {
-          try {
-            const parsedValue = JSON.parse(redisValue);
-            taskStatusCache.set(requestId, parsedValue);
+    // Calculate next poll interval based on status
+    const nextPollInterval = calculateNextPollInterval(status);
 
-            return res.status(200).json({
-              ...parsedValue,
-              timestamp: getCurrentTime().toISOString(),
-              source: 'redis_cache',
-            });
-          } catch (parseError) {
-            console.warn('Failed to parse Redis value:', parseError);
-          }
-        }
-      } catch (redisError) {
-        console.warn('Redis error when fetching status:', redisError);
-      }
-    }
+    // Determine if client should continue polling
+    const shouldContinuePolling = ['pending', 'processing'].includes(
+      status.status,
+    );
 
-    try {
-      // Try to get status from QueueManager
-      const taskStatus = await queueManager.getRequestStatus(requestId);
+    console.log(
+      `[${requestTrackingId}] Task status response for ${requestId}: ${status.status} (${status.source})`,
+    );
 
-      // Cache the result in memory
-      taskStatusCache.set(requestId, {
-        ...taskStatus,
-        timestamp: Date.now(),
-      });
-
-      // Set cache expiration (30 minutes)
-      setTimeout(
-        () => {
-          taskStatusCache.delete(requestId);
-        },
-        30 * 60 * 1000,
-      );
-
-      // Also cache in Redis if available
-      if (redisManager.isAvailable()) {
-        redisManager
-          .safeSet(
-            `request:${requestId}`,
-            JSON.stringify(taskStatus),
-            1800, // 30 minutes TTL
-          )
-          .catch(() => {}); // Ignore Redis errors
-      }
-
-      return res.status(200).json({
-        ...taskStatus,
-        timestamp: getCurrentTime().toISOString(),
-        source: 'queue_manager',
-      });
-    } catch (queueError) {
-      console.error(
-        'Error getting task status from queue manager:',
-        queueError,
-      );
-
-      // Try fallback approach using just a time-based query
-      try {
-        // Look for recently completed attendance records
-        const recentRecords = await findRecentAttendanceRecords();
-
-        if (recentRecords && recentRecords.length > 0) {
-          // Use the most recent record
-          const record = recentRecords[0];
-
-          // Create a response based on available data
-          const statusData = {
-            status: 'completed' as const,
-            completed: true,
-            data: {
-              success: true,
-              requestId,
-              data: {
-                state: {
-                  current: {
-                    type: record.type,
-                    activity: {
-                      isActive: !record.CheckOutTime,
-                      checkIn: record.CheckInTime?.toISOString() || null,
-                      checkOut: record.CheckOutTime?.toISOString() || null,
-                    },
-                  },
-                },
-                validation: {
-                  allowed: true,
-                  reason: '',
-                },
-              },
-              status: {
-                id: record.id,
-                employeeId: record.employeeId,
-                CheckInTime: record.CheckInTime?.toISOString() || null,
-                CheckOutTime: record.CheckOutTime?.toISOString() || null,
-                state: record.state,
-                checkStatus: record.checkStatus,
-                type: record.type,
-                createdAt:
-                  record.createdAt?.toISOString() || new Date().toISOString(),
-              },
-              timestamp:
-                record.createdAt?.toISOString() || new Date().toISOString(),
-            },
-            timestamp: Date.now(),
-          };
-
-          // Store in memory cache
-          taskStatusCache.set(requestId, statusData);
-
-          // Store in Redis cache if available
-          if (redisManager.isAvailable()) {
-            redisManager
-              .safeSet(
-                `request:${requestId}`,
-                JSON.stringify(statusData),
-                1800, // 30 minutes TTL
-              )
-              .catch(() => {}); // Ignore Redis errors
-          }
-
-          return res.status(200).json({
-            ...statusData,
-            source: 'recent_records_fallback',
-            timestamp: getCurrentTime(),
-          });
-        }
-      } catch (dbError) {
-        console.error('Database fallback error:', dbError);
-        // Continue to generic response
-      }
-
-      // If we couldn't get status from any source, return a reasonable default
-      const defaultStatus = {
-        status: 'pending' as const,
-        completed: false,
-        message:
-          'Status could not be determined, but request is likely still processing',
-        timestamp: getCurrentTime(),
-        source: 'fallback',
-      };
-
-      // Cache this default response for a short time to avoid repeated failures
-      taskStatusCache.set(requestId, {
-        ...defaultStatus,
-        timestamp: Date.now(),
-        data: undefined,
-      });
-
-      return res.status(200).json(defaultStatus);
-    }
+    return res.status(200).json({
+      status: status.status,
+      completed: status.completed,
+      data: status.data,
+      error: status.error,
+      timestamp: getCurrentTime().toISOString(),
+      source: status.source,
+      nextPollInterval,
+      shouldContinuePolling,
+    });
   } catch (error) {
-    console.error('Error getting task status:', error);
+    console.error(`[${requestTrackingId}] Error getting task status:`, error);
 
     return res.status(500).json({
       status: 'error',
@@ -241,54 +91,269 @@ export default async function handler(
       timestamp: getCurrentTime().toISOString(),
     });
   } finally {
-    // Ensure service availability for next request by calling initialization methods
-    if (!redisManager.isAvailable()) {
-      redisManager.initialize().catch(() => {});
-    }
-
-    // Make sure to disconnect Prisma
+    // Clean up resources
     await prisma.$disconnect();
   }
+}
 
-  // Helper function to find recent attendance records
-  async function findRecentAttendanceRecords() {
-    // Get very recent attendance records as a fallback
-    const cutoffTime = new Date();
-    cutoffTime.setMinutes(cutoffTime.getMinutes() - 5); // Last 5 minutes
+/**
+ * Calculate appropriate polling interval based on task status
+ */
+function calculateNextPollInterval(status: TaskStatus): number {
+  const now = Date.now();
+  const age = now - status.timestamp;
 
-    // Ask the service queue for services to ensure we're keeping it used
+  // For pending and processing status, scale up polling interval with age
+  if (status.status === 'pending') {
+    // Start with 1s, max 3s for pending
+    return Math.min(1000 + Math.floor(age / 1000) * 500, 3000);
+  }
+
+  if (status.status === 'processing') {
+    // Start with 500ms, max 2s for processing
+    return Math.min(500 + Math.floor(age / 1000) * 300, 2000);
+  }
+
+  // For completed or failed, longer interval as it's unlikely to change
+  return 5000;
+}
+
+/**
+ * Get task status using multiple fallback mechanisms in order of speed
+ */
+async function getTaskStatusWithFallbacks(
+  requestId: string,
+): Promise<TaskStatus> {
+  const trackingId = `status-lookup-${Date.now()}`;
+  console.log(`[${trackingId}] Looking up status for ${requestId}`);
+
+  // 1. Try memory cache first (fastest)
+  const memoryCached = taskStatusCache.get(requestId);
+  if (memoryCached && Date.now() - memoryCached.timestamp < 60000) {
+    // 1 minute TTL
+    console.log(`[${trackingId}] Memory cache hit for ${requestId}`);
+    return {
+      ...memoryCached,
+      source: 'memory_cache',
+    };
+  }
+
+  // 2. Try Redis if available
+  if (redisManager.isAvailable()) {
     try {
-      await serviceQueue.getInitializedServices();
-    } catch (error) {
-      console.warn('Failed to get initialized services:', error);
+      console.log(`[${trackingId}] Checking Redis for ${requestId}`);
+      const redisKey = `request:${requestId}`;
+      const redisValue = await redisManager.safeGet(redisKey);
+
+      if (redisValue) {
+        try {
+          const parsedValue = JSON.parse(redisValue);
+          // Store in memory cache for faster future lookups
+          taskStatusCache.set(requestId, {
+            ...parsedValue,
+            timestamp: Date.now(),
+          });
+
+          console.log(`[${trackingId}] Redis cache hit for ${requestId}`);
+          return {
+            ...parsedValue,
+            source: 'redis_cache',
+          };
+        } catch (parseError) {
+          console.warn(
+            `[${trackingId}] Failed to parse Redis value:`,
+            parseError,
+          );
+        }
+      }
+    } catch (redisError) {
+      console.warn(
+        `[${trackingId}] Redis error when fetching status:`,
+        redisError,
+      );
+    }
+  }
+
+  // 3. Try QueueManager
+  try {
+    console.log(`[${trackingId}] Checking QueueManager for ${requestId}`);
+    const taskStatus = await queueManager.getRequestStatus(requestId);
+
+    // Cache the result in memory
+    taskStatusCache.set(requestId, {
+      ...taskStatus,
+      timestamp: Date.now(),
+    });
+
+    // Set cache expiration (30 minutes)
+    setTimeout(
+      () => {
+        taskStatusCache.delete(requestId);
+      },
+      30 * 60 * 1000,
+    );
+
+    // Also cache in Redis if available
+    if (redisManager.isAvailable()) {
+      redisManager
+        .safeSet(
+          `request:${requestId}`,
+          JSON.stringify(taskStatus),
+          1800, // 30 minutes TTL
+        )
+        .catch((error) =>
+          console.warn(`[${trackingId}] Redis cache set failed:`, error),
+        );
     }
 
-    // Use a simple query that avoids potentially problematic fields
-    return await prisma.attendance.findMany({
-      where: {
-        // Only look for checked-in records
-        CheckInTime: { not: null },
-        // This assumes your model has createdAt - adjust if needed
-        createdAt: { gte: cutoffTime },
-      },
-      orderBy: {
-        // This uses createdAt which is more likely to exist than updatedAt
-        createdAt: 'desc',
-      },
-      // Limit to a few records to avoid large result sets
-      take: 5,
-      // Select only the fields we need
-      select: {
-        id: true,
-        employeeId: true,
-        date: true,
-        state: true,
-        checkStatus: true,
-        type: true,
-        CheckInTime: true,
-        CheckOutTime: true,
-        createdAt: true,
-      },
-    });
+    console.log(
+      `[${trackingId}] QueueManager hit for ${requestId}: ${taskStatus.status}`,
+    );
+    return {
+      ...taskStatus,
+      source: 'queue_manager',
+      timestamp: Date.now(), // Add the timestamp property
+    };
+  } catch (queueError) {
+    console.error(
+      `[${trackingId}] Error getting task status from queue manager:`,
+      queueError,
+    );
   }
+
+  // 4. Fallback to recent attendance records lookup
+  try {
+    console.log(`[${trackingId}] Trying database fallback for ${requestId}`);
+    const recentRecords = await findRecentAttendanceRecords();
+
+    if (recentRecords && recentRecords.length > 0) {
+      // Use the most recent record
+      const record = recentRecords[0];
+
+      // Create a response based on available data
+      const statusData: TaskStatus = {
+        status: 'completed',
+        completed: true,
+        data: {
+          success: true,
+          requestId,
+          data: {
+            state: {
+              current: {
+                type: record.type,
+                activity: {
+                  isActive: !record.CheckOutTime,
+                  checkIn: record.CheckInTime?.toISOString() || null,
+                  checkOut: record.CheckOutTime?.toISOString() || null,
+                },
+              },
+            },
+            validation: {
+              allowed: true,
+              reason: '',
+            },
+          },
+          status: {
+            id: record.id,
+            employeeId: record.employeeId,
+            CheckInTime: record.CheckInTime?.toISOString() || null,
+            CheckOutTime: record.CheckOutTime?.toISOString() || null,
+            state: record.state,
+            checkStatus: record.checkStatus,
+            type: record.type,
+            createdAt:
+              record.createdAt?.toISOString() || new Date().toISOString(),
+          },
+          timestamp:
+            record.createdAt?.toISOString() || new Date().toISOString(),
+        },
+        timestamp: Date.now(),
+        source: 'recent_records_fallback',
+      };
+
+      // Store in memory cache
+      taskStatusCache.set(requestId, statusData);
+
+      // Store in Redis cache if available
+      if (redisManager.isAvailable()) {
+        redisManager
+          .safeSet(
+            `request:${requestId}`,
+            JSON.stringify(statusData),
+            1800, // 30 minutes TTL
+          )
+          .catch((error) =>
+            console.warn(`[${trackingId}] Redis cache set failed:`, error),
+          );
+      }
+
+      console.log(`[${trackingId}] Database fallback success for ${requestId}`);
+      return statusData;
+    }
+  } catch (dbError) {
+    console.error(`[${trackingId}] Database fallback error:`, dbError);
+  }
+
+  // 5. If all lookups fail, return a reasonable default
+  console.log(
+    `[${trackingId}] All lookups failed, returning default status for ${requestId}`,
+  );
+  const defaultStatus: TaskStatus = {
+    status: 'pending',
+    completed: false,
+    data: null,
+    error:
+      'Status could not be determined, but request is likely still processing',
+    timestamp: Date.now(),
+    source: 'fallback',
+  };
+
+  // Cache this default response briefly to avoid repeated failures
+  taskStatusCache.set(requestId, defaultStatus);
+
+  return defaultStatus;
+}
+
+/**
+ * Helper function to find recent attendance records
+ */
+async function findRecentAttendanceRecords() {
+  // Get very recent attendance records as a fallback
+  const cutoffTime = new Date();
+  cutoffTime.setMinutes(cutoffTime.getMinutes() - 5); // Last 5 minutes
+
+  // Try to get services (don't rely on this, just to keep it warmed up)
+  try {
+    await serviceQueue.getInitializedServices();
+  } catch (error) {
+    console.warn('Failed to get initialized services:', error);
+  }
+
+  // Query recent attendance records
+  return await prisma.attendance.findMany({
+    where: {
+      // Only look for checked-in records
+      CheckInTime: { not: null },
+      // This assumes your model has createdAt - adjust if needed
+      createdAt: { gte: cutoffTime },
+    },
+    orderBy: {
+      // This uses createdAt which is more likely to exist than updatedAt
+      createdAt: 'desc',
+    },
+    // Limit to a few records to avoid large result sets
+    take: 5,
+    // Select only the fields we need
+    select: {
+      id: true,
+      employeeId: true,
+      date: true,
+      state: true,
+      checkStatus: true,
+      type: true,
+      CheckInTime: true,
+      CheckOutTime: true,
+      createdAt: true,
+    },
+  });
 }
