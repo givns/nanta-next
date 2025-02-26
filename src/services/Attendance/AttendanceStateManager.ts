@@ -1,11 +1,8 @@
 // services/Attendance/AttendanceStateManager.ts
-// services/Attendance/AttendanceStateManager.ts
 
 import { AttendanceState, CheckStatus, PeriodType } from '@prisma/client';
 import {
   AttendanceStatusResponse,
-  AppError,
-  ErrorCode,
   ValidationContext,
   UnifiedPeriodState,
   StateValidation,
@@ -31,12 +28,13 @@ export class AttendanceStateManager {
   private redis: Redis | null = null;
   private stateCache: Map<string, StateEntry> = new Map();
   private pendingOperations: Map<string, PendingOperation> = new Map();
+  private readonly bypassRedisCompletely = true; // Emergency flag to bypass Redis
 
   // Circuit breaker properties
   private redisFailureCount: number = 0;
   private redisDisabled: boolean = false;
   private lastFailureTime: number = 0;
-  private readonly REDIS_TIMEOUT = 500; // 500ms timeout for Redis operations
+  private readonly REDIS_TIMEOUT = 2000; // 2000ms timeout for Redis operations
   private readonly MAX_FAILURES = 3; // After 3 failures, disable Redis temporarily
   private readonly CIRCUIT_RESET_TIME = 60000; // Try to use Redis again after 1 minute
 
@@ -156,6 +154,11 @@ export class AttendanceStateManager {
     const cachedState = this.stateCache.get(cacheKey);
     if (cachedState && Date.now() - cachedState.timestamp < cachedState.ttl) {
       return cachedState.status;
+    }
+
+    // Skip Redis completely if bypassing
+    if (this.bypassRedisCompletely) {
+      return this.createInitialState(employeeId, context);
     }
 
     // Try Redis with timeout if not disabled

@@ -39,16 +39,25 @@ export class RedisConnectionManager {
       }
 
       // Create Redis client with optimized settings for serverless
+      // Update in RedisConnectionManager.ts
       this.client = new Redis(redisUrl, {
-        maxRetriesPerRequest: 2,
-        connectTimeout: 5000,
+        maxRetriesPerRequest: 5, // Increased from 2
+        connectTimeout: 10000, // Increased from 5000
+        commandTimeout: 3000, // Add explicit command timeout
         retryStrategy: (times) => {
-          if (times > 2) return null; // Stop retrying after 2 attempts
-          return Math.min(times * 100, 300); // 100ms, 200ms, 300ms
+          if (times > 5) return null; // Increased from 2
+          return Math.min(times * 200, 1000); // More aggressive backoff
         },
         enableReadyCheck: true,
         enableOfflineQueue: true,
-        lazyConnect: false, // Connect immediately
+        reconnectOnError: (err) => {
+          // Only reconnect on specific errors
+          const targetErrors = ['READONLY', 'ETIMEDOUT', 'ECONNREFUSED'];
+          return targetErrors.includes(err.message);
+        },
+        lazyConnect: false,
+        family: 4, // Explicitly use IPv4
+        db: 0, // Explicitly set database
       });
 
       // Set up event listeners for better observability
