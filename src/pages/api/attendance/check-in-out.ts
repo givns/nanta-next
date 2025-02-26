@@ -1,7 +1,6 @@
 // pages/api/attendance/check-in-out.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PeriodType, PrismaClient } from '@prisma/client';
-import type { InitializedServices } from '@/types/attendance'; // Add this import
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
 import { ATTENDANCE_CONSTANTS, CACHE_CONSTANTS } from '@/types/attendance/base';

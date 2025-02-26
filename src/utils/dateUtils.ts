@@ -27,6 +27,7 @@ export function toBangkokTime(date: Date | string | number): Date {
 //return getBangkokTime();
 //}
 
+//for testing purposes
 export function getCurrentTime(): Date {
   //For testing specific scenarios
   const [datePart, timePart] = '2024-12-16T19:30'.split('T');
