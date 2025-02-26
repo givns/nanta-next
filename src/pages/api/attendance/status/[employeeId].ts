@@ -93,7 +93,9 @@ const QuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => val === 'true'),
-  shiftId: z.string().optional(), // Add this field
+  shiftId: z.string().optional(),
+  shiftCode: z.string().optional(), // Add shiftCode parameter
+
   _t: z.string().optional(), // Cache busting parameter
 });
 
@@ -181,6 +183,7 @@ export default async function handler(
       coordinates,
       adminVerified,
       shiftId,
+      shiftCode,
     } = validatedParams.data;
 
     const now = getCurrentTime();
@@ -196,12 +199,12 @@ export default async function handler(
 
     let user;
 
-    // Use shiftId if provided to avoid database lookup
-    if (shiftId) {
+    // Use shiftId or shiftCode if provided to avoid database lookup
+    if (shiftId || shiftCode) {
       user = {
         employeeId,
         shiftId,
-        // Include other essential fields with defaults
+        shiftCode: shiftCode || null, // Include shiftCode
         lineUserId: req.headers['x-line-userid'] || null,
         name: null,
         departmentName: null,
@@ -210,9 +213,10 @@ export default async function handler(
       tracker.addStep('use_provided_shift_data', {
         employeeId,
         shiftId,
+        shiftCode,
       });
     } else {
-      // Only fetch from database if shiftId not provided
+      // Only fetch from database if neither shiftId nor shiftCode provided
       tracker.addStep('find_user_start');
       user = await prisma.user.findUnique({
         where: {
@@ -222,6 +226,7 @@ export default async function handler(
           employeeId: true,
           lineUserId: true,
           shiftId: true,
+          shiftCode: true, // Include shiftCode in selection
           name: true,
           departmentName: true,
         },
@@ -240,17 +245,26 @@ export default async function handler(
         userFound: true,
         lineUserIdExists: !!user.lineUserId,
         hasShiftId: !!user.shiftId,
+        hasShiftCode: !!user.shiftCode,
       });
     }
 
-    // Make sure we have a shiftId, either from params or database
-    if (!user.shiftId) {
-      tracker.addStep('missing_shift_id');
+    // Check for shiftId or shiftCode - try to get shift by code if needed
+    if (!user.shiftId && !user.shiftCode) {
+      tracker.addStep('missing_shift_info');
       return res.status(400).json({
         error: ErrorCode.INVALID_INPUT,
-        message: 'Shift configuration not found',
+        message:
+          'Shift configuration not found - missing both shiftId and shiftCode',
         timestamp: getCurrentTime().toISOString(),
       });
+    }
+
+    if (!user.shiftId) {
+      tracker.addStep('missing_shift_id_using_code_instead');
+      console.log(
+        `User ${employeeId} has no shiftId, services will use shiftCode ${user.shiftCode}`,
+      );
     }
 
     // Get attendance status with updated parameters structure

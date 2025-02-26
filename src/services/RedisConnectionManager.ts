@@ -134,23 +134,22 @@ export class RedisConnectionManager {
 
       // Create Redis client with optimized settings for serverless
       this.client = new Redis(redisUrl, {
-        maxRetriesPerRequest: 3, // Reduced from 5
-        connectTimeout: 5000, // Reduced from 15000
-        commandTimeout: 5000, // Reduced from 10000
+        maxRetriesPerRequest: 3,
+        connectTimeout: 5000,
+        commandTimeout: 5000,
         retryStrategy: (times) => {
-          if (times > 3) return null; // Avoid excessive retries
+          if (times > 3) return null;
           return Math.min(times * 200, 1000);
         },
         enableReadyCheck: true,
-        enableOfflineQueue: false, // Don't queue commands when disconnected
+        enableOfflineQueue: true, // Changed from false to true to avoid the "Stream isn't writeable" error
         reconnectOnError: (err) => {
-          // Only reconnect on specific errors that indicate temporary issues
           const targetErrors = ['READONLY', 'ETIMEDOUT', 'ECONNREFUSED'];
           return targetErrors.some((e) => err.message.includes(e));
         },
-        lazyConnect: true, // Connect only when needed
-        family: 4, // Explicitly use IPv4
-        db: 0, // Explicitly set database
+        lazyConnect: false, // Changed from true to false to ensure connection at startup
+        family: 4,
+        db: 0,
       });
 
       try {
