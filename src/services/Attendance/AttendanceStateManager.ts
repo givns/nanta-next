@@ -261,6 +261,39 @@ export class AttendanceStateManager {
     return this.pendingOperations.has(employeeId);
   }
 
+  // Add this method to AttendanceStateManager class
+
+  async resetAllStates(): Promise<{ success: boolean; count: number }> {
+    try {
+      // Clear all in-memory state
+      const stateCount = this.stateCache.size;
+      const pendingCount = this.pendingOperations.size;
+
+      this.stateCache.clear();
+      this.pendingOperations.clear();
+
+      // Reset circuit breaker state
+      this.redisFailureCount = 0;
+      this.redisDisabled = false;
+
+      console.log('Reset all attendance states in memory', {
+        statesCleared: stateCount,
+        pendingOperationsCleared: pendingCount,
+      });
+
+      return {
+        success: true,
+        count: stateCount + pendingCount,
+      };
+    } catch (error) {
+      console.error('Error resetting attendance states:', error);
+      return {
+        success: false,
+        count: 0,
+      };
+    }
+  }
+
   private createInitialState(
     employeeId: string,
     context: ValidationContext,
