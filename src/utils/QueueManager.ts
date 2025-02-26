@@ -104,32 +104,28 @@ export class QueueManager {
           // Process the task with timeout
           console.log(`Processing task ${task.requestId} with timeout`);
 
+          // Use a shorter timeout here - 10 seconds max for queue processing
+          const processFn = processingFunction || processCheckInOut;
+          if (!processFn) {
+            throw new Error('No processing function available');
+          }
+
           try {
-            // Initialize services but don't store the result
-            await this.serviceQueue.getInitializedServices();
-            console.log(`Services initialized for task ${task.requestId}`);
-
-            // Get the function to process the task
-            const processFn = processingFunction || processCheckInOut;
-            if (!processFn) {
-              throw new Error('No processing function available');
-            }
-
-            // Process with a longer timeout for background tasks
+            // Process with a shorter timeout for background tasks
             const result = await Promise.race([
               processFn(task),
               new Promise<never>(
                 (_, reject) =>
                   setTimeout(
                     () => reject(new Error('Queue processing timeout')),
-                    25000,
-                  ), // Longer timeout
+                    10000,
+                  ), // 10 second timeout
               ),
             ]);
 
             console.log(`Task ${task.requestId} completed successfully`);
 
-            // Update status on success
+            // Update status on success - CRITICAL to update status correctly
             if (task.requestId) {
               this.setRequestStatus(task.requestId, 'completed', result);
             }
@@ -143,7 +139,7 @@ export class QueueManager {
               processError,
             );
 
-            // Update status on failure
+            // Update status on failure - CRITICAL to update status correctly
             if (task.requestId) {
               this.setRequestStatus(task.requestId, 'failed', {
                 error:
@@ -166,9 +162,9 @@ export class QueueManager {
       },
       {
         concurrent: 1,
-        maxRetries: 2, // Reduced from default to fail faster
+        maxRetries: 1, // Only try once - don't retry failed tasks
         retryDelay: 1000,
-        maxTimeout: 60000, // Increased from default
+        maxTimeout: 15000, // 15 seconds max timeout
         store: new MemoryStore(),
       },
     );

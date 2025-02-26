@@ -32,8 +32,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const requestTrackingId = `status-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-
   if (req.method !== 'GET') {
     return res.status(405).json({
       error: 'Method Not Allowed',
@@ -54,68 +52,100 @@ export default async function handler(
       });
     }
 
-    console.log(`[${requestTrackingId}] Task status request for ${requestId}`);
+    console.log(`[${requestId}] Status check received`);
 
-    // Get status with all fallback mechanisms
-    const status = await getTaskStatusWithFallbacks(requestId);
+    // Get status with improved fallbacks
+    let statusResult = await getTaskStatusWithFallbacks(requestId);
+    const currentTime = Date.now();
+    const creationTime = parseTimeFromRequestId(requestId);
+    const ageInMs = currentTime - creationTime;
 
-    // Calculate next poll interval based on status
-    const nextPollInterval = calculateNextPollInterval(status);
+    // Important: Handle stalled tasks - if a task has been "processing" for too long, mark it as failed
+    if (statusResult.status === 'processing' && ageInMs > 20000) {
+      // 20 seconds max processing time
+      console.log(
+        `[${requestId}] Task has been processing for too long (${ageInMs}ms), marking as failed`,
+      );
 
-    // Determine if client should continue polling
-    const shouldContinuePolling = ['pending', 'processing'].includes(
-      status.status,
+      // Update status to failed
+      QueueManager.getInstance().setRequestStatus(requestId, 'failed', {
+        error: 'Task processing timed out after 20 seconds',
+        timestamp: new Date().toISOString(),
+      });
+
+      // Update our result
+      statusResult = {
+        status: 'failed',
+        completed: true,
+        data: null,
+        error: 'Task processing timed out after 20 seconds',
+        source: 'timeout_handler',
+        timestamp: currentTime,
+      };
+    }
+
+    // Calculate next poll interval - adaptive based on status and age
+    const nextPollInterval = calculatePollInterval(
+      statusResult.status,
+      ageInMs,
     );
 
     console.log(
-      `[${requestTrackingId}] Task status response for ${requestId}: ${status.status} (${status.source})`,
+      `[${requestId}] Returning status: ${statusResult.status}, suggesting next poll in ${nextPollInterval}ms`,
     );
 
     return res.status(200).json({
-      status: status.status,
-      completed: status.completed,
-      data: status.data,
-      error: status.error,
+      ...statusResult,
       timestamp: getCurrentTime().toISOString(),
-      source: status.source,
       nextPollInterval,
-      shouldContinuePolling,
+      shouldContinuePolling:
+        statusResult.status === 'pending' ||
+        statusResult.status === 'processing',
+      age: ageInMs,
     });
   } catch (error) {
-    console.error(`[${requestTrackingId}] Error getting task status:`, error);
-
+    console.error('Error getting task status:', error);
     return res.status(500).json({
       status: 'error',
       message: 'Failed to get task status',
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: getCurrentTime().toISOString(),
+      shouldContinuePolling: false,
     });
   } finally {
-    // Clean up resources
     await prisma.$disconnect();
   }
 }
 
-/**
- * Calculate appropriate polling interval based on task status
- */
-function calculateNextPollInterval(status: TaskStatus): number {
-  const now = Date.now();
-  const age = now - status.timestamp;
+// Helper function to extract creation time from requestId format check-{timestamp}-{random}
+function parseTimeFromRequestId(requestId: string): number {
+  try {
+    const parts = requestId.split('-');
+    if (parts.length >= 2 && parts[0] === 'check') {
+      return parseInt(parts[1], 10);
+    }
+  } catch (e) {}
+  return Date.now() - 30000; // Default to 30 seconds ago if parsing fails
+}
 
-  // For pending and processing status, scale up polling interval with age
-  if (status.status === 'pending') {
-    // Start with 1s, max 3s for pending
-    return Math.min(1000 + Math.floor(age / 1000) * 500, 3000);
+// Calculate adaptive poll interval
+function calculatePollInterval(status: string, ageInMs: number): number {
+  if (status === 'completed' || status === 'failed') {
+    return 5000; // No need to poll frequently for completed/failed tasks
   }
 
-  if (status.status === 'processing') {
-    // Start with 500ms, max 2s for processing
-    return Math.min(500 + Math.floor(age / 1000) * 300, 2000);
+  if (status === 'pending') {
+    // For pending tasks, shorter intervals at first, then increasing
+    return Math.min(800 + Math.floor(ageInMs / 1000) * 300, 2000);
   }
 
-  // For completed or failed, longer interval as it's unlikely to change
-  return 5000;
+  if (status === 'processing') {
+    // For processing tasks, medium intervals
+    return Math.min(500 + Math.floor(ageInMs / 1000) * 200, 2000);
+  }
+
+  // Unknown status, use conservative interval
+  return 2000;
 }
 
 /**

@@ -538,20 +538,19 @@ export function useAttendanceData({
     async (
       statusUrl: string,
       requestId: string,
-      maxAttempts = 15, // More attempts but with adaptive timing
-      maxTotalWaitTime = 30000, // 30 seconds maximum
+      maxAttempts = 10, // Reduced from 15 to fail faster
+      maxTotalWaitTime = 20000, // 20 seconds maximum
     ): Promise<ProcessingResult> => {
       const startTime = Date.now();
-      let pollInterval = 1000; // Start with 1 second
+      let pollInterval = 800; // Start with 800ms
       let consecutiveErrors = 0;
+      let failedWithError = false;
 
       for (let i = 0; i < maxAttempts; i++) {
         // Check total wait time
         if (Date.now() - startTime > maxTotalWaitTime) {
-          throw new AppError({
-            code: ErrorCode.TIMEOUT,
-            message: 'Processing timed out after maximum wait time',
-          });
+          console.warn(`Polling timeout exceeded for ${requestId}`);
+          break; // Exit the loop and try the fallback approach
         }
 
         // Wait for the current poll interval
@@ -574,54 +573,61 @@ export function useAttendanceData({
             );
           } else {
             // Otherwise increase poll interval adaptively
-            pollInterval = Math.min(pollInterval * 1.5, 5000);
+            pollInterval = Math.min(pollInterval * 1.5, 2000);
             console.log(`Increased poll interval to: ${pollInterval}ms`);
           }
 
-          // If we have a completed status with data, return it
-          if (response.data.completed && response.data.data) {
+          // Check if complete or failed
+          if (response.data.status === 'completed' && response.data.data) {
             console.log(`Polling complete: ${requestId} - success`);
             return response.data.data;
+          }
+
+          if (response.data.status === 'failed') {
+            console.log(
+              `Polling failed: ${requestId} - ${response.data.error || 'unknown error'}`,
+            );
+            failedWithError = true;
+            throw new AppError({
+              code: ErrorCode.PROCESSING_ERROR,
+              message: response.data.error || 'Processing failed',
+              details: response.data,
+            });
           }
 
           // Check if the server says we should stop polling
           if (response.data.shouldContinuePolling === false) {
             console.log(`Server indicated polling should stop: ${requestId}`);
 
-            // If it's a failure, throw an error
-            if (response.data.status === 'failed') {
-              throw new AppError({
-                code: ErrorCode.PROCESSING_ERROR,
-                message: response.data.error || 'Processing failed',
-                details: response.data,
-              });
-            }
-
-            // If it's completed but no data, return a generic success
-            if (response.data.status === 'completed') {
-              return {
-                success: true,
-                message: 'Operation completed successfully',
-                timestamp: new Date().toISOString(),
-                requestId: requestId,
-                data: response.data.data || {},
-              };
-            }
+            // If it's not completed or failed but we should stop, something's wrong
+            throw new AppError({
+              code: ErrorCode.PROCESSING_ERROR,
+              message:
+                'Server requested to stop polling but processing is incomplete',
+            });
           }
 
           // For pending or processing status, continue polling
           console.log(
             `Status is still ${response.data.status}, continuing to poll`,
           );
+
+          // If the task has been pending/processing for too long, we should bail out
+          if (response.data.age > 15000 && i >= maxAttempts / 2) {
+            console.warn(
+              `Task ${requestId} has been ${response.data.status} for too long (${response.data.age}ms)`,
+            );
+            break; // Try the fallback recovery
+          }
         } catch (error) {
           console.error(`Polling error for request ${requestId}:`, error);
           consecutiveErrors++;
 
           // Increase poll interval after errors
-          pollInterval = Math.min(pollInterval * 2, 5000);
+          pollInterval = Math.min(pollInterval * 2, 2000);
 
           // Fail if we've had too many consecutive errors
-          if (consecutiveErrors >= 3) {
+          if (consecutiveErrors >= 2 || failedWithError) {
             throw new AppError({
               code: ErrorCode.NETWORK_ERROR,
               message: 'Failed to check status after multiple attempts',
@@ -634,7 +640,7 @@ export function useAttendanceData({
       // If we've exhausted all polling attempts, try to recover
       console.warn(`Polling exhausted for ${requestId}, trying to recover...`);
 
-      // Try to refresh attendance data as a last resort
+      // Try to refresh attendance data and return a minimal success
       try {
         await refreshAttendanceStatus();
 
