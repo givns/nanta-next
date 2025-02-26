@@ -17,7 +17,6 @@ let processingFunction:
   | null = null;
 
 export class QueueManager {
-  [x: string]: any;
   private static instance: QueueManager | null = null;
   private queue!: BetterQueue<ProcessingOptions, QueueResult>;
   private queueSize: number = 0;
@@ -73,27 +72,22 @@ export class QueueManager {
         try {
           // Try to acquire lock
           const lockKey = `lock:${task.employeeId}`;
-          const lockAcquired =
-            await this.RedisConnectionManager.safeExecutesafeExecuteRedis(
-              async (redis: {
-                set: (
-                  arg0: string,
-                  arg1: string,
-                  arg2: string,
-                  arg3: number,
-                  arg4: string,
-                ) => any;
-              }) => {
-                return await redis.set(
-                  lockKey,
-                  '1',
-                  'EX',
-                  30, // 30 second expiry
-                  'NX', // Only set if key doesn't exist
-                );
-              },
-              false,
-            );
+          const lockAcquired = await redisManager.safeExecute(
+            async (redis) => {
+              // Redis SET with NX returns "OK" if successful, null if the key exists
+              // Convert this to a boolean value
+              const result = await redis.set(
+                lockKey,
+                '1',
+                'EX',
+                30, // 30 second expiry
+                'NX', // Only set if key doesn't exist
+              );
+              return result === 'OK'; // Convert "OK" to true, null to false
+            },
+            false, // Now both the operation and fallback are boolean types
+          );
+
           if (!lockAcquired) {
             throw new Error('Concurrent operation in progress');
           }
@@ -164,40 +158,56 @@ export class QueueManager {
     const lockKey = `lock:${employeeId}`;
 
     try {
-      // Try Redis first
-      const result = await this.redis
-        .set(lockKey, '1', 'EX', ttlSeconds, 'NX')
-        .timeout(3000)
-        .catch(() => null);
+      // Try Redis first if available
+      if (redisManager.isAvailable()) {
+        const result = await redisManager.safeExecute(async (redis) => {
+          const setResult = await redis.set(
+            lockKey,
+            '1',
+            'EX',
+            ttlSeconds,
+            'NX',
+          );
+          return setResult === 'OK'; // Convert to boolean
+        }, false);
 
-      if (result === 'OK') return true;
-
-      // Fall back to memory locks if Redis fails
-      if (result === null) {
-        console.warn('Redis lock failed, using memory lock');
-        const now = Date.now();
-        const existing = this.memoryLocks.get(employeeId);
-
-        if (existing && existing > now) return false;
-
-        this.memoryLocks.set(employeeId, now + ttlSeconds * 1000);
-        return true;
+        if (result) return true;
       }
 
-      return false;
+      // Fall back to memory locks if Redis fails or isn't available
+      console.warn('Redis lock failed or unavailable, using memory lock');
+      const now = Date.now();
+      const existing = this.memoryLocks.get(employeeId);
+
+      if (existing && existing > now) return false;
+
+      this.memoryLocks.set(employeeId, now + ttlSeconds * 1000);
+      return true;
     } catch (error) {
       console.error('Lock acquisition failed:', error);
-      return false;
+
+      // Still try memory lock as last resort
+      const now = Date.now();
+      this.memoryLocks.set(employeeId, now + ttlSeconds * 1000);
+      return true;
     }
   }
 
+  // Update the releaseLock method
   private releaseLock(key: string): void {
     // Release memory lock
     this.locks.delete(key);
+    // Remove from memoryLocks too
+    const employeeId = key.replace('lock:', '');
+    this.memoryLocks.delete(employeeId);
 
     // Try to release Redis lock
     if (redisManager.isAvailable()) {
-      redisManager.safeExecute((redis) => redis.del(key), 0).catch(() => {}); // Ignore Redis errors
+      redisManager
+        .safeExecute((redis) => redis.del(key), 0)
+        .catch((e) => {
+          console.warn('Error releasing Redis lock:', e);
+        }); // Log Redis errors
     }
   }
 
@@ -213,18 +223,24 @@ export class QueueManager {
       timestamp: Date.now(),
     };
 
+    console.log(`Setting request status for ${requestId} to ${status}`);
+
     // Always update memory cache
     this.requestStatusMap.set(requestId, statusEntry);
 
     // Try to update Redis
     const redisKey = `request:${requestId}`;
-    redisManager
-      .safeSet(
-        redisKey,
-        JSON.stringify(statusEntry),
-        3600, // 1 hour TTL
-      )
-      .catch(() => {}); // Ignore Redis errors
+    if (redisManager.isAvailable()) {
+      redisManager
+        .safeSet(
+          redisKey,
+          JSON.stringify(statusEntry),
+          3600, // 1 hour TTL
+        )
+        .catch((e) => {
+          console.warn('Failed to set Redis status:', e);
+        });
+    }
   }
 
   // Get request status with fallback mechanisms
@@ -236,28 +252,37 @@ export class QueueManager {
     // Check memory cache first
     const memoryStatus = this.requestStatusMap.get(requestId);
     if (memoryStatus) {
+      console.log(
+        `Found status for ${requestId} in memory: ${memoryStatus.status}`,
+      );
       return memoryStatus;
     }
 
     // Try Redis if available
-    try {
-      const redisKey = `request:${requestId}`;
-      const redisStatus = await redisManager.safeGet(redisKey);
+    if (redisManager.isAvailable()) {
+      try {
+        const redisKey = `request:${requestId}`;
+        const redisStatus = await redisManager.safeGet(redisKey);
 
-      if (redisStatus) {
-        try {
-          const parsedStatus = JSON.parse(redisStatus);
-          // Cache in memory for faster future access
-          this.requestStatusMap.set(requestId, parsedStatus);
-          return parsedStatus;
-        } catch (parseError) {
-          console.error('Error parsing Redis status:', parseError);
+        if (redisStatus) {
+          try {
+            const parsedStatus = JSON.parse(redisStatus);
+            // Cache in memory for faster future access
+            this.requestStatusMap.set(requestId, parsedStatus);
+            console.log(
+              `Found status for ${requestId} in Redis: ${parsedStatus.status}`,
+            );
+            return parsedStatus;
+          } catch (parseError) {
+            console.error('Error parsing Redis status:', parseError);
+          }
         }
+      } catch (error) {
+        console.warn('Redis status lookup failed:', error);
       }
-    } catch (error) {
-      // Ignore Redis errors, continue with unknown status
     }
 
+    console.log(`No status found for ${requestId}, returning unknown`);
     return {
       status: 'unknown',
       completed: false,
@@ -271,18 +296,22 @@ export class QueueManager {
       task.requestId = `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
     }
 
+    console.log(`Enqueueing task with requestId ${task.requestId}`);
+
     // Set initial status
     this.setRequestStatus(task.requestId, 'pending');
 
     return new Promise<QueueResult>((resolve, reject) => {
       this.queue.push(task, (error, result) => {
         if (error) {
+          console.error(`Task ${task.requestId} failed:`, error);
           this.setRequestStatus(task.requestId!, 'failed', {
             error: error.message,
             timestamp: new Date().toISOString(),
           });
           reject(error);
         } else {
+          console.log(`Task ${task.requestId} completed successfully`);
           this.setRequestStatus(task.requestId!, 'completed', result);
           resolve(result!);
         }
@@ -296,20 +325,17 @@ export class QueueManager {
     let lockAcquired = false;
 
     try {
-      // Try to acquire lock with shorter timeout
-      lockAcquired = await this.redis
-        .set(lockKey, '1', 'EX', 30, 'NX')
-        .timeout(3000)
-        .catch(() => false);
-
-      if (!lockAcquired) {
-        throw new Error('Concurrent operation in progress');
-      }
+      // Set status to processing
       if (task.requestId) {
         this.setRequestStatus(task.requestId, 'processing');
       }
 
+      console.log(
+        `Processing task ${task.requestId} for employee ${task.employeeId}`,
+      );
+
       // Get initialized services before processing
+      console.log(`Getting services for task ${task.requestId}`);
       const services = await this.serviceQueue.getInitializedServices();
       if (!services) {
         throw new AppError({
@@ -327,16 +353,13 @@ export class QueueManager {
       }
 
       // Use the processing function
+      console.log(`Executing processing function for task ${task.requestId}`);
       const result = await processingFunction(task);
+      console.log(`Processing completed for task ${task.requestId}`);
       return result;
     } catch (error) {
-      console.error('Task processing error:', error);
+      console.error(`Task processing error for ${task.requestId}:`, error);
       throw error;
-    } finally {
-      // Always try to release lock, with backoff if needed
-      if (lockAcquired) {
-        await this.safeDelKey(lockKey);
-      }
     }
   }
 
@@ -347,7 +370,9 @@ export class QueueManager {
   }> {
     // Check memory lock first
     const lockKey = `lock:${employeeId}`;
-    const isLocked = this.locks.has(lockKey);
+    const isLocked =
+      this.locks.has(lockKey) ||
+      (this.memoryLocks.get(employeeId) || 0) > Date.now();
 
     // Try Redis lock if not locked in memory
     if (!isLocked && redisManager.isAvailable()) {
@@ -362,7 +387,7 @@ export class QueueManager {
           position: this.queueSize,
         };
       } catch (error) {
-        // Ignore Redis errors, use memory state
+        console.warn('Redis queue status check failed:', error);
       }
     }
 
