@@ -10,7 +10,6 @@ import {
 import { getCurrentTime } from '../../utils/dateUtils';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
 import { AttendanceEnhancementService } from '../Attendance/AttendanceEnhancementService';
-import { redisManager } from '../RedisConnectionManager';
 
 export class CacheManager {
   private static instance: CacheManager | null = null;
@@ -45,11 +44,8 @@ export class CacheManager {
             enhancementService,
           );
 
-          // Verify Redis connection through RedisConnectionManager
-          const isRedisAvailable = redisManager.isAvailable();
-          console.log(
-            `CacheManager initialized with Redis available: ${isRedisAvailable}`,
-          );
+          // Any additional async initialization can go here
+          // Note: Removed the connect call since it's not available
         } catch (error) {
           console.error('Failed to initialize CacheManager:', error);
           CacheManager.instance = null;
@@ -70,7 +66,7 @@ export class CacheManager {
   async getAttendanceState(
     employeeId: string,
   ): Promise<AttendanceStatusResponse | null> {
-    if (!this.initialized || process.env.NODE_ENV === 'test') {
+    if (!this.initialized || !cacheService || process.env.NODE_ENV === 'test') {
       return null;
     }
 
@@ -91,7 +87,7 @@ export class CacheManager {
     state: AttendanceStatusResponse,
     ttl = CACHE_CONSTANTS.ATTENDANCE_CACHE_TTL,
   ): Promise<void> {
-    if (!this.initialized || process.env.NODE_ENV === 'test') {
+    if (!this.initialized || !cacheService || process.env.NODE_ENV === 'test') {
       return;
     }
 
@@ -112,25 +108,21 @@ export class CacheManager {
   }
 
   async invalidateCache(employeeId: string): Promise<void> {
-    if (!this.initialized) {
+    if (!this.initialized || !cacheService) {
       return;
     }
 
-    const date = format(getCurrentTime(), 'yyyy-MM-dd');
-    // Use specific keys instead of patterns
-    const keysToInvalidate = [
+    const patterns = [
       this.generateCacheKey(employeeId, 'attendance'),
       this.generateCacheKey(employeeId, 'window'),
       this.generateCacheKey(employeeId, 'validation'),
-      `shift:${employeeId}:${date}`,
-      `status:${employeeId}:${date}`,
     ];
 
     try {
-      // Delete each key individually
-      await Promise.all(keysToInvalidate.map((key) => cacheService.del(key)));
-      console.log(
-        `Invalidated ${keysToInvalidate.length} cache keys for employee ${employeeId}`,
+      await Promise.all(
+        patterns.map((pattern) =>
+          cacheService.invalidatePattern(`${pattern}*`),
+        ),
       );
     } catch (error) {
       console.warn('Cache invalidation failed:', error);

@@ -67,6 +67,8 @@ export class AttendanceService {
     }
   >();
 
+  public useMemoryCacheOnly = false;
+
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
@@ -145,6 +147,46 @@ export class AttendanceService {
     },
   ): Promise<AttendanceStatusResponse> {
     const now = getCurrentTime();
+
+    // Skip Redis if memory-only flag is set
+    if (this.useMemoryCacheOnly) {
+      // Log the bypass
+      console.log(`Using memory-only cache for employee ${employeeId}`);
+
+      try {
+        // Get fresh state from status service
+        const freshState = await this.statusService.getAttendanceStatus(
+          employeeId,
+          options,
+        );
+
+        // Update state manager with fresh state
+        await this.stateManager.updateState(
+          employeeId,
+          freshState,
+          freshState.base.isCheckingIn ? 'check-in' : 'check-out',
+        );
+
+        this.attendanceStateCache.set(employeeId, {
+          state: freshState,
+          timestamp: Date.now(),
+        });
+
+        // Reset the flag after use
+        this.useMemoryCacheOnly = false;
+
+        return freshState;
+      } catch (error) {
+        console.error('Error getting attendance status:', error);
+        // Invalidate state on error to ensure fresh fetch next time
+        await this.stateManager.invalidateState(employeeId);
+
+        // Reset the flag even on error
+        this.useMemoryCacheOnly = false;
+
+        throw error;
+      }
+    }
 
     // Check memory cache first with a short TTL (5 seconds)
     const cached = this.attendanceStateCache.get(employeeId);

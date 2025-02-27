@@ -7,11 +7,12 @@ import {
   AppError,
   AttendanceStatusResponse,
   ErrorCode,
+  ValidationContext,
+  ShiftData,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
-import { redisManager } from '@/services/RedisConnectionManager';
 
 // Request flow tracking
 const RequestTracker = {
@@ -94,9 +95,6 @@ const QuerySchema = z.object({
     .string()
     .optional()
     .transform((val) => val === 'true'),
-  shiftId: z.string().optional(),
-  shiftCode: z.string().optional(), // Add shiftCode parameter
-
   _t: z.string().optional(), // Cache busting parameter
 });
 
@@ -108,71 +106,6 @@ type ApiResponse =
       details?: unknown;
       timestamp?: string;
     };
-
-// New function to handle attendance status with Redis failover
-async function getAttendanceStatusWithRedisFailover(
-  employeeId: string,
-  services: any,
-  options: {
-    inPremises: boolean;
-    address: string;
-    periodType?: PeriodType;
-  },
-  tracker: any,
-): Promise<AttendanceStatusResponse> {
-  // Use a shorter timeout specifically for this endpoint
-  const REDIS_TIMEOUT = 500; // 500ms max for Redis operations
-
-  // Check if Redis is already disabled by circuit breaker
-  const isRedisDisabled = !redisManager.isAvailable();
-
-  if (isRedisDisabled) {
-    tracker.addStep('redis_circuit_open');
-
-    const isRedisAvailable =
-      redisManager && redisManager.isAvailable && redisManager.isAvailable();
-
-    if (!isRedisAvailable) {
-      tracker.addStep('redis_not_available');
-      // Skip Redis completely - get fresh data always
-      return await services.attendanceService.getAttendanceStatus(
-        employeeId,
-        options,
-      );
-    }
-  }
-
-  try {
-    // Start with a Promise.race to limit total Redis operation time
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Redis timeout for status endpoint'));
-      }, REDIS_TIMEOUT);
-    });
-
-    const fetchPromise = services.attendanceService.getAttendanceStatus(
-      employeeId,
-      options,
-    );
-
-    tracker.addStep('attendance_status_race');
-
-    // Race the two promises
-    return await Promise.race([fetchPromise, timeoutPromise]);
-  } catch (error) {
-    // If Redis times out, log and fallback to fresh data
-    console.warn(
-      `Redis timeout for employee ${employeeId}, falling back to direct DB access`,
-    );
-    tracker.addStep('redis_timeout_fallback');
-
-    // Force memory-only mode for this request
-    return await services.attendanceService.getAttendanceStatus(
-      employeeId,
-      options,
-    );
-  }
-}
 
 export default async function handler(
   req: NextApiRequest,
@@ -242,16 +175,8 @@ export default async function handler(
       });
     }
 
-    const {
-      employeeId,
-      inPremises,
-      address,
-      coordinates,
-      adminVerified,
-      shiftId,
-      shiftCode,
-    } = validatedParams.data;
-
+    const { employeeId, inPremises, address, coordinates, adminVerified } =
+      validatedParams.data;
     const now = getCurrentTime();
 
     tracker.addStep('validate_params_success', {
@@ -259,99 +184,96 @@ export default async function handler(
       inPremises: Boolean(inPremises),
       hasCoordinates: !!coordinates,
       adminVerified: Boolean(adminVerified),
-      shiftId,
       timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
-    let user;
-
-    // Use shiftId or shiftCode if provided to avoid database lookup
-    if (shiftId || shiftCode) {
-      user = {
-        employeeId,
-        shiftId,
-        shiftCode: shiftCode || null, // Include shiftCode
-        lineUserId: req.headers['x-line-userid'] || null,
-        name: null,
-        departmentName: null,
-      };
-
-      tracker.addStep('use_provided_shift_data', {
-        employeeId,
-        shiftId,
-        shiftCode,
-      });
-    } else {
-      // Only fetch from database if neither shiftId nor shiftCode provided
-      tracker.addStep('find_user_start');
-      user = await prisma.user.findUnique({
-        where: {
-          employeeId: employeeId,
+    // Check if user exists and get shift data
+    tracker.addStep('find_user_start');
+    const user = await prisma.user.findFirst({
+      where: {
+        employeeId: {
+          equals: employeeId,
         },
-        select: {
-          employeeId: true,
-          lineUserId: true,
-          shiftId: true,
-          shiftCode: true, // Include shiftCode in selection
-          name: true,
-          departmentName: true,
-        },
-      });
+      },
+      select: {
+        employeeId: true,
+        lineUserId: true,
+        shiftId: true,
+        name: true,
+        departmentName: true,
+      },
+    });
 
-      if (!user) {
-        tracker.addStep('find_user_not_found');
-        return res.status(404).json({
-          error: ErrorCode.USER_NOT_FOUND,
-          message: 'User not found',
-          timestamp: getCurrentTime().toISOString(),
-        });
-      }
-
-      tracker.addStep('find_user_success', {
-        userFound: true,
-        lineUserIdExists: !!user.lineUserId,
-        hasShiftId: !!user.shiftId,
-        hasShiftCode: !!user.shiftCode,
-      });
-    }
-
-    // Check for shiftId or shiftCode - try to get shift by code if needed
-    if (!user.shiftId && !user.shiftCode) {
-      tracker.addStep('missing_shift_info');
-      return res.status(400).json({
-        error: ErrorCode.INVALID_INPUT,
-        message:
-          'Shift configuration not found - missing both shiftId and shiftCode',
+    if (!user) {
+      tracker.addStep('find_user_not_found');
+      return res.status(404).json({
+        error: ErrorCode.USER_NOT_FOUND,
+        message: 'User not found',
         timestamp: getCurrentTime().toISOString(),
       });
     }
 
-    if (!user.shiftId) {
-      tracker.addStep('missing_shift_id_using_code_instead');
-      console.log(
-        `User ${employeeId} has no shiftId, services will use shiftCode ${user.shiftCode}`,
-      );
-    }
+    tracker.addStep('find_user_success', {
+      userFound: true,
+      hasShiftId: !!user.shiftId,
+      lineUserIdExists: !!user.lineUserId,
+    });
 
-    // Get attendance status with the new failover function
+    // Get user's shift
+    tracker.addStep('get_user_shift_start');
+    const userShift = await services.shiftService.getUserShift(employeeId);
+    tracker.addStep('get_user_shift_complete', {
+      hasShift: !!userShift,
+      shiftId: userShift?.id,
+      workDays: userShift?.workDays,
+      shiftTimes: userShift
+        ? `${userShift.startTime}-${userShift.endTime}`
+        : null,
+    });
+
+    // Convert null to undefined for shift to satisfy TypeScript
+    const shift: ShiftData | undefined = userShift || undefined;
+
+    // Create validation context
+    tracker.addStep('create_validation_context');
+    const context: ValidationContext = {
+      employeeId,
+      timestamp: now,
+      isCheckIn: true, // Will be updated based on current state
+      shift,
+      periodType: PeriodType.REGULAR,
+      isOvertime: false,
+      overtimeInfo: null,
+      location: coordinates,
+      address: address || '',
+    };
+
+    const BYPASS_REDIS_FOR_STATUS = true; // Force bypass for this endpoint
+
+    // Get attendance status with updated parameters structure
     tracker.addStep('get_attendance_status_start');
 
-    // Use the new function to handle Redis timeouts
+    if (BYPASS_REDIS_FOR_STATUS) {
+      services.attendanceService.useMemoryCacheOnly = true;
+    }
+
+    // Rather than trying to modify the Promise itself, we'll use a simple approach
+    // with manual timing that's TypeScript-safe
+    const attendanceStartTime = Date.now();
     let attendanceStatus: AttendanceStatusResponse;
+
     try {
-      attendanceStatus = await getAttendanceStatusWithRedisFailover(
+      attendanceStatus = await services.attendanceService.getAttendanceStatus(
         employeeId,
-        services,
         {
           inPremises: adminVerified ? true : Boolean(inPremises),
           address: address || '',
           periodType: PeriodType.REGULAR, // Default to regular period
         },
-        tracker,
       );
 
       tracker.addStep('attendance_service_complete', {
-        durationMs: Date.now() - startTime,
+        durationMs: Date.now() - attendanceStartTime,
         hasResult: !!attendanceStatus,
         hasBase: !!attendanceStatus?.base,
         hasDaily: !!attendanceStatus?.daily,
@@ -361,7 +283,7 @@ export default async function handler(
       });
     } catch (error) {
       tracker.addStep('attendance_service_error', {
-        durationMs: Date.now() - startTime,
+        durationMs: Date.now() - attendanceStartTime,
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw error;
