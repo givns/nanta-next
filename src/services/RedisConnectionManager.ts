@@ -339,12 +339,26 @@ export class RedisConnectionManager {
     }
 
     try {
-      return await this.executeWithTimeout(
-        () => operation(this.client!),
-        operationType,
-      );
+      // Add an explicit timeout to every Redis operation
+      const result = await Promise.race([
+        operation(this.client),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Redis operation timeout')), 1000),
+        ),
+      ]);
+
+      return result;
     } catch (error) {
       console.warn(`Redis ${operationType} operation failed:`, error);
+
+      // Only record certain types of errors for circuit breaking
+      // Ignore timeouts during cleanup phase
+      if (
+        !(error instanceof Error && error.message === 'Redis operation timeout')
+      ) {
+        this.recordFailure(operationType);
+      }
+
       return fallbackValue;
     }
   }
