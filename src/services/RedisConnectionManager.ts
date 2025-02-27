@@ -138,15 +138,16 @@ export class RedisConnectionManager {
         connectTimeout: 5000,
         commandTimeout: 5000,
         retryStrategy: (times) => {
-          if (times > 3) return null;
-          return Math.min(times * 200, 1000);
+          if (times > 1) return null;
+          return 500;
         },
-        enableReadyCheck: true,
+        enableReadyCheck: false,
         enableOfflineQueue: true, // Changed from false to true to avoid the "Stream isn't writeable" error
         reconnectOnError: (err) => {
           const targetErrors = ['READONLY', 'ETIMEDOUT', 'ECONNREFUSED'];
           return targetErrors.some((e) => err.message.includes(e));
         },
+        showFriendlyErrorStack: true,
         lazyConnect: false, // Changed from true to false to ensure connection at startup
         family: 4,
         db: 0,
