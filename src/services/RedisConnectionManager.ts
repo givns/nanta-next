@@ -134,23 +134,36 @@ export class RedisConnectionManager {
 
       // Create Redis client with optimized settings for serverless
       this.client = new Redis(redisUrl, {
-        maxRetriesPerRequest: 3,
-        connectTimeout: 5000,
-        commandTimeout: 5000,
+        // Reduced connection pool for faster failures
+        maxRetriesPerRequest: 1,
+        connectTimeout: 2000,
+        commandTimeout: 2000,
+        // Disconnect faster
+        disconnectTimeout: 1000,
+        // Don't wait for reconnection
         retryStrategy: (times) => {
-          if (times > 1) return null;
-          return 500;
+          if (times > 1) return null; // Only retry once
+          return 500; // Quick retry
         },
+        // Disable ready check to speed up connection
         enableReadyCheck: false,
-        enableOfflineQueue: true, // Changed from false to true to avoid the "Stream isn't writeable" error
+        // Don't queue commands when disconnected
+        enableOfflineQueue: false,
         reconnectOnError: (err) => {
           const targetErrors = ['READONLY', 'ETIMEDOUT', 'ECONNREFUSED'];
           return targetErrors.some((e) => err.message.includes(e));
         },
+        // Enable friendly stack traces for debugging
         showFriendlyErrorStack: true,
-        lazyConnect: false, // Changed from true to false to ensure connection at startup
+        // Connect immediately on startup
+        lazyConnect: false,
+        // Use IPv4 to avoid DNS resolution delays
         family: 4,
         db: 0,
+        // Don't auto resubscribe to channels
+        autoResubscribe: false,
+        // Don't resend commands
+        autoResendUnfulfilledCommands: false,
       });
 
       try {
@@ -158,7 +171,7 @@ export class RedisConnectionManager {
         await Promise.race([
           this.client.ping(),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Connection timeout')), 5000),
+            setTimeout(() => reject(new Error('Connection timeout')), 3000),
           ),
         ]);
 

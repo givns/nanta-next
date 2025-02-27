@@ -11,6 +11,7 @@ import {
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
+import { redisManager } from '@/services/RedisConnectionManager';
 
 // Request flow tracking
 const RequestTracker = {
@@ -107,6 +108,65 @@ type ApiResponse =
       details?: unknown;
       timestamp?: string;
     };
+
+// New function to handle attendance status with Redis failover
+async function getAttendanceStatusWithRedisFailover(
+  employeeId: string,
+  services: any,
+  options: {
+    inPremises: boolean;
+    address: string;
+    periodType?: PeriodType;
+  },
+  tracker: any,
+): Promise<AttendanceStatusResponse> {
+  // Use a shorter timeout specifically for this endpoint
+  const REDIS_TIMEOUT = 500; // 500ms max for Redis operations
+
+  // Check if Redis is already disabled by circuit breaker
+  const isRedisDisabled = !redisManager.isAvailable();
+
+  if (isRedisDisabled) {
+    tracker.addStep('redis_circuit_open');
+
+    // Skip Redis completely - get fresh data always
+    return await services.attendanceService.getAttendanceStatus(
+      employeeId,
+      options,
+    );
+  }
+
+  try {
+    // Start with a Promise.race to limit total Redis operation time
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Redis timeout for status endpoint'));
+      }, REDIS_TIMEOUT);
+    });
+
+    const fetchPromise = services.attendanceService.getAttendanceStatus(
+      employeeId,
+      options,
+    );
+
+    tracker.addStep('attendance_status_race');
+
+    // Race the two promises
+    return await Promise.race([fetchPromise, timeoutPromise]);
+  } catch (error) {
+    // If Redis times out, log and fallback to fresh data
+    console.warn(
+      `Redis timeout for employee ${employeeId}, falling back to direct DB access`,
+    );
+    tracker.addStep('redis_timeout_fallback');
+
+    // Force memory-only mode for this request
+    return await services.attendanceService.getAttendanceStatus(
+      employeeId,
+      options,
+    );
+  }
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -267,26 +327,25 @@ export default async function handler(
       );
     }
 
-    // Get attendance status with updated parameters structure
+    // Get attendance status with the new failover function
     tracker.addStep('get_attendance_status_start');
 
-    // Rather than trying to modify the Promise itself, we'll use a simple approach
-    // with manual timing that's TypeScript-safe
-    const attendanceStartTime = Date.now();
+    // Use the new function to handle Redis timeouts
     let attendanceStatus: AttendanceStatusResponse;
-
     try {
-      attendanceStatus = await services.attendanceService.getAttendanceStatus(
+      attendanceStatus = await getAttendanceStatusWithRedisFailover(
         employeeId,
+        services,
         {
           inPremises: adminVerified ? true : Boolean(inPremises),
           address: address || '',
           periodType: PeriodType.REGULAR, // Default to regular period
         },
+        tracker,
       );
 
       tracker.addStep('attendance_service_complete', {
-        durationMs: Date.now() - attendanceStartTime,
+        durationMs: Date.now() - startTime,
         hasResult: !!attendanceStatus,
         hasBase: !!attendanceStatus?.base,
         hasDaily: !!attendanceStatus?.daily,
@@ -296,7 +355,7 @@ export default async function handler(
       });
     } catch (error) {
       tracker.addStep('attendance_service_error', {
-        durationMs: Date.now() - attendanceStartTime,
+        durationMs: Date.now() - startTime,
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       throw error;
