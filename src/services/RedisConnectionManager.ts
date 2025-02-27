@@ -24,7 +24,7 @@ export class RedisConnectionManager {
   private lastGlobalFailureTime = 0;
 
   // Configuration
-  private readonly REDIS_TIMEOUT = 5000; // 5 seconds timeout (increased from 2s)
+  private readonly REDIS_TIMEOUT = 10000; // 5 seconds timeout (increased from 2s)
   private readonly MAX_FAILURES_PER_OPERATION = 3; // After 3 failures, disable specific operation
   private readonly MAX_GLOBAL_FAILURES = 10; // Open global circuit after 10 total failures
   private readonly CIRCUIT_RESET_TIME = 60000; // Try to use Redis again after 1 minute

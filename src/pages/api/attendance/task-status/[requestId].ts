@@ -5,7 +5,6 @@ import { PrismaClient } from '@prisma/client';
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
-import { redisManager } from '@/services/RedisConnectionManager';
 
 // Task status interface
 interface TaskStatus {
@@ -27,8 +26,6 @@ const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 20);
 const prisma = new PrismaClient();
 const serviceQueue = getServiceQueue(prisma);
 const queueManager = QueueManager.getInstance();
-
-// pages/api/attendance/task-status/[requestId].ts
 
 export default async function handler(
   req: NextApiRequest,
