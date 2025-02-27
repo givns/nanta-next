@@ -1,5 +1,4 @@
 // services/cache/CacheManager.ts
-
 import { format } from 'date-fns';
 import { cacheService } from './CacheService';
 import { PrismaClient } from '@prisma/client';
@@ -44,8 +43,7 @@ export class CacheManager {
             enhancementService,
           );
 
-          // Any additional async initialization can go here
-          // Note: Removed the connect call since it's not available
+          console.log('CacheManager initialized');
         } catch (error) {
           console.error('Failed to initialize CacheManager:', error);
           CacheManager.instance = null;
@@ -63,10 +61,15 @@ export class CacheManager {
     return CacheManager.instance;
   }
 
+  // Method to force bypass Redis
+  setBypassRedis(bypass: boolean): void {
+    cacheService.setForceBypass(bypass);
+  }
+
   async getAttendanceState(
     employeeId: string,
   ): Promise<AttendanceStatusResponse | null> {
-    if (!this.initialized || !cacheService || process.env.NODE_ENV === 'test') {
+    if (!this.initialized || process.env.NODE_ENV === 'test') {
       return null;
     }
 
@@ -87,7 +90,7 @@ export class CacheManager {
     state: AttendanceStatusResponse,
     ttl = CACHE_CONSTANTS.ATTENDANCE_CACHE_TTL,
   ): Promise<void> {
-    if (!this.initialized || !cacheService || process.env.NODE_ENV === 'test') {
+    if (!this.initialized || process.env.NODE_ENV === 'test') {
       return;
     }
 
@@ -108,21 +111,28 @@ export class CacheManager {
   }
 
   async invalidateCache(employeeId: string): Promise<void> {
-    if (!this.initialized || !cacheService) {
+    if (!this.initialized) {
       return;
     }
 
-    const patterns = [
+    const date = format(getCurrentTime(), 'yyyy-MM-dd');
+
+    // Use specific keys instead of patterns
+    const keysToInvalidate = [
       this.generateCacheKey(employeeId, 'attendance'),
       this.generateCacheKey(employeeId, 'window'),
       this.generateCacheKey(employeeId, 'validation'),
+      `shift:${employeeId}:${date}`,
+      `status:${employeeId}:${date}`,
+      `attendance:state:${employeeId}`,
+      `forceRefresh:${employeeId}`,
     ];
 
     try {
-      await Promise.all(
-        patterns.map((pattern) =>
-          cacheService.invalidatePattern(`${pattern}*`),
-        ),
+      // Delete each key individually
+      await Promise.all(keysToInvalidate.map((key) => cacheService.del(key)));
+      console.log(
+        `Invalidated ${keysToInvalidate.length} cache keys for employee ${employeeId}`,
       );
     } catch (error) {
       console.warn('Cache invalidation failed:', error);
