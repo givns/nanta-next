@@ -136,61 +136,47 @@ export class RedisConnectionManager {
       this.client = new Redis(redisUrl, {
         // Reduced connection pool for faster failures
         maxRetriesPerRequest: 1,
-        connectTimeout: 2000,
-        commandTimeout: 2000,
-        // Disconnect faster
-        disconnectTimeout: 1000,
+        connectTimeout: 5000,
+        commandTimeout: 5000,
+        // Allow offline queue
+        enableOfflineQueue: true,
         // Don't wait for reconnection
         retryStrategy: (times) => {
-          if (times > 1) return null; // Only retry once
-          return 500; // Quick retry
+          if (times > 2) return null; // Only retry twice
+          return Math.min(times * 200, 1000); // Incremental backoff
         },
         // Disable ready check to speed up connection
         enableReadyCheck: false,
-        // Don't queue commands when disconnected
-        enableOfflineQueue: false,
         reconnectOnError: (err) => {
           const targetErrors = ['READONLY', 'ETIMEDOUT', 'ECONNREFUSED'];
           return targetErrors.some((e) => err.message.includes(e));
         },
         // Enable friendly stack traces for debugging
         showFriendlyErrorStack: true,
-        // Connect immediately on startup
-        lazyConnect: false,
+        // Need this to be true for serverless
+        lazyConnect: true,
         // Use IPv4 to avoid DNS resolution delays
         family: 4,
         db: 0,
         // Don't auto resubscribe to channels
         autoResubscribe: false,
-        // Don't resend commands
-        autoResendUnfulfilledCommands: false,
       });
 
-      try {
-        // Test connection with timeout
-        await Promise.race([
-          this.client.ping(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Connection timeout')), 3000),
-          ),
-        ]);
-
-        this.isInitialized = true;
-        console.log('Redis connection successful:', {
-          timestamp: new Date().toISOString(),
-        });
-
-        // Reset circuit breakers on successful connection
-        this.resetCircuits();
-      } catch (timeoutError) {
-        console.error('Redis connection timeout:', timeoutError);
-        throw timeoutError;
-      }
+      // Don't await the connection in the initialize function
+      // Just set a flag to indicate that initialization was attempted
+      this.isInitialized = true;
+      console.log('Redis client created, actual connection may be deferred');
 
       // Set up error event listener
       this.client.on('error', (err) => {
         console.error('Redis client error:', err);
         this.recordGlobalFailure();
+      });
+
+      // Set up connect event listener
+      this.client.on('connect', () => {
+        console.log('Redis client connected');
+        this.resetCircuits();
       });
     } catch (error) {
       console.error('Failed to initialize Redis connection manager:', error);

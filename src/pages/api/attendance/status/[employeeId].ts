@@ -129,11 +129,17 @@ async function getAttendanceStatusWithRedisFailover(
   if (isRedisDisabled) {
     tracker.addStep('redis_circuit_open');
 
-    // Skip Redis completely - get fresh data always
-    return await services.attendanceService.getAttendanceStatus(
-      employeeId,
-      options,
-    );
+    const isRedisAvailable =
+      redisManager && redisManager.isAvailable && redisManager.isAvailable();
+
+    if (!isRedisAvailable) {
+      tracker.addStep('redis_not_available');
+      // Skip Redis completely - get fresh data always
+      return await services.attendanceService.getAttendanceStatus(
+        employeeId,
+        options,
+      );
+    }
   }
 
   try {
