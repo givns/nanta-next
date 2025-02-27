@@ -11,7 +11,6 @@ interface CacheMetrics {
 }
 
 export class CacheService {
-  private client: Redis | null = null;
   private locks: Map<string, Promise<any>> = new Map();
   private memoryCache: Map<string, { data: any; timestamp: number }> =
     new Map();
@@ -27,42 +26,17 @@ export class CacheService {
   private isInitialized = false;
 
   constructor() {
-    if (!this.IS_CLIENT) {
-      this.initializeRedis();
-    } else {
-      console.debug('Using memory-only cache on client side');
-    }
+    this.isInitialized = !this.IS_CLIENT;
+    console.debug(
+      this.IS_CLIENT
+        ? 'Using memory-only cache on client side'
+        : 'CacheService initialized, using shared Redis connection',
+    );
   }
 
-  private async initializeRedis() {
-    if (this.IS_CLIENT || this.isInitialized) return;
-
-    try {
-      console.debug('Initializing Redis connection for CacheService');
-
-      // Initialize the Redis manager
-      await redisManager.initialize();
-
-      // Get the shared client
-      this.client = redisManager.getClient();
-
-      if (this.client) {
-        this.isInitialized = true;
-        console.info('CacheService: Using shared Redis connection');
-      } else {
-        console.warn(
-          'CacheService: Redis client not available, using memory-only cache',
-        );
-      }
-    } catch (error) {
-      console.error('Failed to initialize Redis for CacheService:', error);
-      this.recordError('redis_init_failed');
-      console.info('Falling back to memory-only cache');
-    }
-  }
-
-  getRedisClient(): Redis | null {
-    return this.client;
+  private getRedisClient(): Redis | null {
+    if (this.IS_CLIENT) return null;
+    return redisManager.getClient();
   }
 
   private recordError(type: string) {
@@ -110,10 +84,16 @@ export class CacheService {
       const memoryCached = this.getFromMemoryCache(key);
       if (memoryCached) return memoryCached;
 
-      if (!this.client) return null;
+      const redisClient = this.getRedisClient();
+      if (!redisClient) return null;
 
       try {
-        const cachedData = await this.client.get(key);
+        const cachedData = await redisManager.safeExecute(
+          (redis) => redis.get(key),
+          null,
+          'get',
+        );
+
         if (cachedData) {
           this.setInMemoryCache(key, cachedData);
           this.metrics.hits++;
@@ -140,23 +120,29 @@ export class CacheService {
     }
 
     return this.measureOperation(async () => {
-      if (!this.client) {
-        this.setInMemoryCache(key, value);
-        return;
-      }
+      // Always update memory cache first
+      this.setInMemoryCache(key, value);
+
+      const redisClient = this.getRedisClient();
+      if (!redisClient) return;
 
       try {
         if (expirationInSeconds) {
-          await this.client.set(key, value, 'EX', expirationInSeconds);
+          await redisManager.safeExecute(
+            (redis) => redis.set(key, value, 'EX', expirationInSeconds),
+            'OK',
+            'set',
+          );
         } else {
-          await this.client.set(key, value);
+          await redisManager.safeExecute(
+            (redis) => redis.set(key, value),
+            'OK',
+            'set',
+          );
         }
-        this.setInMemoryCache(key, value);
       } catch (error) {
         this.recordError('set_failed');
         console.error('Cache set failed:', error);
-        // Still set in memory cache as fallback
-        this.setInMemoryCache(key, value);
       }
     }, 'set');
   }
@@ -216,17 +202,28 @@ export class CacheService {
         }
       }
 
-      if (!this.client) return;
+      const redisClient = this.getRedisClient();
+      if (!redisClient) return;
 
       try {
-        const keys = await this.client.keys(pattern);
+        // Get matching keys first
+        const keys = await redisManager.safeExecute(
+          (redis) => redis.keys(pattern),
+          [],
+          'keys',
+        );
+
+        // Then delete them if any exist
         if (keys.length > 0) {
-          await this.client.del(...keys);
+          await redisManager.safeExecute(
+            (redis) => redis.del(...keys),
+            0,
+            'del',
+          );
         }
       } catch (error) {
         this.recordError('invalidate_pattern_failed');
         console.error('Failed to invalidate pattern:', error);
-        // Continue without throwing to avoid breaking the application
       }
     }, 'invalidatePattern');
   }
@@ -236,14 +233,14 @@ export class CacheService {
       // Always clean memory cache
       this.memoryCache.delete(key);
 
-      if (!this.client) return;
+      const redisClient = this.getRedisClient();
+      if (!redisClient) return;
 
       try {
-        await this.client.del(key);
+        await redisManager.safeExecute((redis) => redis.del(key), 0, 'del');
       } catch (error) {
         this.recordError('del_failed');
         console.error('Failed to delete key:', error);
-        // Continue without throwing to avoid breaking the application
       }
     }, 'del');
   }

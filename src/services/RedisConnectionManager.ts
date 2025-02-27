@@ -420,6 +420,9 @@ export class RedisConnectionManager {
       }
     }
   }
+  static getClient(): Redis | null {
+    return RedisConnectionManager.getInstance().client;
+  }
 }
 
 // Export a singleton instance

@@ -20,27 +20,27 @@ export default async function handler(
 
   try {
     const date = format(getCurrentTime(), 'yyyy-MM-dd');
-    const patterns = [
-      // Pattern for all employee's attendance data
-      `*:${employeeId}:*`,
-      // Specific date patterns
+
+    // Use specific keys instead of patterns
+    const keysToInvalidate = [
       `attendance:${employeeId}:${date}`,
       `window:${employeeId}:${date}`,
       `validation:${employeeId}:${date}`,
-      // Additional patterns for related data
-      `shift:${employeeId}:*`,
-      `status:${employeeId}:*`,
+      `shift:${employeeId}:${date}`,
+      `status:${employeeId}:${date}`,
+      `attendance:state:${employeeId}`,
+      `forceRefresh:${employeeId}`,
     ];
 
     const clearResults = await Promise.all(
-      patterns.map(async (pattern) => {
+      keysToInvalidate.map(async (key) => {
         try {
-          await cacheService.invalidatePattern(pattern);
-          return { pattern, success: true };
+          await cacheService.del(key);
+          return { key, success: true };
         } catch (error) {
-          console.warn(`Failed to clear pattern ${pattern}:`, error);
+          console.warn(`Failed to clear key ${key}:`, error);
           return {
-            pattern,
+            key,
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error',
           };
@@ -48,7 +48,7 @@ export default async function handler(
       }),
     );
 
-    // Log cleared patterns for debugging
+    // Log cleared keys for debugging
     console.log('Cache clear results:', {
       employeeId,
       date,
@@ -56,7 +56,7 @@ export default async function handler(
     });
 
     // Add force refresh flag to memory cache
-    cacheService.set(`forceRefresh:${employeeId}`, 'true', 30); // 30 seconds TTL
+    await cacheService.set(`forceRefresh:${employeeId}`, 'true', 30);
 
     return res.status(200).json({
       message: 'Cache cleared successfully',
