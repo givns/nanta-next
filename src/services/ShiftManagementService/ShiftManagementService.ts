@@ -11,7 +11,6 @@ import { formatDate, getCurrentTime } from '../../utils/dateUtils';
 import { HolidayService } from '../HolidayService';
 import { OvertimeServiceServer } from '../OvertimeServiceServer';
 import { getCacheData, setCacheData } from '../../lib/serverCache';
-import { da } from 'date-fns/locale';
 
 export class ShiftManagementService {
   private overtimeService: OvertimeServiceServer | null = null;
@@ -24,6 +23,80 @@ export class ShiftManagementService {
   setOvertimeService(overtimeService: OvertimeServiceServer) {
     this.overtimeService = overtimeService;
   }
+  private shiftCache = new Map<string, { data: any; timestamp: number }>();
+  private userShiftCache = new Map<string, { data: any; timestamp: number }>();
+  private readonly CACHE_TTL = 3600000; // 1 hour in milliseconds
+
+  async getUserShift(userId: string): Promise<Shift | null> {
+    try {
+      // Check memory cache first
+      const cacheKey = `userShift:${userId}`;
+      const cached = this.userShiftCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        console.log(`Using cached shift data for user ${userId}`);
+        return cached.data;
+      }
+
+      // Direct, efficient query
+      const user = await this.prisma.user.findUnique({
+        where: { employeeId: userId },
+        select: {
+          shiftCode: true,
+          shiftId: true,
+        },
+      });
+
+      if (!user || !user.shiftCode) {
+        return null;
+      }
+
+      // Check shift cache
+      const shiftCacheKey = `shift:${user.shiftCode}`;
+      const cachedShift = this.shiftCache.get(shiftCacheKey);
+      if (cachedShift && Date.now() - cachedShift.timestamp < this.CACHE_TTL) {
+        console.log(`Using cached shift data for code ${user.shiftCode}`);
+        const shift = cachedShift.data;
+
+        // Update user shift cache
+        this.userShiftCache.set(cacheKey, {
+          data: shift,
+          timestamp: Date.now(),
+        });
+        return shift;
+      }
+
+      // Prefer direct shift retrieval if possible
+      const shift = await this.getShiftByCode(user.shiftCode);
+
+      // Cache the shift data
+      if (shift) {
+        this.shiftCache.set(shiftCacheKey, {
+          data: shift,
+          timestamp: Date.now(),
+        });
+        this.userShiftCache.set(cacheKey, {
+          data: shift,
+          timestamp: Date.now(),
+        });
+      }
+
+      return shift;
+    } catch (error) {
+      console.error('Error retrieving user shift:', error);
+
+      // Fallback with more robust error handling
+      const defaultShift = {
+        id: 'default',
+        name: 'Default Shift',
+        shiftCode: 'DEFAULT',
+        startTime: '09:00',
+        endTime: '18:00',
+        workDays: [1, 2, 3, 4, 5],
+      } as Shift;
+
+      return defaultShift;
+    }
+  }
 
   /**
    * Core shift determination
@@ -33,12 +106,27 @@ export class ShiftManagementService {
     date: Date,
   ): Promise<EffectiveShift | null> {
     console.log('Getting effective shift:', employeeId, date);
+
+    // Check memory cache first
+    const memoryCacheKey = `effectiveShift:${employeeId}:${formatDate(date)}`;
+    const memoryCached = this.shiftCache.get(memoryCacheKey);
+    if (memoryCached && Date.now() - memoryCached.timestamp < this.CACHE_TTL) {
+      console.log(`Using memory cached effective shift for ${employeeId}`);
+      return memoryCached.data;
+    }
+
     const cacheKey = `shift:${employeeId}:${formatDate(date)}`;
     const cached = await getCacheData(cacheKey);
 
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsedData = JSON.parse(cached);
+        // Also update memory cache
+        this.shiftCache.set(memoryCacheKey, {
+          data: parsedData,
+          timestamp: Date.now(),
+        });
+        return parsedData;
       } catch (err) {
         console.error('Cache parse error:', err);
       }
@@ -103,7 +191,10 @@ export class ShiftManagementService {
 
     console.log('Effective shift:', result);
 
-    await setCacheData(cacheKey, JSON.stringify(result), 3600);
+    this.shiftCache.set(memoryCacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
     return result;
   }
 
@@ -167,38 +258,6 @@ export class ShiftManagementService {
     return this.prisma.shift.findUnique({
       where: { shiftCode },
     });
-  }
-
-  async getUserShift(userId: string): Promise<Shift | null> {
-    try {
-      // Direct, efficient query
-      const user = await this.prisma.user.findUnique({
-        where: { employeeId: userId },
-        select: {
-          shiftCode: true,
-          shiftId: true, // If you have a direct shift relationship
-        },
-      });
-
-      if (!user || !user.shiftCode) {
-        return null;
-      }
-
-      // Prefer direct shift retrieval if possible
-      return this.getShiftByCode(user.shiftCode);
-    } catch (error) {
-      console.error('Error retrieving user shift:', error);
-
-      // Fallback with more robust error handling
-      return {
-        id: 'default',
-        name: 'Default Shift',
-        shiftCode: 'DEFAULT',
-        startTime: '09:00',
-        endTime: '18:00',
-        workDays: [1, 2, 3, 4, 5],
-      } as Shift;
-    }
   }
 
   async getShiftById(shiftId: string): Promise<Shift | null> {

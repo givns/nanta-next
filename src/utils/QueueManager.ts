@@ -98,7 +98,7 @@ export class QueueManager {
               });
 
               reject(error);
-            }, 10000); // 10 second hard timeout
+            }, 30000); // 30 second hard timeout
           });
 
           // Race between processing and timeout
