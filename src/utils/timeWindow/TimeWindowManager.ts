@@ -23,7 +23,6 @@ import {
 } from 'date-fns';
 import { VALIDATION_THRESHOLDS } from '@/types/attendance/interface';
 import { PeriodType } from '@prisma/client';
-import { is } from 'date-fns/locale';
 
 export interface TimeWindowValidationResult {
   isValid: boolean;
@@ -532,14 +531,34 @@ export class TimeWindowManager {
   ): EnhancedTimeWindow[] {
     const result: EnhancedTimeWindow[] = [];
 
+    // Find primary windows (non-flexible windows that represent actual periods)
+    const primaryWindows = windows.filter((w) => !w.isFlexible);
+
+    // Check if we have an overtime window
+    const hasOvertimeWindow = primaryWindows.some(
+      (w) => w.type === PeriodType.OVERTIME,
+    );
+
+    // Only create transition windows if we have both regular and overtime periods
+    const shouldCreateTransitions =
+      hasOvertimeWindow &&
+      primaryWindows.some((w) => w.type === PeriodType.REGULAR);
+
     for (let i = 0; i < windows.length; i++) {
       const currentWindow = windows[i];
-      const nextWindow = windows[i + 1];
-
       result.push(currentWindow);
 
-      if (nextWindow && this.areWindowsConnected(currentWindow, nextWindow)) {
-        result.push(this.createTransitionWindow(currentWindow, nextWindow));
+      // Only create transition windows if we should and if windows are connected
+      if (shouldCreateTransitions && i < windows.length - 1) {
+        const nextWindow = windows[i + 1];
+
+        if (
+          this.areWindowsConnected(currentWindow, nextWindow) &&
+          currentWindow.type !== nextWindow.type
+        ) {
+          // Only create transition windows between different period types
+          result.push(this.createTransitionWindow(currentWindow, nextWindow));
+        }
       }
     }
 

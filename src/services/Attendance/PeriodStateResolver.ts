@@ -706,41 +706,56 @@ export class PeriodStateResolver {
     now: Date,
     attendance: AttendanceRecord | null,
   ): EnhancedTimeWindow | null {
-    // First check for active attendance
+    // For active attendance, find the window that matches the attendance type
     if (attendance?.CheckInTime && !attendance?.CheckOutTime) {
-      // Check for transition window first
-      const transitionWindow = windows.find(
-        (window) =>
-          window.isTransition &&
-          this.timeManager.isWithinValidBounds(now, window),
-      );
-      if (transitionWindow) return transitionWindow;
-
-      // Then check for active period window
-      const activeWindow = windows.find(
+      // First, check for a non-transition window of the same type as the active attendance
+      const matchingWindow = windows.find(
         (window) =>
           window.type === attendance.type &&
+          !window.isTransition &&
           this.timeManager.isWithinValidBounds(now, window),
       );
-      if (activeWindow) return activeWindow;
-    }
 
-    const shiftStart = windows.find((w) => !w.isFlexible)?.start;
-    if (shiftStart && now > shiftStart) {
-      const lateWindow = windows.find((w) => w.isLateCheckin);
-      if (lateWindow && this.timeManager.isWithinValidBounds(now, lateWindow)) {
-        return lateWindow;
+      if (matchingWindow) return matchingWindow;
+
+      // Only consider transition windows if there's evidence of a transition in the current state
+      // Check for transitions array or connected periods flag
+      const hasTransitions =
+        attendance.metadata?.source === 'system' &&
+        (attendance.overtimeEntries?.length > 0 ||
+          windows.some((w) => w.isTransition));
+
+      if (hasTransitions) {
+        const transitionWindow = windows.find(
+          (window) =>
+            window.isTransition &&
+            this.timeManager.isWithinValidBounds(now, window),
+        );
+
+        if (transitionWindow) return transitionWindow;
       }
     }
 
-    // For non-active attendance, check all windows
+    // For non-active attendance or if we didn't find a matching window above
+    // Check windows in priority order: regular period, early window, late window
+
+    // First try to find a regular window (non-flexible)
+    const regularWindow = windows.find(
+      (window) =>
+        !window.isFlexible &&
+        !window.isTransition &&
+        this.timeManager.isWithinValidBounds(now, window),
+    );
+
+    if (regularWindow) return regularWindow;
+
+    // Then look for any window that fits the current time
     return (
       windows.find((window) =>
         this.timeManager.isWithinValidBounds(now, window),
       ) || null
     );
   }
-
   /**
    * Checks if a time is early for a period
    */
