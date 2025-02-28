@@ -57,6 +57,11 @@ export class AttendanceProcessingService {
     private readonly periodManager: PeriodManagementService,
   ) {}
 
+  private attendanceCache = new Map<
+    string,
+    { data: AttendanceRecord | null; timestamp: number }
+  >();
+
   /**
    * Main entry point for processing attendance
    */
@@ -1022,6 +1027,14 @@ export class AttendanceProcessingService {
       effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
     });
 
+    const cacheKey = `attendance:${employeeId}:${periodType || 'all'}`;
+    const cached = this.attendanceCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < 10000) {
+      // 10 second cache
+      console.log(`Using cached attendance data for ${employeeId}`);
+      return cached.data;
+    }
+
     // EXACTLY match the working query structure
     const records = await tx.attendance.findMany({
       where: {
@@ -1080,9 +1093,17 @@ export class AttendanceProcessingService {
 
     // Find active record after query
     const activeRecord = records.find((r) => !r.CheckOutTime);
-    return activeRecord
+    const result = activeRecord
       ? AttendanceMappers.toAttendanceRecord(activeRecord)
       : null;
+
+    // Update cache
+    this.attendanceCache.set(cacheKey, {
+      data: result,
+      timestamp: Date.now(),
+    });
+
+    return result;
   }
 
   private createStatusUpdateFromProcessing(

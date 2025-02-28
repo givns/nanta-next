@@ -22,6 +22,8 @@ interface ErrorResponse {
   details?: unknown;
 }
 
+const statusCache = new Map<string, { status: any; timestamp: number }>();
+
 // Initialize services
 // In your Prisma client initialization
 const prisma = new PrismaClient();

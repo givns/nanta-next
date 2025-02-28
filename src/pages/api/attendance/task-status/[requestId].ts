@@ -50,6 +50,19 @@ export default async function handler(
 
     console.log(`[${requestId}] Status check received`);
 
+    // Check memory cache first
+    const cached = taskStatusCache.get(requestId);
+    if (cached && cached.status !== 'processing') {
+      console.log(`Using cached status for ${requestId}: ${cached.status}`);
+      return res.status(200).json({
+        ...cached,
+        age: Date.now() - (cached.timestamp || Date.now()),
+        nextPollInterval: getPollingInterval(cached.status, 0),
+        shouldContinuePolling: false,
+        timestamp: getCurrentTime().toISOString(),
+      });
+    }
+
     // Get status from QueueManager
     const queueManager = QueueManager.getInstance();
     let statusResult = await queueManager.getRequestStatus(requestId);
@@ -65,8 +78,9 @@ export default async function handler(
 
     const ageMs = Date.now() - creationTime;
 
-    // IMPORTANT: Detect stalled tasks (stuck in processing)
-    if (statusResult.status === 'processing' && ageMs > 15000) {
+    // IMPORTANT: Detect stalled tasks with increased timeout
+    if (statusResult.status === 'processing' && ageMs > 25000) {
+      // Increased from 15000 to 25000
       console.log(
         `[${requestId}] Task has been processing for ${ageMs}ms, marking as failed`,
       );
@@ -82,7 +96,25 @@ export default async function handler(
         completed: true,
         data: null,
         error: 'Task processing stalled',
+        timestamp: Date.now(),
+      } as {
+        status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
+        completed: boolean;
+        data: any;
+        error?: string | undefined;
+        timestamp: number;
       };
+    }
+
+    // Update cache for completed or failed statuses
+    if (
+      statusResult.status === 'completed' ||
+      statusResult.status === 'failed'
+    ) {
+      taskStatusCache.set(requestId, {
+        ...statusResult,
+        timestamp: Date.now(),
+      });
     }
 
     // Calculate appropriate polling interval
