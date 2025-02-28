@@ -387,6 +387,10 @@ export class PeriodStateResolver {
       return true;
     }
 
+    if (flags.isEarlyCheckOut && !flags.isPlannedHalfDayLeave) {
+      return false;
+    }
+
     // Block very late check-outs unless auto-completion is enabled
     if (flags.isVeryLateCheckOut && !flags.requiresAutoCompletion) {
       return false;
