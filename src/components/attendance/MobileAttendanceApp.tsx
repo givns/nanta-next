@@ -572,7 +572,7 @@ const MobileAttendanceApp: React.FC<MobileAttendanceAppProps> = ({
     const progressStart = isEarly ? periodStart : checkIn;
     const elapsedMinutes = Math.max(
       0,
-      (now.getTime() - progressStart.getTime()) / 60000,
+      Math.min((now.getTime() - periodStart.getTime()) / 60000, totalMinutes),
     );
     const progress = Math.min((elapsedMinutes / totalMinutes) * 100, 100);
 
