@@ -124,9 +124,9 @@ export default async function handler(
       ...statusResult,
       age: ageMs,
       nextPollInterval,
-      shouldContinuePolling: ['pending', 'processing'].includes(
-        statusResult.status,
-      ),
+      shouldContinuePolling:
+        ['pending', 'processing', 'unknown'].includes(statusResult.status) &&
+        ageMs < 15000,
       timestamp: getCurrentTime().toISOString(),
     });
   } catch (error) {

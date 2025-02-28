@@ -594,17 +594,99 @@ export function useAttendanceData({
               details: response.data,
             });
           }
-
           // Check if the server says we should stop polling
           if (response.data.shouldContinuePolling === false) {
             console.log(`Server indicated polling should stop: ${requestId}`);
 
+            // If status is unknown, consider it as completed with a warning
+            if (response.data.status === 'unknown') {
+              console.log(
+                'Status unknown but polling stopped - considering completed',
+              );
+              return {
+                success: true,
+                message: 'Operation likely completed, but status is unknown',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: {
+                  // Create minimal valid structure for ProcessingResult.data
+                  state: {
+                    current: {
+                      type: 'REGULAR',
+                      timeWindow: {
+                        start: new Date().toISOString(),
+                        end: new Date().toISOString(),
+                      },
+                      activity: {
+                        isActive: false,
+                        checkIn: null,
+                        checkOut: null,
+                        isOvertime: false,
+                        isDayOffOvertime: false,
+                      },
+                      validation: {
+                        isOvernight: false,
+                        isConnected: false,
+                      },
+                    },
+                  },
+                  validation: {
+                    errors: [],
+                    warnings: [
+                      {
+                        code: 'UNKNOWN_STATUS',
+                        message:
+                          'Server returned unknown status but requested to stop polling',
+                      },
+                    ],
+                    allowed: true,
+                    reason: 'Status check completed with unknown result',
+                    flags: {
+                      // Default flags
+                      hasActivePeriod: false,
+                      isCheckingIn: true,
+                      isInsideShift: true,
+                      isOutsideShift: false,
+                      isEarlyCheckIn: false,
+                      isLateCheckIn: false,
+                      isEarlyCheckOut: false,
+                      isLateCheckOut: false,
+                      isVeryLateCheckOut: false,
+                      isOvertime: false,
+                      isDayOffOvertime: false,
+                      hasPendingTransition: false,
+                      requiresTransition: false,
+                      requireConfirmation: false,
+                      requiresAutoCompletion: false,
+                      isPendingOvertime: false,
+                      isAutoCheckIn: false,
+                      isAutoCheckOut: false,
+                      isMorningShift: false,
+                      isAfternoonShift: false,
+                      isAfterMidshift: false,
+                      isPlannedHalfDayLeave: false,
+                      isEmergencyLeave: false,
+                      isApprovedEarlyCheckout: false,
+                      isHoliday: false,
+                      isDayOff: false,
+                      isManualEntry: false,
+                    },
+                    metadata: {},
+                  },
+                },
+              };
+            }
+
             // If it's not completed or failed but we should stop, something's wrong
-            throw new AppError({
-              code: ErrorCode.PROCESSING_ERROR,
-              message:
-                'Server requested to stop polling but processing is incomplete',
-            });
+            if (
+              response.data.status !== 'completed' &&
+              response.data.status !== 'failed'
+            ) {
+              throw new AppError({
+                code: ErrorCode.PROCESSING_ERROR,
+                message: `Server requested to stop polling but processing is incomplete (status: ${response.data.status})`,
+              });
+            }
           }
 
           // For pending or processing status, continue polling
