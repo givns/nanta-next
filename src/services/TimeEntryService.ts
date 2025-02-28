@@ -783,10 +783,10 @@ export class TimeEntryService {
       date: attendance.date,
       startTime: attendance.CheckInTime || attendance.date,
       endTime: attendance.CheckOutTime || null,
-      regularHours: metrics.regularHours,
-      overtimeHours: 0,
-      actualMinutesLate: metrics.minutesLate,
-      isHalfDayLate: metrics.isHalfDayLate,
+      timing: {
+        actualMinutesLate: metrics.minutesLate,
+        isHalfDayLate: metrics.isHalfDayLate,
+      },
       status: isCheckIn ? TimeEntryStatus.STARTED : TimeEntryStatus.COMPLETED,
       entryType: PeriodType.REGULAR,
     };
