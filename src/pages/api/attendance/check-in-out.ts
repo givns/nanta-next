@@ -3,16 +3,17 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { PeriodType, PrismaClient } from '@prisma/client';
 import { AppError, ErrorCode } from '@/types/attendance/error';
 import { ProcessingOptions } from '@/types/attendance/processing';
-import { ATTENDANCE_CONSTANTS, CACHE_CONSTANTS } from '@/types/attendance/base';
+import { CACHE_CONSTANTS } from '@/types/attendance/base';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
 import { AttendanceStateResponse, QueueResult } from '@/types/attendance';
-import { addMinutes, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
 import { QueueManager } from '@/utils/QueueManager';
 import { performance } from 'perf_hooks';
-import Redis from 'ioredis';
+
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
+import { cacheService } from '@/services/cache/CacheService';
 
 interface ErrorResponse {
   status: number;
@@ -47,7 +48,6 @@ prisma.$use(async (params, next) => {
   return result;
 });
 
-const redis = new Redis(process.env.REDIS_URL!);
 const serviceQueue = getServiceQueue(prisma);
 const queueManager = QueueManager.getInstance();
 
@@ -104,11 +104,15 @@ async function getCachedUser(identifier: {
 
   try {
     // Try to get from cache
-    const cached = await redis.get(cacheKey);
+    const cached = await cacheService.get(cacheKey);
     if (cached) {
-      const parsedCache = JSON.parse(cached);
-      if (Date.now() - parsedCache.timestamp < CACHE_TTL * 1000) {
-        return parsedCache;
+      try {
+        const parsedCache = JSON.parse(cached);
+        if (Date.now() - parsedCache.timestamp < CACHE_TTL * 1000) {
+          return parsedCache;
+        }
+      } catch (error) {
+        console.warn('Error parsing cached user data:', error);
       }
     }
 
@@ -130,7 +134,11 @@ async function getCachedUser(identifier: {
       };
 
       // Cache the result
-      await redis.set(cacheKey, JSON.stringify(userData), 'EX', CACHE_TTL);
+      try {
+        await cacheService.set(cacheKey, JSON.stringify(userData), CACHE_TTL);
+      } catch (error) {
+        console.warn('Error caching user data:', error);
+      }
 
       return userData;
     }
@@ -295,8 +303,6 @@ export async function processCheckInOut(
 
 // Set the processing function for the queue manager
 QueueManager.setProcessingFunction(processCheckInOut);
-
-// In check-in-out.ts - simplify processing
 
 // Main API Handler
 export default async function handler(

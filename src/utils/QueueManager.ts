@@ -3,8 +3,7 @@ import BetterQueue from 'better-queue';
 import MemoryStore from 'better-queue-memory';
 import { ProcessingOptions, QueueResult } from '@/types/attendance';
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
-import { redisManager } from '../services/RedisConnectionManager';
-import { processCheckInOut } from '../pages/api/attendance/check-in-out'; // Import the processing function
+import { cacheService } from '../services/cache/CacheService';
 
 // Global reference to the processing function
 let processingFunction:
@@ -188,14 +187,7 @@ export class QueueManager {
     // Release memory lock
     this.locks.delete(key);
 
-    // Release Redis lock if available
-    if (redisManager.isAvailable()) {
-      redisManager
-        .safeExecute((redis) => redis.del(key), 0)
-        .catch((err) =>
-          console.warn(`Error releasing Redis lock for ${key}:`, err),
-        );
-    }
+    // No Redis lock needed, using memory only
   }
 
   setRequestStatus(
@@ -216,18 +208,19 @@ export class QueueManager {
     // Always update memory cache first
     this.requestStatusMap.set(requestId, statusEntry);
 
-    // Try to update Redis but don't wait for it
-    if (redisManager.isAvailable()) {
-      const redisKey = `request:${requestId}`;
-      redisManager
-        .safeSet(
-          redisKey,
+    try {
+      const cacheKey = `request:${requestId}`;
+      cacheService
+        .set(
+          cacheKey,
           JSON.stringify(statusEntry),
           3600, // 1 hour TTL
         )
         .catch((err) => {
-          console.warn(`Failed to set Redis status for ${requestId}:`, err);
+          console.warn(`Failed to set cache status for ${requestId}:`, err);
         });
+    } catch (error) {
+      console.warn(`Error setting cache status for ${requestId}:`, error);
     }
   }
 
@@ -247,28 +240,25 @@ export class QueueManager {
       return memoryStatus;
     }
 
-    // Try Redis if available
-    if (redisManager.isAvailable()) {
-      try {
-        const redisKey = `request:${requestId}`;
-        const redisStatus = await redisManager.safeGet(redisKey);
+    try {
+      const cacheKey = `request:${requestId}`;
+      const cachedStatus = await cacheService.get(cacheKey);
 
-        if (redisStatus) {
-          try {
-            const parsedStatus = JSON.parse(redisStatus);
-            // Cache in memory for faster future access
-            this.requestStatusMap.set(requestId, parsedStatus);
-            console.log(
-              `Found status for ${requestId} in Redis: ${parsedStatus.status}`,
-            );
-            return parsedStatus;
-          } catch (parseError) {
-            console.error('Error parsing Redis status:', parseError);
-          }
+      if (cachedStatus) {
+        try {
+          const parsedStatus = JSON.parse(cachedStatus);
+          // Cache in memory for faster future access
+          this.requestStatusMap.set(requestId, parsedStatus);
+          console.log(
+            `Found status for ${requestId} in cache: ${parsedStatus.status}`,
+          );
+          return parsedStatus;
+        } catch (parseError) {
+          console.error('Error parsing cached status:', parseError);
         }
-      } catch (error) {
-        console.warn('Redis status lookup failed:', error);
       }
+    } catch (error) {
+      console.warn('Cache status lookup failed:', error);
     }
 
     console.log(`No status found for ${requestId}, returning unknown`);
@@ -316,23 +306,6 @@ export class QueueManager {
     // Check memory lock first
     const lockKey = `lock:${employeeId}`;
     const isLocked = this.locks.has(lockKey);
-
-    // Try Redis lock if not locked in memory
-    if (!isLocked && redisManager.isAvailable()) {
-      try {
-        const redisLocked = await redisManager.safeExecute(
-          (redis) => redis.exists(lockKey),
-          0,
-        );
-
-        return {
-          isPending: redisLocked === 1,
-          position: this.queueSize,
-        };
-      } catch (error) {
-        console.warn('Redis queue status check failed:', error);
-      }
-    }
 
     return {
       isPending: isLocked,
