@@ -39,23 +39,6 @@ export default async function handler(
 
     console.log(`[${requestId}] Status check received`);
 
-    // Check memory cache first
-    const cached = taskStatusCache.get(requestId);
-    if (cached && cached.status !== 'processing') {
-      console.log(`Using cached status for ${requestId}: ${cached.status}`);
-      return res.status(200).json({
-        ...cached,
-        age: Date.now() - (cached.timestamp || Date.now()),
-        nextPollInterval: getPollingInterval(cached.status, 0),
-        shouldContinuePolling: false,
-        timestamp: getCurrentTime().toISOString(),
-      });
-    }
-
-    // Get status from QueueManager
-    const queueManager = QueueManager.getInstance();
-    let statusResult = await queueManager.getRequestStatus(requestId);
-
     // Extract creation time from requestId (format: check-timestamp-hash)
     let creationTime = Date.now() - 30000; // Default to 30s ago
     try {
@@ -67,8 +50,25 @@ export default async function handler(
 
     const ageMs = Date.now() - creationTime;
 
+    // Get status from QueueManager first (this is the source of truth)
+    const queueManager = QueueManager.getInstance();
+    let statusResult = await queueManager.getRequestStatus(requestId);
+
+    // CRITICAL: Update memory cache to match the queue status if needed
+    // This ensures memory cache doesn't serve stale data
+    const cached = taskStatusCache.get(requestId);
+    if (cached && cached.status !== statusResult.status) {
+      console.log(
+        `[${requestId}] Updating memory cache from ${cached.status} to ${statusResult.status}`,
+      );
+      taskStatusCache.set(requestId, {
+        ...statusResult,
+        timestamp: Date.now(),
+      });
+    }
+
     // IMPORTANT: Detect stalled tasks with increased timeout
-    if (statusResult.status === 'processing' && ageMs > 25000) {
+    if (statusResult.status === 'processing' && ageMs > 15000) {
       console.log(
         `[${requestId}] Task has been processing for ${ageMs}ms, marking as failed`,
       );
@@ -85,8 +85,7 @@ export default async function handler(
         completed: true,
         data: null,
         error: 'Task processing stalled',
-        timestamp: Date.now(),
-      } as TaskStatus;
+      };
 
       // Also update memory cache to ensure consistency
       taskStatusCache.set(requestId, {
@@ -95,7 +94,7 @@ export default async function handler(
       });
     }
 
-    // Update cache for completed or failed statuses
+    // Always update cache for completed or failed statuses
     if (
       statusResult.status === 'completed' ||
       statusResult.status === 'failed'
@@ -117,7 +116,7 @@ export default async function handler(
       shouldContinuePolling:
         (statusResult.status === 'pending' ||
           statusResult.status === 'processing') &&
-        ageMs < 25000, // Use the same threshold as the timeout check
+        ageMs < 15000, // Never poll for more than 15 seconds
       timestamp: getCurrentTime().toISOString(),
     });
   } catch (error) {
