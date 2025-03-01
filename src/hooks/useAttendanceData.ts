@@ -575,9 +575,15 @@ export function useAttendanceData({
         },
         validation: {
           errors: [],
-          warnings: [],
+          warnings: [
+            {
+              code: 'SERVER_ERROR',
+              message:
+                'Server experienced an error, but the operation may have succeeded',
+            },
+          ],
           allowed: true,
-          reason: 'Status refreshed after polling',
+          reason: 'Status refreshed after error',
           flags: {
             hasActivePeriod: false,
             isCheckingIn: true,
@@ -625,7 +631,41 @@ export function useAttendanceData({
           console.log(
             `Polling for status: ${requestId} (attempt ${i + 1}/${maxAttempts})`,
           );
-          const response = await axios.get(statusUrl, { timeout: 5000 });
+
+          // Add timeout handling for the status check
+          const response = await axios.get(statusUrl, {
+            timeout: 5000,
+            // Handle 500 errors gracefully
+            validateStatus: function (status) {
+              return status < 500; // Don't throw for 5xx errors
+            },
+          });
+
+          // Check for server errors
+          if (response.status >= 500) {
+            console.warn(
+              `Server error (${response.status}) while polling for status`,
+            );
+            consecutiveErrors++;
+
+            if (consecutiveErrors >= 2) {
+              // If we get multiple server errors, try to recover by refreshing
+              console.warn(`Multiple server errors, attempting recovery`);
+              await refreshAttendanceStatus();
+
+              return {
+                success: true,
+                message: 'Server error occurred, refreshed attendance status',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: createMinimalData(),
+              };
+            }
+
+            // Increase poll interval and continue
+            pollInterval = Math.min(pollInterval * 2, 2000);
+            continue;
+          }
 
           // Reset error counter on successful response
           consecutiveErrors = 0;
@@ -670,6 +710,22 @@ export function useAttendanceData({
               message: response.data.error || 'Processing failed',
               details: response.data,
             });
+          }
+
+          // Check if the server indicates an initialization error
+          if (response.data.initializationError) {
+            console.warn('Server reported initialization error');
+            // This is a special case where we should refresh and return success
+            await refreshAttendanceStatus();
+
+            return {
+              success: true,
+              message:
+                'Server experienced initialization error, refreshed attendance status',
+              timestamp: new Date().toISOString(),
+              requestId: requestId,
+              data: createMinimalData(),
+            };
           }
 
           // Check if the server says we should stop polling
@@ -732,11 +788,36 @@ export function useAttendanceData({
           console.error(`Polling error for request ${requestId}:`, error);
           consecutiveErrors++;
 
+          // Check if this is a server error (500)
+          const isServerError =
+            axios.isAxiosError(error) && (error.response?.status ?? 0) >= 500;
+
+          // For server errors, try to recover more quickly
+          if (isServerError && consecutiveErrors >= 2) {
+            console.warn('Multiple server errors, attempting recovery');
+            try {
+              await refreshAttendanceStatus();
+
+              return {
+                success: true,
+                message: 'Server error occurred, refreshed attendance status',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: createMinimalData(),
+              };
+            } catch (refreshError) {
+              console.error(
+                'Failed to recover from server error:',
+                refreshError,
+              );
+            }
+          }
+
           // Increase poll interval after errors
           pollInterval = Math.min(pollInterval * 2, 2000);
 
           // Fail if we've had too many consecutive errors
-          if (consecutiveErrors >= 2 || failedWithError) {
+          if (consecutiveErrors >= 3 || failedWithError) {
             throw new AppError({
               code: ErrorCode.NETWORK_ERROR,
               message: 'Failed to check status after multiple attempts',

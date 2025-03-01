@@ -1,7 +1,10 @@
 // pages/api/attendance/task-status/[requestId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { QueueManager } from '@/utils/QueueManager';
+import { PrismaClient } from '@prisma/client';
+import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { createRateLimitMiddleware } from '@/utils/rateLimit';
 
 // Task status interface
 interface TaskStatus {
@@ -15,6 +18,12 @@ interface TaskStatus {
 
 // In-memory cache with TTL
 const taskStatusCache = new Map<string, TaskStatus>();
+
+// Rate limit middleware - lower limits for status checks
+const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 20);
+
+// Initialize Prisma client - outside the handler to be shared across requests
+const prisma = new PrismaClient();
 
 export default async function handler(
   req: NextApiRequest,
@@ -50,75 +59,97 @@ export default async function handler(
 
     const ageMs = Date.now() - creationTime;
 
-    // Get status from QueueManager first (this is the source of truth)
-    const queueManager = QueueManager.getInstance();
-    let statusResult = await queueManager.getRequestStatus(requestId);
+    try {
+      // Initialize queue manager - CRITICAL: Pass the prisma instance
+      const serviceQueue = getServiceQueue(prisma);
+      const queueManager = QueueManager.getInstance();
 
-    // CRITICAL: Update memory cache to match the queue status if needed
-    // This ensures memory cache doesn't serve stale data
-    const cached = taskStatusCache.get(requestId);
-    if (cached && cached.status !== statusResult.status) {
-      console.log(
-        `[${requestId}] Updating memory cache from ${cached.status} to ${statusResult.status}`,
-      );
-      taskStatusCache.set(requestId, {
+      // Get status from QueueManager first (this is the source of truth)
+      let statusResult = await queueManager.getRequestStatus(requestId);
+
+      // CRITICAL: Update memory cache to match the queue status if needed
+      // This ensures memory cache doesn't serve stale data
+      const cached = taskStatusCache.get(requestId);
+      if (cached && cached.status !== statusResult.status) {
+        console.log(
+          `[${requestId}] Updating memory cache from ${cached.status} to ${statusResult.status}`,
+        );
+        taskStatusCache.set(requestId, {
+          ...statusResult,
+          timestamp: Date.now(),
+        });
+      }
+
+      // IMPORTANT: Detect stalled tasks with increased timeout
+      if (statusResult.status === 'processing' && ageMs > 15000) {
+        console.log(
+          `[${requestId}] Task has been processing for ${ageMs}ms, marking as failed`,
+        );
+
+        // Update status to failed for stalled tasks
+        queueManager.setRequestStatus(requestId, 'failed', {
+          error: 'Task processing stalled',
+          timestamp: new Date().toISOString(),
+        });
+
+        // IMPORTANT: Make sure we're using the updated status in the response
+        statusResult = {
+          status: 'failed',
+          completed: true,
+          data: null,
+          error: 'Task processing stalled',
+        };
+
+        // Also update memory cache to ensure consistency
+        taskStatusCache.set(requestId, {
+          ...statusResult,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Always update cache for completed or failed statuses
+      if (
+        statusResult.status === 'completed' ||
+        statusResult.status === 'failed'
+      ) {
+        taskStatusCache.set(requestId, {
+          ...statusResult,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Calculate appropriate polling interval
+      const nextPollInterval = getPollingInterval(statusResult.status, ageMs);
+
+      return res.status(200).json({
         ...statusResult,
-        timestamp: Date.now(),
+        age: ageMs,
+        nextPollInterval,
+        // Ensure shouldContinuePolling is consistent with the status
+        shouldContinuePolling:
+          (statusResult.status === 'pending' ||
+            statusResult.status === 'processing') &&
+          ageMs < 15000, // Never poll for more than 15 seconds
+        timestamp: getCurrentTime().toISOString(),
       });
+    } catch (initError) {
+      console.error('Error initializing service queue:', initError);
+
+      // If we have a cached status for this requestId, use it as a fallback
+      const cached = taskStatusCache.get(requestId);
+      if (cached) {
+        return res.status(200).json({
+          ...cached,
+          age: ageMs,
+          nextPollInterval: 2000,
+          shouldContinuePolling: false, // Important: stop polling on initialization errors
+          timestamp: getCurrentTime().toISOString(),
+          initializationError: true, // Add a flag to indicate this came from cache due to init error
+        });
+      }
+
+      throw initError; // Re-throw if no cache available
     }
-
-    // IMPORTANT: Detect stalled tasks with increased timeout
-    if (statusResult.status === 'processing' && ageMs > 15000) {
-      console.log(
-        `[${requestId}] Task has been processing for ${ageMs}ms, marking as failed`,
-      );
-
-      // Update status to failed for stalled tasks
-      queueManager.setRequestStatus(requestId, 'failed', {
-        error: 'Task processing stalled',
-        timestamp: new Date().toISOString(),
-      });
-
-      // IMPORTANT: Make sure we're using the updated status in the response
-      statusResult = {
-        status: 'failed',
-        completed: true,
-        data: null,
-        error: 'Task processing stalled',
-      };
-
-      // Also update memory cache to ensure consistency
-      taskStatusCache.set(requestId, {
-        ...statusResult,
-        timestamp: Date.now(),
-      });
-    }
-
-    // Always update cache for completed or failed statuses
-    if (
-      statusResult.status === 'completed' ||
-      statusResult.status === 'failed'
-    ) {
-      taskStatusCache.set(requestId, {
-        ...statusResult,
-        timestamp: Date.now(),
-      });
-    }
-
-    // Calculate appropriate polling interval
-    const nextPollInterval = getPollingInterval(statusResult.status, ageMs);
-
-    return res.status(200).json({
-      ...statusResult,
-      age: ageMs,
-      nextPollInterval,
-      // Ensure shouldContinuePolling is consistent with the status
-      shouldContinuePolling:
-        (statusResult.status === 'pending' ||
-          statusResult.status === 'processing') &&
-        ageMs < 15000, // Never poll for more than 15 seconds
-      timestamp: getCurrentTime().toISOString(),
-    });
   } catch (error) {
     console.error('Error getting task status:', error);
     return res.status(500).json({
