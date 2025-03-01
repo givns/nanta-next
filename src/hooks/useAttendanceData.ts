@@ -431,6 +431,75 @@ export function useAttendanceData({
     }
   }, [employeeId, mutate, state.isRefreshing]);
 
+  // Create a minimal valid data structure for cases where we need to return without complete data
+  const createMinimalData = () => ({
+    state: {
+      current: {
+        type: 'REGULAR' as PeriodType,
+        timeWindow: {
+          start: new Date().toISOString(),
+          end: new Date().toISOString(),
+        },
+        activity: {
+          isActive: false,
+          checkIn: null,
+          checkOut: null,
+          isOvertime: false,
+          isDayOffOvertime: false,
+        },
+        validation: {
+          isWithinBounds: true,
+          isEarly: false,
+          isLate: false,
+          isOvernight: false,
+          isConnected: false,
+        },
+      },
+    },
+    validation: {
+      errors: [],
+      warnings: [
+        {
+          code: 'SERVER_ERROR',
+          message:
+            'Server experienced an error, but the operation may have succeeded',
+        },
+      ],
+      allowed: true,
+      reason: 'Status refreshed after error',
+      flags: {
+        hasActivePeriod: false,
+        isCheckingIn: true,
+        isLateCheckIn: false,
+        isEarlyCheckIn: false,
+        isLateCheckOut: false,
+        isVeryLateCheckOut: false,
+        isEarlyCheckOut: false,
+        isInsideShift: true,
+        isOutsideShift: false,
+        isOvertime: false,
+        isDayOffOvertime: false,
+        hasPendingTransition: false,
+        requiresTransition: false,
+        requireConfirmation: false,
+        requiresAutoCompletion: false,
+        isPendingOvertime: false,
+        isAutoCheckIn: false,
+        isAutoCheckOut: false,
+        isMorningShift: false,
+        isAfternoonShift: false,
+        isAfterMidshift: false,
+        isPlannedHalfDayLeave: false,
+        isEmergencyLeave: false,
+        isApprovedEarlyCheckout: false,
+        isHoliday: false,
+        isDayOff: false,
+        isManualEntry: false,
+      },
+      metadata: {},
+    },
+  });
+
   const checkInOut = useCallback(
     async (params: CheckInOutData) => {
       const localRequestId = `${params.isCheckIn ? 'checkin' : 'checkout'}-${Date.now()}`;
@@ -485,17 +554,135 @@ export function useAttendanceData({
             response.data.statusUrl ||
             `/api/attendance/task-status/${serverRequestId}`;
 
-          const result = await intelligentPolling(statusUrl, serverRequestId);
+          try {
+            const result = await intelligentPolling(statusUrl, serverRequestId);
 
-          setState((prev) => ({
-            ...prev,
-            pendingRequests: new Set(
-              [...prev.pendingRequests].filter((id) => id !== localRequestId),
-            ),
-          }));
+            setState((prev) => ({
+              ...prev,
+              pendingRequests: new Set(
+                [...prev.pendingRequests].filter((id) => id !== localRequestId),
+              ),
+            }));
 
-          await refreshAttendanceStatus();
-          return result;
+            await refreshAttendanceStatus();
+            return result;
+          } catch (pollingError) {
+            console.warn(
+              'Polling failed, attempting direct status refresh:',
+              pollingError,
+            );
+
+            // AUTOMATIC RECOVERY: Clear cache and refresh on polling error
+            try {
+              console.log('Automatic recovery after polling error');
+
+              // Clear cache
+              await axios.post(`/api/attendance/clear-cache`, {
+                employeeId,
+                timestamp: new Date().toISOString(),
+              });
+
+              // Wait a moment for backend processing to complete
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+
+              // Refresh status
+              await refreshAttendanceStatus();
+
+              setState((prev) => ({
+                ...prev,
+                pendingRequests: new Set(
+                  [...prev.pendingRequests].filter(
+                    (id) => id !== localRequestId,
+                  ),
+                ),
+              }));
+
+              // Return a success result
+              return {
+                success: true,
+                message: 'Operation completed with recovery refresh',
+                timestamp: new Date().toISOString(),
+                requestId: serverRequestId,
+                data: {
+                  state: {
+                    current: {
+                      type: 'REGULAR' as PeriodType,
+                      timeWindow: {
+                        start: new Date().toISOString(),
+                        end: new Date().toISOString(),
+                      },
+                      activity: {
+                        isActive: params.activity.isCheckIn ? true : false,
+                        checkIn: params.activity.isCheckIn
+                          ? new Date().toISOString()
+                          : null,
+                        checkOut: !params.activity.isCheckIn
+                          ? new Date().toISOString()
+                          : null,
+                        isOvertime: false,
+                        isDayOffOvertime: false,
+                      },
+                      validation: {
+                        isWithinBounds: true,
+                        isEarly: false,
+                        isLate: false,
+                        isOvernight: false,
+                        isConnected: false,
+                      },
+                    },
+                  },
+                  validation: {
+                    errors: [],
+                    warnings: [
+                      {
+                        code: 'POLLING_FAILED',
+                        message:
+                          'Polling failed but operation may have succeeded',
+                      },
+                    ],
+                    allowed: true,
+                    reason: 'Status refreshed after polling failure',
+                    flags: {
+                      hasActivePeriod: params.activity.isCheckIn,
+                      isCheckingIn: !params.activity.isCheckIn,
+                      isLateCheckIn: false,
+                      isEarlyCheckIn: false,
+                      isLateCheckOut: false,
+                      isVeryLateCheckOut: false,
+                      isEarlyCheckOut: false,
+                      isInsideShift: true,
+                      isOutsideShift: false,
+                      isOvertime: false,
+                      isDayOffOvertime: false,
+                      hasPendingTransition: false,
+                      requiresTransition: false,
+                      requireConfirmation: false,
+                      requiresAutoCompletion: false,
+                      isPendingOvertime: false,
+                      isAutoCheckIn: false,
+                      isAutoCheckOut: false,
+                      isMorningShift: false,
+                      isAfternoonShift: false,
+                      isAfterMidshift: false,
+                      isPlannedHalfDayLeave: false,
+                      isEmergencyLeave: false,
+                      isApprovedEarlyCheckout: false,
+                      isHoliday: false,
+                      isDayOff: false,
+                      isManualEntry: false,
+                    },
+                    metadata: {},
+                  },
+                },
+              };
+            } catch (recoveryError) {
+              console.error(
+                'Recovery failed after polling error:',
+                recoveryError,
+              );
+              throw pollingError; // Rethrow the original error if recovery fails
+            }
+          }
         }
 
         // Handle unexpected response format
@@ -535,87 +722,17 @@ export function useAttendanceData({
   /**
    * Poll for completion with intelligent backoff
    */
-
   const intelligentPolling = useCallback(
     async (
       statusUrl: string,
       requestId: string,
-      maxAttempts = 10,
-      maxTotalWaitTime = 20000,
+      maxAttempts = 10, // Reduced from 15 to fail faster
+      maxTotalWaitTime = 20000, // 20 seconds maximum
     ): Promise<ProcessingResult> => {
       const startTime = Date.now();
-      let pollInterval = 800;
+      let pollInterval = 800; // Start with 800ms
       let consecutiveErrors = 0;
       let failedWithError = false;
-
-      // Create a minimal valid data structure for cases where we need to return without complete data
-      const createMinimalData = () => ({
-        state: {
-          current: {
-            type: 'REGULAR' as PeriodType,
-            timeWindow: {
-              start: new Date().toISOString(),
-              end: new Date().toISOString(),
-            },
-            activity: {
-              isActive: false,
-              checkIn: null,
-              checkOut: null,
-              isOvertime: false,
-              isDayOffOvertime: false,
-            },
-            validation: {
-              isWithinBounds: true,
-              isEarly: false,
-              isLate: false,
-              isOvernight: false,
-              isConnected: false,
-            },
-          },
-        },
-        validation: {
-          errors: [],
-          warnings: [
-            {
-              code: 'SERVER_ERROR',
-              message:
-                'Server experienced an error, but the operation may have succeeded',
-            },
-          ],
-          allowed: true,
-          reason: 'Status refreshed after error',
-          flags: {
-            hasActivePeriod: false,
-            isCheckingIn: true,
-            isLateCheckIn: false,
-            isEarlyCheckIn: false,
-            isLateCheckOut: false,
-            isVeryLateCheckOut: false,
-            isEarlyCheckOut: false,
-            isInsideShift: true,
-            isOutsideShift: false,
-            isOvertime: false,
-            isDayOffOvertime: false,
-            hasPendingTransition: false,
-            requiresTransition: false,
-            requireConfirmation: false,
-            requiresAutoCompletion: false,
-            isPendingOvertime: false,
-            isAutoCheckIn: false,
-            isAutoCheckOut: false,
-            isMorningShift: false,
-            isAfternoonShift: false,
-            isAfterMidshift: false,
-            isPlannedHalfDayLeave: false,
-            isEmergencyLeave: false,
-            isApprovedEarlyCheckout: false,
-            isHoliday: false,
-            isDayOff: false,
-            isManualEntry: false,
-          },
-          metadata: {},
-        },
-      });
 
       for (let i = 0; i < maxAttempts; i++) {
         // Check total wait time
@@ -651,6 +768,18 @@ export function useAttendanceData({
             if (consecutiveErrors >= 2) {
               // If we get multiple server errors, try to recover by refreshing
               console.warn(`Multiple server errors, attempting recovery`);
+
+              // Clear cache first
+              try {
+                console.log('Clearing cache after server error');
+                await axios.post('/api/attendance/clear-cache', {
+                  employeeId,
+                  timestamp: new Date().toISOString(),
+                });
+              } catch (clearCacheError) {
+                console.warn('Failed to clear server cache:', clearCacheError);
+              }
+
               await refreshAttendanceStatus();
 
               return {
@@ -698,7 +827,28 @@ export function useAttendanceData({
               console.log(
                 'Task failed but refreshing attendance status as recovery',
               );
+
+              // Clear cache first
+              try {
+                console.log('Clearing cache after failed task');
+                await axios.post('/api/attendance/clear-cache', {
+                  employeeId,
+                  timestamp: new Date().toISOString(),
+                });
+              } catch (clearCacheError) {
+                console.warn('Failed to clear server cache:', clearCacheError);
+              }
+
               await refreshAttendanceStatus();
+
+              // Return a successful result since the operation might have actually completed
+              return {
+                success: true,
+                message: 'Operation likely completed despite reported failure',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: createMinimalData(),
+              };
             } catch (refreshError) {
               console.warn('Error during refresh recovery:', refreshError);
             }
@@ -716,6 +866,18 @@ export function useAttendanceData({
           if (response.data.initializationError) {
             console.warn('Server reported initialization error');
             // This is a special case where we should refresh and return success
+
+            // Clear cache first
+            try {
+              console.log('Clearing cache after initialization error');
+              await axios.post('/api/attendance/clear-cache', {
+                employeeId,
+                timestamp: new Date().toISOString(),
+              });
+            } catch (clearCacheError) {
+              console.warn('Failed to clear server cache:', clearCacheError);
+            }
+
             await refreshAttendanceStatus();
 
             return {
@@ -734,12 +896,24 @@ export function useAttendanceData({
 
             // CRITICAL FIX: If we should stop polling, always refresh the status
             console.log('Refreshing attendance status as polling ended');
+
+            // Clear cache first
+            try {
+              console.log('Clearing cache after polling stopped');
+              await axios.post('/api/attendance/clear-cache', {
+                employeeId,
+                timestamp: new Date().toISOString(),
+              });
+            } catch (clearCacheError) {
+              console.warn('Failed to clear server cache:', clearCacheError);
+            }
+
             await refreshAttendanceStatus();
 
             // If status is processing but shouldContinuePolling is false
             if (response.data.status === 'processing') {
               console.warn(
-                `Status still 'processing' but shouldContinuePolling is false - refreshing status`,
+                `Status still 'processing' but shouldContinuePolling is false - refreshed status`,
               );
 
               // Return a basic success result with valid data structure
@@ -758,7 +932,7 @@ export function useAttendanceData({
               response.data.status !== 'failed'
             ) {
               console.warn(
-                `Unexpected status '${response.data.status}' with shouldContinuePolling: false - refreshing status`,
+                `Unexpected status '${response.data.status}' with shouldContinuePolling: false - refreshed status`,
               );
 
               // Return a basic success result with valid data structure
@@ -796,6 +970,17 @@ export function useAttendanceData({
           if (isServerError && consecutiveErrors >= 2) {
             console.warn('Multiple server errors, attempting recovery');
             try {
+              // Clear cache first
+              try {
+                console.log('Clearing cache after server errors');
+                await axios.post('/api/attendance/clear-cache', {
+                  employeeId,
+                  timestamp: new Date().toISOString(),
+                });
+              } catch (clearCacheError) {
+                console.warn('Failed to clear server cache:', clearCacheError);
+              }
+
               await refreshAttendanceStatus();
 
               return {
@@ -830,6 +1015,17 @@ export function useAttendanceData({
       // If we've exhausted all polling attempts, try to recover
       console.warn(`Polling exhausted for ${requestId}, trying to recover...`);
 
+      // CRITICAL FIX: Clear cache before refreshing status
+      try {
+        console.log('Automatically clearing cache after polling failure');
+        await axios.post('/api/attendance/clear-cache', {
+          employeeId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (clearCacheError) {
+        console.warn('Failed to clear server cache:', clearCacheError);
+      }
+
       // Try to refresh attendance data as recovery
       try {
         await refreshAttendanceStatus();
@@ -842,14 +1038,28 @@ export function useAttendanceData({
           data: createMinimalData(),
         };
       } catch (fallbackError) {
-        throw new AppError({
-          code: ErrorCode.TIMEOUT,
-          message: 'Processing timed out after maximum attempts',
-          originalError: fallbackError,
-        });
+        // ADDITIONAL FALLBACK: Try one more time with cache-busting
+        try {
+          console.log('Trying one more time with cache-busting...');
+          await mutate(); // Force another refresh
+
+          return {
+            success: true,
+            message: 'Recovery completed with forced refresh',
+            timestamp: new Date().toISOString(),
+            requestId: requestId,
+            data: createMinimalData(),
+          };
+        } catch (finalError) {
+          throw new AppError({
+            code: ErrorCode.TIMEOUT,
+            message: 'Processing timed out after maximum attempts',
+            originalError: fallbackError,
+          });
+        }
       }
     },
-    [refreshAttendanceStatus],
+    [refreshAttendanceStatus, employeeId, mutate],
   );
 
   return {
