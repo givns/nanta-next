@@ -1,10 +1,7 @@
 // pages/api/attendance/task-status/[requestId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { QueueManager } from '@/utils/QueueManager';
-import { PrismaClient } from '@prisma/client';
-import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 import { getCurrentTime } from '@/utils/dateUtils';
-import { createRateLimitMiddleware } from '@/utils/rateLimit';
 
 // Task status interface
 interface TaskStatus {
@@ -18,14 +15,6 @@ interface TaskStatus {
 
 // In-memory cache with TTL
 const taskStatusCache = new Map<string, TaskStatus>();
-
-// Rate limit middleware - lower limits for status checks
-const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 20);
-
-// Initialize services
-const prisma = new PrismaClient();
-const serviceQueue = getServiceQueue(prisma);
-const queueManager = QueueManager.getInstance();
 
 export default async function handler(
   req: NextApiRequest,
@@ -80,7 +69,6 @@ export default async function handler(
 
     // IMPORTANT: Detect stalled tasks with increased timeout
     if (statusResult.status === 'processing' && ageMs > 25000) {
-      // Increased from 15000 to 25000
       console.log(
         `[${requestId}] Task has been processing for ${ageMs}ms, marking as failed`,
       );
@@ -91,19 +79,20 @@ export default async function handler(
         timestamp: new Date().toISOString(),
       });
 
+      // IMPORTANT: Make sure we're using the updated status in the response
       statusResult = {
         status: 'failed',
         completed: true,
         data: null,
         error: 'Task processing stalled',
         timestamp: Date.now(),
-      } as {
-        status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
-        completed: boolean;
-        data: any;
-        error?: string | undefined;
-        timestamp: number;
-      };
+      } as TaskStatus;
+
+      // Also update memory cache to ensure consistency
+      taskStatusCache.set(requestId, {
+        ...statusResult,
+        timestamp: Date.now(),
+      });
     }
 
     // Update cache for completed or failed statuses
@@ -124,9 +113,11 @@ export default async function handler(
       ...statusResult,
       age: ageMs,
       nextPollInterval,
+      // Ensure shouldContinuePolling is consistent with the status
       shouldContinuePolling:
-        ['pending', 'processing', 'unknown'].includes(statusResult.status) &&
-        ageMs < 15000,
+        (statusResult.status === 'pending' ||
+          statusResult.status === 'processing') &&
+        ageMs < 25000, // Use the same threshold as the timeout check
       timestamp: getCurrentTime().toISOString(),
     });
   } catch (error) {

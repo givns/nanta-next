@@ -61,6 +61,7 @@ export class QueueManager {
   }
 
   private initializeQueue() {
+    // In the queue worker function
     this.queue = new BetterQueue<ProcessingOptions, QueueResult>(
       async (task, cb) => {
         console.log(`Queue worker starting task ${task.requestId}`);
@@ -98,7 +99,7 @@ export class QueueManager {
               });
 
               reject(error);
-            }, 30000); //  second hard timeout
+            }, 10000); // 10 second hard timeout
           });
 
           // Race between processing and timeout
@@ -114,7 +115,7 @@ export class QueueManager {
           this.queueSize = Math.max(0, this.queueSize - 1);
           cb(null, result);
         } catch (error) {
-          // Log error and update status
+          // Improved error handling
           console.error(
             `Queue worker error for task ${task.requestId}:`,
             error,
@@ -122,8 +123,13 @@ export class QueueManager {
 
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error';
+          const isTimeout =
+            errorMessage.includes('timeout') ||
+            errorMessage.includes('timed out');
+
+          // Update status with proper error details
           this.setRequestStatus(task.requestId!, 'failed', {
-            error: errorMessage,
+            error: isTimeout ? 'Task processing timed out' : errorMessage,
             timestamp: new Date().toISOString(),
           });
 

@@ -534,15 +534,16 @@ export function useAttendanceData({
   /**
    * Poll for completion with intelligent backoff
    */
+
   const intelligentPolling = useCallback(
     async (
       statusUrl: string,
       requestId: string,
-      maxAttempts = 10, // Reduced from 15 to fail faster
-      maxTotalWaitTime = 20000, // 20 seconds maximum
+      maxAttempts = 10,
+      maxTotalWaitTime = 20000,
     ): Promise<ProcessingResult> => {
       const startTime = Date.now();
-      let pollInterval = 800; // Start with 800ms
+      let pollInterval = 800;
       let consecutiveErrors = 0;
       let failedWithError = false;
 
@@ -594,73 +595,72 @@ export function useAttendanceData({
               details: response.data,
             });
           }
+
           // Check if the server says we should stop polling
           if (response.data.shouldContinuePolling === false) {
             console.log(`Server indicated polling should stop: ${requestId}`);
 
-            // If status is unknown, consider it as completed with a warning
-            if (response.data.status === 'unknown') {
-              console.log(
-                'Status unknown but polling stopped - considering completed',
+            // If status is processing but shouldContinuePolling is false, task likely timed out
+            if (response.data.status === 'processing') {
+              console.warn(
+                `Status is 'processing' but shouldContinuePolling is false - likely task timeout`,
               );
+
+              // Return a failed result
               return {
-                success: true,
-                message: 'Operation likely completed, but status is unknown',
+                success: false,
+                message: 'Processing timed out or was terminated by server',
                 timestamp: new Date().toISOString(),
                 requestId: requestId,
                 data: {
-                  // Create minimal valid structure for ProcessingResult.data
                   state: {
                     current: {
                       type: 'REGULAR',
                       timeWindow: {
-                        start: new Date().toISOString(),
-                        end: new Date().toISOString(),
+                        start: '',
+                        end: '',
                       },
                       activity: {
                         isActive: false,
                         checkIn: null,
                         checkOut: null,
                         isOvertime: false,
+                        overtimeId: undefined,
                         isDayOffOvertime: false,
+                        isInsideShiftHours: undefined,
                       },
                       validation: {
+                        isWithinBounds: undefined,
+                        isEarly: undefined,
+                        isLate: undefined,
                         isOvernight: false,
                         isConnected: false,
                       },
                     },
+                    previous: undefined,
                   },
                   validation: {
-                    errors: [],
-                    warnings: [
-                      {
-                        code: 'UNKNOWN_STATUS',
-                        message:
-                          'Server returned unknown status but requested to stop polling',
-                      },
-                    ],
-                    allowed: true,
-                    reason: 'Status check completed with unknown result',
+                    errors: undefined,
+                    warnings: undefined,
+                    allowed: false,
+                    reason: '',
                     flags: {
-                      // Default flags
-                      hasActivePeriod: false,
-                      isCheckingIn: true,
-                      isInsideShift: true,
-                      isOutsideShift: false,
-                      isEarlyCheckIn: false,
-                      isLateCheckIn: false,
+                      isCheckingIn: false,
                       isEarlyCheckOut: false,
                       isLateCheckOut: false,
                       isVeryLateCheckOut: false,
+                      hasActivePeriod: false,
+                      isInsideShift: false,
+                      isOutsideShift: false,
                       isOvertime: false,
                       isDayOffOvertime: false,
-                      hasPendingTransition: false,
-                      requiresTransition: false,
-                      requireConfirmation: false,
-                      requiresAutoCompletion: false,
                       isPendingOvertime: false,
                       isAutoCheckIn: false,
                       isAutoCheckOut: false,
+                      requireConfirmation: false,
+                      requiresAutoCompletion: false,
+                      hasPendingTransition: false,
+                      requiresTransition: false,
                       isMorningShift: false,
                       isAfternoonShift: false,
                       isAfterMidshift: false,
@@ -671,20 +671,100 @@ export function useAttendanceData({
                       isDayOff: false,
                       isManualEntry: false,
                     },
-                    metadata: {},
                   },
                 },
               };
             }
 
-            // If it's not completed or failed but we should stop, something's wrong
+            // If status is unknown, handle it gracefully
+            if (response.data.status === 'unknown') {
+              console.warn(
+                `Status is 'unknown' but shouldContinuePolling is false`,
+              );
+
+              // Return a failed result
+              return {
+                success: false,
+                message: 'Processing status unknown, cannot continue',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: {
+                  state: {
+                    current: {
+                      type: 'REGULAR',
+                      timeWindow: {
+                        start: '',
+                        end: '',
+                      },
+                      activity: {
+                        isActive: false,
+                        checkIn: null,
+                        checkOut: null,
+                        isOvertime: false,
+                        overtimeId: undefined,
+                        isDayOffOvertime: false,
+                        isInsideShiftHours: undefined,
+                      },
+                      validation: {
+                        isWithinBounds: undefined,
+                        isEarly: undefined,
+                        isLate: undefined,
+                        isOvernight: false,
+                        isConnected: false,
+                      },
+                    },
+                    previous: undefined,
+                  },
+                  validation: {
+                    errors: undefined,
+                    warnings: undefined,
+                    allowed: false,
+                    reason: '',
+                    flags: {
+                      isCheckingIn: false,
+                      isEarlyCheckOut: false,
+                      isLateCheckOut: false,
+                      isVeryLateCheckOut: false,
+                      hasActivePeriod: false,
+                      isInsideShift: false,
+                      isOutsideShift: false,
+                      isOvertime: false,
+                      isDayOffOvertime: false,
+                      isPendingOvertime: false,
+                      isAutoCheckIn: false,
+                      isAutoCheckOut: false,
+                      requireConfirmation: false,
+                      requiresAutoCompletion: false,
+                      hasPendingTransition: false,
+                      requiresTransition: false,
+                      isMorningShift: false,
+                      isAfternoonShift: false,
+                      isAfterMidshift: false,
+                      isPlannedHalfDayLeave: false,
+                      isEmergencyLeave: false,
+                      isApprovedEarlyCheckout: false,
+                      isHoliday: false,
+                      isDayOff: false,
+                      isManualEntry: false,
+                    },
+                  },
+                },
+              };
+            }
+
+            // For other unexpected statuses
             if (
               response.data.status !== 'completed' &&
               response.data.status !== 'failed'
             ) {
+              console.warn(
+                `Server returned status '${response.data.status}' with shouldContinuePolling: false`,
+              );
+
+              // Throw appropriate error
               throw new AppError({
                 code: ErrorCode.PROCESSING_ERROR,
-                message: `Server requested to stop polling but processing is incomplete (status: ${response.data.status})`,
+                message: `Server requested to stop polling but processing status is '${response.data.status}'`,
               });
             }
           }
