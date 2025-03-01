@@ -323,19 +323,6 @@ async function handleLeaveRequest(
       throw new Error('Invalid action');
     }
 
-    // If we get here and haven't sent a reply yet (service didn't handle it), send a default reply
-    if (result && replyToken) {
-      const message =
-        action === 'approve'
-          ? 'คำขอลาได้รับการอนุมัติแล้ว'
-          : 'คำขอลาถูกปฏิเสธแล้ว';
-
-      await client.replyMessage(replyToken, {
-        type: 'text',
-        text: message,
-      });
-    }
-
     return result;
   } catch (error) {
     console.error('Error handling leave request:', error);
