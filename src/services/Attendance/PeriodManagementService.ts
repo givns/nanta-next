@@ -502,7 +502,7 @@ export class PeriodManagementService {
     activeRecord: AttendanceRecord | null,
     now: Date,
   ): PeriodTransition[] {
-    if (!window.overtimeInfo || !window.shift?.endTime || !window.shift?.id) {
+    if (!window.shift?.endTime || !window.shift?.id) {
       return [];
     }
 
@@ -510,6 +510,8 @@ export class PeriodManagementService {
       currentPeriod: currentState.type,
       hasActiveRecord: !!activeRecord,
       overtimeInfo: window.overtimeInfo,
+      currentTime: format(now, 'HH:mm:ss'),
+      shiftEnd: window.shift.endTime,
     });
 
     // Transition from Overtime to Regular
@@ -552,39 +554,64 @@ export class PeriodManagementService {
       }
     }
 
-    // Original Regular to Overtime transition logic
-    const shiftEnd = parseISO(
-      `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
-    );
-    const transitionWindow = {
-      start: subMinutes(shiftEnd, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
-      end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
-    };
+    // Regular to Overtime transition logic with broader time window
+    if (window.overtimeInfo && currentState.type === PeriodType.REGULAR) {
+      const shiftEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${window.shift.endTime}`,
+      );
 
-    const isInTransitionWindow = isWithinInterval(now, transitionWindow);
-    const hasUpcomingOvertime =
-      window.overtimeInfo?.startTime === window.shift.endTime;
+      // Use a broader transition window for regular to overtime
+      // Allow transitions up to 30 minutes before shift end
+      const transitionWindow = {
+        start: subMinutes(
+          shiftEnd,
+          Math.max(30, VALIDATION_THRESHOLDS.TRANSITION_WINDOW),
+        ),
+        end: addMinutes(shiftEnd, VALIDATION_THRESHOLDS.LATE_CHECKOUT),
+      };
 
-    const isActiveRegularPeriod =
-      activeRecord?.CheckInTime &&
-      !activeRecord?.CheckOutTime &&
-      currentState.type === PeriodType.REGULAR;
+      const isInTransitionWindow = isWithinInterval(now, transitionWindow);
+      const hasUpcomingOvertime =
+        window.overtimeInfo?.startTime === window.shift.endTime;
 
-    if (isInTransitionWindow && hasUpcomingOvertime && isActiveRegularPeriod) {
-      return [
-        {
-          from: {
-            periodIndex: 0,
-            type: PeriodType.REGULAR,
+      const isActiveRegularPeriod =
+        activeRecord?.CheckInTime &&
+        !activeRecord?.CheckOutTime &&
+        currentState.type === PeriodType.REGULAR;
+
+      if (
+        isInTransitionWindow &&
+        hasUpcomingOvertime &&
+        isActiveRegularPeriod
+      ) {
+        console.log('Regular to Overtime transition detected:', {
+          currentTime: format(now, 'HH:mm:ss'),
+          shiftEnd: format(shiftEnd, 'HH:mm:ss'),
+          transitionStart: format(transitionWindow.start, 'HH:mm:ss'),
+          transitionEnd: format(transitionWindow.end, 'HH:mm:ss'),
+          hasUpcomingOvertime,
+          overtimeInfo: {
+            id: window.overtimeInfo.id,
+            startTime: window.overtimeInfo.startTime,
+            endTime: window.overtimeInfo.endTime,
           },
-          to: {
-            periodIndex: 1,
-            type: PeriodType.OVERTIME,
+        });
+
+        return [
+          {
+            from: {
+              periodIndex: 0,
+              type: PeriodType.REGULAR,
+            },
+            to: {
+              periodIndex: 1,
+              type: PeriodType.OVERTIME,
+            },
+            transitionTime: window.shift.endTime,
+            isComplete: false,
           },
-          transitionTime: window.shift.endTime,
-          isComplete: false,
-        },
-      ];
+        ];
+      }
     }
 
     return [];

@@ -266,7 +266,7 @@ export class AttendanceProcessingService {
   private async handleAutoCompletion(
     tx: Prisma.TransactionClient,
     currentRecord: AttendanceRecord,
-    periodState: ShiftWindowResponse,
+    windowResponse: ShiftWindowResponse,
     options: ProcessingOptions,
     now: Date,
     validation: PeriodState,
@@ -280,57 +280,134 @@ export class AttendanceProcessingService {
         });
       }
 
+      // Use overtime ID from either options or window response
+      const overtimeId =
+        options.metadata?.overtimeId || windowResponse.overtimeInfo?.id;
+
+      console.log('Auto-completion started for record:', {
+        recordId: currentRecord.id,
+        recordType: currentRecord.type,
+        checkIn: format(currentRecord.CheckInTime, 'HH:mm:ss'),
+        checkOut: currentRecord.CheckOutTime
+          ? format(currentRecord.CheckOutTime, 'HH:mm:ss')
+          : null,
+        hasOvertime: !!windowResponse.overtimeInfo,
+        overtimeId,
+        toType:
+          options.transition?.to?.type ||
+          (windowResponse.overtimeInfo ? PeriodType.OVERTIME : null),
+      });
+
       const completedRecord = await this.completeAttendanceRecord(
         tx,
         currentRecord,
-        periodState,
+        windowResponse,
         options,
         now,
       );
 
-      // NEW: Create overtime record if transitioning to overtime
-      if (options.transition?.to?.type === PeriodType.OVERTIME) {
-        const overtimeRecord = await this.processCheckIn(
-          tx,
-          periodState,
-          {
-            ...options,
-            periodType: PeriodType.OVERTIME,
-            activity: {
-              ...options.activity,
-              isCheckIn: true,
-            },
-          },
-          undefined, // location data
-          now,
-        );
+      // Handle transition to overtime based on various conditions
+      const shouldCreateOvertime =
+        // Explicit transition to overtime
+        options.transition?.to?.type === PeriodType.OVERTIME ||
+        // Window has overtime info that connects to the current period
+        (windowResponse.overtimeInfo &&
+          windowResponse.overtimeInfo.startTime ===
+            windowResponse.shift.endTime) ||
+        // Currently in regular period and next period is overtime
+        (currentRecord.type === PeriodType.REGULAR &&
+          windowResponse.type === PeriodType.REGULAR &&
+          windowResponse.overtimeInfo);
 
-        // Optionally create time entry for overtime
-        await this.timeEntryService.processTimeEntries(
-          tx,
-          overtimeRecord,
-          this.createStatusUpdateFromProcessing(
+      // NEW: Create overtime record if needed
+      if (shouldCreateOvertime) {
+        console.log('Creating overtime record after completion', {
+          overtimeId,
+          windowOvertimeInfo: !!windowResponse.overtimeInfo,
+          startTime: windowResponse.overtimeInfo?.startTime,
+          endTime: windowResponse.overtimeInfo?.endTime,
+        });
+
+        // Ensure we have overtime ID
+        if (!overtimeId && windowResponse.overtimeInfo?.id) {
+          console.log('Using overtime ID from window response');
+        }
+
+        const finalOvertimeId = overtimeId || windowResponse.overtimeInfo?.id;
+
+        if (!finalOvertimeId) {
+          console.warn('No overtime ID available for overtime record creation');
+        }
+
+        try {
+          // Create new overtime check-in
+          const overtimeRecord = await this.processCheckIn(
+            tx,
+            windowResponse,
+            {
+              ...options,
+              periodType: PeriodType.OVERTIME,
+              metadata: {
+                ...options.metadata,
+                overtimeId: finalOvertimeId,
+                source: 'auto',
+              },
+              activity: {
+                ...options.activity,
+                isCheckIn: true,
+                isOvertime: true,
+              },
+            },
+            options.location
+              ? this.createBaseLocationData(options.location, true)
+              : undefined,
+            now,
+          );
+
+          console.log('Created overtime record successfully', {
+            overtimeRecordId: overtimeRecord.id,
+            type: overtimeRecord.type,
+            checkIn: format(overtimeRecord.CheckInTime!, 'HH:mm:ss'),
+          });
+
+          // Create time entry for overtime
+          await this.timeEntryService.processTimeEntries(
+            tx,
+            overtimeRecord,
+            this.createStatusUpdateFromProcessing(
+              {
+                ...options,
+                periodType: PeriodType.OVERTIME,
+                activity: {
+                  ...options.activity,
+                  isCheckIn: true,
+                  isOvertime: true,
+                },
+                metadata: {
+                  ...options.metadata,
+                  overtimeId: finalOvertimeId,
+                  source: 'auto',
+                },
+              },
+              null,
+              now,
+            ),
             {
               ...options,
               periodType: PeriodType.OVERTIME,
               activity: {
                 ...options.activity,
                 isCheckIn: true,
+                isOvertime: true,
               },
             },
-            null,
-            now,
-          ),
-          {
-            ...options,
-            periodType: PeriodType.OVERTIME,
-            activity: {
-              ...options.activity,
-              isCheckIn: true,
-            },
-          },
-          validation,
-        );
+            validation,
+          );
+        } catch (overtimeError) {
+          console.error('Error creating overtime record:', overtimeError);
+          // Continue execution even if overtime creation fails
+          // This ensures we at least return the completed regular record
+        }
       }
 
       // Create validation context for completed record
@@ -342,7 +419,7 @@ export class AttendanceProcessingService {
         checkStatus: completedRecord.checkStatus,
         overtimeState: completedRecord.overtimeState,
         attendance: completedRecord,
-        shift: periodState.shift,
+        shift: windowResponse.shift,
         periodType: completedRecord.type,
         isOvertime: completedRecord.type === PeriodType.OVERTIME,
       };
@@ -351,7 +428,7 @@ export class AttendanceProcessingService {
       const enhancedStatus =
         await this.enhancementService.enhanceAttendanceStatus(
           AttendanceMappers.toSerializedAttendanceRecord(completedRecord),
-          periodState,
+          windowResponse,
           validationContext,
         );
 
@@ -466,18 +543,34 @@ export class AttendanceProcessingService {
     };
   }
 
+  /**
+   * Checks if auto-completion is needed for the current operation
+   */
   private shouldAutoComplete(
     options: ProcessingOptions,
     currentRecord: AttendanceRecord | null,
+    windowResponse?: ShiftWindowResponse,
   ): boolean {
+    console.log('Auto-completion check details:', {
+      recordType: currentRecord?.type,
+      isCheckIn: options.activity.isCheckIn,
+      transition: options.transition,
+      hasOvertimeId: !!options.metadata?.overtimeId,
+      hasWindowOvertime: !!windowResponse?.overtimeInfo,
+      windowOvertimeId: windowResponse?.overtimeInfo?.id,
+    });
+
     // Case 1: Regular -> Overtime transition
     if (
-      options.transition?.to?.type === PeriodType.OVERTIME &&
-      options.metadata?.overtimeId &&
+      (options.transition?.to?.type === PeriodType.OVERTIME ||
+        (windowResponse?.overtimeInfo &&
+          windowResponse.type === PeriodType.REGULAR)) &&
+      (options.metadata?.overtimeId || windowResponse?.overtimeInfo?.id) &&
       currentRecord?.type === PeriodType.REGULAR &&
       currentRecord.CheckInTime &&
       !currentRecord.CheckOutTime
     ) {
+      console.log('Auto-completion triggered: Regular -> Overtime transition');
       return true;
     }
 
@@ -488,12 +581,36 @@ export class AttendanceProcessingService {
       !currentRecord.CheckOutTime &&
       options.activity.isCheckIn
     ) {
+      console.log('Auto-completion triggered: Overtime -> Regular transition');
       return true;
     }
 
     // Case 3: Missing check-in
     if (!currentRecord?.CheckInTime && !options.activity.isCheckIn) {
+      console.log('Auto-completion triggered: Missing check-in');
       return true;
+    }
+
+    // Case 4: New - End of regular period with pending overtime period
+    if (
+      options.periodType === PeriodType.REGULAR &&
+      !options.activity.isCheckIn &&
+      currentRecord?.type === PeriodType.REGULAR &&
+      windowResponse?.overtimeInfo &&
+      windowResponse.overtimeInfo.startTime === windowResponse.shift.endTime
+    ) {
+      const now = getCurrentTime();
+      const shiftEnd = parseISO(
+        `${format(now, 'yyyy-MM-dd')}T${windowResponse.shift.endTime}`,
+      );
+
+      // Check if we're near the end of shift
+      if (Math.abs(differenceInMinutes(now, shiftEnd)) <= 30) {
+        console.log(
+          'Auto-completion triggered: End of regular period with pending overtime',
+        );
+        return true;
+      }
     }
 
     return false;
