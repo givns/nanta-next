@@ -6,7 +6,11 @@ import { ProcessingOptions } from '@/types/attendance/processing';
 import { CACHE_CONSTANTS } from '@/types/attendance/base';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { validateCheckInOutRequest } from '@/schemas/attendance';
-import { AttendanceStateResponse, QueueResult } from '@/types/attendance';
+import {
+  AttendanceStateResponse,
+  AttendanceStatusResponse,
+  QueueResult,
+} from '@/types/attendance';
 import { parseISO } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
 import { QueueManager } from '@/utils/QueueManager';
@@ -23,6 +27,82 @@ interface ErrorResponse {
 }
 
 const statusCache = new Map<string, { status: any; timestamp: number }>();
+
+// ------- NEW: Add short-lived status cache -------
+// Cache for attendance status tied to employee ID with short TTL
+const STATUS_CACHE_TTL = 30000; // 30 seconds TTL
+const shortLivedStatusCache = new Map<
+  string,
+  {
+    status: AttendanceStatusResponse;
+    timestamp: number;
+  }
+>();
+
+// Function to get or fetch status with caching
+async function getStatusWithCache(
+  attendanceService: any,
+  employeeId: string,
+  options: any,
+): Promise<AttendanceStatusResponse> {
+  // Generate cache key based on employee ID and the current minute
+  // This ensures we don't use stale data across minutes but reuse within same minute
+  const currentMinuteTimestamp = Math.floor(Date.now() / 60000) * 60000;
+  const cacheKey = `status-${employeeId}-${currentMinuteTimestamp}`;
+
+  const cachedStatus = shortLivedStatusCache.get(cacheKey);
+
+  if (cachedStatus && Date.now() - cachedStatus.timestamp < STATUS_CACHE_TTL) {
+    console.log(
+      `Using cached status from recent check (age: ${Date.now() - cachedStatus.timestamp}ms)`,
+    );
+    return cachedStatus.status;
+  }
+
+  // Fetch fresh status
+  console.log(`Cache miss for ${cacheKey}, fetching fresh status`);
+  const freshStatus = await attendanceService.getAttendanceStatus(
+    employeeId,
+    options,
+  );
+
+  // Store in cache
+  shortLivedStatusCache.set(cacheKey, {
+    status: freshStatus,
+    timestamp: Date.now(),
+  });
+
+  // Set up automatic cleanup
+  setTimeout(() => {
+    if (shortLivedStatusCache.has(cacheKey)) {
+      shortLivedStatusCache.delete(cacheKey);
+      console.log(`Expired status cache for ${cacheKey}`);
+    }
+  }, STATUS_CACHE_TTL);
+
+  return freshStatus;
+}
+
+// Cleanup function for status cache
+function cleanupStatusCache() {
+  const now = Date.now();
+  let expiredCount = 0;
+
+  for (const [key, entry] of shortLivedStatusCache.entries()) {
+    if (now - entry.timestamp > STATUS_CACHE_TTL) {
+      shortLivedStatusCache.delete(key);
+      expiredCount++;
+    }
+  }
+
+  if (expiredCount > 0) {
+    console.log(`Cleaned up ${expiredCount} expired status cache entries`);
+  }
+}
+
+// Run cache cleanup periodically
+setInterval(cleanupStatusCache, STATUS_CACHE_TTL / 2);
+// --------------------------------------------
 
 // Initialize services
 // In your Prisma client initialization
@@ -182,8 +262,10 @@ export async function processCheckInOut(
     const services = await serviceQueue.getInitializedServices();
     const { attendanceService, notificationService } = services;
 
+    // --- MODIFIED: Use status cache instead of direct fetch ---
     // Get current status first to check if auto-completion needed
-    const currentStatus = await attendanceService.getAttendanceStatus(
+    const currentStatus = await getStatusWithCache(
+      attendanceService,
       task.employeeId!,
       {
         inPremises: true,
@@ -191,6 +273,14 @@ export async function processCheckInOut(
         periodType: task.periodType,
       },
     );
+
+    console.log('Current status flags for check-in/out:', {
+      isEarlyCheckIn: currentStatus.validation.flags.isEarlyCheckIn,
+      isLateCheckIn: currentStatus.validation.flags.isLateCheckIn,
+      isCheckingIn: currentStatus.base.isCheckingIn,
+      state: currentStatus.base.state,
+      transitions: currentStatus.daily.transitions.length,
+    });
 
     // Check if auto-completion needed based on current status
     const activeAttendance = currentStatus.base.latestAttendance;
@@ -203,7 +293,12 @@ export async function processCheckInOut(
         activeAttendance?.type === PeriodType.OVERTIME &&
         !activeAttendance.CheckOutTime &&
         activeAttendance.shiftEndTime &&
-        serverTime > parseISO(activeAttendance.shiftEndTime));
+        serverTime > parseISO(activeAttendance.shiftEndTime)) ||
+      // Case 3: Regular -> Overtime transition (add check for overtime info)
+      (task.periodType === PeriodType.REGULAR &&
+        !task.activity.isCheckIn &&
+        currentStatus.context.nextPeriod?.type === PeriodType.OVERTIME &&
+        currentStatus.daily.transitions.length > 0);
 
     if (needsAutoCompletion) {
       console.log('Auto-completion needed:', {
@@ -212,7 +307,26 @@ export async function processCheckInOut(
         activeType: activeAttendance?.type,
         hasCheckOut: Boolean(activeAttendance?.CheckOutTime),
         overtimeEnd: activeAttendance?.shiftEndTime,
+        transitions: currentStatus.daily.transitions.length,
+        hasPendingTransition:
+          currentStatus.validation.flags.hasPendingTransition,
+        nextPeriodType: currentStatus.context.nextPeriod?.type,
       });
+
+      // Add overtime ID from context if not present in task
+      if (
+        !task.metadata?.overtimeId &&
+        currentStatus.context.nextPeriod?.overtimeInfo?.id
+      ) {
+        console.log(
+          'Adding overtime ID from context:',
+          currentStatus.context.nextPeriod.overtimeInfo.id,
+        );
+
+        if (!task.metadata) task.metadata = {};
+        task.metadata.overtimeId =
+          currentStatus.context.nextPeriod.overtimeInfo.id;
+      }
     } else {
       console.log('Regular processing:', {
         type: task.periodType,
@@ -231,7 +345,38 @@ export async function processCheckInOut(
           isOvertime: task.periodType === PeriodType.OVERTIME,
           overtimeMissed: Boolean(needsAutoCompletion), // Force boolean type
         },
+        // Add transition info from cached status if available
+        transition:
+          task.transition ||
+          (() => {
+            // Only include transition if we have valid transition data
+            if (
+              currentStatus.daily.transitions.length > 0 &&
+              currentStatus.context.nextPeriod?.type
+            ) {
+              return {
+                from: {
+                  type: currentStatus.daily.currentState.type,
+                  endTime: currentStatus.daily.currentState.timeWindow.end
+                    .split('T')[1]
+                    .slice(0, 5),
+                },
+                to: {
+                  type: currentStatus.context.nextPeriod.type,
+                  startTime: currentStatus.context.nextPeriod.startTime
+                    ? currentStatus.context.nextPeriod.startTime
+                        .split('T')[1]
+                        .slice(0, 5)
+                    : currentStatus.daily.currentState.timeWindow.end
+                        .split('T')[1]
+                        .slice(0, 5),
+                },
+              };
+            }
+            return undefined;
+          })(),
       }),
+      // Get fresh status after processing in parallel
       attendanceService.getAttendanceStatus(task.employeeId!, {
         inPremises: true,
         address: task.location?.address || '',
@@ -239,12 +384,12 @@ export async function processCheckInOut(
       }),
     ]);
 
-    if (!processedAttendance.success) {
-      throw new AppError({
-        code: ErrorCode.PROCESSING_ERROR,
-        message: 'Failed to process attendance',
-      });
-    }
+    // --- INVALIDATE the status cache after processing ---
+    // This ensures we don't reuse the now-stale status
+    const currentMinuteTimestamp = Math.floor(Date.now() / 60000) * 60000;
+    const cacheKey = `status-${task.employeeId}-${currentMinuteTimestamp}`;
+    shortLivedStatusCache.delete(cacheKey);
+    console.log(`Invalidated status cache for ${cacheKey} after processing`);
 
     // Handle notifications
     let notificationSent = false;
