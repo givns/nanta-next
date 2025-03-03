@@ -527,21 +527,29 @@ export function useAttendanceData({
           address: locationState.address,
           inPremises: locationState.inPremises,
           confidence: locationState.confidence,
-          // Add pre-calculated status if we have recent data
           preCalculatedStatus: data
             ? {
-                ...data,
-                // Update timestamp to current to ensure it's considered recent
+                ...JSON.parse(JSON.stringify(data)), // Ensure proper serialization
                 base: {
-                  ...data.base,
+                  ...JSON.parse(JSON.stringify(data.base)),
                   metadata: {
-                    ...data.base.metadata,
+                    ...JSON.parse(JSON.stringify(data.base.metadata)),
                     lastUpdated: new Date().toISOString(),
                   },
                 },
               }
             : undefined,
         };
+
+        console.log('Sending request with pre-calculated status:', {
+          hasStatus: !!requestData.preCalculatedStatus,
+          statusSize: requestData.preCalculatedStatus
+            ? JSON.stringify(requestData.preCalculatedStatus).length
+            : 0,
+          keysPresentInStatus: requestData.preCalculatedStatus
+            ? Object.keys(requestData.preCalculatedStatus)
+            : [],
+        });
 
         const response = await axios.post(
           '/api/attendance/check-in-out',

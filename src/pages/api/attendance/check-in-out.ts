@@ -232,6 +232,17 @@ async function getCachedUser(identifier: {
   }
 }
 
+function isValidPreCalculatedStatus(status: any): boolean {
+  return (
+    status &&
+    typeof status === 'object' &&
+    status.base &&
+    status.daily &&
+    status.context &&
+    status.validation
+  );
+}
+
 // Main Processing Function
 export async function processCheckInOut(
   task: ProcessingOptions,
@@ -250,6 +261,12 @@ export async function processCheckInOut(
     requestKey,
     serverTime: serverTime.toISOString(),
     hasPreCalculatedStatus: !!task.preCalculatedStatus,
+    preCalculatedStatusType: task.preCalculatedStatus
+      ? typeof task.preCalculatedStatus
+      : 'none',
+    preCalculatedStatusKeys: task.preCalculatedStatus
+      ? Object.keys(task.preCalculatedStatus)
+      : [],
   });
 
   const startTime = performance.now();
@@ -263,15 +280,31 @@ export async function processCheckInOut(
     let currentStatus;
     if (
       task.preCalculatedStatus &&
-      isRecentStatus(task.preCalculatedStatus, 10000)
+      isValidPreCalculatedStatus(task.preCalculatedStatus) &&
+      isRecentStatus(task.preCalculatedStatus, 20000)
     ) {
-      console.log('Using pre-calculated status from client');
+      // Increase to 20 seconds for testing
+      console.log('Using pre-calculated status from client', {
+        base: task.preCalculatedStatus.base?.state,
+        daily: task.preCalculatedStatus.daily?.currentState?.type,
+      });
       currentStatus = task.preCalculatedStatus;
     } else {
-      // Get current status first to check if auto-completion needed
+      // Log why pre-calculated status isn't being used
+      if (task.preCalculatedStatus) {
+        console.log('Not using pre-calculated status because:', {
+          isValid: isValidPreCalculatedStatus(task.preCalculatedStatus),
+          isRecent: task.preCalculatedStatus.base?.metadata?.lastUpdated
+            ? isRecentStatus(task.preCalculatedStatus, 20000)
+            : false,
+          lastUpdated: task.preCalculatedStatus.base?.metadata?.lastUpdated,
+        });
+      }
+
+      // Fallback to getting fresh status
       console.log('Getting fresh status from server');
       currentStatus = await getStatusWithCache(
-        attendanceService,
+        attendanceService, // Now this is correctly coming from services
         task.employeeId!,
         {
           inPremises: true,

@@ -43,17 +43,22 @@ export class ServiceInitializationQueue {
   }
 
   async getInitializedServices(): Promise<InitializedServices> {
-    console.log(
-      `Service initialization state check: initialized=${this.initialized}, hasServices=${!!this.services}, hasPromise=${!!this.initializationPromise}`,
-    );
+    console.log(`Service initialization state detailed check:`, {
+      initialized: this.initialized,
+      hasServices: !!this.services,
+      hasPromise: !!this.initializationPromise,
+      servicesKeys: this.services ? Object.keys(this.services) : [],
+    });
 
-    // Return cached services if available - add more robust checking
     if (
       this.initialized &&
       this.services &&
       Object.keys(this.services).length > 0
     ) {
-      console.log('Using cached service instances');
+      console.log('Using cached service instances', {
+        attendanceService: !!this.services.attendanceService,
+        notificationService: !!this.services.notificationService,
+      });
       return this.services;
     }
 

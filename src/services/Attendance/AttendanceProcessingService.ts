@@ -103,6 +103,19 @@ export class AttendanceProcessingService {
           let periodState;
 
           if (options.preCalculatedStatus) {
+            // Log detailed structure
+            console.log('Examining preCalculatedStatus structure:', {
+              hasDaily: !!options.preCalculatedStatus.daily,
+              hasBase: !!options.preCalculatedStatus.base,
+              hasContext: !!options.preCalculatedStatus.context,
+              hasValidation: !!options.preCalculatedStatus.validation,
+              dailyKeys: options.preCalculatedStatus.daily
+                ? Object.keys(options.preCalculatedStatus.daily)
+                : [],
+              baseKeys: options.preCalculatedStatus.base
+                ? Object.keys(options.preCalculatedStatus.base)
+                : [],
+            });
             // Extract shift data from pre-calculated status
             shiftData = {
               current: options.preCalculatedStatus.context.shift,
