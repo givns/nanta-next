@@ -24,8 +24,19 @@ export class ServiceInitializationQueue {
     console.log('ServiceInitializationQueue constructor called');
   }
 
+  // In ServiceInitializationQueue.ts
   static getInstance(prisma?: PrismaClient): ServiceInitializationQueue {
-    // Use the external variables instead of static class properties
+    // If instance exists but is showing as not initialized, force it to initialized state
+    if (
+      instanceRef &&
+      instanceRef.services &&
+      Object.keys(instanceRef.services).length > 0
+    ) {
+      console.log('Found existing services - forcing initialized state');
+      instanceRef.initialized = true;
+      return instanceRef;
+    }
+
     if (!instanceRef) {
       if (!prisma && !prismaRef) {
         throw new Error('PrismaClient required for first initialization');
@@ -38,16 +49,8 @@ export class ServiceInitializationQueue {
 
       console.log('Creating new ServiceInitializationQueue instance');
       instanceRef = new ServiceInitializationQueue(prismaRef!);
-    } else {
-      // Force reuse by ensuring initialized state
-      if (
-        instanceRef.services &&
-        Object.keys(instanceRef.services).length > 0
-      ) {
-        instanceRef.initialized = true;
-        console.log('Restoring initialized service instance state');
-      }
     }
+
     return instanceRef;
   }
 

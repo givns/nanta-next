@@ -245,18 +245,23 @@ function isValidPreCalculatedStatus(status: any): boolean {
 
 // Main Processing Function
 export async function processCheckInOut(
-  originalTask: ProcessingOptions & {
-    preCalculatedStatusString?: string;
-  },
+  task: ProcessingOptions & { _preCalculatedStatusString?: string },
 ): Promise<QueueResult> {
   // Restore preCalculatedStatus from string if available
-  const task = {
-    ...originalTask,
-    preCalculatedStatus: originalTask.preCalculatedStatusString
-      ? JSON.parse(originalTask.preCalculatedStatusString)
-      : originalTask.preCalculatedStatus,
-  };
 
+  let preCalculatedStatus;
+
+  if (task._preCalculatedStatusString) {
+    try {
+      console.log('Found serialized preCalculatedStatus, attempting to parse');
+      preCalculatedStatus = JSON.parse(task._preCalculatedStatusString);
+      console.log('Successfully parsed preCalculatedStatus');
+    } catch (parseError) {
+      console.error('Failed to parse preCalculatedStatus:', parseError);
+    }
+  }
+
+  // Keep original logic, but use our newly parsed status
   const serverTime = getCurrentTime();
   if (isNaN(serverTime.getTime())) {
     console.error('Invalid server time:', serverTime);
@@ -265,19 +270,18 @@ export async function processCheckInOut(
       message: 'Invalid server time',
     });
   }
+
   const requestKey = `${task.employeeId || task.lineUserId}-${task.checkTime}`;
 
   console.log('Processing check-in/out task:', {
     requestKey,
     serverTime: serverTime.toISOString(),
-    hasPreCalculatedStatus: !!task.preCalculatedStatus,
-    preCalculatedStatusType: task.preCalculatedStatus
-      ? typeof task.preCalculatedStatus
-      : 'none',
-    preCalculatedStatusKeys: task.preCalculatedStatus
-      ? Object.keys(task.preCalculatedStatus)
+    hasPreCalculatedStatus: !!preCalculatedStatus,
+    hasOriginalStatus: !!task.preCalculatedStatus,
+    wasDeserialized: !!task._preCalculatedStatusString,
+    preCalculatedStatusKeys: preCalculatedStatus
+      ? Object.keys(preCalculatedStatus)
       : [],
-    fromStringified: !!originalTask.preCalculatedStatusString,
   });
 
   const startTime = performance.now();
@@ -515,7 +519,6 @@ function isRecentStatus(
 }
 
 // Main API Handler
-// Main API Handler
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -568,20 +571,40 @@ export default async function handler(
     // Skip synchronous processing attempt - always queue
     console.log(`Directly queueing task ${requestId}`);
 
-    // Prepare task for queue - Stringify preCalculatedStatus for better serialization
-    const taskData = {
-      ...validatedData,
-      requestId,
-      // Stringify preCalculatedStatus if it exists
-      preCalculatedStatusString: validatedData.preCalculatedStatus
-        ? JSON.stringify(validatedData.preCalculatedStatus)
-        : undefined,
-      // Delete the original complex object to avoid serialization issues
-      preCalculatedStatus: undefined,
-    };
+    // Prepare for queueing by ensuring everything is serializable
+    let taskData;
+    try {
+      // Deep-clone and serialize the data to catch any circular references or non-serializable content
+      const stringifiedData = JSON.stringify({
+        ...validatedData,
+        requestId,
+        // Explicitly remove preCalculatedStatus to avoid serialization issues
+        preCalculatedStatus: undefined,
+      });
 
-    // Get queue manager
-    const queueManager = QueueManager.getInstance();
+      // Then parse it back to an object
+      taskData = JSON.parse(stringifiedData);
+
+      // Now store the attendance status separately as a simple string
+      if (validatedData.preCalculatedStatus) {
+        taskData._preCalculatedStatusString = JSON.stringify(
+          validatedData.preCalculatedStatus,
+        );
+        console.log(
+          'Serialized preCalculatedStatus, size:',
+          taskData._preCalculatedStatusString.length,
+        );
+      }
+    } catch (serializationError) {
+      console.error('Task serialization error:', serializationError);
+      // Fall back to basic data without the problematic fields
+      taskData = {
+        ...validatedData,
+        requestId,
+        preCalculatedStatus: undefined,
+        _serializationFailed: true,
+      };
+    }
 
     // Enqueue but don't wait for result
     queueManager.enqueue(taskData).catch((error) => {
