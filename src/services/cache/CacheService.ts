@@ -205,12 +205,13 @@ export class CacheService {
     }, 'get');
   }
 
+  // Modify CacheService.ts - set method
   async set(
     key: string,
     value: string,
     expirationInSeconds?: number,
   ): Promise<void> {
-    // Always update memory cache
+    // Always update memory cache immediately
     this.setInMemoryCache(key, value);
 
     // If client-side or bypass, don't try Redis
@@ -218,33 +219,25 @@ export class CacheService {
       return;
     }
 
-    return this.measureOperation(async () => {
-      if (!this.client || !this.isInitialized) return;
-
+    // Don't await Redis operations for writes - let them happen in the background
+    if (this.client && this.isInitialized) {
       try {
-        // Use timeout to prevent hanging
-        const setOperation = async () => {
-          if (expirationInSeconds) {
-            await this.client!.set(key, value, 'EX', expirationInSeconds);
-          } else {
-            await this.client!.set(key, value);
-          }
-        };
+        // Fire and forget - don't await
+        this.client
+          .set(key, value, 'EX', expirationInSeconds || 3600)
+          .catch((error) => {
+            console.warn(`Background Redis set failed for key ${key}:`, error);
+            this.recordError('set_failed');
+          });
 
-        const timeoutPromise = new Promise<void>((_, reject) => {
-          setTimeout(
-            () => reject(new Error('Redis set timeout')),
-            this.OPERATION_TIMEOUT,
-          );
-        });
-
-        await Promise.race([setOperation(), timeoutPromise]);
+        // Return immediately after starting the operation
+        return;
       } catch (error) {
         console.warn(`Redis set failed for key ${key}:`, error);
         this.recordError('set_failed');
         // Continue without failing - memory cache is already updated
       }
-    }, 'set');
+    }
   }
 
   async getWithSWR<T>(

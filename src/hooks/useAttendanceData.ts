@@ -726,19 +726,58 @@ export function useAttendanceData({
     async (
       statusUrl: string,
       requestId: string,
-      maxAttempts = 10, // Reduced from 15 to fail faster
-      maxTotalWaitTime = 20000, // 20 seconds maximum
+      maxAttempts = 10,
+      maxTotalWaitTime = 20000,
     ): Promise<ProcessingResult> => {
       const startTime = Date.now();
-      let pollInterval = 800; // Start with 800ms
+      let pollInterval = 800;
       let consecutiveErrors = 0;
       let failedWithError = false;
+      // Track debug info internally
+      const debugInfo = {
+        attempts: 0,
+        errors: 0,
+        totalTime: 0,
+        statusHistory: [] as string[],
+      };
+
+      // Log polling start with debug info
+      console.log(`Starting intelligent polling for request ${requestId}`, {
+        maxAttempts,
+        maxTotalWaitTime,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Immediately try to clear cache before starting polling
+      try {
+        console.log('Pre-emptively clearing cache before polling');
+        await axios.post('/api/attendance/clear-cache', {
+          employeeId,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Failed initial cache clear:', e);
+      }
 
       for (let i = 0; i < maxAttempts; i++) {
-        // Check total wait time
-        if (Date.now() - startTime > maxTotalWaitTime) {
-          console.warn(`Polling timeout exceeded for ${requestId}`);
-          break; // Exit the loop and try the fallback approach
+        debugInfo.attempts = i + 1;
+
+        // Track elapsed time and potentially bail out early
+        const elapsedTime = Date.now() - startTime;
+        debugInfo.totalTime = elapsedTime;
+
+        // Check total wait time earlier in the loop
+        if (elapsedTime > maxTotalWaitTime * 0.75) {
+          console.warn(
+            `Polling approaching timeout for ${requestId}, attempting early recovery`,
+            {
+              elapsedTime,
+              maxTotalWaitTime,
+              attempts: i + 1,
+            },
+          );
+          // Try early recovery rather than continuing to poll
+          break;
         }
 
         // Wait for the current poll interval
@@ -746,7 +785,7 @@ export function useAttendanceData({
 
         try {
           console.log(
-            `Polling for status: ${requestId} (attempt ${i + 1}/${maxAttempts})`,
+            `Polling for status: ${requestId} (attempt ${i + 1}/${maxAttempts}, elapsed: ${elapsedTime}ms)`,
           );
 
           // Add timeout handling for the status check
@@ -756,7 +795,17 @@ export function useAttendanceData({
             validateStatus: function (status) {
               return status < 500; // Don't throw for 5xx errors
             },
+            // Add request ID to headers for tracing
+            headers: {
+              'x-polling-request-id': requestId,
+              'x-poll-attempt': i + 1,
+            },
           });
+
+          // Track status in history
+          if (response.data?.status) {
+            debugInfo.statusHistory.push(response.data.status);
+          }
 
           // Check for server errors
           if (response.status >= 500) {
@@ -764,6 +813,7 @@ export function useAttendanceData({
               `Server error (${response.status}) while polling for status`,
             );
             consecutiveErrors++;
+            debugInfo.errors++;
 
             if (consecutiveErrors >= 2) {
               // If we get multiple server errors, try to recover by refreshing
@@ -788,6 +838,14 @@ export function useAttendanceData({
                 timestamp: new Date().toISOString(),
                 requestId: requestId,
                 data: createMinimalData(),
+                metadata: {
+                  source: 'system',
+                  recoveryInfo: {
+                    type: 'server_error_recovery',
+                    attempts: debugInfo.attempts,
+                    errors: debugInfo.errors,
+                  },
+                },
               };
             }
 
@@ -813,8 +871,55 @@ export function useAttendanceData({
 
           // Check if complete or failed
           if (response.data.status === 'completed' && response.data.data) {
-            console.log(`Polling complete: ${requestId} - success`);
-            return response.data.data;
+            console.log(`Polling complete: ${requestId} - success`, {
+              elapsedTime: Date.now() - startTime,
+              attempts: i + 1,
+            });
+
+            // Check if the data conforms to ProcessingResult
+            if (
+              typeof response.data.data === 'object' &&
+              response.data.data.success !== undefined &&
+              response.data.data.timestamp !== undefined &&
+              response.data.data.data !== undefined
+            ) {
+              // Add recovery info to existing metadata
+              if (response.data.data.metadata) {
+                response.data.data.metadata.pollInfo = {
+                  attempts: debugInfo.attempts,
+                  errors: debugInfo.errors,
+                  elapsedTime: Date.now() - startTime,
+                };
+              } else {
+                response.data.data.metadata = {
+                  source: 'system',
+                  pollInfo: {
+                    attempts: debugInfo.attempts,
+                    errors: debugInfo.errors,
+                    elapsedTime: Date.now() - startTime,
+                  },
+                };
+              }
+
+              return response.data.data;
+            }
+
+            // If not, construct a valid ProcessingResult
+            return {
+              success: true,
+              timestamp: new Date().toISOString(),
+              requestId: requestId,
+              data: response.data.data,
+              metadata: {
+                source: 'system',
+                pollInfo: {
+                  type: 'successful_polling',
+                  attempts: debugInfo.attempts,
+                  errors: debugInfo.errors,
+                  elapsedTime: Date.now() - startTime,
+                },
+              },
+            };
           }
 
           if (response.data.status === 'failed') {
@@ -848,6 +953,15 @@ export function useAttendanceData({
                 timestamp: new Date().toISOString(),
                 requestId: requestId,
                 data: createMinimalData(),
+                metadata: {
+                  source: 'system',
+                  recoveryInfo: {
+                    type: 'failed_status_recovery',
+                    error: response.data.error,
+                    attempts: debugInfo.attempts,
+                    errors: debugInfo.errors,
+                  },
+                },
               };
             } catch (refreshError) {
               console.warn('Error during refresh recovery:', refreshError);
@@ -887,6 +1001,14 @@ export function useAttendanceData({
               timestamp: new Date().toISOString(),
               requestId: requestId,
               data: createMinimalData(),
+              metadata: {
+                source: 'system',
+                recoveryInfo: {
+                  type: 'initialization_error',
+                  attempts: debugInfo.attempts,
+                  errors: debugInfo.errors,
+                },
+              },
             };
           }
 
@@ -923,6 +1045,14 @@ export function useAttendanceData({
                 timestamp: new Date().toISOString(),
                 requestId: requestId,
                 data: createMinimalData(),
+                metadata: {
+                  source: 'system',
+                  recoveryInfo: {
+                    type: 'processing_with_stop_polling',
+                    attempts: debugInfo.attempts,
+                    errors: debugInfo.errors,
+                  },
+                },
               };
             }
 
@@ -942,6 +1072,15 @@ export function useAttendanceData({
                 timestamp: new Date().toISOString(),
                 requestId: requestId,
                 data: createMinimalData(),
+                metadata: {
+                  source: 'system',
+                  recoveryInfo: {
+                    type: 'unexpected_status',
+                    status: response.data.status,
+                    attempts: debugInfo.attempts,
+                    errors: debugInfo.errors,
+                  },
+                },
               };
             }
           }
@@ -951,8 +1090,9 @@ export function useAttendanceData({
             `Status is still ${response.data.status}, continuing to poll`,
           );
 
-          // If the task has been pending/processing for too long, we should bail out
-          if (response.data.age > 15000 && i >= maxAttempts / 2) {
+          // More aggressive timeout for stuck tasks
+          if (response.data.age > 10000 && i >= maxAttempts / 3) {
+            // Reduced from 15000 and maxAttempts/2
             console.warn(
               `Task ${requestId} has been ${response.data.status} for too long (${response.data.age}ms)`,
             );
@@ -961,6 +1101,7 @@ export function useAttendanceData({
         } catch (error) {
           console.error(`Polling error for request ${requestId}:`, error);
           consecutiveErrors++;
+          debugInfo.errors++;
 
           // Check if this is a server error (500)
           const isServerError =
@@ -989,6 +1130,14 @@ export function useAttendanceData({
                 timestamp: new Date().toISOString(),
                 requestId: requestId,
                 data: createMinimalData(),
+                metadata: {
+                  source: 'system',
+                  recoveryInfo: {
+                    type: 'server_error_recovery',
+                    attempts: debugInfo.attempts,
+                    errors: debugInfo.errors,
+                  },
+                },
               };
             } catch (refreshError) {
               console.error(
@@ -1013,7 +1162,11 @@ export function useAttendanceData({
       }
 
       // If we've exhausted all polling attempts, try to recover
-      console.warn(`Polling exhausted for ${requestId}, trying to recover...`);
+      console.warn(`Polling exhausted for ${requestId}, trying to recover...`, {
+        attempts: debugInfo.attempts,
+        errors: debugInfo.errors,
+        totalTime: Date.now() - startTime,
+      });
 
       // CRITICAL FIX: Clear cache before refreshing status
       try {
@@ -1030,12 +1183,29 @@ export function useAttendanceData({
       try {
         await refreshAttendanceStatus();
 
+        // Log final outcome
+        console.log(
+          `Recovery complete for ${requestId} - refreshed attendance status`,
+          {
+            finalTime: Date.now() - startTime,
+          },
+        );
+
         return {
           success: true,
           message: 'Operation likely completed, attendance refreshed',
           timestamp: new Date().toISOString(),
           requestId: requestId,
           data: createMinimalData(),
+          metadata: {
+            source: 'system',
+            recoveryInfo: {
+              type: 'exhausted_polling',
+              attempts: debugInfo.attempts,
+              errors: debugInfo.errors,
+              totalTime: Date.now() - startTime,
+            },
+          },
         };
       } catch (fallbackError) {
         // ADDITIONAL FALLBACK: Try one more time with cache-busting
@@ -1049,6 +1219,15 @@ export function useAttendanceData({
             timestamp: new Date().toISOString(),
             requestId: requestId,
             data: createMinimalData(),
+            metadata: {
+              source: 'system',
+              recoveryInfo: {
+                type: 'forced_refresh',
+                attempts: debugInfo.attempts,
+                errors: debugInfo.errors,
+                totalTime: Date.now() - startTime,
+              },
+            },
           };
         } catch (finalError) {
           throw new AppError({

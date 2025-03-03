@@ -13,7 +13,7 @@ let processingFunction:
 export class QueueManager {
   private static instance: QueueManager | null = null;
   private queue!: BetterQueue<ProcessingOptions, QueueResult>;
-  private queueSize: number = 0;
+  public queueSize: number = 0;
   private serviceQueue: ReturnType<typeof getServiceQueue>;
 
   // In-memory request status cache
@@ -283,8 +283,15 @@ export class QueueManager {
 
     console.log(`Enqueueing task with requestId ${task.requestId}`);
 
-    // Set initial status
+    // Set initial status - MAKE SURE THIS HAPPENS FIRST
     this.setRequestStatus(task.requestId, 'pending');
+    console.log(
+      `Status for ${task.requestId} set to 'pending' before queue push`,
+    );
+
+    // Verify the status was set correctly - add this debug check
+    const statusCheck = this.requestStatusMap.get(task.requestId);
+    console.log(`Immediate status check: ${JSON.stringify(statusCheck)}`);
 
     return new Promise<QueueResult>((resolve, reject) => {
       this.queue.push(task, (error, result) => {

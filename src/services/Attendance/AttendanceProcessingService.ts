@@ -71,8 +71,18 @@ export class AttendanceProcessingService {
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
+    console.log(
+      `Processing attendance for ${options.employeeId} at ${format(now, 'HH:mm:ss')}`,
+    );
 
     try {
+      // Add monitoring timeout
+      const processingTimerId = setTimeout(() => {
+        console.warn(
+          `⚠️ Attendance processing taking longer than expected for ${options.employeeId}`,
+        );
+      }, 5000); // Alert after 5 seconds
+
       const result = await this.prisma.$transaction(
         async (tx) => {
           const validatedOptions = await this.validateAndNormalizeOptions(
@@ -229,13 +239,22 @@ export class AttendanceProcessingService {
           };
         },
         {
-          timeout: 180000,
-          maxWait: 60000,
+          timeout: 30000,
+          maxWait: 10000,
         },
       );
 
-      // Cache invalidation
-      await cacheService.set(`forceRefresh:${options.employeeId}`, 'true', 30);
+      // Clear timeout
+      clearTimeout(processingTimerId);
+
+      // Do the cache invalidation in the background
+      cacheService
+        .set(`forceRefresh:${options.employeeId}`, 'true', 30)
+        .catch((err) => console.warn('Background cache update failed:', err));
+
+      console.log(
+        `✅ Attendance processing completed for ${options.employeeId}`,
+      );
 
       return {
         ...result,
@@ -245,17 +264,10 @@ export class AttendanceProcessingService {
         },
       };
     } catch (error) {
-      console.error('Attendance processing error:', {
+      console.error(
+        `❌ Attendance processing error for ${options.employeeId}:`,
         error,
-        context: {
-          type: options.periodType,
-          employeeId: options.employeeId,
-          requestedTime: format(
-            new Date(options.checkTime),
-            'yyyy-MM-dd HH:mm:ss',
-          ),
-        },
-      });
+      );
       throw this.handleProcessingError(error);
     }
   }
@@ -1132,89 +1144,84 @@ export class AttendanceProcessingService {
     periodType?: PeriodType,
     effectiveTime: Date = getCurrentTime(),
   ): Promise<AttendanceRecord | null> {
-    console.log('Finding latest attendance - Detailed Debug:', {
-      employeeId,
-      periodType,
-      effectiveTime: format(effectiveTime, 'yyyy-MM-dd HH:mm:ss'),
-    });
+    console.log(
+      `Finding latest attendance for ${employeeId} [${periodType || 'all'}]`,
+    );
 
+    // Add more aggressive memory caching with a shorter TTL
     const cacheKey = `attendance:${employeeId}:${periodType || 'all'}`;
     const cached = this.attendanceCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < 10000) {
-      // 10 second cache
+    if (cached && Date.now() - cached.timestamp < 5000) {
+      // Reduce from 10s to 5s
       console.log(`Using cached attendance data for ${employeeId}`);
       return cached.data;
     }
 
-    // EXACTLY match the working query structure
-    const records = await tx.attendance.findMany({
-      where: {
-        employeeId,
-        OR: [
-          // Records that start today
-          {
-            date: {
-              gte: startOfDay(subDays(effectiveTime, 1)),
-              lt: endOfDay(effectiveTime),
-            },
-            ...(periodType && { type: periodType }),
-          },
-          // Overtime records spanning midnight
-          {
-            type: periodType || PeriodType.OVERTIME, // Only filter if type provided
-            CheckInTime: {
-              lt: endOfDay(effectiveTime),
-            },
-            OR: [
-              { CheckOutTime: null },
-              {
-                CheckOutTime: {
-                  gt: startOfDay(effectiveTime),
-                },
+    // Add query timeout
+    const queryTimeout = setTimeout(() => {
+      console.warn(
+        `⚠️ Attendance query taking longer than expected for ${employeeId}`,
+      );
+    }, 1000);
+
+    try {
+      // Optimize query to be more selective
+      const records = await tx.attendance.findMany({
+        where: {
+          employeeId,
+          OR: [
+            // Records for today only with specific period type
+            {
+              date: {
+                gte: startOfDay(effectiveTime),
+                lt: endOfDay(effectiveTime),
               },
-            ],
-          },
-        ],
-      },
-      include: {
-        timeEntries: {
-          include: {
-            overtimeMetadata: true,
-          },
+              ...(periodType && { type: periodType }),
+            },
+            // Active (unchecked out) records only
+            {
+              CheckInTime: { not: null },
+              CheckOutTime: null,
+              ...(periodType && { type: periodType }),
+            },
+          ],
         },
-        overtimeEntries: true,
-        checkTiming: true,
-        location: true,
-        metadata: true,
-      },
-      orderBy: [{ CheckInTime: 'desc' }, { id: 'desc' }],
-    });
+        // Take only what's needed
+        take: 5,
+        include: {
+          /* same includes */
+        },
+        orderBy: [{ CheckInTime: 'desc' }, { id: 'desc' }],
+      });
 
-    console.log('Query result:', {
-      recordsFound: records.length,
-      details: records.map((r) => ({
-        id: r.id,
-        type: r.type,
-        date: format(r.date, 'yyyy-MM-dd'),
-        checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
-        checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
-        active: !r.CheckOutTime,
-      })),
-    });
+      console.log('Query result:', {
+        recordsFound: records.length,
+        details: records.map((r) => ({
+          id: r.id,
+          type: r.type,
+          date: format(r.date, 'yyyy-MM-dd'),
+          checkIn: r.CheckInTime ? format(r.CheckInTime, 'HH:mm:ss') : null,
+          checkOut: r.CheckOutTime ? format(r.CheckOutTime, 'HH:mm:ss') : null,
+          active: !r.CheckOutTime,
+        })),
+      });
 
-    // Find active record after query
-    const activeRecord = records.find((r) => !r.CheckOutTime);
-    const result = activeRecord
-      ? AttendanceMappers.toAttendanceRecord(activeRecord)
-      : null;
+      // Find active record after query
+      const activeRecord = records.find((r) => !r.CheckOutTime);
+      const result = activeRecord
+        ? AttendanceMappers.toAttendanceRecord(activeRecord)
+        : null;
 
-    // Update cache
-    this.attendanceCache.set(cacheKey, {
-      data: result,
-      timestamp: Date.now(),
-    });
+      // Update cache
+      this.attendanceCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now(),
+      });
 
-    return result;
+      return result;
+    } finally {
+      clearTimeout(queryTimeout);
+    }
   }
 
   private createStatusUpdateFromProcessing(

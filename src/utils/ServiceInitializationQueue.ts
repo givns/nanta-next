@@ -43,8 +43,17 @@ export class ServiceInitializationQueue {
   }
 
   async getInitializedServices(): Promise<InitializedServices> {
-    // Return cached services if available
-    if (this.initialized && this.services) {
+    console.log(
+      `Service initialization state check: initialized=${this.initialized}, hasServices=${!!this.services}, hasPromise=${!!this.initializationPromise}`,
+    );
+
+    // Return cached services if available - add more robust checking
+    if (
+      this.initialized &&
+      this.services &&
+      Object.keys(this.services).length > 0
+    ) {
+      console.log('Using cached service instances');
       return this.services;
     }
 
@@ -198,9 +207,11 @@ export class ServiceInitializationQueue {
   }
 }
 
-// Export a direct function to get the instance
 export function getServiceQueue(
   prisma?: PrismaClient,
 ): ServiceInitializationQueue {
+  if (instanceRef) {
+    console.log('Returning existing ServiceInitializationQueue instance');
+  }
   return ServiceInitializationQueue.getInstance(prisma);
 }
