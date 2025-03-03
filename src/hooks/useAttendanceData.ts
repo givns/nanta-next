@@ -828,6 +828,49 @@ export function useAttendanceData({
             },
           });
 
+          // Special handling for timeout errors
+          if (
+            response.data.status === 'failed' &&
+            (response.data.error?.includes('timeout') ||
+              response.data.error?.includes('timed out'))
+          ) {
+            console.warn(
+              `Detected timeout error, attempting recovery for ${requestId}`,
+            );
+
+            // Clear cache first
+            try {
+              console.log('Clearing cache after timeout error');
+              await axios.post('/api/attendance/clear-cache', {
+                employeeId,
+                timestamp: new Date().toISOString(),
+              });
+            } catch (clearCacheError) {
+              console.warn('Failed to clear server cache:', clearCacheError);
+            }
+
+            // Wait a moment for any background processing to complete
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // Force a refresh
+            await refreshAttendanceStatus();
+
+            return {
+              success: true,
+              message: 'Recovered from timeout error',
+              timestamp: new Date().toISOString(),
+              requestId: requestId,
+              data: createMinimalData(),
+              metadata: {
+                source: 'system',
+                recoveryInfo: {
+                  type: 'timeout_recovery',
+                  originalError: response.data.error,
+                },
+              },
+            };
+          }
+
           // Track status in history
           if (response.data?.status) {
             debugInfo.statusHistory.push(response.data.status);

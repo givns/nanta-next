@@ -74,46 +74,60 @@ export class QueueManager {
           // Update status to processing immediately
           this.setRequestStatus(task.requestId!, 'processing');
 
-          // Skip lock acquisition for simplicity - was causing issues
-
           // Get processing function - either from global ref or use direct import
           const processFn = processingFunction;
           if (!processFn) {
             throw new Error('Processing function not initialized');
           }
 
-          // CRITICAL CHANGE: Use absolute timeout of 10 seconds for processing
-          // This will prevent tasks from hanging indefinitely
-          const processingPromise = processFn(task);
+          // Add aggressive progress tracking
+          const progressLogger = setInterval(() => {
+            console.log(
+              `[PROGRESS] Task ${task.requestId} still processing...`,
+            );
+          }, 5000);
 
-          // Add a safety timeout that will forcibly resolve
-          const timeoutPromise = new Promise<QueueResult>((_, reject) => {
-            setTimeout(() => {
-              const error = new Error('Queue worker timeout after 10 seconds');
-              console.error(`Task ${task.requestId} timed out in queue worker`);
+          try {
+            // CRITICAL CHANGE: Use absolute timeout of 20 seconds for processing
+            const processingPromise = processFn(task);
 
-              // Also update status to failed
-              this.setRequestStatus(task.requestId!, 'failed', {
-                error: error.message,
-                timestamp: new Date().toISOString(),
-              });
+            // Add a safety timeout that will forcibly resolve
+            const timeoutPromise = new Promise<QueueResult>((_, reject) => {
+              setTimeout(() => {
+                const error = new Error(
+                  'Queue worker timeout after 20 seconds',
+                );
+                console.error(
+                  `Task ${task.requestId} timed out in queue worker`,
+                );
 
-              reject(error);
-            }, 10000); // 10 second hard timeout
-          });
+                // Also update status to failed
+                this.setRequestStatus(task.requestId!, 'failed', {
+                  error: error.message,
+                  timestamp: new Date().toISOString(),
+                });
 
-          // Race between processing and timeout
-          const result = await Promise.race([
-            processingPromise,
-            timeoutPromise,
-          ]);
+                reject(error);
+              }, 20000); // 20 second hard timeout (increased from 10)
+            });
 
-          // If we reach here, processing succeeded
-          console.log(`Task ${task.requestId} completed successfully`);
-          this.setRequestStatus(task.requestId!, 'completed', result);
+            // Race between processing and timeout
+            const result = await Promise.race([
+              processingPromise,
+              timeoutPromise,
+            ]);
 
-          this.queueSize = Math.max(0, this.queueSize - 1);
-          cb(null, result);
+            // If we reach here, processing succeeded
+            console.log(`Task ${task.requestId} completed successfully`);
+            this.setRequestStatus(task.requestId!, 'completed', result);
+
+            this.queueSize = Math.max(0, this.queueSize - 1);
+            clearInterval(progressLogger);
+            cb(null, result);
+          } catch (error) {
+            clearInterval(progressLogger);
+            throw error;
+          }
         } catch (error) {
           // Improved error handling
           console.error(
@@ -145,7 +159,7 @@ export class QueueManager {
       {
         concurrent: 1,
         maxRetries: 0, // Don't retry failed tasks at all
-        maxTimeout: 15000, // 15 seconds max total timeout
+        maxTimeout: 25000, // 25 seconds max total timeout
         store: new MemoryStore(),
       },
     );

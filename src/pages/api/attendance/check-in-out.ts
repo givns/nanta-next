@@ -245,8 +245,18 @@ function isValidPreCalculatedStatus(status: any): boolean {
 
 // Main Processing Function
 export async function processCheckInOut(
-  task: ProcessingOptions,
+  originalTask: ProcessingOptions & {
+    preCalculatedStatusString?: string;
+  },
 ): Promise<QueueResult> {
+  // Restore preCalculatedStatus from string if available
+  const task = {
+    ...originalTask,
+    preCalculatedStatus: originalTask.preCalculatedStatusString
+      ? JSON.parse(originalTask.preCalculatedStatusString)
+      : originalTask.preCalculatedStatus,
+  };
+
   const serverTime = getCurrentTime();
   if (isNaN(serverTime.getTime())) {
     console.error('Invalid server time:', serverTime);
@@ -267,6 +277,7 @@ export async function processCheckInOut(
     preCalculatedStatusKeys: task.preCalculatedStatus
       ? Object.keys(task.preCalculatedStatus)
       : [],
+    fromStringified: !!originalTask.preCalculatedStatusString,
   });
 
   const startTime = performance.now();
@@ -287,6 +298,7 @@ export async function processCheckInOut(
       console.log('Using pre-calculated status from client', {
         base: task.preCalculatedStatus.base?.state,
         daily: task.preCalculatedStatus.daily?.currentState?.type,
+        lastUpdated: task.preCalculatedStatus.base?.metadata?.lastUpdated,
       });
       currentStatus = task.preCalculatedStatus;
     } else {
@@ -304,7 +316,7 @@ export async function processCheckInOut(
       // Fallback to getting fresh status
       console.log('Getting fresh status from server');
       currentStatus = await getStatusWithCache(
-        attendanceService, // Now this is correctly coming from services
+        attendanceService,
         task.employeeId!,
         {
           inPremises: true,
@@ -315,11 +327,11 @@ export async function processCheckInOut(
     }
 
     console.log('Current status flags for check-in/out:', {
-      isEarlyCheckIn: currentStatus.validation.flags.isEarlyCheckIn,
-      isLateCheckIn: currentStatus.validation.flags.isLateCheckIn,
-      isCheckingIn: currentStatus.base.isCheckingIn,
-      state: currentStatus.base.state,
-      transitions: currentStatus.daily.transitions.length,
+      isEarlyCheckIn: currentStatus.validation.flags?.isEarlyCheckIn,
+      isLateCheckIn: currentStatus.validation.flags?.isLateCheckIn,
+      isCheckingIn: currentStatus.base?.isCheckingIn,
+      state: currentStatus.base?.state,
+      transitions: currentStatus.daily?.transitions?.length || 0,
     });
 
     // Check if auto-completion needed based on current status
@@ -346,7 +358,7 @@ export async function processCheckInOut(
         overtimeEnd: activeAttendance?.shiftEndTime,
         transitions: currentStatus.daily.transitions.length,
         hasPendingTransition:
-          currentStatus.validation.flags.hasPendingTransition,
+          currentStatus.validation.flags?.hasPendingTransition,
         nextPeriodType: currentStatus.context.nextPeriod?.type,
       });
 
@@ -503,6 +515,7 @@ function isRecentStatus(
 }
 
 // Main API Handler
+// Main API Handler
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -524,9 +537,16 @@ export default async function handler(
     // Apply rate limiting
     await rateLimitMiddleware(req);
 
+    // Limit incoming request body size in logs to avoid overload
+    const safeBody = { ...req.body };
+    if (safeBody.preCalculatedStatus) {
+      const keys = Object.keys(safeBody.preCalculatedStatus);
+      safeBody.preCalculatedStatus = `[Object with keys: ${keys.join(', ')}]`;
+    }
+
     console.log('Incoming request:', {
       requestId,
-      body: req.body,
+      body: safeBody,
     });
 
     // Validate request data
@@ -548,10 +568,16 @@ export default async function handler(
     // Skip synchronous processing attempt - always queue
     console.log(`Directly queueing task ${requestId}`);
 
-    // Prepare task for queue
+    // Prepare task for queue - Stringify preCalculatedStatus for better serialization
     const taskData = {
       ...validatedData,
       requestId,
+      // Stringify preCalculatedStatus if it exists
+      preCalculatedStatusString: validatedData.preCalculatedStatus
+        ? JSON.stringify(validatedData.preCalculatedStatus)
+        : undefined,
+      // Delete the original complex object to avoid serialization issues
+      preCalculatedStatus: undefined,
     };
 
     // Get queue manager

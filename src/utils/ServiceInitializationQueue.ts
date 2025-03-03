@@ -38,18 +38,30 @@ export class ServiceInitializationQueue {
 
       console.log('Creating new ServiceInitializationQueue instance');
       instanceRef = new ServiceInitializationQueue(prismaRef!);
+    } else {
+      // Force reuse by ensuring initialized state
+      if (
+        instanceRef.services &&
+        Object.keys(instanceRef.services).length > 0
+      ) {
+        instanceRef.initialized = true;
+        console.log('Restoring initialized service instance state');
+      }
     }
     return instanceRef;
   }
 
+  // Also update getInitializedServices to be more robust
   async getInitializedServices(): Promise<InitializedServices> {
+    // Add extensive logging
     console.log(`Service initialization state detailed check:`, {
       initialized: this.initialized,
       hasServices: !!this.services,
+      hasServicesKeys: this.services ? Object.keys(this.services).length : 0,
       hasPromise: !!this.initializationPromise,
-      servicesKeys: this.services ? Object.keys(this.services) : [],
     });
 
+    // Return cached services if available - add more robust checking
     if (
       this.initialized &&
       this.services &&
