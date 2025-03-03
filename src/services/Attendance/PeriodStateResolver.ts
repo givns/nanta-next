@@ -281,34 +281,33 @@ export class PeriodStateResolver {
     attendance: AttendanceRecord | null,
     now: Date,
     flags: ValidationFlags,
-    transitions?: PeriodTransition[]
-
+    transitions?: PeriodTransition[],
   ): string {
     console.log('Getting validation message with flags:', flags);
 
-      // Check if this is a transition to overtime
-  const isTransitionToOvertime = 
-  transitions?.some(t => t.to.type === PeriodType.OVERTIME) || 
-  (currentState.validation.isConnected && statusInfo.isActiveAttendance);
+    // Check if this is a transition to overtime
+    const isTransitionToOvertime =
+      transitions?.some((t) => t.to.type === PeriodType.OVERTIME) ||
+      (currentState.validation.isConnected && statusInfo.isActiveAttendance);
 
-// Handle transition to overtime scenario
-if (isTransitionToOvertime && statusInfo.isActiveAttendance) {
-  return 'ออกงานปกติและเริ่มงานล่วงเวลาทันที'; // Check out regular and start overtime immediately
-}
+    // Handle transition to overtime scenario
+    if (isTransitionToOvertime && statusInfo.isActiveAttendance) {
+      return 'ออกงานปกติและเริ่มงานล่วงเวลาทันที'; // Check out regular and start overtime immediately
+    }
 
     if (flags.isDayOff) {
       return 'วันหยุด';
     }
 
-     // Early checkout message - Add this!
-  if (flags.isEarlyCheckOut && !flags.isApprovedEarlyCheckout) {
-    const minutesEarly = differenceInMinutes(
-      parseISO(currentState.timeWindow.end), 
-      now
-    );
-    return `ยังไม่ถึงเวลาเลิกงาน กรุณารออีก ${minutesEarly} นาที`; // Too early to check out, please wait X minutes
-  }
-  
+    // Early checkout message - Add this!
+    if (flags.isEarlyCheckOut && !flags.isApprovedEarlyCheckout) {
+      const minutesEarly = differenceInMinutes(
+        parseISO(currentState.timeWindow.end),
+        now,
+      );
+      return `ยังไม่ถึงเวลาเลิกงาน กรุณารออีก ${minutesEarly} นาที`; // Too early to check out, please wait X minutes
+    }
+
     // Overnight periods
     if (currentState.validation.isOvernight) {
       return 'อยู่ในช่วงเวลาทำงานข้ามวัน';
@@ -500,12 +499,16 @@ if (isTransitionToOvertime && statusInfo.isActiveAttendance) {
       attendance,
       context.timestamp,
       flags,
-      transitionInfo.isInTransition ? [{
-        from: { type: currentState.type, periodIndex: 0 },
-        to: { type: transitionInfo.targetPeriod, periodIndex: 1 },
-        transitionTime: "", 
-        isComplete: false
-      }] : []
+      transitionInfo.isInTransition
+        ? [
+            {
+              from: { type: currentState.type, periodIndex: 0 },
+              to: { type: transitionInfo.targetPeriod, periodIndex: 1 },
+              transitionTime: '',
+              isComplete: false,
+            },
+          ]
+        : [],
     );
 
     console.log('Validation reason:', reason);

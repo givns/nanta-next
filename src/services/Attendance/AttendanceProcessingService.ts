@@ -656,7 +656,7 @@ export class AttendanceProcessingService {
         periodState.current.start &&
         periodState.current.start.includes('T')
       ) {
-        shiftStart = parseISO(periodState.current.start);
+        shiftStart = parseISO(periodState.shift.startTime);
       } else {
         // Build a proper ISO date string using today's date and shift time
         const timeString = periodState.shift.startTime || '08:00';
