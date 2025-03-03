@@ -675,7 +675,7 @@ export class AttendanceProcessingService {
         currentStart: periodState.current?.start,
       });
       // Fallback to 8:00 AM today
-      shiftStart = set(startOfDay(now), { hours: 8 });
+      shiftStart = set(startOfDay(now), { hours: 9 });
       console.log(
         'Using fallback shift start time:',
         format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
