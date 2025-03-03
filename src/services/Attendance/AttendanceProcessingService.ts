@@ -723,7 +723,7 @@ export class AttendanceProcessingService {
         periodState.current.end &&
         periodState.current.end.includes('T')
       ) {
-        shiftEnd = parseISO(periodState.current.end);
+        shiftEnd = parseISO(periodState.shift.endTime);
       } else {
         const timeString = periodState.shift.endTime || '17:00';
         const fullDateString = `${today}T${timeString}:00`;
