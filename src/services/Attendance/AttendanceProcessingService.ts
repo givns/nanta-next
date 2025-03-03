@@ -647,39 +647,71 @@ export class AttendanceProcessingService {
     // Calculate timing details
     const today = format(now, 'yyyy-MM-dd');
 
-    // Properly parse shift start time
+    // Safely parse the shift times
     let shiftStart: Date;
+    let shiftEnd: Date;
+
     try {
-      // First try to extract from period state if it's a complete ISO string
-      if (
-        periodState.current &&
-        periodState.current.start &&
-        periodState.current.start.includes('T')
-      ) {
-        shiftStart = parseISO(periodState.shift.startTime);
-      } else {
-        // Build a proper ISO date string using today's date and shift time
-        const timeString = periodState.shift.startTime || '08:00';
-        const fullDateString = `${today}T${timeString}:00`;
-        shiftStart = parseISO(fullDateString);
+      // IMPORTANT: Always use the actual shift times, not the window/period times
+      const shiftStartTime = periodState.shift.startTime;
+      const shiftEndTime = periodState.shift.endTime;
+
+      if (!shiftStartTime || !shiftEndTime) {
+        throw new Error('Missing shift times');
       }
 
-      // Validate date is valid
-      if (isNaN(shiftStart.getTime())) {
-        throw new Error('Invalid shift start time after parsing');
+      // Safely parse with proper format
+      shiftStart = parseISO(`${today}T${shiftStartTime}:00`);
+      shiftEnd = parseISO(`${today}T${shiftEndTime}:00`);
+
+      // Handle overnight shifts
+      if (shiftEndTime < shiftStartTime) {
+        shiftEnd = addDays(shiftEnd, 1);
       }
-    } catch (error) {
-      console.error('Error parsing shift start time:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        startTimeValue: periodState.shift.startTime,
-        currentStart: periodState.current?.start,
+
+      // Validate parsed dates
+      if (isNaN(shiftStart.getTime()) || isNaN(shiftEnd.getTime())) {
+        throw new Error('Invalid shift times after parsing');
+      }
+
+      console.log('Successfully parsed shift times:', {
+        start: format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+        end: format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
       });
-      // Fallback to 8:00 AM today
-      shiftStart = set(startOfDay(now), { hours: 9 });
-      console.log(
-        'Using fallback shift start time:',
-        format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+    } catch (error) {
+      console.error('Error parsing shift times:', error);
+
+      // FIXED: Use more sensible fallbacks based on the hour specified in the string
+      const fallbackStartHour = parseInt(
+        periodState.shift.startTime.split(':')[0],
+        10,
       );
+      const fallbackEndHour = parseInt(
+        periodState.shift.endTime.split(':')[0],
+        10,
+      );
+
+      // Use default of 8 AM if parsing fails completely
+      shiftStart = set(startOfDay(now), {
+        hours: isNaN(fallbackStartHour) ? 8 : fallbackStartHour,
+        minutes: 0,
+      });
+
+      // Use default of 5 PM if parsing fails completely
+      shiftEnd = set(startOfDay(now), {
+        hours: isNaN(fallbackEndHour) ? 17 : fallbackEndHour,
+        minutes: 0,
+      });
+
+      // Handle overnight
+      if (fallbackEndHour < fallbackStartHour) {
+        shiftEnd = addDays(shiftEnd, 1);
+      }
+
+      console.log('Using fallback shift times:', {
+        start: format(shiftStart, 'yyyy-MM-dd HH:mm:ss'),
+        end: format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
+      });
     }
 
     const earlyWindow = subMinutes(
@@ -714,44 +746,6 @@ export class AttendanceProcessingService {
     });
 
     const nextSequence = latestRecord ? latestRecord.periodSequence + 1 : 1;
-
-    // Parse shift end time
-    let shiftEnd: Date;
-    try {
-      if (
-        periodState.current &&
-        periodState.current.end &&
-        periodState.current.end.includes('T')
-      ) {
-        shiftEnd = parseISO(periodState.shift.endTime);
-      } else {
-        const timeString = periodState.shift.endTime || '17:00';
-        const fullDateString = `${today}T${timeString}:00`;
-        shiftEnd = parseISO(fullDateString);
-      }
-
-      // Validate date
-      if (isNaN(shiftEnd.getTime())) {
-        throw new Error('Invalid shift end time after parsing');
-      }
-
-      // Handle overnight shifts
-      if (shiftEnd < shiftStart) {
-        shiftEnd = addDays(shiftEnd, 1);
-      }
-    } catch (error) {
-      console.error('Error parsing shift end time:', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        endTimeValue: periodState.shift.endTime,
-        currentEnd: periodState.current?.end,
-      });
-      // Fallback to 8 hours after the start time
-      shiftEnd = addHours(shiftStart, 8);
-      console.log(
-        'Using fallback shift end time:',
-        format(shiftEnd, 'yyyy-MM-dd HH:mm:ss'),
-      );
-    }
 
     // Create attendance record
     const attendance = await tx.attendance.create({
