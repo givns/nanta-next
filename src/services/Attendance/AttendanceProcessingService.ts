@@ -20,6 +20,7 @@ import {
   ValidationContext,
   ATTENDANCE_CONSTANTS,
   PeriodState,
+  ValidationResult,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import {
@@ -65,24 +66,13 @@ export class AttendanceProcessingService {
   /**
    * Main entry point for processing attendance
    */
-  // In AttendanceProcessingService.ts
 
   async processAttendance(
     options: ProcessingOptions,
   ): Promise<ProcessingResult> {
     const now = getCurrentTime();
-    console.log(
-      `Processing attendance for ${options.employeeId} at ${format(now, 'HH:mm:ss')}`,
-    );
 
     try {
-      // Add monitoring timeout
-      const processingTimerId = setTimeout(() => {
-        console.warn(
-          `⚠️ Attendance processing taking longer than expected for ${options.employeeId}`,
-        );
-      }, 5000); // Alert after 5 seconds
-
       const result = await this.prisma.$transaction(
         async (tx) => {
           const validatedOptions = await this.validateAndNormalizeOptions(
@@ -98,6 +88,7 @@ export class AttendanceProcessingService {
             ),
             serverTime: format(now, 'yyyy-MM-dd HH:mm:ss'),
             activity: validatedOptions.activity,
+            hasPreCalculatedStatus: !!options.preCalculatedStatus,
           });
 
           const currentRecord = await this.getLatestAttendance(
@@ -107,37 +98,92 @@ export class AttendanceProcessingService {
             new Date(validatedOptions.checkTime),
           );
 
-          console.log('Current record state:', {
-            found: !!currentRecord,
-            details: currentRecord
-              ? {
-                  id: currentRecord.id,
-                  type: currentRecord.type,
-                  checkIn: format(currentRecord.CheckInTime!, 'HH:mm:ss'),
-                  checkOut: currentRecord.CheckOutTime,
-                  isOvertime: currentRecord.type === PeriodType.OVERTIME,
-                }
-              : null,
-          });
+          // Get effective shift - either from pre-calculated status or from service
+          let shiftData;
+          let periodState;
 
-          // Get effective shift
-          const shiftData = await this.shiftService.getEffectiveShift(
-            options.employeeId,
-            now,
-          );
-          if (!shiftData) {
-            throw new AppError({
-              code: ErrorCode.SHIFT_DATA_ERROR,
-              message: 'Shift configuration not found',
+          if (options.preCalculatedStatus) {
+            // Extract shift data from pre-calculated status
+            shiftData = {
+              current: options.preCalculatedStatus.context.shift,
+              isAdjusted:
+                options.preCalculatedStatus.context.schedule.isAdjusted,
+            };
+
+            // Extract period state from pre-calculated status
+            const currentState = options.preCalculatedStatus.daily.currentState;
+
+            // Create a proper ValidationResult object to match PeriodState.validation
+            const validationResult: ValidationResult = {
+              isValid: options.preCalculatedStatus.validation.allowed,
+              state: options.preCalculatedStatus.base.state,
+              errors: options.preCalculatedStatus.validation.errors || [],
+              warnings: options.preCalculatedStatus.validation.warnings || [],
+              checkInAllowed:
+                options.preCalculatedStatus.validation.flags?.isCheckingIn ||
+                false,
+              checkOutAllowed:
+                options.preCalculatedStatus.validation.flags?.hasActivePeriod ||
+                false,
+              overtimeAllowed:
+                options.preCalculatedStatus.validation.flags?.isOvertime ||
+                false,
+              metadata: {
+                lastValidated: now,
+                validatedBy: 'system',
+                rules: ['TIME_WINDOW', 'ATTENDANCE_STATE', 'TRANSITION'],
+              },
+            };
+
+            // Create a proper PeriodState object
+            periodState = {
+              current: {
+                type: currentState.type,
+                timeWindow: {
+                  start: currentState.timeWindow.start,
+                  end: currentState.timeWindow.end,
+                },
+                activity: currentState.activity,
+                validation: currentState.validation,
+              },
+              transitions: options.preCalculatedStatus.daily.transitions || [],
+              overtime:
+                options.preCalculatedStatus.context.nextPeriod?.overtimeInfo,
+              validation: validationResult,
+            };
+
+            console.log('Using period state from pre-calculated status:', {
+              type: periodState.current.type,
+              transitions: periodState.transitions.length,
+              hasOvertime: !!periodState.overtime,
+            });
+          } else {
+            // Get shift data and period state the original way
+            shiftData = await this.shiftService.getEffectiveShift(
+              options.employeeId,
+              now,
+            );
+
+            if (!shiftData) {
+              throw new AppError({
+                code: ErrorCode.SHIFT_DATA_ERROR,
+                message: 'Shift configuration not found',
+              });
+            }
+
+            // Get period state from manager
+            periodState = await this.periodManager.getCurrentPeriodState(
+              options.employeeId,
+              currentRecord ? [currentRecord] : [],
+              now,
+            );
+
+            console.log('Calculated new period state:', {
+              type: periodState.current.type,
+              transitions: periodState.transitions.length,
+              hasOvertime: !!periodState.overtime,
             });
           }
-
-          // Get period state from manager
-          const periodState = await this.periodManager.getCurrentPeriodState(
-            options.employeeId,
-            currentRecord ? [currentRecord] : [],
-            now,
-          );
 
           // Transform to window response
           const windowResponse: ShiftWindowResponse = {
@@ -217,7 +263,7 @@ export class AttendanceProcessingService {
               now,
             ),
             validatedOptions,
-            periodState,
+            periodState as PeriodState,
           );
 
           return {
@@ -244,13 +290,8 @@ export class AttendanceProcessingService {
         },
       );
 
-      // Clear timeout
-      clearTimeout(processingTimerId);
-
       // Do the cache invalidation in the background
-      cacheService
-        .set(`forceRefresh:${options.employeeId}`, 'true', 30)
-        .catch((err) => console.warn('Background cache update failed:', err));
+      await cacheService.set(`forceRefresh:${options.employeeId}`, 'true', 30);
 
       console.log(
         `✅ Attendance processing completed for ${options.employeeId}`,
@@ -509,6 +550,7 @@ export class AttendanceProcessingService {
     };
   }
 
+  // services/Attendance/AttendanceProcessingService.ts
   private async validateAndNormalizeOptions(
     options: ProcessingOptions,
     tx: Prisma.TransactionClient,
@@ -534,10 +576,13 @@ export class AttendanceProcessingService {
           }
         : null,
       overtimeMissed: options.activity.overtimeMissed,
+      hasPreCalculatedStatus: !!options.preCalculatedStatus,
     });
 
-    // Check if auto-completion needed
-    const shouldAutoComplete = this.shouldAutoComplete(options, currentRecord);
+    // Check if auto-completion needed - leverage pre-calculated status if available
+    const shouldAutoComplete = options.preCalculatedStatus
+      ? Boolean(options.activity.overtimeMissed) // Trust the flag if status was pre-calculated
+      : this.shouldAutoComplete(options, currentRecord);
 
     console.log('Auto-completion check:', {
       shouldAutoComplete,

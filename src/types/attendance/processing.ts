@@ -10,7 +10,11 @@ import {
   PeriodType,
   Prisma,
 } from '@prisma/client';
-import { StateValidation, UnifiedPeriodState } from './state';
+import {
+  AttendanceStatusResponse,
+  StateValidation,
+  UnifiedPeriodState,
+} from './state';
 import { TimeEntry } from './records';
 import { GeoLocation } from './base';
 
@@ -73,7 +77,8 @@ export interface ProcessingOptions {
     source?: 'manual' | 'system' | 'auto';
     updatedBy?: string;
   };
-  requestId?: string; // Add this field
+  requestId?: string;
+  preCalculatedStatus?: AttendanceStatusResponse;
 }
 
 export interface ProcessingResult {

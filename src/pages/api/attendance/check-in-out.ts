@@ -249,30 +249,37 @@ export async function processCheckInOut(
   console.log('Processing check-in/out task:', {
     requestKey,
     serverTime: serverTime.toISOString(),
+    hasPreCalculatedStatus: !!task.preCalculatedStatus,
   });
 
   const startTime = performance.now();
-  console.log('Start of processCheckInOut', {
-    task,
-    timestamp: new Date().toISOString(),
-  });
 
   try {
     // Get services
     const services = await serviceQueue.getInitializedServices();
     const { attendanceService, notificationService } = services;
 
-    // --- MODIFIED: Use status cache instead of direct fetch ---
-    // Get current status first to check if auto-completion needed
-    const currentStatus = await getStatusWithCache(
-      attendanceService,
-      task.employeeId!,
-      {
-        inPremises: true,
-        address: task.location?.address || '',
-        periodType: task.periodType,
-      },
-    );
+    // Use pre-calculated status if available and recent
+    let currentStatus;
+    if (
+      task.preCalculatedStatus &&
+      isRecentStatus(task.preCalculatedStatus, 10000)
+    ) {
+      console.log('Using pre-calculated status from client');
+      currentStatus = task.preCalculatedStatus;
+    } else {
+      // Get current status first to check if auto-completion needed
+      console.log('Getting fresh status from server');
+      currentStatus = await getStatusWithCache(
+        attendanceService,
+        task.employeeId!,
+        {
+          inPremises: true,
+          address: task.location?.address || '',
+          periodType: task.periodType,
+        },
+      );
+    }
 
     console.log('Current status flags for check-in/out:', {
       isEarlyCheckIn: currentStatus.validation.flags.isEarlyCheckIn,
@@ -285,16 +292,13 @@ export async function processCheckInOut(
     // Check if auto-completion needed based on current status
     const activeAttendance = currentStatus.base.latestAttendance;
     const needsAutoCompletion =
-      // Case 1: Attempting checkout without check-in
       (!activeAttendance?.CheckInTime && !task.activity.isCheckIn) ||
-      // Case 2: Regular check-in with incomplete overtime that has ended
       (task.periodType === PeriodType.REGULAR &&
         task.activity.isCheckIn &&
         activeAttendance?.type === PeriodType.OVERTIME &&
         !activeAttendance.CheckOutTime &&
         activeAttendance.shiftEndTime &&
         serverTime > parseISO(activeAttendance.shiftEndTime)) ||
-      // Case 3: Regular -> Overtime transition (add check for overtime info)
       (task.periodType === PeriodType.REGULAR &&
         !task.activity.isCheckIn &&
         currentStatus.context.nextPeriod?.type === PeriodType.OVERTIME &&
@@ -335,7 +339,7 @@ export async function processCheckInOut(
       });
     }
 
-    // Process attendance with correct flags
+    // Process attendance with correct flags and current status
     const [processedAttendance, updatedStatus] = await Promise.all([
       attendanceService.processAttendance({
         ...task,
@@ -343,13 +347,14 @@ export async function processCheckInOut(
         activity: {
           ...task.activity,
           isOvertime: task.periodType === PeriodType.OVERTIME,
-          overtimeMissed: Boolean(needsAutoCompletion), // Force boolean type
+          overtimeMissed: Boolean(needsAutoCompletion),
         },
+        // Pass current status to avoid recalculation
+        preCalculatedStatus: currentStatus,
         // Add transition info from cached status if available
         transition:
           task.transition ||
           (() => {
-            // Only include transition if we have valid transition data
             if (
               currentStatus.daily.transitions.length > 0 &&
               currentStatus.context.nextPeriod?.type
@@ -450,6 +455,19 @@ export async function processCheckInOut(
 
 // Set the processing function for the queue manager
 QueueManager.setProcessingFunction(processCheckInOut);
+
+function isRecentStatus(
+  status: AttendanceStatusResponse,
+  maxAgeMs: number,
+): boolean {
+  if (!status?.base?.metadata?.lastUpdated) return false;
+
+  const statusTimestamp = new Date(status.base.metadata.lastUpdated).getTime();
+  const ageMs = Date.now() - statusTimestamp;
+
+  console.log(`Status age check: ${ageMs}ms old, max allowed: ${maxAgeMs}ms`);
+  return ageMs < maxAgeMs;
+}
 
 // Main API Handler
 export default async function handler(

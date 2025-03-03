@@ -515,19 +515,37 @@ export function useAttendanceData({
           type: params.periodType,
           isCheckIn: params.activity.isCheckIn,
           timestamp: format(new Date(params.checkTime), 'HH:mm:ss'),
+          hasLatestData: !!data, // Check if we have current status data
         });
+
+        // Include current attendance status in the request if available
+        const requestData = {
+          ...params,
+          requestId: localRequestId,
+          employeeId,
+          lineUserId,
+          address: locationState.address,
+          inPremises: locationState.inPremises,
+          confidence: locationState.confidence,
+          // Add pre-calculated status if we have recent data
+          preCalculatedStatus: data
+            ? {
+                ...data,
+                // Update timestamp to current to ensure it's considered recent
+                base: {
+                  ...data.base,
+                  metadata: {
+                    ...data.base.metadata,
+                    lastUpdated: new Date().toISOString(),
+                  },
+                },
+              }
+            : undefined,
+        };
 
         const response = await axios.post(
           '/api/attendance/check-in-out',
-          {
-            ...params,
-            requestId: localRequestId, // Include requestId in payload
-            employeeId,
-            lineUserId,
-            address: locationState.address,
-            inPremises: locationState.inPremises,
-            confidence: locationState.confidence,
-          },
+          requestData,
           { timeout: REQUEST_TIMEOUT },
         );
 
@@ -716,7 +734,7 @@ export function useAttendanceData({
         throw handleAttendanceError(error);
       }
     },
-    [employeeId, lineUserId, locationState, refreshAttendanceStatus],
+    [employeeId, lineUserId, locationState, refreshAttendanceStatus, data],
   );
 
   /**
