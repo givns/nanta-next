@@ -21,6 +21,7 @@ export interface QueueResult {
   notificationSent: boolean;
   timestamp: string;
   requestId?: string;
+  error?: string;
   data: {
     state: {
       current: UnifiedPeriodState;
@@ -30,6 +31,9 @@ export interface QueueResult {
   };
   metadata: {
     source: string;
+    recoveryInfo: {
+      type: string;
+    };
   };
   message?: string;
   success: boolean;

@@ -17,7 +17,8 @@ export class ServiceInitializationQueue {
   private lastError: Error | null = null;
   private initializationAttempts: number = 0;
   private readonly MAX_INIT_ATTEMPTS = 3;
-  private readonly INIT_TIMEOUT = 10000; // 10 seconds timeout
+  // Increase the timeout from 10 seconds to 30 seconds
+  private readonly INIT_TIMEOUT = 30000; // 30 seconds timeout
 
   private constructor(prisma: PrismaClient) {
     this.prisma = prisma;
@@ -115,10 +116,24 @@ export class ServiceInitializationQueue {
             message: `Service initialization timed out after ${this.INIT_TIMEOUT}ms`,
           });
           this.lastError = error;
-          reject(error);
+
+          // NEW: Check if services are partially initialized and try to use them
+          if (this.services && Object.keys(this.services).length > 0) {
+            console.warn(
+              `Service initialization timed out, but using partially initialized services`,
+            );
+            this.initialized = true; // Force initialized state
+            resolve(this.services); // Resolve with partial services
+          } else {
+            reject(error);
+          }
         }, this.INIT_TIMEOUT);
 
         try {
+          // Use a more efficient query to test database connection
+          await this.prisma.user.count({ take: 1 });
+          console.log('Database connection successful');
+
           // Simply use the existing initializeServices function
           const services = await initializeServices(this.prisma);
 

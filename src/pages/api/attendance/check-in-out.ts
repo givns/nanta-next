@@ -11,13 +11,15 @@ import {
   AttendanceStatusResponse,
   QueueResult,
 } from '@/types/attendance';
-import { parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
 import { QueueManager } from '@/utils/QueueManager';
 import { performance } from 'perf_hooks';
 
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 import { cacheService } from '@/services/cache/CacheService';
+import { redis } from '@/lib/upstash';
+import { getFeatureFlag } from '@/lib/edgeConfig';
 
 interface ErrorResponse {
   status: number;
@@ -175,30 +177,24 @@ setInterval(() => {
   }
 }, CACHE_CONSTANTS.CACHE_TIMEOUT);
 
+// Implement getCachedUser function
 async function getCachedUser(identifier: {
   employeeId?: string;
   lineUserId?: string;
-}): Promise<CachedUserData | null> {
+}): Promise<any | null> {
   const key = identifier.employeeId || identifier.lineUserId;
   if (!key) return null;
 
-  const cacheKey = `${CACHE_PREFIX}${key}`;
+  const cacheKey = `user:${key}`;
 
   try {
-    // Try to get from cache
-    const cached = await cacheService.get(cacheKey);
+    // Try to get from Redis cache
+    const cached = await redis.get(cacheKey);
     if (cached) {
-      try {
-        const parsedCache = JSON.parse(cached);
-        if (Date.now() - parsedCache.timestamp < CACHE_TTL * 1000) {
-          return parsedCache;
-        }
-      } catch (error) {
-        console.warn('Error parsing cached user data:', error);
-      }
+      return JSON.parse(cached as string);
     }
 
-    // Get fresh data
+    // Not in cache, fetch from database
     const user = await prisma.user.findUnique({
       where: identifier.employeeId
         ? { employeeId: identifier.employeeId }
@@ -206,29 +202,189 @@ async function getCachedUser(identifier: {
       select: {
         employeeId: true,
         lineUserId: true,
+        shiftId: true,
       },
     });
 
     if (user) {
-      const userData = {
-        ...user,
-        timestamp: Date.now(),
-      };
-
       // Cache the result
-      try {
-        await cacheService.set(cacheKey, JSON.stringify(userData), CACHE_TTL);
-      } catch (error) {
-        console.warn('Error caching user data:', error);
-      }
-
-      return userData;
+      await redis.set(cacheKey, JSON.stringify(user), { ex: 3600 }); // 1 hour TTL
+      return user;
     }
 
     return null;
   } catch (error) {
-    console.error('Cache error:', error);
+    console.error('Error getting user:', error);
     return null;
+  }
+}
+
+// Main API Handler
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  // Remove cacheService.setForceBypass() call
+  // We're using redis directly now
+
+  const startTime = performance.now();
+  const requestId = `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({
+      error: 'Method Not Allowed',
+      message: 'Only POST method is allowed',
+      requestId,
+    });
+  }
+
+  try {
+    // Apply rate limiting
+    await rateLimitMiddleware(req);
+
+    // Limit incoming request body size in logs to avoid overload
+    const safeBody = { ...req.body };
+    if (safeBody.preCalculatedStatus) {
+      const keys = Object.keys(safeBody.preCalculatedStatus);
+      safeBody.preCalculatedStatus = `[Object with keys: ${keys.join(', ')}]`;
+    }
+
+    console.log('Incoming request:', {
+      requestId,
+      body: safeBody,
+    });
+
+    // Validate request data
+    const validatedData = validateCheckInOutRequest(req.body);
+
+    // Check feature flags
+    const useBackgroundProcessing = await getFeatureFlag(
+      'use_background_processing',
+      true,
+    );
+    const usePrismaAccelerate = await getFeatureFlag(
+      'use_direct_prisma',
+      false,
+    );
+
+    console.log(`[${requestId}] Feature flags:`, {
+      useBackgroundProcessing,
+      usePrismaAccelerate,
+    });
+
+    // Get user data
+    const user = await getCachedUser({
+      employeeId: validatedData.employeeId,
+      lineUserId: validatedData.lineUserId,
+    });
+
+    if (!user) {
+      throw new AppError({
+        code: ErrorCode.USER_NOT_FOUND,
+        message: 'User not found',
+      });
+    }
+
+    // Skip synchronous processing - always queue if background processing is enabled
+    if (useBackgroundProcessing) {
+      console.log(`Directly queueing task ${requestId}`);
+
+      // Prepare for queueing by ensuring everything is serializable
+      let taskData;
+      try {
+        // Deep-clone and serialize the data to catch any circular references or non-serializable content
+        const stringifiedData = JSON.stringify({
+          ...validatedData,
+          requestId,
+          // Add usePrismaAccelerate flag
+          usePrismaAccelerate,
+          // Explicitly remove preCalculatedStatus to avoid serialization issues
+          preCalculatedStatus: undefined,
+        });
+
+        // Then parse it back to an object
+        taskData = JSON.parse(stringifiedData);
+
+        // Now store the attendance status separately as a simple string
+        if (validatedData.preCalculatedStatus) {
+          taskData._preCalculatedStatusString = JSON.stringify(
+            validatedData.preCalculatedStatus,
+          );
+          console.log(
+            'Serialized preCalculatedStatus, size:',
+            taskData._preCalculatedStatusString.length,
+          );
+        }
+      } catch (serializationError) {
+        console.error('Task serialization error:', serializationError);
+        // Fall back to basic data without the problematic fields
+        taskData = {
+          ...validatedData,
+          requestId,
+          usePrismaAccelerate,
+          preCalculatedStatus: undefined,
+          _serializationFailed: true,
+        };
+      }
+
+      // Enqueue but don't wait for result
+      queueManager.enqueue(taskData).catch((error) => {
+        console.error('Queue enqueue error:', error);
+      });
+
+      // Return immediate acceptance with polling URL
+      return res.status(202).json({
+        success: true,
+        message: 'Request accepted, processing in background',
+        requestId,
+        statusUrl: `/api/attendance/task-status/${requestId}`, // Include URL for polling
+        timestamp: getCurrentTime().toISOString(),
+      });
+    } else {
+      // Process synchronously
+      console.log(`[${requestId}] Processing synchronously`);
+
+      // Get services
+      const services = await getServiceQueue(prisma).getInitializedServices();
+
+      // Process request with usePrismaAccelerate flag
+      const result = await services.attendanceService.processAttendance({
+        ...validatedData,
+        usePrismaAccelerate,
+      });
+
+      // Clear Redis cache
+      await redis.del(
+        `attendance:status:${validatedData.employeeId}:${format(getCurrentTime(), 'yyyy-MM-dd')}`,
+      );
+
+      return res.status(200).json({
+        success: true,
+        data: result.data,
+        timestamp: getCurrentTime().toISOString(),
+        requestId,
+      });
+    }
+  } catch (error) {
+    console.error('Request failed:', {
+      requestId,
+      error,
+      body: req.body,
+    });
+
+    const errorResponse = handleApiError(error);
+    return res.status(errorResponse.status).json({
+      success: false,
+      error: errorResponse.message,
+      code: errorResponse.code,
+      details: errorResponse.details,
+      requestId,
+    });
+  } finally {
+    const duration = performance.now() - startTime;
+    console.log(`Request ${requestId} handled in ${duration.toFixed(2)}ms`);
+
+    await prisma.$disconnect();
   }
 }
 
@@ -245,10 +401,11 @@ function isValidPreCalculatedStatus(status: any): boolean {
 
 // Main Processing Function
 export async function processCheckInOut(
-  task: ProcessingOptions & { _preCalculatedStatusString?: string },
+  task: ProcessingOptions & {
+    _preCalculatedStatusString?: string;
+    usePrismaAccelerate?: boolean;
+  },
 ): Promise<QueueResult> {
-  // Restore preCalculatedStatus from string if available
-
   let preCalculatedStatus;
 
   if (task._preCalculatedStatusString) {
@@ -279,6 +436,7 @@ export async function processCheckInOut(
     hasPreCalculatedStatus: !!preCalculatedStatus,
     hasOriginalStatus: !!task.preCalculatedStatus,
     wasDeserialized: !!task._preCalculatedStatusString,
+    usePrismaAccelerate: task.usePrismaAccelerate,
     preCalculatedStatusKeys: preCalculatedStatus
       ? Object.keys(preCalculatedStatus)
       : [],
@@ -288,35 +446,8 @@ export async function processCheckInOut(
 
   try {
     // Get services
-    const services = await serviceQueue.getInitializedServices();
+    const services = await getServiceQueue(prisma).getInitializedServices();
     const { attendanceService, notificationService } = services;
-
-    // NEW: Check for incomplete transactions
-    try {
-      // Find any records that might be stuck in an incomplete state
-      const incompleteRecords = await prisma.attendance.findMany({
-        where: {
-          employeeId: task.employeeId,
-          state: 'INCOMPLETE',
-          CheckInTime: { not: null },
-          CheckOutTime: null,
-          // Use metadata.updatedAt instead if it exists, or remove the time constraint
-          metadata: {
-            updatedAt: { lt: new Date(Date.now() - 300000) },
-          },
-        },
-        take: 1,
-      });
-
-      if (incompleteRecords.length > 0) {
-        console.log(
-          `Found potentially stuck record: ${incompleteRecords[0].id} for ${task.employeeId}`,
-        );
-        // We'll proceed normally as the auto-completion logic should handle this
-      }
-    } catch (checkError) {
-      console.warn('Error checking for incomplete records:', checkError);
-    }
 
     // Use pre-calculated status if available and recent
     let currentStatus;
@@ -346,8 +477,7 @@ export async function processCheckInOut(
 
       // Fallback to getting fresh status
       console.log('Getting fresh status from server');
-      currentStatus = await getStatusWithCache(
-        attendanceService,
+      currentStatus = await attendanceService.getAttendanceStatus(
         task.employeeId!,
         {
           inPremises: true,
@@ -416,6 +546,7 @@ export async function processCheckInOut(
     }
 
     // Process attendance with correct flags and current status
+    // Pass usePrismaAccelerate flag to the service
     const [processedAttendance, updatedStatus] = await Promise.all([
       attendanceService.processAttendance({
         ...task,
@@ -456,6 +587,8 @@ export async function processCheckInOut(
             }
             return undefined;
           })(),
+        // NEW: Pass usePrismaAccelerate flag to service
+        usePrismaAccelerate: task.usePrismaAccelerate,
       }),
       // Get fresh status after processing in parallel
       attendanceService.getAttendanceStatus(task.employeeId!, {
@@ -465,12 +598,10 @@ export async function processCheckInOut(
       }),
     ]);
 
-    // --- INVALIDATE the status cache after processing ---
-    // This ensures we don't reuse the now-stale status
-    const currentMinuteTimestamp = Math.floor(Date.now() / 60000) * 60000;
-    const cacheKey = `status-${task.employeeId}-${currentMinuteTimestamp}`;
-    shortLivedStatusCache.delete(cacheKey);
-    console.log(`Invalidated status cache for ${cacheKey} after processing`);
+    // Clear Redis cache after processing
+    const cacheKey = `attendance:status:${task.employeeId}:${format(serverTime, 'yyyy-MM-dd')}`;
+    await redis.del(cacheKey);
+    console.log(`Cleared Redis cache for ${cacheKey}`);
 
     // Handle notifications
     let notificationSent = false;
@@ -511,6 +642,9 @@ export async function processCheckInOut(
       },
       metadata: {
         source: task.activity.isManualEntry ? 'manual' : 'system',
+        recoveryInfo: {
+          type: needsAutoCompletion ? 'auto' : 'manual',
+        },
       },
       message: needsAutoCompletion
         ? 'Attendance auto-completed due to missing check-in or overtime end'
@@ -543,130 +677,6 @@ function isRecentStatus(
 
   console.log(`Status age check: ${ageMs}ms old, max allowed: ${maxAgeMs}ms`);
   return ageMs < maxAgeMs;
-}
-
-// Main API Handler
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  cacheService.setForceBypass(true);
-
-  const startTime = performance.now();
-  const requestId = `check-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({
-      error: 'Method Not Allowed',
-      message: 'Only POST method is allowed',
-      requestId,
-    });
-  }
-
-  try {
-    // Apply rate limiting
-    await rateLimitMiddleware(req);
-
-    // Limit incoming request body size in logs to avoid overload
-    const safeBody = { ...req.body };
-    if (safeBody.preCalculatedStatus) {
-      const keys = Object.keys(safeBody.preCalculatedStatus);
-      safeBody.preCalculatedStatus = `[Object with keys: ${keys.join(', ')}]`;
-    }
-
-    console.log('Incoming request:', {
-      requestId,
-      body: safeBody,
-    });
-
-    // Validate request data
-    const validatedData = validateCheckInOutRequest(req.body);
-
-    // Get user data
-    const user = await getCachedUser({
-      employeeId: validatedData.employeeId,
-      lineUserId: validatedData.lineUserId,
-    });
-
-    if (!user) {
-      throw new AppError({
-        code: ErrorCode.USER_NOT_FOUND,
-        message: 'User not found',
-      });
-    }
-
-    // Skip synchronous processing attempt - always queue
-    console.log(`Directly queueing task ${requestId}`);
-
-    // Prepare for queueing by ensuring everything is serializable
-    let taskData;
-    try {
-      // Deep-clone and serialize the data to catch any circular references or non-serializable content
-      const stringifiedData = JSON.stringify({
-        ...validatedData,
-        requestId,
-        // Explicitly remove preCalculatedStatus to avoid serialization issues
-        preCalculatedStatus: undefined,
-      });
-
-      // Then parse it back to an object
-      taskData = JSON.parse(stringifiedData);
-
-      // Now store the attendance status separately as a simple string
-      if (validatedData.preCalculatedStatus) {
-        taskData._preCalculatedStatusString = JSON.stringify(
-          validatedData.preCalculatedStatus,
-        );
-        console.log(
-          'Serialized preCalculatedStatus, size:',
-          taskData._preCalculatedStatusString.length,
-        );
-      }
-    } catch (serializationError) {
-      console.error('Task serialization error:', serializationError);
-      // Fall back to basic data without the problematic fields
-      taskData = {
-        ...validatedData,
-        requestId,
-        preCalculatedStatus: undefined,
-        _serializationFailed: true,
-      };
-    }
-
-    // Enqueue but don't wait for result
-    queueManager.enqueue(taskData).catch((error) => {
-      console.error('Queue enqueue error:', error);
-    });
-
-    // Return immediate acceptance with polling URL
-    return res.status(202).json({
-      success: true,
-      message: 'Request accepted, processing in background',
-      requestId,
-      statusUrl: `/api/attendance/task-status/${requestId}`, // Include URL for polling
-      timestamp: getCurrentTime().toISOString(),
-    });
-  } catch (error) {
-    console.error('Request failed:', {
-      requestId,
-      error,
-      body: req.body,
-    });
-
-    const errorResponse = handleApiError(error);
-    return res.status(errorResponse.status).json({
-      success: false,
-      error: errorResponse.message,
-      code: errorResponse.code,
-      details: errorResponse.details,
-      requestId,
-    });
-  } finally {
-    const duration = performance.now() - startTime;
-    console.log(`Request ${requestId} handled in ${duration.toFixed(2)}ms`);
-
-    await prisma.$disconnect();
-  }
 }
 
 function handleApiError(error: unknown): ErrorResponse {

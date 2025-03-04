@@ -62,7 +62,7 @@ export class QueueManager {
   }
 
   private initializeQueue() {
-    // In the queue worker function
+    // In QueueManager.ts, update the queue worker function
     this.queue = new BetterQueue<ProcessingOptions, QueueResult>(
       async (task, cb) => {
         console.log(`Queue worker starting task ${task.requestId}`);
@@ -89,14 +89,14 @@ export class QueueManager {
           }, 5000);
 
           try {
-            // CRITICAL CHANGE: Use absolute timeout of 20 seconds for processing
+            // CRITICAL CHANGE: Use absolute timeout of 25 seconds for processing
             const processingPromise = processFn(task);
 
             // Add a safety timeout that will forcibly resolve
             const timeoutPromise = new Promise<QueueResult>((_, reject) => {
               setTimeout(() => {
                 const error = new Error(
-                  'Queue worker timeout after 20 seconds',
+                  'Queue worker timeout after 25 seconds',
                 );
                 console.error(
                   `Task ${task.requestId} timed out in queue worker`,
@@ -109,7 +109,7 @@ export class QueueManager {
                 });
 
                 reject(error);
-              }, 20000); // 20 second hard timeout (increased from 10)
+              }, 25000); // 25 second hard timeout (increased from 20)
             });
 
             // Race between processing and timeout
@@ -141,6 +141,217 @@ export class QueueManager {
           const isTimeout =
             errorMessage.includes('timeout') ||
             errorMessage.includes('timed out');
+          const isServiceInit = errorMessage.includes('Service initialization');
+
+          // Special handling for service initialization errors
+          if (isServiceInit) {
+            console.log(
+              `Service initialization error for task ${task.requestId}, creating fallback result`,
+            );
+
+            // Create a fallback result that indicates service initialization issues
+            // In QueueManager.ts - when creating the fallback result
+            const fallbackResult: QueueResult = {
+              success: false,
+              message:
+                'Service initialization timed out, but operation may have succeeded',
+              timestamp: new Date().toISOString(),
+              requestId: task.requestId || '',
+              error: errorMessage,
+              // Add the required status property with a valid AttendanceStateResponse structure
+              status: {
+                daily: {
+                  date: new Date().toISOString().split('T')[0],
+                  currentState: {
+                    type: 'REGULAR',
+                    timeWindow: {
+                      start: new Date().toISOString(),
+                      end: new Date().toISOString(),
+                    },
+                    activity: {
+                      isActive: false,
+                      checkIn: null,
+                      checkOut: null,
+                      isOvertime: false,
+                      isDayOffOvertime: false,
+                    },
+                    validation: {
+                      isWithinBounds: false,
+                      isEarly: false,
+                      isLate: false,
+                      isOvernight: false,
+                      isConnected: false,
+                    },
+                  },
+                  transitions: [],
+                },
+                base: {
+                  state: 'ABSENT',
+                  checkStatus: 'PENDING',
+                  isCheckingIn: true,
+                  periodInfo: {
+                    type: 'REGULAR',
+                    isOvertime: false,
+                    overtimeState: undefined,
+                  },
+                  validation: {
+                    canCheckIn: false,
+                    canCheckOut: false,
+                    message: 'Service initialization error',
+                  },
+                  metadata: {
+                    lastUpdated: new Date().toISOString(),
+                    version: 1,
+                    source: 'system',
+                  },
+                  latestAttendance: null,
+                  additionalRecords: [],
+                },
+                context: {
+                  shift: {
+                    id: '',
+                    name: 'Default Shift',
+                    startTime: '08:00',
+                    endTime: '17:00',
+                    workDays: [1, 2, 3, 4, 5],
+                    shiftCode: '',
+                  },
+                  schedule: {
+                    isHoliday: false,
+                    isDayOff: false,
+                    isAdjusted: false,
+                  },
+                  nextPeriod: null,
+                  transition: undefined,
+                },
+                validation: {
+                  errors: [
+                    {
+                      code: 'SERVICE_INIT_TIMEOUT',
+                      message: 'Service initialization timed out',
+                    },
+                  ],
+                  warnings: [],
+                  allowed: false,
+                  reason: 'Service initialization error',
+                  flags: {
+                    isCheckingIn: true,
+                    isEarlyCheckOut: false,
+                    isLateCheckOut: false,
+                    isVeryLateCheckOut: false,
+                    isEarlyCheckIn: false,
+                    isLateCheckIn: false,
+                    hasActivePeriod: false,
+                    isInsideShift: false,
+                    isOutsideShift: true,
+                    isOvertime: false,
+                    isDayOffOvertime: false,
+                    isPendingOvertime: false,
+                    isAutoCheckIn: false,
+                    isAutoCheckOut: false,
+                    requireConfirmation: false,
+                    requiresAutoCompletion: false,
+                    hasPendingTransition: false,
+                    requiresTransition: false,
+                    isMorningShift: false,
+                    isAfternoonShift: false,
+                    isAfterMidshift: false,
+                    isApprovedEarlyCheckout: false,
+                    isPlannedHalfDayLeave: false,
+                    isEmergencyLeave: false,
+                    isHoliday: false,
+                    isDayOff: false,
+                    isManualEntry: false,
+                  },
+                  metadata: {},
+                },
+              },
+              data: {
+                state: {
+                  current: {
+                    type: 'REGULAR',
+                    timeWindow: {
+                      start: new Date().toISOString(),
+                      end: new Date().toISOString(),
+                    },
+                    activity: {
+                      isActive: false,
+                      checkIn: null,
+                      checkOut: null,
+                      isOvertime: false,
+                      isDayOffOvertime: false,
+                    },
+                    validation: {
+                      isWithinBounds: false,
+                      isEarly: false,
+                      isLate: false,
+                      isOvernight: false,
+                      isConnected: false,
+                    },
+                  },
+                  previous: undefined,
+                },
+                validation: {
+                  errors: [
+                    {
+                      code: 'SERVICE_INIT_TIMEOUT',
+                      message: 'Service initialization timed out',
+                    },
+                  ],
+                  warnings: [],
+                  allowed: false,
+                  reason: 'Service initialization error',
+                  flags: {
+                    isCheckingIn: true,
+                    isEarlyCheckOut: false,
+                    isLateCheckOut: false,
+                    isVeryLateCheckOut: false,
+                    isEarlyCheckIn: false,
+                    isLateCheckIn: false,
+                    hasActivePeriod: false,
+                    isInsideShift: false,
+                    isOutsideShift: true,
+                    isOvertime: false,
+                    isDayOffOvertime: false,
+                    isPendingOvertime: false,
+                    isAutoCheckIn: false,
+                    isAutoCheckOut: false,
+                    requireConfirmation: false,
+                    requiresAutoCompletion: false,
+                    hasPendingTransition: false,
+                    requiresTransition: false,
+                    isMorningShift: false,
+                    isAfternoonShift: false,
+                    isAfterMidshift: false,
+                    isApprovedEarlyCheckout: false,
+                    isPlannedHalfDayLeave: false,
+                    isEmergencyLeave: false,
+                    isHoliday: false,
+                    isDayOff: false,
+                    isManualEntry: false,
+                  },
+                  metadata: {},
+                },
+              },
+              metadata: {
+                source: 'system',
+                recoveryInfo: {
+                  type: 'service_init_timeout',
+                },
+              },
+              notificationSent: false,
+            };
+
+            this.setRequestStatus(task.requestId!, 'failed', {
+              error: errorMessage,
+              timestamp: new Date().toISOString(),
+              fallbackResult,
+            });
+
+            this.queueSize = Math.max(0, this.queueSize - 1);
+            cb(null, fallbackResult); // Return fallback result instead of error
+            return;
+          }
 
           // Update status with proper error details
           this.setRequestStatus(task.requestId!, 'failed', {
@@ -160,11 +371,10 @@ export class QueueManager {
       {
         concurrent: 1,
         maxRetries: 0, // Don't retry failed tasks at all
-        maxTimeout: 25000, // 25 seconds max total timeout
+        maxTimeout: 30000, // Increase to 30 seconds max total timeout
         store: new MemoryStore(),
       },
     );
-
     this.queue.on('task_queued', (taskId) => {
       console.log(`Task queued: ${taskId}`);
       this.queueSize++;

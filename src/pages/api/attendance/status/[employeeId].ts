@@ -1,19 +1,19 @@
 // pages/api/attendance/status/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { PrismaClient, PeriodType } from '@prisma/client';
-import { mongoAPI } from '@/lib/mongoDataApi';
+import { PeriodType } from '@prisma/client';
 import { z } from 'zod';
-import { getServices } from '@/services/ServiceInitializer';
 import {
   AppError,
   AttendanceStatusResponse,
   ErrorCode,
-  ValidationContext,
-  ShiftData,
 } from '@/types/attendance';
 import { getCurrentTime } from '@/utils/dateUtils';
 import { format } from 'date-fns';
 import { createRateLimitMiddleware } from '@/utils/rateLimit';
+import { prisma } from '@/lib/prisma';
+import { redis } from '@/lib/upstash';
+import { getFeatureFlag } from '@/lib/edgeConfig';
+import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 
 // Request flow tracking
 const RequestTracker = {
@@ -47,10 +47,6 @@ const RequestTracker = {
     };
   },
 };
-
-// Initialize Prisma client - optimized for serverless
-const prisma = new PrismaClient();
-// MongoDB-specific options
 
 // Configure rate limiting
 const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 30); // 30 requests per minute
@@ -142,14 +138,9 @@ export default async function handler(
   const startTime = Date.now();
 
   try {
-    // Get services
-    tracker.addStep('get_services_start');
-    const services = await getServices(prisma);
-    tracker.addStep('get_services_complete', {
-      hasAttendanceService: !!services.attendanceService,
-      hasShiftService: !!services.shiftService,
-      hasPeriodManager: !!(services.attendanceService as any)?.periodManager,
-    });
+    // Check if we should use Redis cache from feature flag
+    const useRedisCache = await getFeatureFlag('use_redis_cache', true);
+    tracker.addStep('feature_flags_checked', { useRedisCache });
 
     // Validate request parameters
     tracker.addStep('validate_params_start');
@@ -180,109 +171,56 @@ export default async function handler(
       timestamp: format(now, 'yyyy-MM-dd HH:mm:ss'),
     });
 
-    // Check if user exists and get shift data
-    tracker.addStep('find_user_start');
-    const user = await prisma.user.findFirst({
-      where: {
-        employeeId: {
-          equals: employeeId,
-        },
-      },
-      select: {
-        employeeId: true,
-        lineUserId: true,
-        shiftId: true,
-        name: true,
-        departmentName: true,
-      },
-    });
+    // Try to get from Redis cache if enabled
+    if (useRedisCache) {
+      tracker.addStep('check_redis_cache');
 
-    if (!user) {
-      tracker.addStep('find_user_not_found');
-      return res.status(404).json({
-        error: ErrorCode.USER_NOT_FOUND,
-        message: 'User not found',
-        timestamp: getCurrentTime().toISOString(),
-      });
+      const cacheKey = `attendance:status:${employeeId}:${format(now, 'yyyy-MM-dd')}`;
+      const cachedData = await redis.get(cacheKey);
+
+      if (cachedData) {
+        const parsedData = JSON.parse(cachedData as string);
+        const cacheAge =
+          Date.now() - new Date(parsedData.base.metadata.lastUpdated).getTime();
+
+        // Use cache if less than 30 seconds old
+        if (cacheAge < 30000) {
+          tracker.addStep('redis_cache_hit', { cacheAge });
+
+          const processingTime = Date.now() - startTime;
+
+          // Add performance metrics header
+          res.setHeader('X-Processing-Time', processingTime.toString());
+          res.setHeader('X-Request-ID', requestId);
+          res.setHeader('X-Cache', 'HIT');
+
+          return res.status(200).json(parsedData);
+        }
+
+        tracker.addStep('redis_cache_stale', { cacheAge });
+      } else {
+        tracker.addStep('redis_cache_miss');
+      }
     }
 
-    tracker.addStep('find_user_success', {
-      userFound: true,
-      hasShiftId: !!user.shiftId,
-      lineUserIdExists: !!user.lineUserId,
+    // Get services
+    tracker.addStep('get_services_start');
+    const services = await getServiceQueue(prisma).getInitializedServices();
+    tracker.addStep('get_services_complete', {
+      hasAttendanceService: !!services.attendanceService,
+      hasShiftService: !!services.shiftService,
+      hasPeriodManager: !!(services.attendanceService as any)?.periodManager,
     });
 
-    // Get user's shift
-    tracker.addStep('get_user_shift_start');
-    const userShift = await services.shiftService.getUserShift(employeeId);
-    tracker.addStep('get_user_shift_complete', {
-      hasShift: !!userShift,
-      shiftId: userShift?.id,
-      workDays: userShift?.workDays,
-      shiftTimes: userShift
-        ? `${userShift.startTime}-${userShift.endTime}`
-        : null,
-    });
-
-    // Convert null to undefined for shift to satisfy TypeScript
-    const shift: ShiftData | undefined = userShift || undefined;
-
-    // Create validation context
-    tracker.addStep('create_validation_context');
-    const context: ValidationContext = {
-      employeeId,
-      timestamp: now,
-      isCheckIn: true, // Will be updated based on current state
-      shift,
-      periodType: PeriodType.REGULAR,
-      isOvertime: false,
-      overtimeInfo: null,
-      location: coordinates,
-      address: address || '',
-    };
-
-    const BYPASS_REDIS_FOR_STATUS = true; // Force bypass for this endpoint
-
-    // Get attendance status with updated parameters structure
+    // Get attendance status
     tracker.addStep('get_attendance_status_start');
-
-    if (BYPASS_REDIS_FOR_STATUS) {
-      services.attendanceService.useMemoryCacheOnly = true;
-    }
-
-    // Rather than trying to modify the Promise itself, we'll use a simple approach
-    // with manual timing that's TypeScript-safe
-    const attendanceStartTime = Date.now();
-    let attendanceStatus: AttendanceStatusResponse;
-
-    try {
-      attendanceStatus = await services.attendanceService.getAttendanceStatus(
-        employeeId,
-        {
-          inPremises: adminVerified ? true : Boolean(inPremises),
-          address: address || '',
-          periodType: PeriodType.REGULAR, // Default to regular period
-        },
-      );
-
-      tracker.addStep('attendance_service_complete', {
-        durationMs: Date.now() - attendanceStartTime,
-        hasResult: !!attendanceStatus,
-        hasBase: !!attendanceStatus?.base,
-        hasDaily: !!attendanceStatus?.daily,
-        hasContext: !!attendanceStatus?.context,
-        state: attendanceStatus?.base?.state,
-        checkStatus: attendanceStatus?.base?.checkStatus,
+    const attendanceStatus =
+      await services.attendanceService.getAttendanceStatus(employeeId, {
+        inPremises: adminVerified ? true : Boolean(inPremises),
+        address: address || '',
+        periodType: PeriodType.REGULAR, // Default to regular period
       });
-    } catch (error) {
-      tracker.addStep('attendance_service_error', {
-        durationMs: Date.now() - attendanceStartTime,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
-      throw error;
-    }
 
-    // Log detailed result information
     tracker.addStep('get_attendance_status_complete', {
       state: attendanceStatus.base.state,
       checkStatus: attendanceStatus.base.checkStatus,
@@ -305,6 +243,16 @@ export default async function handler(
       },
     });
 
+    // Cache in Redis if enabled
+    if (useRedisCache) {
+      tracker.addStep('cache_in_redis_start');
+
+      const cacheKey = `attendance:status:${employeeId}:${format(now, 'yyyy-MM-dd')}`;
+      await redis.set(cacheKey, JSON.stringify(attendanceStatus), { ex: 30 });
+
+      tracker.addStep('cache_in_redis_complete');
+    }
+
     // Log success and processing time
     const processingTime = Date.now() - startTime;
 
@@ -317,6 +265,7 @@ export default async function handler(
     // Add performance metrics header
     res.setHeader('X-Processing-Time', processingTime.toString());
     res.setHeader('X-Request-ID', requestId);
+    res.setHeader('X-Cache', 'MISS');
 
     // Final logging of complete request flow
     console.log(`[${requestId}] COMPLETE REQUEST FLOW:`, {
@@ -389,9 +338,5 @@ export default async function handler(
         requestPath: tracker.steps.map((s) => s.name).join(' → '),
       },
     });
-  } finally {
-    // Always disconnect Prisma in serverless environment
-    tracker.addStep('prisma_disconnect');
-    await prisma.$disconnect();
   }
 }

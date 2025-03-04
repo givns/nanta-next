@@ -79,6 +79,7 @@ export interface ProcessingOptions {
   };
   requestId?: string;
   preCalculatedStatus?: AttendanceStatusResponse;
+  usePrismaAccelerate?: boolean;
 }
 
 export interface ProcessingResult {
