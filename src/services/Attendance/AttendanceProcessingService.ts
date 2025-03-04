@@ -28,11 +28,9 @@ import {
   endOfDay,
   parseISO,
   format,
-  subDays,
   differenceInMinutes,
   subMinutes,
   addDays,
-  addHours,
   set,
 } from 'date-fns';
 import { ShiftManagementService } from '../ShiftManagementService/ShiftManagementService';
@@ -298,8 +296,8 @@ export class AttendanceProcessingService {
           };
         },
         {
-          timeout: 30000,
-          maxWait: 10000,
+          timeout: 60000,
+          maxWait: 15000,
         },
       );
 
@@ -971,6 +969,11 @@ export class AttendanceProcessingService {
       }
     }
 
+    console.log(
+      `Starting checkout database operations for record ${currentRecord.id}`,
+    );
+    const txStartTime = Date.now();
+
     // Handle location update - First check if location record exists
     if (locationData) {
       const existingLocation = await tx.attendanceLocation.findUnique({
@@ -999,6 +1002,10 @@ export class AttendanceProcessingService {
         });
       }
     }
+
+    console.log(
+      `Updating attendance record ${currentRecord.id} with checkout time`,
+    );
 
     // Get checkout time based on period type
     const checkOutTime =
@@ -1068,6 +1075,10 @@ export class AttendanceProcessingService {
         },
       });
     }
+
+    console.log(
+      `Record update completed in ${Date.now() - txStartTime}ms for ${currentRecord.id}`,
+    );
 
     return AttendanceMappers.toAttendanceRecord(updatedAttendance)!;
   }

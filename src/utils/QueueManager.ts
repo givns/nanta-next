@@ -20,6 +20,7 @@ export class QueueManager {
   private requestStatusMap = new Map<
     string,
     {
+      recoveryAttempted: boolean;
       status: 'pending' | 'processing' | 'completed' | 'failed';
       completed: boolean;
       data: any;
@@ -223,6 +224,7 @@ export class QueueManager {
       data: data || null,
       timestamp: Date.now(),
       error: status === 'failed' && data?.error ? data.error : undefined,
+      recoveryAttempted: false,
     };
 
     // Always update memory cache first
@@ -244,8 +246,9 @@ export class QueueManager {
     }
   }
 
-  // Get request status with fallback mechanisms
+  // Line ~202 in QueueManager.ts
   async getRequestStatus(requestId: string): Promise<{
+    recoveryAttempted: boolean;
     status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
     completed: boolean;
     data: any;
@@ -257,6 +260,7 @@ export class QueueManager {
       console.log(
         `Found status for ${requestId} in memory: ${memoryStatus.status}`,
       );
+      memoryStatus.recoveryAttempted = false; // Add the missing property 'recoveryAttempted' and assign it a value of 'false'
       return memoryStatus;
     }
 
@@ -281,11 +285,46 @@ export class QueueManager {
       console.warn('Cache status lookup failed:', error);
     }
 
+    // NEW: Check if this is a recent request based on the requestId format
+    // Most requestIds contain timestamps like: check-1741043424886-625dl2tk4
+    try {
+      if (requestId.startsWith('check-')) {
+        const parts = requestId.split('-');
+        if (parts.length >= 2) {
+          const timestamp = parseInt(parts[1]);
+          const ageMs = Date.now() - timestamp;
+
+          // If request is less than 2 minutes old and we have no status, assume it's still processing
+          if (!isNaN(timestamp) && ageMs < 120000) {
+            console.log(
+              `No status found for recent request ${requestId}, assuming still processing`,
+            );
+            const processingStatus = {
+              status: 'processing' as const,
+              completed: false,
+              data: null,
+              created: Date.now(),
+              timestamp,
+              recoveryAttempted: false,
+            };
+
+            // Store in memory for future lookups
+            this.requestStatusMap.set(requestId, processingStatus);
+
+            return processingStatus;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error parsing requestId timestamp:', e);
+    }
+
     console.log(`No status found for ${requestId}, returning unknown`);
     return {
       status: 'unknown',
       completed: false,
       data: null,
+      recoveryAttempted: false,
     };
   }
 

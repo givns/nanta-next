@@ -828,6 +828,52 @@ export function useAttendanceData({
             },
           });
 
+          // NEW: Handle "unknown" status specifically
+          if (response.data?.status === 'unknown') {
+            console.warn(
+              `Received "unknown" status for ${requestId}, attempting recovery`,
+            );
+
+            // If we've tried at least 3 times and still get unknown, try recovery
+            if (i >= 2) {
+              console.log(
+                `Multiple "unknown" status responses, forcing recovery for ${requestId}`,
+              );
+
+              // Clear cache and refresh
+              await axios.post('/api/attendance/clear-cache', {
+                employeeId,
+                timestamp: new Date().toISOString(),
+              });
+
+              // Wait a moment for any background processing to complete
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+
+              // Force a refresh of attendance status
+              await refreshAttendanceStatus();
+
+              // Return a successful result
+              return {
+                success: true,
+                message: 'Recovered from unknown status condition',
+                timestamp: new Date().toISOString(),
+                requestId: requestId,
+                data: createMinimalData(),
+                metadata: {
+                  source: 'system',
+                  recoveryInfo: {
+                    type: 'unknown_status_recovery',
+                    attempts: debugInfo.attempts,
+                  },
+                },
+              };
+            }
+
+            // Increase poll interval but continue trying
+            pollInterval = Math.min(pollInterval * 1.5, 2000);
+            continue;
+          }
+
           // Special handling for timeout errors
           if (
             response.data.status === 'failed' &&

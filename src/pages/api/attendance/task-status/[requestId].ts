@@ -4,6 +4,7 @@ import { QueueManager } from '@/utils/QueueManager';
 import { PrismaClient } from '@prisma/client';
 import { getServiceQueue } from '@/utils/ServiceInitializationQueue';
 import { getCurrentTime } from '@/utils/dateUtils';
+import { cacheService } from '@/services/cache/CacheService';
 
 // Task status interface
 interface TaskStatus {
@@ -143,6 +144,7 @@ export default async function handler(
         });
       }
 
+      // Line ~87 in [requestId].ts
       // IMPORTANT: Detect stalled tasks with increased timeout
       if (statusResult.status === 'processing' && ageMs > 15000) {
         console.log(
@@ -161,7 +163,35 @@ export default async function handler(
           completed: true,
           data: null,
           error: 'Task processing stalled',
+          recoveryAttempted: false,
         };
+
+        // NEW: Add recovery attempt for stalled tasks
+        try {
+          console.log(`[${requestId}] Attempting recovery for stalled task`);
+
+          // Extract employee ID from the requestId or the request path if possible
+          let employeeId = '';
+          const matches = requestId.match(/E\d+/);
+          if (matches && matches[0]) {
+            employeeId = matches[0];
+          }
+
+          if (employeeId) {
+            // Force clear cache for this employee
+            await cacheService.invalidatePattern(`*${employeeId}*`);
+            console.log(
+              `[${requestId}] Cleared cache for ${employeeId} as recovery action`,
+            );
+
+            statusResult.recoveryAttempted = true;
+          }
+        } catch (recoveryError) {
+          console.error(
+            `[${requestId}] Recovery attempt failed:`,
+            recoveryError,
+          );
+        }
 
         // Also update memory cache to ensure consistency
         taskStatusCache.set(requestId, {
@@ -186,6 +216,7 @@ export default async function handler(
               status: 'completed',
               completed: true,
               data: null, // No result data available but we know it succeeded
+              recoveryAttempted: false,
             };
 
             // Update cache

@@ -50,6 +50,7 @@ export class AttendanceStateManager {
     return this.instance;
   }
 
+  // Line ~33 in AttendanceStateManager.ts
   private initializeCleanup() {
     setInterval(() => {
       const now = Date.now();
@@ -61,14 +62,17 @@ export class AttendanceStateManager {
         }
       }
 
-      // Cleanup pending operations
+      // Cleanup pending operations - Use a shorter timeout
       for (const [key, operation] of this.pendingOperations.entries()) {
-        if (now - operation.timestamp > 60000) {
-          // 1 minute timeout
+        if (now - operation.timestamp > 45000) {
+          // Reduce from 60000 to 45000 (45 seconds)
+          console.warn(
+            `Force releasing stalled lock for ${key} after 45 seconds`,
+          );
           this.pendingOperations.delete(key);
         }
       }
-    }, 30000); // Run cleanup every 30 seconds
+    }, 15000); // Run cleanup more frequently (15 seconds)
   }
 
   async getState(

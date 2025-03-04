@@ -56,6 +56,29 @@ export type InitializedServices = {
 export async function initializeServices(
   prisma: PrismaClient,
 ): Promise<InitializedServices> {
+  // NEW: Add connection monitoring
+  try {
+    // Use a simple query that works with any model
+    await prisma.user.findFirst({
+      select: { employeeId: true },
+      take: 1,
+    });
+    console.log('Database connection successful');
+  } catch (connError) {
+    console.error('Database connection failed:', connError);
+
+    // Try to reconnect
+    try {
+      await prisma.$disconnect();
+      console.log('Attempting to reconnect to database');
+      await prisma.$connect();
+      console.log('Database reconnection successful');
+    } catch (reconnectError) {
+      console.error('Database reconnection failed:', reconnectError);
+      throw new Error('Could not establish database connection');
+    }
+  }
+
   // Initialize the TimeWindowManager first as it's a dependency for other services
   const timeWindowManager = new TimeWindowManager();
 

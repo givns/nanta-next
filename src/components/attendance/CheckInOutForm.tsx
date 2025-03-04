@@ -40,6 +40,29 @@ interface AttendanceSubmitParams {
   overtimeMissed?: boolean;
 }
 
+let lastCacheClear = 0;
+const MIN_CACHE_CLEAR_INTERVAL = 5000; // 5 seconds
+
+const debouncedCacheClear = async (employeeId: string) => {
+  const now = Date.now();
+  if (now - lastCacheClear < MIN_CACHE_CLEAR_INTERVAL) {
+    console.log('Skipping cache clear, too soon after previous clear');
+    return;
+  }
+
+  lastCacheClear = now;
+  try {
+    await fetch('/api/attendance/clear-cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId }),
+    });
+    console.log('Cache cleared successfully');
+  } catch (error) {
+    console.warn('Failed to clear cache:', error);
+  }
+};
+
 export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
   userData,
   onComplete = closeWindow,
@@ -324,6 +347,7 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
       // Important: Skip validation for overtime checkout
       if (isOvertimeCheckout || stateValidation?.allowed) {
         setStep('processing');
+        await debouncedCacheClear(userData.employeeId);
         await handleAttendanceSubmit();
       } else {
         setError(stateValidation?.reason || 'ไม่สามารถลงเวลาได้ในขณะนี้');
@@ -358,6 +382,8 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         status: 'loading',
         message: 'กำลังเริ่มทำงานล่วงเวลา...',
       });
+
+      await debouncedCacheClear(userData.employeeId);
 
       const requestData: CheckInOutData = {
         // Required fields
@@ -746,13 +772,15 @@ export const CheckInOutForm: React.FC<CheckInOutFormProps> = ({
         onClose={() => setIsLateModalOpen(false)}
         onSubmit={async (reason: string) => {
           setIsLateModalOpen(false);
-          setStep('processing'); // Change to processing state first
+          setStep('processing');
           setProcessingState({
             status: 'loading',
             message: 'กำลังบันทึกเวลา...',
           });
 
           try {
+            await debouncedCacheClear(userData.employeeId);
+
             await handleAttendanceSubmit({
               reason,
               isOvertime: false,

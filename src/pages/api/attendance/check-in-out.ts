@@ -291,6 +291,33 @@ export async function processCheckInOut(
     const services = await serviceQueue.getInitializedServices();
     const { attendanceService, notificationService } = services;
 
+    // NEW: Check for incomplete transactions
+    try {
+      // Find any records that might be stuck in an incomplete state
+      const incompleteRecords = await prisma.attendance.findMany({
+        where: {
+          employeeId: task.employeeId,
+          state: 'INCOMPLETE',
+          CheckInTime: { not: null },
+          CheckOutTime: null,
+          // Use metadata.updatedAt instead if it exists, or remove the time constraint
+          metadata: {
+            updatedAt: { lt: new Date(Date.now() - 300000) },
+          },
+        },
+        take: 1,
+      });
+
+      if (incompleteRecords.length > 0) {
+        console.log(
+          `Found potentially stuck record: ${incompleteRecords[0].id} for ${task.employeeId}`,
+        );
+        // We'll proceed normally as the auto-completion logic should handle this
+      }
+    } catch (checkError) {
+      console.warn('Error checking for incomplete records:', checkError);
+    }
+
     // Use pre-calculated status if available and recent
     let currentStatus;
     if (
