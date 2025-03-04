@@ -1,6 +1,7 @@
 // pages/api/attendance/status/[employeeId].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient, PeriodType } from '@prisma/client';
+import { mongoAPI } from '@/lib/mongoDataApi';
 import { z } from 'zod';
 import { getServices } from '@/services/ServiceInitializer';
 import {
@@ -48,16 +49,8 @@ const RequestTracker = {
 };
 
 // Initialize Prisma client - optimized for serverless
-const prisma = new PrismaClient({
-  // MongoDB-specific options
-  log: ['error', 'warn'],
-  // Disable connection pooling for serverless
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
+const prisma = new PrismaClient();
+// MongoDB-specific options
 
 // Configure rate limiting
 const rateLimitMiddleware = createRateLimitMiddleware(60 * 1000, 30); // 30 requests per minute

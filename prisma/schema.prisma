@@ -1,6 +1,7 @@
 datasource db {
   provider = "mongodb"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL") // New property for Accelerate
 }
 
 generator client {
