@@ -11,7 +11,7 @@ export default async function handler(
       'https://data.mongodb-api.com/app/application-0-nvoytkt/endpoint/data/v1';
     const apiKey =
       'ATMBKB8i3ImuvmDZUX6jDi3i0ngTYru8KdkUikoCuVIliuaJ5EU9Y6YRUp1syYhh';
-    const database = 'mongodb';
+    const database = 'myDatabase';
 
     // Test the connection by getting a list of collections
     const response = await fetch(`${apiUrl}/action/find`, {
