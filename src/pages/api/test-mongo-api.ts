@@ -7,8 +7,9 @@ export default async function handler(
 ) {
   try {
     // Your MongoDB Data API credentials
-    const apiUrl =
-      'https://data.mongodb-api.com/app/application-0-nvoytkt/endpoint/data/v1';
+    const apiUrl = 
+    'https://us-east-1.aws.data.mongodb-api.com/app/application-0-nvoytkt/endpoint/data/v1';
+
     const apiKey =
       'ATMBKB8i3ImuvmDZUX6jDi3i0ngTYru8KdkUikoCuVIliuaJ5EU9Y6YRUp1syYhh';
     const database = 'myDatabase';
